@@ -15,16 +15,30 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function AdminLogin() {
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Pre-filled with your admin credentials
   const [credentials, setCredentials] = useState({
     email: 'johnlloydcallao@gmail.com',
     password: '123456'
   });
+
+  // Redirect if already logged in as admin
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === 'admin') {
+        // Already logged in as admin, redirect to admin panel
+        router.replace('/admin');
+      } else {
+        // Logged in but not admin, redirect to home
+        router.replace('/');
+      }
+    }
+  }, [user, authLoading, router]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,17 +47,17 @@ export default function AdminLogin() {
 
     try {
       console.log('🔐 Attempting admin login...');
-      
+
       // Try multiple possible email variations
       const emailsToTry = [
         credentials.email,
         'admin-1748557049871@tap2go.com', // The temporary email created
         'admin@tap2go.com'
       ];
-      
+
       let userCredential = null;
       let usedEmail = '';
-      
+
       for (const email of emailsToTry) {
         try {
           console.log(`Trying email: ${email}`);
@@ -56,18 +70,18 @@ export default function AdminLogin() {
           continue;
         }
       }
-      
+
       if (!userCredential) {
         throw new Error('Unable to login with any known admin credentials');
       }
-      
+
       const user = userCredential.user;
       console.log('👤 User UID:', user.uid);
-      
+
       // Check if user document exists in Firestore
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
-      
+
       if (!userDoc.exists()) {
         console.log('📝 Creating user document...');
         // Create user document with admin role
@@ -81,17 +95,17 @@ export default function AdminLogin() {
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        
+
         await setDoc(userDocRef, userData);
         console.log('✅ Created user document');
       } else {
         console.log('📄 User document exists');
         const userData = userDoc.data();
-        
+
         // Ensure user has admin role
         if (userData.role !== 'admin') {
           console.log('🔄 Updating user role to admin...');
-          await setDoc(userDocRef, { 
+          await setDoc(userDocRef, {
             role: 'admin',
             email: credentials.email,
             name: 'John Lloyd Callao',
@@ -102,11 +116,11 @@ export default function AdminLogin() {
           console.log('✅ Updated user role');
         }
       }
-      
+
       // Check admin document
       const adminDocRef = doc(db, 'admins', user.uid);
       const adminDoc = await getDoc(adminDocRef);
-      
+
       if (!adminDoc.exists()) {
         console.log('👑 Creating admin document...');
         const adminData = {
@@ -128,16 +142,16 @@ export default function AdminLogin() {
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        
+
         await setDoc(adminDocRef, adminData);
         console.log('✅ Created admin document');
       }
-      
-      console.log('🎉 Admin login successful! Redirecting to dashboard...');
-      
+
+      console.log('🎉 Admin login successful! Redirecting to admin panel...');
+
       // Force a page refresh to update auth context
-      window.location.href = '/admin/dashboard';
-      
+      window.location.href = '/admin';
+
     } catch (error: any) {
       console.error('❌ Login error:', error);
       setError(error.message || 'Failed to login as admin');
@@ -145,6 +159,30 @@ export default function AdminLogin() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render login form if user is already authenticated (will redirect)
+  if (user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirecting to admin panel...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">

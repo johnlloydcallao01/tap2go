@@ -87,8 +87,8 @@ export default function Header() {
                   </>
                 )}
                 {user.role === 'admin' && (
-                  <Link href="/admin/dashboard" className="text-gray-700 hover:text-orange-500 transition-colors">
-                    Admin Dashboard
+                  <Link href="/admin" className="text-gray-700 hover:text-orange-500 transition-colors">
+                    Admin Panel
                   </Link>
                 )}
                 <Link href="/cart" className="relative">

@@ -46,11 +46,13 @@ export default function AdminSidebar() {
           <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
         </div>
       </div>
-      
+
       <nav className="mt-8 px-4">
         <ul className="space-y-2">
           {navigation.map((item) => {
-            const isActive = pathname === item.href;
+            // Special handling for Dashboard - active when on /admin or /admin/dashboard
+            const isActive = pathname === item.href ||
+                            (item.href === '/admin/dashboard' && pathname === '/admin');
             return (
               <li key={item.name}>
                 <Link
