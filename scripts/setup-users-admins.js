@@ -2,15 +2,15 @@
 
 /**
  * Setup Users and Admins Collections for Tap2Go
- * 
+ *
  * This script sets up ONLY the users and admins collections
  * as specified - no other data will be added.
- * 
+ *
  * Collections to create:
  * 1. users (top-level) - Universal user authentication and role management
  * 2. admins (top-level) - Platform administrators and staff
  * 3. adminActions (subcollection) - Admin activity logs
- * 
+ *
  * Usage: node scripts/setup-users-admins.js
  */
 
@@ -37,11 +37,11 @@ const auth = getAuth(app);
 async function createInitialAdmin(adminEmail, adminPassword, adminName) {
   try {
     console.log('👤 Creating initial admin user...');
-    
+
     // Create Firebase Auth user
     const { user } = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
     const adminUid = user.uid;
-    
+
     // Create user document in users collection
     const userData = {
       uid: adminUid,
@@ -58,10 +58,10 @@ async function createInitialAdmin(adminEmail, adminPassword, adminName) {
       updatedAt: Timestamp.now(),
       lastLoginAt: null
     };
-    
+
     await setDoc(doc(db, 'users', adminUid), userData);
     console.log(`   ✅ Created user document for admin: ${adminEmail}`);
-    
+
     // Create admin document in admins collection
     const adminData = {
       userRef: `users/${adminUid}`,
@@ -71,7 +71,7 @@ async function createInitialAdmin(adminEmail, adminPassword, adminName) {
       accessLevel: "super_admin",
       permissions: [
         "manage_vendors",
-        "handle_disputes", 
+        "handle_disputes",
         "view_analytics",
         "driver_verification",
         "system_config",
@@ -83,10 +83,10 @@ async function createInitialAdmin(adminEmail, adminPassword, adminName) {
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     };
-    
+
     await setDoc(doc(db, 'admins', adminUid), adminData);
     console.log(`   ✅ Created admin document for: ${adminName}`);
-    
+
     // Create a sample admin action in the subcollection
     const adminActionData = {
       actionId: "auto", // Will be set to document ID
@@ -102,15 +102,15 @@ async function createInitialAdmin(adminEmail, adminPassword, adminName) {
       },
       timestamp: Timestamp.now()
     };
-    
+
     const actionRef = await addDoc(collection(db, 'admins', adminUid, 'adminActions'), adminActionData);
-    
+
     // Update the action document with its own ID
     await setDoc(actionRef, { ...adminActionData, actionId: actionRef.id }, { merge: true });
     console.log(`   ✅ Created initial admin action log`);
-    
+
     return adminUid;
-    
+
   } catch (error) {
     if (error.code === 'auth/email-already-in-use') {
       console.log('   ⚠️  Admin email already exists, skipping user creation');
@@ -124,7 +124,7 @@ async function createInitialAdmin(adminEmail, adminPassword, adminName) {
 // Function to setup collection structure documentation
 async function setupCollectionStructure() {
   console.log('📋 Setting up collection structure documentation...');
-  
+
   // Create a system document to document the collection structure
   const structureDoc = {
     collections: {
@@ -133,7 +133,7 @@ async function setupCollectionStructure() {
         docIdFormat: "User's Auth UID",
         fields: {
           uid: "string",
-          email: "string", 
+          email: "string",
           phoneNumber: "string (optional)",
           role: "admin | vendor | driver | customer",
           profileImageUrl: "string (optional)",
@@ -179,7 +179,7 @@ async function setupCollectionStructure() {
     setupDate: Timestamp.now(),
     version: "1.0.0"
   };
-  
+
   await setDoc(doc(db, '_system', 'collections_structure'), structureDoc);
   console.log('   ✅ Collection structure documented');
 }
@@ -195,22 +195,20 @@ async function setupUsersAndAdmins() {
     const adminNameIndex = args.indexOf('--admin-name');
     const adminPasswordIndex = args.indexOf('--admin-password');
 
-    const adminEmail = adminEmailIndex !== -1 ? args[adminEmailIndex + 1] : null;
-    const adminName = adminNameIndex !== -1 ? args[adminNameIndex + 1] : null;
-    const adminPassword = adminPasswordIndex !== -1 ? args[adminPasswordIndex + 1] : 'TempPassword123!';
+    const adminEmail = adminEmailIndex !== -1 ? args[adminEmailIndex + 1] : 'johnlloydcallao@gmail.com';
+    const adminName = adminNameIndex !== -1 ? args[adminNameIndex + 1] : 'John Lloyd Callao';
+    const adminPassword = adminPasswordIndex !== -1 ? args[adminPasswordIndex + 1] : '123456';
 
     // Setup collection structure documentation
     await setupCollectionStructure();
 
-    // Create initial admin user if requested
+    // Create initial admin user
     let adminCreated = false;
-    if (adminEmail && adminName) {
-      const adminUid = await createInitialAdmin(adminEmail, adminPassword, adminName);
-      if (adminUid) {
-        adminCreated = true;
-        console.log(`   🔑 Admin credentials: ${adminEmail} / ${adminPassword}`);
-        console.log('   ⚠️  Please change the password after first login');
-      }
+    const adminUid = await createInitialAdmin(adminEmail, adminPassword, adminName);
+    if (adminUid) {
+      adminCreated = true;
+      console.log(`   🔑 Admin credentials: ${adminEmail} / ${adminPassword}`);
+      console.log('   ⚠️  Please change the password after first login');
     }
 
     console.log('\n🎉 Users and Admins collections setup completed successfully!');
@@ -219,7 +217,7 @@ async function setupUsersAndAdmins() {
     console.log('- ✅ admins collection structure ready');
     console.log('- ✅ adminActions subcollection structure ready');
     console.log('- ✅ Collection structure documented in _system/collections_structure');
-    
+
     if (adminCreated) {
       console.log(`- ✅ Initial admin user created: ${adminEmail}`);
       console.log('- ✅ Sample admin action logged');
