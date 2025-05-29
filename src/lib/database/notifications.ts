@@ -23,7 +23,7 @@ export const createNotification = async (
   notificationData: Omit<NotificationDocument, 'createdAt'>
 ): Promise<string> => {
   const notificationsRef = collection(db, COLLECTIONS.NOTIFICATIONS);
-  
+
   const notificationDoc: NotificationDocument = {
     ...notificationData,
     createdAt: serverTimestamp() as Timestamp,
@@ -36,9 +36,9 @@ export const createNotification = async (
 export const getNotification = async (notificationId: string): Promise<NotificationDocument | null> => {
   const notificationRef = doc(db, COLLECTIONS.NOTIFICATIONS, notificationId);
   const notificationSnap = await getDoc(notificationRef);
-  
+
   if (notificationSnap.exists()) {
-    return { ...notificationSnap.data(), id: notificationSnap.id } as NotificationDocument;
+    return { ...notificationSnap.data(), id: notificationSnap.id } as unknown as NotificationDocument;
   }
   return null;
 };
@@ -65,7 +65,7 @@ export const markNotificationAsUnread = async (
 ): Promise<void> => {
   await updateNotification(notificationId, {
     isRead: false,
-    readAt: null,
+    readAt: undefined,
   });
 };
 
@@ -91,11 +91,11 @@ export const getNotificationsByUser = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as NotificationDocument[];
+  })) as unknown as NotificationDocument[];
 };
 
 export const getUnreadNotificationsByUser = async (
@@ -111,11 +111,11 @@ export const getUnreadNotificationsByUser = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as NotificationDocument[];
+  })) as unknown as NotificationDocument[];
 };
 
 export const getNotificationsByRole = async (
@@ -130,11 +130,11 @@ export const getNotificationsByRole = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as NotificationDocument[];
+  })) as unknown as NotificationDocument[];
 };
 
 export const getNotificationsByType = async (
@@ -149,11 +149,11 @@ export const getNotificationsByType = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as NotificationDocument[];
+  })) as unknown as NotificationDocument[];
 };
 
 export const getNotificationsByPriority = async (
@@ -168,11 +168,11 @@ export const getNotificationsByPriority = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as NotificationDocument[];
+  })) as unknown as NotificationDocument[];
 };
 
 export const getUrgentNotifications = async (): Promise<NotificationDocument[]> => {
@@ -188,11 +188,11 @@ export const getUnsentNotifications = async (): Promise<NotificationDocument[]> 
     limit(100)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as NotificationDocument[];
+  })) as unknown as NotificationDocument[];
 };
 
 // ===== NOTIFICATION ANALYTICS =====
@@ -205,7 +205,7 @@ export const getUnreadCount = async (userUid: string): Promise<number> => {
 export const getNotificationStats = async (userUid: string) => {
   const allNotifications = await getNotificationsByUser(userUid);
   const unreadNotifications = allNotifications.filter(n => !n.isRead);
-  
+
   const statsByType = allNotifications.reduce((acc, notification) => {
     acc[notification.type] = (acc[notification.type] || 0) + 1;
     return acc;
@@ -229,11 +229,11 @@ export const getNotificationStats = async (userUid: string) => {
 
 export const markAllAsRead = async (userUid: string): Promise<void> => {
   const unreadNotifications = await getUnreadNotificationsByUser(userUid);
-  
-  const updatePromises = unreadNotifications.map(notification => 
+
+  const updatePromises = unreadNotifications.map(notification =>
     markNotificationAsRead(notification.id!)
   );
-  
+
   await Promise.all(updatePromises);
 };
 
@@ -362,9 +362,9 @@ export const getNotificationsByDeliveryMethod = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as NotificationDocument[];
+  })) as unknown as NotificationDocument[];
 };

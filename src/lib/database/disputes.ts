@@ -23,7 +23,7 @@ export const createDispute = async (
   disputeData: Omit<DisputeDocument, 'createdAt' | 'updatedAt'>
 ): Promise<string> => {
   const disputesRef = collection(db, COLLECTIONS.DISPUTES);
-  
+
   const disputeDoc: DisputeDocument = {
     ...disputeData,
     createdAt: serverTimestamp() as Timestamp,
@@ -37,9 +37,9 @@ export const createDispute = async (
 export const getDispute = async (disputeId: string): Promise<DisputeDocument | null> => {
   const disputeRef = doc(db, COLLECTIONS.DISPUTES, disputeId);
   const disputeSnap = await getDoc(disputeRef);
-  
+
   if (disputeSnap.exists()) {
-    return { ...disputeSnap.data(), id: disputeSnap.id } as DisputeDocument;
+    return { ...disputeSnap.data(), id: disputeSnap.id } as unknown as DisputeDocument;
   }
   return null;
 };
@@ -136,11 +136,11 @@ export const getDisputesByCustomer = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 export const getDisputesByOrder = async (
@@ -153,11 +153,11 @@ export const getDisputesByOrder = async (
     orderBy('createdAt', 'desc')
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 export const getDisputesByStatus = async (
@@ -172,11 +172,11 @@ export const getDisputesByStatus = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 export const getDisputesByType = async (
@@ -191,11 +191,11 @@ export const getDisputesByType = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 export const getDisputesByPriority = async (
@@ -210,11 +210,11 @@ export const getDisputesByPriority = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 export const getDisputesByAdmin = async (
@@ -229,11 +229,11 @@ export const getDisputesByAdmin = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 export const getOpenDisputes = async (): Promise<DisputeDocument[]> => {
@@ -254,11 +254,11 @@ export const getUnassignedDisputes = async (): Promise<DisputeDocument[]> => {
     limit(100)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 // ===== DISPUTE ANALYTICS =====
@@ -266,9 +266,9 @@ export const getUnassignedDisputes = async (): Promise<DisputeDocument[]> => {
 export const getDisputeStats = async () => {
   const disputesRef = collection(db, COLLECTIONS.DISPUTES);
   const querySnapshot = await getDocs(disputesRef);
-  
-  const disputes = querySnapshot.docs.map(doc => doc.data()) as DisputeDocument[];
-  
+
+  const disputes = querySnapshot.docs.map(doc => doc.data()) as unknown as DisputeDocument[];
+
   const statsByStatus = disputes.reduce((acc, dispute) => {
     acc[dispute.status] = (acc[dispute.status] || 0) + 1;
     return acc;
@@ -311,11 +311,11 @@ export const getDisputesByRestaurant = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 export const getDisputesByDriver = async (
@@ -330,11 +330,11 @@ export const getDisputesByDriver = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as DisputeDocument[];
+  })) as unknown as DisputeDocument[];
 };
 
 // ===== UTILITY FUNCTIONS =====

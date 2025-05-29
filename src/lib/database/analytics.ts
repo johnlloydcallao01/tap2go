@@ -33,9 +33,9 @@ export const createAnalytics = async (
 export const getAnalytics = async (analyticsId: string): Promise<AnalyticsDocument | null> => {
   const analyticsRef = doc(db, COLLECTIONS.ANALYTICS, analyticsId);
   const analyticsSnap = await getDoc(analyticsRef);
-  
+
   if (analyticsSnap.exists()) {
-    return { ...analyticsSnap.data(), id: analyticsSnap.id } as AnalyticsDocument;
+    return analyticsSnap.data() as AnalyticsDocument;
   }
   return null;
 };
@@ -62,11 +62,8 @@ export const getAnalyticsByPeriod = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
-  return querySnapshot.docs.map(doc => ({
-    ...doc.data(),
-    id: doc.id
-  })) as AnalyticsDocument[];
+
+  return querySnapshot.docs.map(doc => doc.data() as AnalyticsDocument);
 };
 
 export const getDailyAnalytics = async (limitCount = 30): Promise<AnalyticsDocument[]> => {
@@ -132,12 +129,12 @@ export const calculateTotalRevenue = async (
   endDate?: string
 ): Promise<number> => {
   const analytics = await getAnalyticsByPeriod(period, 100);
-  
+
   let filteredAnalytics = analytics;
   if (startDate && endDate) {
     filteredAnalytics = analytics.filter(a => a.date >= startDate && a.date <= endDate);
   }
-  
+
   return filteredAnalytics.reduce((total, a) => total + a.totalRevenue, 0);
 };
 
@@ -147,12 +144,12 @@ export const calculateTotalOrders = async (
   endDate?: string
 ): Promise<number> => {
   const analytics = await getAnalyticsByPeriod(period, 100);
-  
+
   let filteredAnalytics = analytics;
   if (startDate && endDate) {
     filteredAnalytics = analytics.filter(a => a.date >= startDate && a.date <= endDate);
   }
-  
+
   return filteredAnalytics.reduce((total, a) => total + a.totalOrders, 0);
 };
 
@@ -162,14 +159,14 @@ export const getAverageOrderValue = async (
   endDate?: string
 ): Promise<number> => {
   const analytics = await getAnalyticsByPeriod(period, 100);
-  
+
   let filteredAnalytics = analytics;
   if (startDate && endDate) {
     filteredAnalytics = analytics.filter(a => a.date >= startDate && a.date <= endDate);
   }
-  
+
   if (filteredAnalytics.length === 0) return 0;
-  
+
   const avgSum = filteredAnalytics.reduce((total, a) => total + a.avgOrderValue, 0);
   return avgSum / filteredAnalytics.length;
 };
@@ -180,14 +177,14 @@ export const getAverageDeliveryTime = async (
   endDate?: string
 ): Promise<number> => {
   const analytics = await getAnalyticsByPeriod(period, 100);
-  
+
   let filteredAnalytics = analytics;
   if (startDate && endDate) {
     filteredAnalytics = analytics.filter(a => a.date >= startDate && a.date <= endDate);
   }
-  
+
   if (filteredAnalytics.length === 0) return 0;
-  
+
   const avgSum = filteredAnalytics.reduce((total, a) => total + a.avgDeliveryTime, 0);
   return avgSum / filteredAnalytics.length;
 };
@@ -199,9 +196,9 @@ export const getTopPerformingRestaurants = async (
   limit = 10
 ): Promise<{ restaurantId: string; name: string; totalOrders: number; totalRevenue: number; avgRating: number }[]> => {
   const analytics = await getAnalyticsByPeriod(period, 30);
-  
+
   const restaurantPerformance = new Map();
-  
+
   analytics.forEach(analytic => {
     analytic.topPerformingRestaurants.forEach(restaurant => {
       const existing = restaurantPerformance.get(restaurant.restaurantId) || {
@@ -211,15 +208,15 @@ export const getTopPerformingRestaurants = async (
         totalRevenue: 0,
         ratings: []
       };
-      
+
       existing.totalOrders += restaurant.orders;
       existing.totalRevenue += restaurant.revenue;
       existing.ratings.push(restaurant.rating);
-      
+
       restaurantPerformance.set(restaurant.restaurantId, existing);
     });
   });
-  
+
   return Array.from(restaurantPerformance.values())
     .map(restaurant => ({
       ...restaurant,
@@ -234,9 +231,9 @@ export const getTopPerformingDrivers = async (
   limit = 10
 ): Promise<{ driverId: string; name: string; totalDeliveries: number; totalEarnings: number; avgRating: number }[]> => {
   const analytics = await getAnalyticsByPeriod(period, 30);
-  
+
   const driverPerformance = new Map();
-  
+
   analytics.forEach(analytic => {
     analytic.topPerformingDrivers.forEach(driver => {
       const existing = driverPerformance.get(driver.driverId) || {
@@ -246,15 +243,15 @@ export const getTopPerformingDrivers = async (
         totalEarnings: 0,
         ratings: []
       };
-      
+
       existing.totalDeliveries += driver.deliveries;
       existing.totalEarnings += driver.earnings;
       existing.ratings.push(driver.rating);
-      
+
       driverPerformance.set(driver.driverId, existing);
     });
   });
-  
+
   return Array.from(driverPerformance.values())
     .map(driver => ({
       ...driver,
@@ -268,10 +265,10 @@ export const getPopularCuisines = async (
   period: AnalyticsDocument['period']
 ): Promise<{ cuisine: string; totalOrders: number; percentage: number }[]> => {
   const analytics = await getAnalyticsByPeriod(period, 30);
-  
+
   const cuisineStats = new Map();
   let totalOrders = 0;
-  
+
   analytics.forEach(analytic => {
     analytic.popularCuisines.forEach(cuisine => {
       const existing = cuisineStats.get(cuisine.cuisine) || 0;
@@ -279,7 +276,7 @@ export const getPopularCuisines = async (
       totalOrders += cuisine.orders;
     });
   });
-  
+
   return Array.from(cuisineStats.entries())
     .map(([cuisine, orders]) => ({
       cuisine,
@@ -300,9 +297,9 @@ export const getAnalyticsDateRange = async (
   period: AnalyticsDocument['period']
 ): Promise<{ startDate: string; endDate: string } | null> => {
   const analytics = await getAnalyticsByPeriod(period, 100);
-  
+
   if (analytics.length === 0) return null;
-  
+
   const dates = analytics.map(a => a.date).sort();
   return {
     startDate: dates[0],
@@ -315,16 +312,16 @@ export const getGrowthRate = async (
   metric: 'totalOrders' | 'totalRevenue' | 'totalCustomers'
 ): Promise<number> => {
   const analytics = await getAnalyticsByPeriod(period, 2);
-  
+
   if (analytics.length < 2) return 0;
-  
+
   const latest = analytics[0];
   const previous = analytics[1];
-  
+
   const latestValue = latest[metric];
   const previousValue = previous[metric];
-  
+
   if (previousValue === 0) return 0;
-  
+
   return Math.round(((latestValue - previousValue) / previousValue) * 100 * 100) / 100;
 };

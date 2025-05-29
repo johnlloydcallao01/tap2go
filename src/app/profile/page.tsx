@@ -77,7 +77,7 @@ export default function ProfilePage() {
 
   const handleCancel = () => {
     setFormData({
-      name: user.name,
+      name: user.name || '',
       phone: user.phone || '',
       address: {
         street: user.address?.street || '',
@@ -93,7 +93,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       <div className="container-custom py-8">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -157,7 +157,7 @@ export default function ProfilePage() {
 
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-gray-900">Address</h3>
-                  
+
                   <div>
                     <label htmlFor="address.street" className="block text-sm font-medium text-gray-700 mb-1">
                       Street Address

@@ -8,11 +8,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     console.log('🚀 Adding orders to Firestore database...');
-    
+
     await setupOrdersDatabase();
-    
+
     console.log('🎉 Successfully added all orders data to Firestore!');
-    
+
     res.status(200).json({
       success: true,
       message: 'Successfully added orders data to Firestore!',
@@ -21,19 +21,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         statuses: ['delivered', 'picked_up', 'preparing'],
         features: [
           'Order tracking',
-          'Payment processing', 
+          'Payment processing',
           'Driver assignment',
           'Real-time updates',
           'Rating system'
         ]
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error adding orders to Firestore:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     });
   }
 }

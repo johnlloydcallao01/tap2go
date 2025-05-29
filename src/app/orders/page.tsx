@@ -18,6 +18,9 @@ const mockOrders: Order[] = [
     subtotal: 25.98,
     deliveryFee: 2.99,
     tax: 2.08,
+    platformFee: 1.50,
+    vendorEarnings: 22.48,
+    driverEarnings: 4.49,
     total: 31.05,
     deliveryAddress: {
       street: '123 Main St',
@@ -26,13 +29,23 @@ const mockOrders: Order[] = [
       zipCode: '10001',
       country: 'USA'
     },
+    restaurantAddress: {
+      street: '456 Restaurant Ave',
+      city: 'New York',
+      state: 'NY',
+      zipCode: '10002',
+      country: 'USA'
+    },
     paymentMethod: {
       type: 'card',
       cardLast4: '1234',
       cardBrand: 'Visa'
     },
+    paymentStatus: 'paid',
     estimatedDeliveryTime: new Date(Date.now() - 3600000), // 1 hour ago
     actualDeliveryTime: new Date(Date.now() - 3600000),
+    orderNumber: 'ORD-001',
+    trackingUpdates: [],
     createdAt: new Date(Date.now() - 7200000), // 2 hours ago
     updatedAt: new Date(Date.now() - 3600000)
   },
@@ -45,6 +58,9 @@ const mockOrders: Order[] = [
     subtotal: 18.99,
     deliveryFee: 3.49,
     tax: 1.52,
+    platformFee: 1.20,
+    vendorEarnings: 16.79,
+    driverEarnings: 4.69,
     total: 24.00,
     deliveryAddress: {
       street: '123 Main St',
@@ -53,12 +69,22 @@ const mockOrders: Order[] = [
       zipCode: '10001',
       country: 'USA'
     },
+    restaurantAddress: {
+      street: '789 Pizza St',
+      city: 'New York',
+      state: 'NY',
+      zipCode: '10003',
+      country: 'USA'
+    },
     paymentMethod: {
       type: 'card',
       cardLast4: '5678',
       cardBrand: 'Mastercard'
     },
+    paymentStatus: 'paid',
     estimatedDeliveryTime: new Date(Date.now() + 900000), // 15 minutes from now
+    orderNumber: 'ORD-002',
+    trackingUpdates: [],
     createdAt: new Date(Date.now() - 1800000), // 30 minutes ago
     updatedAt: new Date(Date.now() - 300000) // 5 minutes ago
   }
@@ -117,7 +143,7 @@ export default function OrdersPage() {
   useEffect(() => {
     const loadOrders = async () => {
       if (!user) return;
-      
+
       try {
         // In a real app, this would fetch orders from the API
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -151,7 +177,7 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       <div className="container-custom py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Your Orders</h1>
 

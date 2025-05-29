@@ -533,6 +533,7 @@ export interface PlatformConfigDocument {
 
 // ===== 8. NOTIFICATIONS (Top-level) =====
 export interface NotificationDocument {
+  id?: string; // document ID
   recipientRef: string; // path to user document
   recipientRole: 'admin' | 'vendor' | 'driver' | 'customer';
   type: 'order_update' | 'promotional' | 'system' | 'payment' | 'rating_request';

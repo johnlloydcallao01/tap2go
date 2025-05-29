@@ -29,7 +29,7 @@ export const createDriver = async (
   driverData: Omit<DriverDocument, 'createdAt' | 'updatedAt'>
 ): Promise<void> => {
   const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
-  
+
   const driverDoc: DriverDocument = {
     ...driverData,
     createdAt: serverTimestamp() as Timestamp,
@@ -42,9 +42,9 @@ export const createDriver = async (
 export const getDriver = async (uid: string): Promise<DriverDocument | null> => {
   const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
   const driverSnap = await getDoc(driverRef);
-  
+
   if (driverSnap.exists()) {
-    return driverSnap.data() as DriverDocument;
+    return driverSnap.data() as unknown as DriverDocument;
   }
   return null;
 };
@@ -97,11 +97,11 @@ export const getDriversByStatus = async (
   const driversRef = collection(db, COLLECTIONS.DRIVERS);
   const q = query(driversRef, where('status', '==', status));
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     uid: doc.id
-  })) as DriverDocument[];
+  })) as unknown as DriverDocument[];
 };
 
 export const getPendingDrivers = async (): Promise<DriverDocument[]> => {
@@ -121,11 +121,11 @@ export const getAvailableDrivers = async (): Promise<DriverDocument[]> => {
     where('isAvailable', '==', true)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     uid: doc.id
-  })) as DriverDocument[];
+  })) as unknown as DriverDocument[];
 };
 
 export const getTopDriversByRating = async (limitCount = 10): Promise<DriverDocument[]> => {
@@ -137,11 +137,11 @@ export const getTopDriversByRating = async (limitCount = 10): Promise<DriverDocu
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     uid: doc.id
-  })) as DriverDocument[];
+  })) as unknown as DriverDocument[];
 };
 
 export const updateDriverLocation = async (
@@ -182,7 +182,7 @@ export const addDriverEarnings = async (
 ): Promise<void> => {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
   const earningsRef = doc(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_EARNINGS, today);
-  
+
   await setDoc(earningsRef, {
     ...earningsData,
     date: today,
@@ -195,9 +195,9 @@ export const getDriverEarnings = async (
 ): Promise<DriverEarningsDocument | null> => {
   const earningsRef = doc(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_EARNINGS, date);
   const earningsSnap = await getDoc(earningsRef);
-  
+
   if (earningsSnap.exists()) {
-    return earningsSnap.data() as DriverEarningsDocument;
+    return earningsSnap.data() as unknown as DriverEarningsDocument;
   }
   return null;
 };
@@ -209,8 +209,8 @@ export const getDriverEarningsHistory = async (
   const earningsRef = collection(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_EARNINGS);
   const q = query(earningsRef, orderBy('date', 'desc'), limit(limitCount));
   const querySnapshot = await getDocs(q);
-  
-  return querySnapshot.docs.map(doc => doc.data() as DriverEarningsDocument);
+
+  return querySnapshot.docs.map(doc => doc.data() as unknown as DriverEarningsDocument);
 };
 
 // ===== DRIVER REVIEWS OPERATIONS =====
@@ -220,7 +220,7 @@ export const addDriverReview = async (
   reviewData: Omit<DriverReviewDocument, 'reviewId' | 'createdAt'>
 ): Promise<string> => {
   const reviewsRef = collection(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_REVIEWS);
-  
+
   const reviewDoc = await addDoc(reviewsRef, {
     ...reviewData,
     reviewId: '', // Will be set to doc.id after creation
@@ -229,7 +229,7 @@ export const addDriverReview = async (
 
   // Update the reviewId with the actual document ID
   await updateDoc(reviewDoc, { reviewId: reviewDoc.id });
-  
+
   return reviewDoc.id;
 };
 
@@ -240,8 +240,8 @@ export const getDriverReviews = async (
   const reviewsRef = collection(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_REVIEWS);
   const q = query(reviewsRef, orderBy('createdAt', 'desc'), limit(limitCount));
   const querySnapshot = await getDocs(q);
-  
-  return querySnapshot.docs.map(doc => doc.data() as DriverReviewDocument);
+
+  return querySnapshot.docs.map(doc => doc.data() as unknown as DriverReviewDocument);
 };
 
 // ===== DRIVER DELIVERY HISTORY OPERATIONS =====
@@ -251,7 +251,7 @@ export const addDriverDelivery = async (
   deliveryData: Omit<DriverDeliveryHistoryDocument, 'deliveryId'>
 ): Promise<string> => {
   const deliveryRef = collection(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_DELIVERY_HISTORY);
-  
+
   const deliveryDoc = await addDoc(deliveryRef, {
     ...deliveryData,
     deliveryId: '', // Will be set to doc.id after creation
@@ -259,7 +259,7 @@ export const addDriverDelivery = async (
 
   // Update the deliveryId with the actual document ID
   await updateDoc(deliveryDoc, { deliveryId: deliveryDoc.id });
-  
+
   return deliveryDoc.id;
 };
 
@@ -270,8 +270,8 @@ export const getDriverDeliveryHistory = async (
   const deliveryRef = collection(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_DELIVERY_HISTORY);
   const q = query(deliveryRef, orderBy('deliveredAt', 'desc'), limit(limitCount));
   const querySnapshot = await getDocs(q);
-  
-  return querySnapshot.docs.map(doc => doc.data() as DriverDeliveryHistoryDocument);
+
+  return querySnapshot.docs.map(doc => doc.data() as unknown as DriverDeliveryHistoryDocument);
 };
 
 export const updateDeliveryStatus = async (
@@ -281,12 +281,12 @@ export const updateDeliveryStatus = async (
   deliveredAt?: Timestamp
 ): Promise<void> => {
   const deliveryRef = doc(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_DELIVERY_HISTORY, deliveryId);
-  
+
   const updates: any = { status };
   if (deliveredAt) {
     updates.deliveredAt = deliveredAt;
   }
-  
+
   await updateDoc(deliveryRef, updates);
 };
 

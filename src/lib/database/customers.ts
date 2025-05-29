@@ -45,7 +45,7 @@ export const getCustomer = async (uid: string): Promise<CustomerDocument | null>
   const customerSnap = await getDoc(customerRef);
 
   if (customerSnap.exists()) {
-    return customerSnap.data() as CustomerDocument;
+    return customerSnap.data() as unknown as CustomerDocument;
   }
   return null;
 };
@@ -89,7 +89,7 @@ export const getCustomerAddresses = async (customerUid: string): Promise<Custome
   const q = query(addressesRef, where('isActive', '==', true), orderBy('isDefault', 'desc'));
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data() as CustomerAddressDocument);
+  return snapshot.docs.map(doc => doc.data() as unknown as CustomerAddressDocument);
 };
 
 export const updateCustomerAddress = async (
@@ -136,7 +136,7 @@ export const getCustomerPaymentMethods = async (customerUid: string): Promise<Cu
   const q = query(paymentMethodsRef, where('isActive', '==', true), orderBy('isDefault', 'desc'));
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data() as CustomerPaymentMethodDocument);
+  return snapshot.docs.map(doc => doc.data() as unknown as CustomerPaymentMethodDocument);
 };
 
 // ===== CUSTOMER FAVORITES OPERATIONS =====
@@ -165,7 +165,7 @@ export const getCustomerFavorites = async (customerUid: string): Promise<Custome
   const q = query(favoritesRef, orderBy('createdAt', 'desc'));
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data() as CustomerFavoritesDocument);
+  return snapshot.docs.map(doc => doc.data() as unknown as CustomerFavoritesDocument);
 };
 
 export const removeCustomerFavorite = async (customerUid: string, favoriteId: string): Promise<void> => {
@@ -199,7 +199,7 @@ export const getCustomerCart = async (customerUid: string): Promise<CustomerCart
   const q = query(cartRef, orderBy('addedAt', 'desc'));
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data() as CustomerCartDocument);
+  return snapshot.docs.map(doc => doc.data() as unknown as CustomerCartDocument);
 };
 
 export const updateCartItem = async (

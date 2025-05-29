@@ -48,6 +48,11 @@ const mockRestaurant: Restaurant = {
     sunday: { open: '12:00', close: '21:00', isClosed: false }
   },
   featured: true,
+  status: 'active',
+  commissionRate: 15.0,
+  totalOrders: 1250,
+  totalRevenue: 45000.00,
+  averagePreparationTime: 20,
   createdAt: new Date(),
   updatedAt: new Date()
 };
@@ -134,7 +139,7 @@ export default function RestaurantPage() {
     };
 
     loadRestaurantData();
-  }, [params.id]);
+  }, [params?.id]);
 
   if (loading) {
     return (

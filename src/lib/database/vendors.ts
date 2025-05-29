@@ -1,9 +1,9 @@
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  updateDoc, 
-  collection, 
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
   addDoc,
   query,
   where,
@@ -15,11 +15,11 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
-import { 
-  VendorDocument, 
-  VendorDocumentDocument, 
+import {
+  VendorDocument,
+  VendorDocumentDocument,
   VendorAnalyticsDocument,
-  VendorPayoutDocument 
+  VendorPayoutDocument
 } from './schema';
 
 // ===== VENDOR OPERATIONS =====
@@ -29,7 +29,7 @@ export const createVendor = async (
   vendorData: Omit<VendorDocument, 'createdAt' | 'updatedAt'>
 ): Promise<void> => {
   const vendorRef = doc(db, COLLECTIONS.VENDORS, uid);
-  
+
   const vendorDoc: VendorDocument = {
     ...vendorData,
     createdAt: serverTimestamp() as Timestamp,
@@ -42,11 +42,11 @@ export const createVendor = async (
 export const getVendor = async (uid: string): Promise<VendorDocument | null> => {
   const vendorRef = doc(db, COLLECTIONS.VENDORS, uid);
   const vendorSnap = await getDoc(vendorRef);
-  
+
   if (vendorSnap.exists()) {
-    return vendorSnap.data() as VendorDocument;
+    return vendorSnap.data() as unknown as VendorDocument;
   }
-  
+
   return null;
 };
 
@@ -55,7 +55,7 @@ export const updateVendor = async (
   updates: Partial<Omit<VendorDocument, 'createdAt'>>
 ): Promise<void> => {
   const vendorRef = doc(db, COLLECTIONS.VENDORS, uid);
-  
+
   await updateDoc(vendorRef, {
     ...updates,
     updatedAt: serverTimestamp(),
@@ -99,11 +99,11 @@ export const getVendorsByStatus = async (
   const vendorsRef = collection(db, COLLECTIONS.VENDORS);
   const q = query(vendorsRef, where('status', '==', status));
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     uid: doc.id
-  })) as VendorDocument[];
+  })) as unknown as VendorDocument[];
 };
 
 export const getPendingVendors = async (): Promise<VendorDocument[]> => {
@@ -117,33 +117,33 @@ export const getActiveVendors = async (): Promise<VendorDocument[]> => {
 export const getTopVendorsByRating = async (limitCount = 10): Promise<VendorDocument[]> => {
   const vendorsRef = collection(db, COLLECTIONS.VENDORS);
   const q = query(
-    vendorsRef, 
+    vendorsRef,
     where('status', '==', 'active'),
     orderBy('averageRating', 'desc'),
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     uid: doc.id
-  })) as VendorDocument[];
+  })) as unknown as VendorDocument[];
 };
 
 export const getTopVendorsByOrders = async (limitCount = 10): Promise<VendorDocument[]> => {
   const vendorsRef = collection(db, COLLECTIONS.VENDORS);
   const q = query(
-    vendorsRef, 
+    vendorsRef,
     where('status', '==', 'active'),
     orderBy('totalOrders', 'desc'),
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     uid: doc.id
-  })) as VendorDocument[];
+  })) as unknown as VendorDocument[];
 };
 
 // ===== VENDOR DOCUMENTS OPERATIONS =====
@@ -153,17 +153,17 @@ export const uploadVendorDocument = async (
   documentData: Omit<VendorDocumentDocument, 'documentId' | 'uploadedAt'>
 ): Promise<string> => {
   const documentsRef = collection(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_DOCUMENTS);
-  
+
   const documentDoc: Omit<VendorDocumentDocument, 'documentId'> = {
     ...documentData,
     uploadedAt: serverTimestamp() as Timestamp,
   };
 
   const docRef = await addDoc(documentsRef, documentDoc);
-  
+
   // Update the document with its own ID
   await updateDoc(docRef, { documentId: docRef.id });
-  
+
   return docRef.id;
 };
 
@@ -172,14 +172,14 @@ export const getVendorDocuments = async (
   documentType?: VendorDocumentDocument['documentType']
 ): Promise<VendorDocumentDocument[]> => {
   const documentsRef = collection(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_DOCUMENTS);
-  
+
   let q = query(documentsRef);
   if (documentType) {
     q = query(documentsRef, where('documentType', '==', documentType));
   }
-  
+
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => doc.data() as VendorDocumentDocument);
+  return querySnapshot.docs.map(doc => doc.data() as unknown as VendorDocumentDocument);
 };
 
 export const approveVendorDocument = async (
@@ -188,7 +188,7 @@ export const approveVendorDocument = async (
   reviewedBy: string
 ): Promise<void> => {
   const documentRef = doc(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_DOCUMENTS, documentId);
-  
+
   await updateDoc(documentRef, {
     status: 'approved',
     reviewedBy,
@@ -203,7 +203,7 @@ export const rejectVendorDocument = async (
   rejectionReason: string
 ): Promise<void> => {
   const documentRef = doc(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_DOCUMENTS, documentId);
-  
+
   await updateDoc(documentRef, {
     status: 'rejected',
     reviewedBy,
@@ -219,7 +219,7 @@ export const createVendorAnalytics = async (
   analyticsData: Omit<VendorAnalyticsDocument, 'createdAt'>
 ): Promise<string> => {
   const analyticsRef = collection(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_ANALYTICS);
-  
+
   const analyticsDoc: VendorAnalyticsDocument = {
     ...analyticsData,
     createdAt: serverTimestamp() as Timestamp,
@@ -236,17 +236,17 @@ export const getVendorAnalytics = async (
   endDate?: string
 ): Promise<VendorAnalyticsDocument[]> => {
   const analyticsRef = collection(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_ANALYTICS);
-  
+
   let q = query(analyticsRef, where('period', '==', period));
-  
+
   if (startDate && endDate) {
     q = query(q, where('date', '>=', startDate), where('date', '<=', endDate));
   }
-  
+
   q = query(q, orderBy('date', 'desc'));
-  
+
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => doc.data() as VendorAnalyticsDocument);
+  return querySnapshot.docs.map(doc => doc.data() as unknown as VendorAnalyticsDocument);
 };
 
 export const getLatestVendorAnalytics = async (
@@ -254,21 +254,21 @@ export const getLatestVendorAnalytics = async (
   period: VendorAnalyticsDocument['period']
 ): Promise<VendorAnalyticsDocument | null> => {
   const analyticsRef = collection(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_ANALYTICS);
-  
+
   const q = query(
-    analyticsRef, 
+    analyticsRef,
     where('period', '==', period),
     orderBy('date', 'desc'),
     limit(1)
   );
-  
+
   const querySnapshot = await getDocs(q);
-  
+
   if (querySnapshot.empty) {
     return null;
   }
-  
-  return querySnapshot.docs[0].data() as VendorAnalyticsDocument;
+
+  return querySnapshot.docs[0].data() as unknown as VendorAnalyticsDocument;
 };
 
 // ===== VENDOR PAYOUTS OPERATIONS =====
@@ -278,17 +278,17 @@ export const createVendorPayout = async (
   payoutData: Omit<VendorPayoutDocument, 'payoutId' | 'createdAt'>
 ): Promise<string> => {
   const payoutsRef = collection(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_PAYOUTS);
-  
+
   const payoutDoc: Omit<VendorPayoutDocument, 'payoutId'> = {
     ...payoutData,
     createdAt: serverTimestamp() as Timestamp,
   };
 
   const docRef = await addDoc(payoutsRef, payoutDoc);
-  
+
   // Update the document with its own ID
   await updateDoc(docRef, { payoutId: docRef.id });
-  
+
   return docRef.id;
 };
 
@@ -297,14 +297,14 @@ export const getVendorPayouts = async (
   status?: VendorPayoutDocument['status']
 ): Promise<VendorPayoutDocument[]> => {
   const payoutsRef = collection(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_PAYOUTS);
-  
+
   let q = query(payoutsRef, orderBy('createdAt', 'desc'));
   if (status) {
     q = query(payoutsRef, where('status', '==', status), orderBy('createdAt', 'desc'));
   }
-  
+
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => doc.data() as VendorPayoutDocument);
+  return querySnapshot.docs.map(doc => doc.data() as unknown as VendorPayoutDocument);
 };
 
 export const updatePayoutStatus = async (
@@ -314,17 +314,17 @@ export const updatePayoutStatus = async (
   transactionId?: string
 ): Promise<void> => {
   const payoutRef = doc(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_PAYOUTS, payoutId);
-  
+
   const updates: any = { status };
-  
+
   if (transactionId) {
     updates.transactionId = transactionId;
   }
-  
+
   if (status === 'completed') {
     updates.processedAt = serverTimestamp();
   }
-  
+
   await updateDoc(payoutRef, updates);
 };
 
@@ -337,21 +337,21 @@ export const updateVendorStats = async (
 ): Promise<void> => {
   const vendor = await getVendor(vendorUid);
   if (!vendor) throw new Error('Vendor not found');
-  
+
   const updates: Partial<VendorDocument> = {
     totalOrders: vendor.totalOrders + 1,
     totalEarnings: vendor.totalEarnings + orderValue,
   };
-  
+
   if (rating) {
     const newTotalReviews = vendor.totalReviews + 1;
-    const newAverageRating = 
+    const newAverageRating =
       (vendor.averageRating * vendor.totalReviews + rating) / newTotalReviews;
-    
+
     updates.averageRating = newAverageRating;
     updates.totalReviews = newTotalReviews;
   }
-  
+
   await updateVendor(vendorUid, updates);
 };
 

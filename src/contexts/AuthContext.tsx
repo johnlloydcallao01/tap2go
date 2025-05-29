@@ -41,10 +41,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setUser({
               id: firebaseUser.uid,
               email: firebaseUser.email!,
-              name: userData.name || '',
               role: userData.role,
               phone: userData.phoneNumber,
-              address: userData.address,
+              isActive: userData.isActive,
+              isVerified: userData.isVerified,
               createdAt: userData.createdAt?.toDate(),
               updatedAt: userData.updatedAt?.toDate(),
             });
@@ -89,7 +89,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         role,
         isActive: true,
         isVerified: false,
-        name,
       });
     } catch (error) {
       setLoading(false);
@@ -107,9 +106,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       // Update Firestore document using new database functions
       await updateUser(user.id, {
-        name: data.name,
         phoneNumber: data.phone,
-        address: data.address,
         profileImageUrl: data.profileImage,
       });
 

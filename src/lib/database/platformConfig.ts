@@ -2,8 +2,7 @@ import {
   doc,
   getDoc,
   updateDoc,
-  serverTimestamp,
-  Timestamp
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
@@ -14,9 +13,9 @@ import { PlatformConfigDocument } from './schema';
 export const getPlatformConfig = async (): Promise<PlatformConfigDocument | null> => {
   const configRef = doc(db, COLLECTIONS.PLATFORM_CONFIG, 'config');
   const configSnap = await getDoc(configRef);
-  
+
   if (configSnap.exists()) {
-    return configSnap.data() as PlatformConfigDocument;
+    return configSnap.data() as unknown as PlatformConfigDocument;
   }
   return null;
 };
@@ -138,8 +137,7 @@ export const isPlatformOpen = async (day?: string, time?: string): Promise<boole
   const hours = await getOperatingHours();
   if (!hours) return false;
 
-  const currentDay = day || new Date().toLocaleLowerCase().substring(0, 3) + 
-    new Date().toLocaleLowerCase().substring(3);
+  const currentDay = day || new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   const currentTime = time || new Date().toTimeString().substring(0, 5);
 
   const dayHours = hours[currentDay as keyof typeof hours];
@@ -221,7 +219,7 @@ export const setMaintenanceMode = async (
 ): Promise<void> => {
   await updateMobileAppConfig({
     maintenanceMode: enabled,
-    maintenanceMessage: message
+    maintenanceMessage: message || undefined
   }, updatedBy);
 };
 

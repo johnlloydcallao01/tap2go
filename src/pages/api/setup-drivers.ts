@@ -252,20 +252,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     console.log('🚀 Adding drivers to Firestore database...');
-    
+
     const results = [];
-    
+
     // Add users and drivers
     for (const driver of driversData) {
       // Add user document
       await setDoc(doc(db, 'users', driver.uid), driver.userData);
       results.push(`Added user: ${driver.userData.email}`);
-      
+
       // Add driver document
       await setDoc(doc(db, 'drivers', driver.uid), driver.driverData);
       results.push(`Added driver: ${driver.driverData.firstName} ${driver.driverData.lastName}`);
     }
-    
+
     // Add earnings data
     for (const earning of earningsData) {
       await setDoc(
@@ -274,9 +274,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
       results.push(`Added earnings for ${earning.driverUid} on ${earning.date}`);
     }
-    
+
     console.log('🎉 Successfully added all driver data to Firestore!');
-    
+
     res.status(200).json({
       success: true,
       message: 'Successfully added all driver data to Firestore!',
@@ -287,12 +287,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         earnings: 2
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error adding drivers to Firestore:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     });
   }
 }

@@ -46,22 +46,50 @@ export default function TestVendorPage() {
       await createVendor(user.uid, {
         userRef: `users/${user.uid}`,
         businessName: formData.businessName,
-        businessType: formData.businessType as "restaurant" | "grocery" | "pharmacy" | "convenience",
-        contactPerson: formData.contactPerson,
-        contactPhone: formData.contactPhone,
-        businessEmail: formData.businessEmail,
-        businessRegistrationNumber: formData.businessRegistrationNumber,
+        businessType: formData.businessType as "restaurant" | "cafe" | "bakery" | "food_truck" | "catering" | "grocery" | "other",
+        businessLicense: formData.businessRegistrationNumber,
         taxId: formData.taxId,
-        status: 'pending_approval',
-        verificationStatus: 'pending',
-        verificationDocuments: {
-          businessLicense: 'https://storage.example.com/docs/business_license.pdf',
-          taxCertificate: 'https://storage.example.com/docs/tax_cert.pdf',
-          ownerIdCard: 'https://storage.example.com/docs/owner_id.pdf',
-          bankStatement: 'https://storage.example.com/docs/bank_statement.pdf'
-        },
+        status: 'pending',
         commissionRate: 15.0,
-        payoutDetailsRef: `payouts/${user.uid}`,
+        totalEarnings: 0,
+        totalOrders: 0,
+        averageRating: 0,
+        totalReviews: 0,
+        bankAccount: {
+          accountNumber: '1234567890',
+          routingNumber: '123456789',
+          accountHolderName: formData.contactPerson,
+          bankName: 'Test Bank'
+        },
+        businessAddress: {
+          street: '123 Test Street',
+          city: 'Test City',
+          state: 'Test State',
+          zipCode: '12345',
+          country: 'Test Country'
+        },
+        contactInfo: {
+          businessPhone: formData.contactPhone,
+          businessEmail: formData.businessEmail,
+          contactPersonName: formData.contactPerson,
+          contactPersonPhone: formData.contactPhone
+        },
+        operatingHours: {
+          monday: { open: '09:00', close: '22:00', isClosed: false },
+          tuesday: { open: '09:00', close: '22:00', isClosed: false },
+          wednesday: { open: '09:00', close: '22:00', isClosed: false },
+          thursday: { open: '09:00', close: '22:00', isClosed: false },
+          friday: { open: '09:00', close: '22:00', isClosed: false },
+          saturday: { open: '09:00', close: '22:00', isClosed: false },
+          sunday: { open: '09:00', close: '22:00', isClosed: false }
+        },
+        deliverySettings: {
+          deliveryRadius: 10,
+          minimumOrderValue: 15,
+          deliveryFee: 3.99,
+          estimatedDeliveryTime: '30-45 min',
+          acceptsScheduledOrders: true
+        }
       });
 
       setResult({
@@ -69,11 +97,11 @@ export default function TestVendorPage() {
         vendorUid: user.uid,
         email: formData.email,
         businessName: formData.businessName,
-        status: 'pending_approval'
+        status: 'pending'
       });
 
       console.log('Vendor registration successful!', { uid: user.uid });
-      
+
     } catch (error: any) {
       setError(error.message);
       console.error('Vendor registration failed:', error);
@@ -94,7 +122,7 @@ export default function TestVendorPage() {
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-md p-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">Test Vendor Registration</h1>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -108,7 +136,7 @@ export default function TestVendorPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password
@@ -146,9 +174,12 @@ export default function TestVendorPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 <option value="restaurant">Restaurant</option>
+                <option value="cafe">Cafe</option>
+                <option value="bakery">Bakery</option>
+                <option value="food_truck">Food Truck</option>
+                <option value="catering">Catering</option>
                 <option value="grocery">Grocery</option>
-                <option value="pharmacy">Pharmacy</option>
-                <option value="convenience">Convenience</option>
+                <option value="other">Other</option>
               </select>
             </div>
 
@@ -235,7 +266,7 @@ export default function TestVendorPage() {
           {result && (
             <div className="mt-6 space-y-4">
               <h2 className="text-lg font-semibold text-green-700">✅ Vendor Registration Successful!</h2>
-              
+
               <div className="bg-green-50 border border-green-200 rounded-md p-4">
                 <h3 className="font-medium text-green-800 mb-2">Registration Details:</h3>
                 <div className="text-sm text-green-700 space-y-1">
@@ -280,7 +311,7 @@ export default function TestVendorPage() {
               <li>• Creates user account with role "vendor"</li>
               <li>• Creates vendor business profile</li>
               <li>• Sets up all vendor subcollections</li>
-              <li>• Status starts as "pending_approval"</li>
+              <li>• Status starts as "pending"</li>
               <li>• Ready for admin approval workflow</li>
             </ul>
           </div>

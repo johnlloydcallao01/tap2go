@@ -14,12 +14,16 @@ export const COLLECTIONS = {
   NOTIFICATIONS: 'notifications',
   DISPUTES: 'disputes',
   ANALYTICS: 'analytics',
+  CATEGORIES: 'categories',
+  SYSTEM_CONFIG: 'systemConfig',
   SYSTEM: '_system',
 
   // Subcollections (only implemented ones)
   ADMIN_ACTIONS: 'adminActions',
 
   // Vendor subcollections
+  VENDOR_DOCUMENTS: 'documents',
+  VENDOR_PAYOUTS: 'payouts',
   MODIFIER_GROUPS: 'modifierGroups',
   MASTER_MENU_ITEMS: 'masterMenuItems',
   MASTER_MENU_ASSIGNMENTS: 'masterMenuAssignments',

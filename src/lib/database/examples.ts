@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { doc, setDoc, onSnapshot, collection, query, where, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   createUser,
@@ -18,6 +18,7 @@ import {
 import {
   createVendor,
   getVendor,
+  updateVendor,
   approveVendor,
   getPendingVendors,
   uploadVendorDocument
@@ -175,7 +176,7 @@ export const completeVendorOnboarding = async (
   uid: string,
   businessData: {
     businessName: string;
-    businessType: string;
+    businessType: 'restaurant' | 'cafe' | 'bakery' | 'food_truck' | 'catering' | 'grocery' | 'other';
     businessLicense: string;
     taxId: string;
     businessAddress: any;
@@ -259,9 +260,9 @@ export const uploadBusinessDocument = async (
 
 // Example: Custom hook for user data
 export const useUserData = (uid: string) => {
-  const [user, setUser] = React.useState(null);
+  const [user, setUser] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchUser = async () => {
@@ -269,7 +270,7 @@ export const useUserData = (uid: string) => {
         const userData = await getUser(uid);
         setUser(userData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -285,9 +286,9 @@ export const useUserData = (uid: string) => {
 
 // Example: Custom hook for vendor data
 export const useVendorData = (uid: string) => {
-  const [vendor, setVendor] = React.useState(null);
+  const [vendor, setVendor] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchVendor = async () => {
@@ -295,7 +296,7 @@ export const useVendorData = (uid: string) => {
         const vendorData = await getVendor(uid);
         setVendor(vendorData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -322,7 +323,7 @@ export const apiUpdateProfile = async (req: any, res: any) => {
     res.status(200).json({ success: true, message: 'Profile updated successfully' });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -337,7 +338,7 @@ export const apiApproveVendor = async (req: any, res: any) => {
     res.status(200).json({ success: true, message: 'Vendor approved successfully' });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -360,7 +361,7 @@ export const createMultipleCategories = async (categories: any[]) => {
 
 // Example: Batch update vendor statuses
 export const batchUpdateVendorStatuses = async (
-  vendorUpdates: { uid: string; status: string }[]
+  vendorUpdates: { uid: string; status: 'pending' | 'approved' | 'rejected' | 'active' | 'suspended' }[]
 ) => {
   try {
     const promises = vendorUpdates.map(({ uid, status }) =>
@@ -533,9 +534,9 @@ export const exampleAddDriverReview = async () => {
 
 // Example: Custom hook for driver data
 export const useDriverData = (uid: string) => {
-  const [driver, setDriver] = React.useState(null);
+  const [driver, setDriver] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchDriver = async () => {
@@ -543,7 +544,7 @@ export const useDriverData = (uid: string) => {
         const driverData = await getDriver(uid);
         setDriver(driverData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -559,9 +560,9 @@ export const useDriverData = (uid: string) => {
 
 // Example: Custom hook for driver stats
 export const useDriverStats = (uid: string) => {
-  const [stats, setStats] = React.useState(null);
+  const [stats, setStats] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchStats = async () => {
@@ -569,7 +570,7 @@ export const useDriverStats = (uid: string) => {
         const statsData = await getDriverStats(uid);
         setStats(statsData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -594,7 +595,7 @@ export const apiApproveDriver = async (req: any, res: any) => {
     res.status(200).json({ success: true, message: 'Driver approved successfully' });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -606,7 +607,7 @@ export const apiGetAvailableDrivers = async (req: any, res: any) => {
     res.status(200).json({ success: true, data: drivers });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -791,9 +792,9 @@ export const exampleCalculateTotal = () => {
 
 // Example: Custom hook for order data
 export const useOrderData = (orderId: string) => {
-  const [order, setOrder] = React.useState(null);
+  const [order, setOrder] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchOrder = async () => {
@@ -801,7 +802,7 @@ export const useOrderData = (orderId: string) => {
         const orderData = await getOrder(orderId);
         setOrder(orderData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -817,9 +818,9 @@ export const useOrderData = (orderId: string) => {
 
 // Example: Custom hook for customer orders
 export const useCustomerOrders = (customerUid: string) => {
-  const [orders, setOrders] = React.useState([]);
+  const [orders, setOrders] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchOrders = async () => {
@@ -827,7 +828,7 @@ export const useCustomerOrders = (customerUid: string) => {
         const orderData = await getOrdersByCustomer(customerUid);
         setOrders(orderData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -861,7 +862,7 @@ export const apiCreateOrder = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -883,7 +884,7 @@ export const apiUpdateOrderStatus = async (req: any, res: any) => {
     res.status(200).json({ success: true, message: 'Order status updated successfully' });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1024,9 +1025,9 @@ export const exampleGetMinimumOrder = async () => {
 
 // Example: Custom hook for platform config
 export const usePlatformConfig = () => {
-  const [config, setConfig] = React.useState(null);
+  const [config, setConfig] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchConfig = async () => {
@@ -1034,7 +1035,7 @@ export const usePlatformConfig = () => {
         const configData = await getPlatformConfig();
         setConfig(configData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -1066,7 +1067,7 @@ export const apiUpdatePlatformConfig = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1085,7 +1086,7 @@ export const apiGetPlatformConfig = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1230,10 +1231,10 @@ export const exampleGetUnreadCount = async (userUid: string) => {
 
 // Example: Custom hook for user notifications
 export const useUserNotifications = (userUid: string) => {
-  const [notifications, setNotifications] = React.useState([]);
+  const [notifications, setNotifications] = React.useState<any[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchNotifications = async () => {
@@ -1246,7 +1247,7 @@ export const useUserNotifications = (userUid: string) => {
         setNotifications(notificationData);
         setUnreadCount(unreadCountData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -1262,9 +1263,9 @@ export const useUserNotifications = (userUid: string) => {
 
 // Example: Custom hook for unread notifications
 export const useUnreadNotifications = (userUid: string) => {
-  const [unreadNotifications, setUnreadNotifications] = React.useState([]);
+  const [unreadNotifications, setUnreadNotifications] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchUnreadNotifications = async () => {
@@ -1272,7 +1273,7 @@ export const useUnreadNotifications = (userUid: string) => {
         const unreadData = await getUnreadNotificationsByUser(userUid);
         setUnreadNotifications(unreadData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -1301,7 +1302,7 @@ export const apiCreateNotification = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1320,7 +1321,7 @@ export const apiGetUserNotifications = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1337,7 +1338,7 @@ export const apiMarkNotificationAsRead = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1478,9 +1479,9 @@ export const exampleCloseDispute = async (disputeId: string, satisfied: boolean)
 
 // Example: Custom hook for customer disputes
 export const useCustomerDisputes = (customerUid: string) => {
-  const [disputes, setDisputes] = React.useState([]);
+  const [disputes, setDisputes] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchDisputes = async () => {
@@ -1488,7 +1489,7 @@ export const useCustomerDisputes = (customerUid: string) => {
         const disputeData = await getDisputesByCustomer(customerUid);
         setDisputes(disputeData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -1504,11 +1505,11 @@ export const useCustomerDisputes = (customerUid: string) => {
 
 // Example: Custom hook for admin dispute management
 export const useAdminDisputes = () => {
-  const [openDisputes, setOpenDisputes] = React.useState([]);
-  const [urgentDisputes, setUrgentDisputes] = React.useState([]);
-  const [stats, setStats] = React.useState(null);
+  const [openDisputes, setOpenDisputes] = React.useState<any[]>([]);
+  const [urgentDisputes, setUrgentDisputes] = React.useState<any[]>([]);
+  const [stats, setStats] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchDisputeData = async () => {
@@ -1523,7 +1524,7 @@ export const useAdminDisputes = () => {
         setUrgentDisputes(urgentData);
         setStats(statsData);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }
@@ -1553,7 +1554,7 @@ export const apiCreateDispute = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1577,7 +1578,7 @@ export const apiAssignDispute = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1605,7 +1606,7 @@ export const apiResolveDispute = async (req: any, res: any) => {
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -1719,12 +1720,12 @@ export const exampleGetGrowthRate = async () => {
 
 // Example: Custom hook for analytics dashboard
 export const useAnalyticsDashboard = () => {
-  const [dailyAnalytics, setDailyAnalytics] = React.useState([]);
-  const [monthlyAnalytics, setMonthlyAnalytics] = React.useState([]);
-  const [topRestaurants, setTopRestaurants] = React.useState([]);
-  const [topDrivers, setTopDrivers] = React.useState([]);
+  const [dailyAnalytics, setDailyAnalytics] = React.useState<any[]>([]);
+  const [monthlyAnalytics, setMonthlyAnalytics] = React.useState<any[]>([]);
+  const [topRestaurants, setTopRestaurants] = React.useState<any[]>([]);
+  const [topDrivers, setTopDrivers] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchAnalyticsData = async () => {
@@ -1741,7 +1742,7 @@ export const useAnalyticsDashboard = () => {
         setTopRestaurants(restaurants);
         setTopDrivers(drivers);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setLoading(false);
       }

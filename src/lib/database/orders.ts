@@ -23,7 +23,7 @@ export const createOrder = async (
   orderData: Omit<OrderDocument, 'createdAt' | 'updatedAt'>
 ): Promise<string> => {
   const ordersRef = collection(db, COLLECTIONS.ORDERS);
-  
+
   const orderDoc: OrderDocument = {
     ...orderData,
     createdAt: serverTimestamp() as Timestamp,
@@ -37,9 +37,9 @@ export const createOrder = async (
 export const getOrder = async (orderId: string): Promise<OrderDocument | null> => {
   const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
   const orderSnap = await getDoc(orderRef);
-  
+
   if (orderSnap.exists()) {
-    return { ...orderSnap.data(), id: orderSnap.id } as OrderDocument;
+    return { ...orderSnap.data(), id: orderSnap.id } as unknown as OrderDocument;
   }
   return null;
 };
@@ -156,11 +156,11 @@ export const getOrdersByCustomer = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as OrderDocument[];
+  })) as unknown as OrderDocument[];
 };
 
 export const getOrdersByRestaurant = async (
@@ -175,11 +175,11 @@ export const getOrdersByRestaurant = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as OrderDocument[];
+  })) as unknown as OrderDocument[];
 };
 
 export const getOrdersByDriver = async (
@@ -194,11 +194,11 @@ export const getOrdersByDriver = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as OrderDocument[];
+  })) as unknown as OrderDocument[];
 };
 
 export const getOrdersByStatus = async (
@@ -213,11 +213,11 @@ export const getOrdersByStatus = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as OrderDocument[];
+  })) as unknown as OrderDocument[];
 };
 
 export const getPendingOrders = async (): Promise<OrderDocument[]> => {
@@ -233,11 +233,11 @@ export const getActiveOrders = async (): Promise<OrderDocument[]> => {
     limit(100)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as OrderDocument[];
+  })) as unknown as OrderDocument[];
 };
 
 export const getOrdersByVendor = async (
@@ -252,11 +252,11 @@ export const getOrdersByVendor = async (
     limit(limitCount)
   );
   const querySnapshot = await getDocs(q);
-  
+
   return querySnapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id
-  })) as OrderDocument[];
+  })) as unknown as OrderDocument[];
 };
 
 // ===== ORDER ANALYTICS =====
@@ -312,7 +312,7 @@ export const updatePaymentStatus = async (
   paymentTransactionId?: string
 ): Promise<void> => {
   const updates: Partial<OrderDocument> = { paymentStatus };
-  
+
   if (paymentTransactionId) {
     updates.paymentTransactionId = paymentTransactionId;
   }
