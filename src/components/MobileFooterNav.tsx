@@ -67,18 +67,18 @@ export default function MobileFooterNav() {
     if (!user) {
       return '/auth/signin';
     }
-    return '/profile';
+    return '/account';
   };
 
   const isActive = (href: string) => {
     if (href === '/') {
-      return pathname === '/' || pathname.startsWith('/restaurant');
+      return pathname === '/' || (pathname.startsWith('/restaurant/') && !pathname.startsWith('/restaurants'));
     }
     if (href === '/restaurants') {
       return pathname === '/restaurants';
     }
     if (href === '/profile') {
-      return pathname === '/profile' || pathname === '/orders' || (!user && pathname === '/auth/signin');
+      return pathname === '/account' || pathname === '/profile' || pathname === '/orders' || (!user && pathname === '/auth/signin');
     }
     return pathname.startsWith(href);
   };
