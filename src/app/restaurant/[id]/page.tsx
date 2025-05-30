@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Header from '@/components/Header';
+import MobileFooterNav from '@/components/MobileFooterNav';
 import MenuItem from '@/components/MenuItem';
 import { Restaurant, MenuItem as MenuItemType } from '@/types';
 import {
@@ -143,7 +144,7 @@ export default function RestaurantPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
         <Header />
         <div className="container-custom py-8">
           <div className="animate-pulse">
@@ -157,13 +158,14 @@ export default function RestaurantPage() {
             </div>
           </div>
         </div>
+        <MobileFooterNav />
       </div>
     );
   }
 
   if (!restaurant) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
         <Header />
         <div className="container-custom py-8">
           <div className="text-center">
@@ -171,6 +173,7 @@ export default function RestaurantPage() {
             <p className="text-gray-600">The restaurant you&apos;re looking for doesn&apos;t exist.</p>
           </div>
         </div>
+        <MobileFooterNav />
       </div>
     );
   }
@@ -181,7 +184,7 @@ export default function RestaurantPage() {
     : menuItems;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
 
       {/* Restaurant Header */}
@@ -288,6 +291,8 @@ export default function RestaurantPage() {
           ))}
         </div>
       </div>
+
+      <MobileFooterNav />
     </div>
   );
 }

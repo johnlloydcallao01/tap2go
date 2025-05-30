@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Header from '@/components/Header';
+import MobileFooterNav from '@/components/MobileFooterNav';
 import RestaurantCard from '@/components/RestaurantCard';
 import { Restaurant, Category } from '@/types';
 import { MagnifyingGlassIcon, MapPinIcon } from '@heroicons/react/24/outline';
@@ -97,7 +98,7 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
 
       {/* Hero Section */}
@@ -276,6 +277,8 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      <MobileFooterNav />
     </div>
   );
 }

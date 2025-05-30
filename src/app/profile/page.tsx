@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import MobileFooterNav from '@/components/MobileFooterNav';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserIcon, MapPinIcon, PhoneIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
@@ -91,7 +92,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
 
       <div className="container-custom py-8">
@@ -310,6 +311,8 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <MobileFooterNav />
     </div>
   );
 }

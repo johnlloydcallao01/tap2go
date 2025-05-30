@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import MobileFooterNav from '@/components/MobileFooterNav';
 import { useAuth } from '@/contexts/AuthContext';
 import { Order } from '@/types';
 import { ClockIcon, CheckCircleIcon, TruckIcon } from '@heroicons/react/24/outline';
@@ -160,7 +161,7 @@ export default function OrdersPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
         <Header />
         <div className="container-custom py-16">
           <div className="text-center">
@@ -170,12 +171,13 @@ export default function OrdersPage() {
             </Link>
           </div>
         </div>
+        <MobileFooterNav />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
 
       <div className="container-custom py-8">
@@ -291,6 +293,8 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
+
+      <MobileFooterNav />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Header from '@/components/Header';
+import MobileFooterNav from '@/components/MobileFooterNav';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { PlusIcon, MinusIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -15,7 +16,7 @@ export default function CartPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
         <Header />
         <div className="container-custom py-16">
           <div className="text-center">
@@ -25,13 +26,14 @@ export default function CartPage() {
             </Link>
           </div>
         </div>
+        <MobileFooterNav />
       </div>
     );
   }
 
   if (!cart || cart.items.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
         <Header />
         <div className="container-custom py-16">
           <div className="text-center">
@@ -47,6 +49,7 @@ export default function CartPage() {
             </Link>
           </div>
         </div>
+        <MobileFooterNav />
       </div>
     );
   }
@@ -60,7 +63,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
 
       <div className="container-custom py-8">
@@ -210,6 +213,8 @@ export default function CartPage() {
           </div>
         </div>
       </div>
+
+      <MobileFooterNav />
     </div>
   );
 }
