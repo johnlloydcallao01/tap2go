@@ -70,7 +70,7 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
             {restaurant.description}
           </p>
 
-          {/* Cuisine Tags */}
+          {/*The Cuisine Tags */}
           <div className="flex flex-wrap gap-1 mb-3">
             {restaurant.cuisine.slice(0, 3).map((cuisine, index) => (
               <span
