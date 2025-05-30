@@ -32,7 +32,7 @@ export default function AdminOrders() {
     const loadOrders = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         const mockOrders: Order[] = [
           {
             id: '1',
@@ -80,7 +80,7 @@ export default function AdminOrders() {
             items: 4,
           },
         ];
-        
+
         setOrders(mockOrders);
       } catch (error) {
         console.error('Error loading orders:', error);
@@ -97,7 +97,7 @@ export default function AdminOrders() {
                          order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          order.vendorName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -105,7 +105,7 @@ export default function AdminOrders() {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'confirmed': return 'bg-blue-100 text-blue-800';
-      case 'preparing': return 'bg-orange-100 text-orange-800';
+      case 'preparing': return { backgroundColor: '#fef3e2', color: '#f3a823' };
       case 'ready': return 'bg-purple-100 text-purple-800';
       case 'picked_up': return 'bg-indigo-100 text-indigo-800';
       case 'delivered': return 'bg-green-100 text-green-800';
@@ -215,7 +215,7 @@ export default function AdminOrders() {
             Orders ({filteredOrders.length})
           </h3>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -269,9 +269,25 @@ export default function AdminOrders() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <StatusIcon className="h-4 w-4 mr-2 text-gray-400" />
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(order.status)}`}>
-                          {order.status.replace('_', ' ')}
-                        </span>
+                        {(() => {
+                          const badgeStyle = getStatusBadgeColor(order.status);
+                          if (typeof badgeStyle === 'object') {
+                            return (
+                              <span
+                                className="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                                style={badgeStyle}
+                              >
+                                {order.status.replace('_', ' ')}
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${badgeStyle}`}>
+                                {order.status.replace('_', ' ')}
+                              </span>
+                            );
+                          }
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

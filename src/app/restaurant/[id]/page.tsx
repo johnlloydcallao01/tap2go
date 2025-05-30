@@ -14,109 +14,194 @@ import {
   MapPinIcon,
   PhoneIcon
 } from '@heroicons/react/24/solid';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-// Mock data for demonstration
-const mockRestaurant: Restaurant = {
-  id: '1',
-  name: 'Pizza Palace',
-  description: 'Authentic Italian pizza with fresh ingredients and traditional recipes passed down through generations.',
-  image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&h=300&fit=crop',
-  coverImage: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=1200&h=400&fit=crop',
-  cuisine: ['Italian', 'Pizza'],
-  address: {
-    street: '123 Main St',
-    city: 'New York',
-    state: 'NY',
-    zipCode: '10001',
-    country: 'USA'
-  },
-  phone: '+1-555-0123',
-  email: 'info@pizzapalace.com',
-  ownerId: 'owner1',
-  rating: 4.5,
-  reviewCount: 128,
-  deliveryTime: '25-35 min',
-  deliveryFee: 2.99,
-  minimumOrder: 15.00,
-  isOpen: true,
-  openingHours: {
-    monday: { open: '11:00', close: '22:00', isClosed: false },
-    tuesday: { open: '11:00', close: '22:00', isClosed: false },
-    wednesday: { open: '11:00', close: '22:00', isClosed: false },
-    thursday: { open: '11:00', close: '22:00', isClosed: false },
-    friday: { open: '11:00', close: '23:00', isClosed: false },
-    saturday: { open: '11:00', close: '23:00', isClosed: false },
-    sunday: { open: '12:00', close: '21:00', isClosed: false }
-  },
-  featured: true,
-  status: 'active',
-  commissionRate: 15.0,
-  totalOrders: 1250,
-  totalRevenue: 45000.00,
-  averagePreparationTime: 20,
-  createdAt: new Date(),
-  updatedAt: new Date()
+// FoodPanda-style menu items for each restaurant
+const getMenuItemsForRestaurant = (restaurantId: string): MenuItemType[] => {
+  const baseItems: Record<string, MenuItemType[]> = {
+    'jollibee-sm-moa': [
+      {
+        id: 'jb-1',
+        restaurantId,
+        name: 'Chickenjoy (1pc)',
+        description: 'World-famous crispy fried chicken with signature gravy',
+        price: 89,
+        image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=300&h=200&fit=crop',
+        category: 'Chicken',
+        isVegetarian: false,
+        isVegan: false,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Chicken', 'Special Breading', 'Gravy'],
+        allergens: ['Gluten'],
+        available: true,
+        preparationTime: 8,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'jb-2',
+        restaurantId,
+        name: 'Yumburger',
+        description: 'Juicy beef patty with special sauce, lettuce, and cheese',
+        price: 45,
+        image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&h=200&fit=crop',
+        category: 'Burgers',
+        isVegetarian: false,
+        isVegan: false,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Beef Patty', 'Bun', 'Cheese', 'Lettuce', 'Special Sauce'],
+        allergens: ['Gluten', 'Dairy'],
+        available: true,
+        preparationTime: 5,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'jb-3',
+        restaurantId,
+        name: 'Jolly Spaghetti',
+        description: 'Sweet-style spaghetti with hotdog slices and cheese',
+        price: 65,
+        image: 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?w=300&h=200&fit=crop',
+        category: 'Pasta',
+        isVegetarian: false,
+        isVegan: false,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Spaghetti', 'Sweet Sauce', 'Hotdog', 'Cheese'],
+        allergens: ['Gluten', 'Dairy'],
+        available: true,
+        preparationTime: 7,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ],
+    'mcdonalds-ayala-triangle': [
+      {
+        id: 'mc-1',
+        restaurantId,
+        name: 'Big Mac',
+        description: 'Two all-beef patties, special sauce, lettuce, cheese, pickles, onions on a sesame seed bun',
+        price: 185,
+        image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&h=200&fit=crop',
+        category: 'Burgers',
+        isVegetarian: false,
+        isVegan: false,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Beef Patties', 'Special Sauce', 'Lettuce', 'Cheese', 'Pickles', 'Onions', 'Sesame Bun'],
+        allergens: ['Gluten', 'Dairy'],
+        available: true,
+        preparationTime: 6,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'mc-2',
+        restaurantId,
+        name: 'McChicken',
+        description: 'Crispy chicken fillet with lettuce and mayo',
+        price: 125,
+        image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=300&h=200&fit=crop',
+        category: 'Chicken',
+        isVegetarian: false,
+        isVegan: false,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Chicken Fillet', 'Lettuce', 'Mayo', 'Bun'],
+        allergens: ['Gluten', 'Dairy'],
+        available: true,
+        preparationTime: 5,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'mc-3',
+        restaurantId,
+        name: 'World Famous Fries (Large)',
+        description: 'Golden, crispy fries made from premium potatoes',
+        price: 85,
+        image: 'https://images.unsplash.com/photo-1576107232684-1279f390859f?w=300&h=200&fit=crop',
+        category: 'Sides',
+        isVegetarian: true,
+        isVegan: true,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Potatoes', 'Salt', 'Oil'],
+        allergens: [],
+        available: true,
+        preparationTime: 3,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ],
+    'pizza-hut-greenbelt': [
+      {
+        id: 'ph-1',
+        restaurantId,
+        name: 'Pepperoni Lovers (Large)',
+        description: 'Loaded with pepperoni and mozzarella cheese',
+        price: 599,
+        image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=300&h=200&fit=crop',
+        category: 'Pizza',
+        isVegetarian: false,
+        isVegan: false,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Pepperoni', 'Mozzarella', 'Pizza Sauce', 'Dough'],
+        allergens: ['Gluten', 'Dairy'],
+        available: true,
+        preparationTime: 15,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'ph-2',
+        restaurantId,
+        name: 'Meat Lovers (Large)',
+        description: 'Pepperoni, sausage, ham, and bacon',
+        price: 699,
+        image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=300&h=200&fit=crop',
+        category: 'Pizza',
+        isVegetarian: false,
+        isVegan: false,
+        isGlutenFree: false,
+        isSpicy: false,
+        ingredients: ['Pepperoni', 'Sausage', 'Ham', 'Bacon', 'Mozzarella'],
+        allergens: ['Gluten', 'Dairy'],
+        available: true,
+        preparationTime: 18,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ]
+  };
+
+  return baseItems[restaurantId] || [
+    {
+      id: 'default-1',
+      restaurantId,
+      name: 'Signature Dish',
+      description: 'Our restaurant\'s most popular item',
+      price: 299,
+      image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
+      category: 'Main Course',
+      isVegetarian: false,
+      isVegan: false,
+      isGlutenFree: false,
+      isSpicy: false,
+      ingredients: ['Fresh Ingredients'],
+      allergens: [],
+      available: true,
+      preparationTime: 15,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ];
 };
-
-const mockMenuItems: MenuItemType[] = [
-  {
-    id: '1',
-    restaurantId: '1',
-    name: 'Margherita Pizza',
-    description: 'Classic pizza with fresh mozzarella, tomato sauce, and basil',
-    price: 16.99,
-    image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=300&h=200&fit=crop',
-    category: 'Pizza',
-    isVegetarian: true,
-    isVegan: false,
-    isGlutenFree: false,
-    isSpicy: false,
-    ingredients: ['Mozzarella', 'Tomato Sauce', 'Fresh Basil', 'Olive Oil'],
-    allergens: ['Gluten', 'Dairy'],
-    available: true,
-    preparationTime: 15,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: '2',
-    restaurantId: '1',
-    name: 'Pepperoni Pizza',
-    description: 'Traditional pepperoni pizza with mozzarella and tomato sauce',
-    price: 18.99,
-    image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=300&h=200&fit=crop',
-    category: 'Pizza',
-    isVegetarian: false,
-    isVegan: false,
-    isGlutenFree: false,
-    isSpicy: false,
-    ingredients: ['Pepperoni', 'Mozzarella', 'Tomato Sauce'],
-    allergens: ['Gluten', 'Dairy'],
-    available: true,
-    preparationTime: 15,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: '3',
-    restaurantId: '1',
-    name: 'Caesar Salad',
-    description: 'Fresh romaine lettuce with Caesar dressing, croutons, and parmesan',
-    price: 12.99,
-    image: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=300&h=200&fit=crop',
-    category: 'Salads',
-    isVegetarian: true,
-    isVegan: false,
-    isGlutenFree: false,
-    isSpicy: false,
-    ingredients: ['Romaine Lettuce', 'Caesar Dressing', 'Croutons', 'Parmesan'],
-    allergens: ['Gluten', 'Dairy'],
-    available: true,
-    preparationTime: 10,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
-];
 
 export default function RestaurantPage() {
   const params = useParams();
@@ -127,13 +212,62 @@ export default function RestaurantPage() {
 
   useEffect(() => {
     const loadRestaurantData = async () => {
+      if (!params?.id) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        // In a real app, this would fetch data based on params.id
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setRestaurant(mockRestaurant);
-        setMenuItems(mockMenuItems);
+        // Load restaurant data from Firestore
+        const restaurantRef = doc(db, 'restaurants', params.id as string);
+        const restaurantSnap = await getDoc(restaurantRef);
+
+        if (restaurantSnap.exists()) {
+          const data = restaurantSnap.data();
+
+          // Transform database fields to match TypeScript interface
+          const restaurantData: Restaurant = {
+            id: restaurantSnap.id,
+            name: data.outletName || data.name || '',
+            description: data.description || '',
+            image: data.coverImageUrl || data.image || '',
+            coverImage: data.coverImageUrl || data.image || '',
+            cuisine: data.cuisineTags || data.cuisine || [],
+            address: data.address || {},
+            phone: data.outletPhone || data.phone || '',
+            email: data.email || '',
+            ownerId: data.vendorRef || data.ownerId || '',
+            rating: data.avgRating || data.rating || 0,
+            reviewCount: data.totalReviews || data.reviewCount || 0,
+            deliveryTime: data.estimatedDeliveryRange || data.deliveryTime || 'N/A',
+            deliveryFee: data.deliveryFees?.base || data.deliveryFee || 0,
+            minimumOrder: data.minOrderValue || data.minimumOrder || 0,
+            isOpen: data.isAcceptingOrders !== undefined ? data.isAcceptingOrders : (data.isOpen !== undefined ? data.isOpen : true),
+            openingHours: data.operatingHours || data.openingHours || {},
+            featured: data.featured || false,
+            status: data.platformStatus || data.status || 'active',
+            commissionRate: data.commissionRate || 15,
+            totalOrders: data.totalOrders || 0,
+            totalRevenue: data.totalRevenue || 0,
+            averagePreparationTime: data.preparationTime?.average || data.averagePreparationTime || 20,
+            createdAt: data.createdAt?.toDate?.() || new Date(),
+            updatedAt: data.updatedAt?.toDate?.() || new Date()
+          };
+
+          setRestaurant(restaurantData);
+
+          // Load menu items for this restaurant
+          const menuItems = getMenuItemsForRestaurant(params.id as string);
+          setMenuItems(menuItems);
+        } else {
+          console.log('Restaurant not found');
+          setRestaurant(null);
+          setMenuItems([]);
+        }
       } catch (error) {
         console.error('Error loading restaurant data:', error);
+        setRestaurant(null);
+        setMenuItems([]);
       } finally {
         setLoading(false);
       }
@@ -199,7 +333,18 @@ export default function RestaurantPage() {
         <div className="absolute inset-0 bg-black bg-opacity-40"></div>
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
           <div className="container-custom">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">{restaurant.name}</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl md:text-4xl font-bold">{restaurant.name}</h1>
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  restaurant.isOpen
+                    ? 'bg-green-500 text-white'
+                    : 'bg-red-500 text-white'
+                }`}
+              >
+                {restaurant.isOpen ? 'Open' : 'Closed'}
+              </span>
+            </div>
             <p className="text-lg opacity-90">{restaurant.description}</p>
           </div>
         </div>
@@ -232,7 +377,8 @@ export default function RestaurantPage() {
               {restaurant.cuisine.map((cuisine, index) => (
                 <span
                   key={index}
-                  className="inline-block bg-orange-100 text-orange-800 text-sm px-3 py-1 rounded-full"
+                  className="inline-block text-white text-sm px-3 py-1 rounded-full"
+                  style={{ backgroundColor: '#f3a823' }}
                 >
                   {cuisine}
                 </span>
@@ -242,11 +388,16 @@ export default function RestaurantPage() {
             <div className="flex flex-col md:flex-row md:items-center md:space-x-6 space-y-2 md:space-y-0 text-sm text-gray-600">
               <div className="flex items-center space-x-2">
                 <MapPinIcon className="h-4 w-4" />
-                <span>{restaurant.address.street}, {restaurant.address.city}</span>
+                <span>
+                  {restaurant.address?.street && restaurant.address?.city
+                    ? `${restaurant.address.street}, ${restaurant.address.city}`
+                    : 'Metro Manila, Philippines'
+                  }
+                </span>
               </div>
               <div className="flex items-center space-x-2">
                 <PhoneIcon className="h-4 w-4" />
-                <span>{restaurant.phone}</span>
+                <span>{restaurant.phone || 'Contact restaurant'}</span>
               </div>
             </div>
           </div>
@@ -263,9 +414,10 @@ export default function RestaurantPage() {
             onClick={() => setSelectedCategory('')}
             className={`px-4 py-2 rounded-full font-medium transition-colors ${
               selectedCategory === ''
-                ? 'bg-orange-500 text-white'
+                ? 'text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
+            style={selectedCategory === '' ? { backgroundColor: '#f3a823' } : {}}
           >
             All Items
           </button>
@@ -275,9 +427,10 @@ export default function RestaurantPage() {
               onClick={() => setSelectedCategory(category)}
               className={`px-4 py-2 rounded-full font-medium transition-colors ${
                 selectedCategory === category
-                  ? 'bg-orange-500 text-white'
+                  ? 'text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
+              style={selectedCategory === category ? { backgroundColor: '#f3a823' } : {}}
             >
               {category}
             </button>

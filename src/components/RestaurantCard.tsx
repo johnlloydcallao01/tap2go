@@ -38,7 +38,7 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
             />
           )}
           {restaurant.featured && (
-            <div className="absolute top-2 left-2 bg-orange-500 text-white px-2 py-1 rounded-md text-xs font-semibold">
+            <div className="absolute top-2 left-2 text-white px-2 py-1 rounded-md text-xs font-semibold" style={{ backgroundColor: '#f3a823' }}>
               Featured
             </div>
           )}

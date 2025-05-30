@@ -94,7 +94,7 @@ export default function AdminPage() {
       icon: ShoppingBagIcon,
       change: '+23%',
       changeType: 'increase',
-      color: 'bg-orange-500',
+      color: '#f3a823',
     },
     {
       name: 'Total Revenue',

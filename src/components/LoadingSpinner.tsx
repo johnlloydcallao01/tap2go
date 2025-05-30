@@ -13,6 +13,6 @@ export default function LoadingSpinner({ size = 'md', className = '' }: LoadingS
   };
 
   return (
-    <div className={`animate-spin rounded-full border-2 border-gray-300 border-t-orange-500 ${sizeClasses[size]} ${className}`}></div>
+    <div className={`animate-spin rounded-full border-2 border-gray-300 ${sizeClasses[size]} ${className}`} style={{ borderTopColor: '#f3a823' }}></div>
   );
 }

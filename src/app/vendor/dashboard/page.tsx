@@ -239,8 +239,8 @@ export default function VendorDashboard() {
 
           <div className="card p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <ChartBarIcon className="h-6 w-6 text-orange-600" />
+              <div className="p-2 rounded-lg" style={{ backgroundColor: '#fef3e2' }}>
+                <ChartBarIcon className="h-6 w-6" style={{ color: '#f3a823' }} />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
@@ -271,7 +271,7 @@ export default function VendorDashboard() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Recent Orders</h2>
-              <Link href="/vendor/orders" className="text-orange-600 hover:text-orange-700 font-medium">
+              <Link href="/vendor/orders" className="font-medium hover:opacity-80" style={{ color: '#f3a823' }}>
                 View All
               </Link>
             </div>

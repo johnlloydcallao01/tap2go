@@ -75,7 +75,7 @@ export default function SignIn() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#f3a823' }}>
               <span className="text-white font-bold text-xl">T</span>
             </div>
             <span className="text-2xl font-bold text-gray-900">Tap2Go</span>
@@ -86,7 +86,7 @@ export default function SignIn() {
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Or{' '}
-          <Link href="/auth/signup" className="font-medium text-orange-600 hover:text-orange-500">
+          <Link href="/auth/signup" className="font-medium hover:opacity-80" style={{ color: '#f3a823' }}>
             create a new account
           </Link>
         </p>

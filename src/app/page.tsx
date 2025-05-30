@@ -75,8 +75,8 @@ export default function Home() {
       } catch (error) {
         console.error('Error loading data:', error);
         // Set empty arrays if Firestore fails
-        setCategories([]);
         setRestaurants([]);
+        setCategories([]);
       } finally {
         setLoading(false);
       }
@@ -102,7 +102,7 @@ export default function Home() {
       <Header />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-16">
+      <section className="text-white py-16" style={{ background: 'linear-gradient(to right, #f3a823, #ef7b06)' }}>
         <div className="container-custom">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
@@ -122,7 +122,8 @@ export default function Home() {
                     placeholder="Search restaurants, cuisines..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-3 text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent"
+                    style={{ '--tw-ring-color': '#f3a823' } as React.CSSProperties}
                   />
                 </div>
                 <div className="flex-1 relative">
@@ -130,10 +131,16 @@ export default function Home() {
                   <input
                     type="text"
                     placeholder="Enter delivery address"
-                    className="w-full pl-10 pr-4 py-3 text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-3 text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent"
+                    style={{ '--tw-ring-color': '#f3a823' } as React.CSSProperties}
                   />
                 </div>
-                <button className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200">
+                <button
+                  className="text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200"
+                  style={{ backgroundColor: '#f3a823' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#ef7b06'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3a823'}
+                >
                   Find Food
                 </button>
               </div>
@@ -152,9 +159,10 @@ export default function Home() {
                 onClick={() => setSelectedCategory('')}
                 className={`px-4 py-2 rounded-full font-medium transition-colors ${
                   selectedCategory === ''
-                    ? 'bg-orange-500 text-white'
+                    ? 'text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
+                style={selectedCategory === '' ? { backgroundColor: '#f3a823' } : {}}
               >
                 All
               </button>
@@ -164,9 +172,10 @@ export default function Home() {
                   onClick={() => setSelectedCategory(category.name)}
                   className={`px-4 py-2 rounded-full font-medium transition-colors ${
                     selectedCategory === category.name
-                      ? 'bg-orange-500 text-white'
+                      ? 'text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
+                  style={selectedCategory === category.name ? { backgroundColor: '#f3a823' } : {}}
                 >
                   {category.name}
                 </button>
@@ -238,7 +247,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#f3a823' }}>
                   <span className="text-white font-bold text-lg">T</span>
                 </div>
                 <span className="text-xl font-bold">Tap2Go</span>

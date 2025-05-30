@@ -9,6 +9,8 @@ import {
   MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import Link from 'next/link';
 
 interface Restaurant {
@@ -36,93 +38,33 @@ export default function RestaurantsPage() {
   useEffect(() => {
     const loadRestaurants = async () => {
       try {
-        // Simulate loading restaurants data
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Load restaurants from Firestore
+        const restaurantsRef = collection(db, 'restaurants');
+        const restaurantsQuery = query(restaurantsRef, limit(20));
+        const restaurantsSnapshot = await getDocs(restaurantsQuery);
 
-        const mockRestaurants: Restaurant[] = [
-          {
-            id: '1',
-            name: 'Jollibee - SM Mall of Asia',
-            description: 'Home of the world-famous Chickenjoy and Yumburger',
-            image: '/api/placeholder/300/200',
-            rating: 4.6,
-            deliveryTime: '20-30 min',
-            deliveryFee: 2.99,
-            minimumOrder: 12,
-            cuisineTypes: ['Filipino', 'American'],
-            isOpen: true,
-            distance: '1.2 km',
-          },
-          {
-            id: '2',
-            name: 'McDonald\'s - Ayala Triangle',
-            description: 'World-famous burgers, fries, and breakfast all day',
-            image: '/api/placeholder/300/200',
-            rating: 4.3,
-            deliveryTime: '15-25 min',
-            deliveryFee: 2.49,
-            minimumOrder: 10,
-            cuisineTypes: ['American'],
-            isOpen: true,
-            distance: '0.8 km',
-          },
-          {
-            id: '3',
-            name: 'Burger King - BGC Central Square',
-            description: 'Home of the Whopper and flame-grilled burgers',
-            image: '/api/placeholder/300/200',
-            rating: 4.4,
-            deliveryTime: '20-30 min',
-            deliveryFee: 2.99,
-            minimumOrder: 15,
-            cuisineTypes: ['American'],
-            isOpen: true,
-            distance: '1.5 km',
-          },
-          {
-            id: '4',
-            name: 'Pizza Hut - Greenbelt',
-            description: 'America\'s favorite pizza with stuffed crust',
-            image: '/api/placeholder/300/200',
-            rating: 4.2,
-            deliveryTime: '25-35 min',
-            deliveryFee: 3.49,
-            minimumOrder: 18,
-            cuisineTypes: ['Italian', 'American'],
-            isOpen: true,
-            distance: '2.1 km',
-          },
-          {
-            id: '5',
-            name: 'KFC - Robinson\'s Manila',
-            description: 'Finger lickin\' good fried chicken and sides',
-            image: '/api/placeholder/300/200',
-            rating: 4.1,
-            deliveryTime: '20-30 min',
-            deliveryFee: 2.99,
-            minimumOrder: 12,
-            cuisineTypes: ['American'],
-            isOpen: false,
-            distance: '1.8 km',
-          },
-          {
-            id: '6',
-            name: 'Chowking - Eastwood Mall',
-            description: 'Chinese-Filipino cuisine with lauriat meals',
-            image: '/api/placeholder/300/200',
-            rating: 4.0,
-            deliveryTime: '25-35 min',
-            deliveryFee: 2.49,
-            minimumOrder: 15,
-            cuisineTypes: ['Chinese', 'Filipino'],
-            isOpen: true,
-            distance: '2.3 km',
-          },
-        ];
+        const restaurantsData = restaurantsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          // Transform database fields to match component interface
+          return {
+            id: doc.id,
+            name: data.outletName || data.name || '',
+            description: data.description || '',
+            image: data.coverImageUrl || data.image || '/api/placeholder/300/200',
+            rating: data.avgRating || data.rating || 0,
+            deliveryTime: data.estimatedDeliveryRange || data.deliveryTime || 'N/A',
+            deliveryFee: data.deliveryFees?.base || data.deliveryFee || 0,
+            minimumOrder: data.minOrderValue || data.minimumOrder || 0,
+            cuisineTypes: data.cuisineTags || data.cuisine || [],
+            isOpen: data.isAcceptingOrders !== undefined ? data.isAcceptingOrders : (data.isOpen !== undefined ? data.isOpen : true),
+            distance: '1.5 km', // Default distance for now
+          };
+        }) as Restaurant[];
 
-        setRestaurants(mockRestaurants);
+        setRestaurants(restaurantsData);
       } catch (error) {
         console.error('Error loading restaurants:', error);
+        setRestaurants([]);
       } finally {
         setLoading(false);
       }
