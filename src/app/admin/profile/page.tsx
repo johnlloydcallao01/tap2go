@@ -26,7 +26,7 @@ export default function AdminProfile() {
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  
+
   const [profile, setProfile] = useState<AdminProfile>({
     fullName: '',
     email: '',
@@ -85,8 +85,9 @@ export default function AdminProfile() {
       });
 
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Failed to update profile' });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -115,8 +116,9 @@ export default function AdminProfile() {
         setMessage({ type: 'success', text: 'Password updated successfully!' });
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       }
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Failed to update password' });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update password';
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setLoading(false);
     }

@@ -168,7 +168,7 @@ export default function RestaurantPage() {
         <div className="container-custom py-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">Restaurant not found</h1>
-            <p className="text-gray-600">The restaurant you're looking for doesn't exist.</p>
+            <p className="text-gray-600">The restaurant you&apos;re looking for doesn&apos;t exist.</p>
           </div>
         </div>
       </div>

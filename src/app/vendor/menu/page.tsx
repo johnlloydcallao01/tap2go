@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { 
+import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
@@ -112,8 +112,8 @@ export default function VendorMenu() {
 
   const toggleItemAvailability = async (itemId: string) => {
     try {
-      setMenuItems(prev => prev.map(item => 
-        item.id === itemId 
+      setMenuItems(prev => prev.map(item =>
+        item.id === itemId
           ? { ...item, available: !item.available, updatedAt: new Date() }
           : item
       ));
@@ -133,8 +133,8 @@ export default function VendorMenu() {
   };
 
   const categories = ['all', ...new Set(menuItems.map(item => item.category))];
-  const filteredItems = selectedCategory === 'all' 
-    ? menuItems 
+  const filteredItems = selectedCategory === 'all'
+    ? menuItems
     : menuItems.filter(item => item.category === selectedCategory);
 
   if (!user || user.role !== 'vendor') {
@@ -157,7 +157,7 @@ export default function VendorMenu() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Menu Management</h1>
-              <p className="text-gray-600">Manage your restaurant's menu items and categories</p>
+              <p className="text-gray-600">Manage your restaurant&apos;s menu items and categories</p>
             </div>
             <div className="flex space-x-4">
               <Link href="/vendor/dashboard" className="btn-secondary">
@@ -188,8 +188,8 @@ export default function VendorMenu() {
               >
                 {category === 'all' ? 'All Items' : category}
                 <span className="ml-2 text-xs">
-                  ({category === 'all' 
-                    ? menuItems.length 
+                  ({category === 'all'
+                    ? menuItems.length
                     : menuItems.filter(item => item.category === category).length
                   })
                 </span>
@@ -219,8 +219,8 @@ export default function VendorMenu() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">No menu items found</h2>
             <p className="text-gray-600 mb-8">
-              {selectedCategory === 'all' 
-                ? 'Start building your menu by adding your first item.' 
+              {selectedCategory === 'all'
+                ? 'Start building your menu by adding your first item.'
                 : `No items found in the ${selectedCategory} category.`
               }
             </p>
@@ -249,12 +249,12 @@ export default function VendorMenu() {
                       onError={() => setImageErrors(prev => ({...prev, [item.id]: true}))}
                     />
                   )}
-                  
+
                   {/* Availability Badge */}
                   <div className="absolute top-2 left-2">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      item.available 
-                        ? 'bg-green-100 text-green-800' 
+                      item.available
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
                       {item.available ? 'Available' : 'Unavailable'}

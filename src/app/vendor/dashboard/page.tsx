@@ -4,16 +4,15 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { 
+import {
   ChartBarIcon,
   ShoppingBagIcon,
   ClockIcon,
   CurrencyDollarIcon,
-  EyeIcon,
   PlusIcon,
   Cog6ToothIcon
 } from '@heroicons/react/24/outline';
-import { VendorAnalytics, Order, Restaurant } from '@/types';
+import { VendorAnalytics, Order } from '@/types';
 
 // Mock data for vendor dashboard
 const mockAnalytics: VendorAnalytics = {
@@ -220,7 +219,7 @@ export default function VendorDashboard() {
                 <ShoppingBagIcon className="h-6 w-6 text-blue-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Today's Orders</p>
+                <p className="text-sm font-medium text-gray-600">Today&apos;s Orders</p>
                 <p className="text-2xl font-bold text-gray-900">{analytics?.totalOrders}</p>
               </div>
             </div>
@@ -232,7 +231,7 @@ export default function VendorDashboard() {
                 <CurrencyDollarIcon className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Today's Revenue</p>
+                <p className="text-sm font-medium text-gray-600">Today&apos;s Revenue</p>
                 <p className="text-2xl font-bold text-gray-900">${analytics?.totalRevenue.toFixed(2)}</p>
               </div>
             </div>
@@ -258,8 +257,8 @@ export default function VendorDashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Active Orders</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {(analytics?.ordersByStatus.preparing || 0) + 
-                   (analytics?.ordersByStatus.ready || 0) + 
+                  {(analytics?.ordersByStatus.preparing || 0) +
+                   (analytics?.ordersByStatus.ready || 0) +
                    (analytics?.ordersByStatus.confirmed || 0)}
                 </p>
               </div>

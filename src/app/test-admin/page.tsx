@@ -10,7 +10,15 @@ export default function TestAdminPage() {
   const [email, setEmail] = useState('admin@tap2go.com');
   const [password, setPassword] = useState('TempPassword123!');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    authUser: {
+      uid: string;
+      email: string | null;
+      emailVerified: boolean;
+    };
+    userData: unknown;
+    adminData: unknown;
+  } | null>(null);
   const [error, setError] = useState('');
   const router = useRouter();
 
@@ -26,7 +34,7 @@ export default function TestAdminPage() {
 
       // Get user data from Firestore
       const userData = await getUser(user.uid);
-      
+
       // Get admin data from Firestore
       const adminData = await getAdmin(user.uid);
 
@@ -41,9 +49,10 @@ export default function TestAdminPage() {
       });
 
       console.log('Login successful!', { userData, adminData });
-      
-    } catch (error: any) {
-      setError(error.message);
+
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(errorMessage);
       console.error('Login failed:', error);
     } finally {
       setLoading(false);
@@ -55,7 +64,7 @@ export default function TestAdminPage() {
       <div className="max-w-2xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-md p-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">Test Admin Login</h1>
-          
+
           <div className="space-y-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -69,7 +78,7 @@ export default function TestAdminPage() {
                 placeholder="admin@tap2go.com"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password
@@ -101,7 +110,7 @@ export default function TestAdminPage() {
           {result && (
             <div className="mt-6 space-y-4">
               <h2 className="text-lg font-semibold text-green-700">✅ Login Successful!</h2>
-              
+
               <div className="bg-green-50 border border-green-200 rounded-md p-4">
                 <h3 className="font-medium text-green-800 mb-2">Firebase Auth User:</h3>
                 <pre className="text-xs text-green-700 overflow-x-auto">

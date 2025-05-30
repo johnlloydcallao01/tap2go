@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase';
 export async function POST() {
   try {
     console.log('🚀 Adding customers collection to Firebase...');
-    
+
     // Add customers structure documentation
     const customersStructure = {
       collection: "customers",
@@ -14,7 +14,7 @@ export async function POST() {
       fields: {
         userRef: "string - path to users/{uid}",
         firstName: "string",
-        lastName: "string", 
+        lastName: "string",
         dateOfBirth: "timestamp (optional)",
         gender: "string (optional) - male | female | other | prefer_not_to_say",
         loyaltyPoints: "number",
@@ -112,14 +112,14 @@ export async function POST() {
       setupDate: Timestamp.now(),
       version: "1.0.0"
     };
-    
+
     // Add to _system/customers_structure
     await setDoc(doc(db, '_system', 'customers_structure'), customersStructure);
-    
+
     // Update main collections structure
     const collectionsStructureRef = doc(db, '_system', 'collections_structure');
     const collectionsStructureSnap = await getDoc(collectionsStructureRef);
-    
+
     if (collectionsStructureSnap.exists()) {
       const data = collectionsStructureSnap.data();
       const updatedData = {
@@ -141,20 +141,21 @@ export async function POST() {
         updatedBy: "api_route",
         version: "1.1.0"
       };
-      
+
       await setDoc(collectionsStructureRef, updatedData);
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Customers collection successfully added to Firebase' 
+    return NextResponse.json({
+      success: true,
+      message: 'Customers collection successfully added to Firebase'
     });
-    
-  } catch (error: any) {
+
+  } catch (error: unknown) {
     console.error('Failed to add customers collection:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return NextResponse.json({
+      success: false,
+      error: errorMessage
     }, { status: 500 });
   }
 }

@@ -56,17 +56,16 @@ export default function AdminLogin() {
       ];
 
       let userCredential = null;
-      let usedEmail = '';
 
       for (const email of emailsToTry) {
         try {
           console.log(`Trying email: ${email}`);
           userCredential = await signInWithEmailAndPassword(auth, email, credentials.password);
-          usedEmail = email;
           console.log(`✅ Login successful with: ${email}`);
           break;
-        } catch (authError: any) {
-          console.log(`❌ Failed with ${email}:`, authError.code);
+        } catch (authError: unknown) {
+          const errorCode = authError && typeof authError === 'object' && 'code' in authError ? authError.code : 'unknown';
+          console.log(`❌ Failed with ${email}:`, errorCode);
           continue;
         }
       }
@@ -152,9 +151,10 @@ export default function AdminLogin() {
       // Force a page refresh to update auth context
       window.location.href = '/admin';
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Login error:', error);
-      setError(error.message || 'Failed to login as admin');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to login as admin';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -308,7 +308,7 @@ export default function AdminLogin() {
               This is your dedicated super admin login portal.
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              After login, you'll have full administrative access to Tap2Go.
+              After login, you&apos;ll have full administrative access to Tap2Go.
             </p>
           </div>
         </div>

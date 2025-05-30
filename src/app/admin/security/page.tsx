@@ -22,7 +22,7 @@ export default function AdminSecurity() {
     new: false,
     confirm: false,
   });
-  
+
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -61,9 +61,9 @@ export default function AdminSecurity() {
     const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword);
 
     if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
-      setMessage({ 
-        type: 'error', 
-        text: 'Password must contain uppercase, lowercase, numbers, and special characters' 
+      setMessage({
+        type: 'error',
+        text: 'Password must contain uppercase, lowercase, numbers, and special characters'
       });
       setLoading(false);
       return;
@@ -75,14 +75,15 @@ export default function AdminSecurity() {
         setMessage({ type: 'success', text: 'Password updated successfully!' });
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       }
-    } catch (error: any) {
-      if (error.code === 'auth/requires-recent-login') {
-        setMessage({ 
-          type: 'error', 
-          text: 'Please sign out and sign in again before changing your password' 
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'auth/requires-recent-login') {
+        setMessage({
+          type: 'error',
+          text: 'Please sign out and sign in again before changing your password'
         });
       } else {
-        setMessage({ type: 'error', text: error.message || 'Failed to update password' });
+        const errorMessage = error instanceof Error ? error.message : 'Failed to update password';
+        setMessage({ type: 'error', text: errorMessage });
       }
     } finally {
       setLoading(false);
@@ -98,7 +99,7 @@ export default function AdminSecurity() {
       // Simulate saving security settings
       await new Promise(resolve => setTimeout(resolve, 1000));
       setMessage({ type: 'success', text: 'Security settings updated successfully!' });
-    } catch (error: any) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to update security settings' });
     } finally {
       setLoading(false);
@@ -159,7 +160,7 @@ export default function AdminSecurity() {
               <h3 className="text-lg font-medium text-gray-900">Change Password</h3>
             </div>
           </div>
-          
+
           <form onSubmit={handlePasswordChange} className="p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -212,18 +213,18 @@ export default function AdminSecurity() {
                   )}
                 </button>
               </div>
-              
+
               {passwordData.newPassword && (
                 <div className="mt-2">
                   <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                     <span>Password Strength</span>
-                    <span className={passwordStrength.level === 'Strong' ? 'text-green-600' : 
+                    <span className={passwordStrength.level === 'Strong' ? 'text-green-600' :
                                    passwordStrength.level === 'Medium' ? 'text-yellow-600' : 'text-red-600'}>
                       {passwordStrength.level}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className={`h-2 rounded-full transition-all duration-300 ${passwordStrength.color}`}
                       style={{ width: passwordStrength.width }}
                     ></div>
@@ -278,7 +279,7 @@ export default function AdminSecurity() {
               <h3 className="text-lg font-medium text-gray-900">Security Preferences</h3>
             </div>
           </div>
-          
+
           <form onSubmit={handleSecuritySettingsUpdate} className="p-6 space-y-4">
             <div>
               <label className="flex items-center">
@@ -368,7 +369,7 @@ export default function AdminSecurity() {
           </div>
           <div>
             <span className="text-gray-500">Last Login:</span>
-            <span className="ml-2 font-medium">{user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'N/A'}</span>
+            <span className="ml-2 font-medium">N/A</span>
           </div>
         </div>
       </div>

@@ -17,7 +17,7 @@ export default function AdminAnalytics() {
         <ChartBarIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Analytics Dashboard Coming Soon</h3>
         <p className="text-gray-600 mb-6">
-          We're working on comprehensive analytics features including revenue tracking, user behavior insights, and performance metrics.
+          We&apos;re working on comprehensive analytics features including revenue tracking, user behavior insights, and performance metrics.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">

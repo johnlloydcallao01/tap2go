@@ -17,22 +17,22 @@ export default function AdminDisputes() {
         <ExclamationTriangleIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Disputes Management Coming Soon</h3>
         <p className="text-gray-600 mb-6">
-          We're building a comprehensive dispute resolution system to handle customer complaints and vendor issues.
+          We&apos;re building a comprehensive dispute resolution system to handle customer complaints and vendor issues.
         </p>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
           <div className="bg-gray-50 rounded-lg p-6">
             <ClockIcon className="h-8 w-8 text-yellow-500 mx-auto mb-3" />
             <h4 className="font-medium text-gray-900">Pending Cases</h4>
             <p className="text-sm text-gray-600 mt-2">Track and manage pending dispute cases</p>
           </div>
-          
+
           <div className="bg-gray-50 rounded-lg p-6">
             <CheckCircleIcon className="h-8 w-8 text-green-500 mx-auto mb-3" />
             <h4 className="font-medium text-gray-900">Resolution Tools</h4>
             <p className="text-sm text-gray-600 mt-2">Tools for efficient dispute resolution</p>
           </div>
-          
+
           <div className="bg-gray-50 rounded-lg p-6">
             <ExclamationTriangleIcon className="h-8 w-8 text-red-500 mx-auto mb-3" />
             <h4 className="font-medium text-gray-900">Escalation System</h4>

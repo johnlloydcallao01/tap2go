@@ -138,7 +138,7 @@ export default function AdminPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's what's happening with your platform.</p>
+          <p className="text-gray-600">Welcome back! Here&apos;s what&apos;s happening with your platform.</p>
         </div>
         <div className="text-sm text-gray-500">
           Last updated: {new Date().toLocaleString()}
@@ -210,7 +210,7 @@ export default function AdminPage() {
           <div className="space-y-4">
             <div className="flex items-center space-x-3">
               <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-sm text-gray-600">New vendor "Pizza Palace" approved</span>
+              <span className="text-sm text-gray-600">New vendor &quot;Pizza Palace&quot; approved</span>
               <span className="text-xs text-gray-400">2 min ago</span>
             </div>
             <div className="flex items-center space-x-3">

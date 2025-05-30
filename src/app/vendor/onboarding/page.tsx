@@ -3,11 +3,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { 
-  BuildingStorefrontIcon,
-  MapPinIcon,
-  ClockIcon,
-  CameraIcon
+import {
+  BuildingStorefrontIcon
 } from '@heroicons/react/24/outline';
 
 export default function VendorOnboarding() {
@@ -22,18 +19,18 @@ export default function VendorOnboarding() {
     cuisine: [] as string[],
     phone: '',
     email: '',
-    
+
     // Address
     street: '',
     city: '',
     state: '',
     zipCode: '',
     country: 'USA',
-    
+
     // Business Info
     businessLicense: '',
     taxId: '',
-    
+
     // Operating Hours
     openingHours: {
       monday: { open: '09:00', close: '22:00', isClosed: false },
@@ -44,7 +41,7 @@ export default function VendorOnboarding() {
       saturday: { open: '09:00', close: '23:00', isClosed: false },
       sunday: { open: '10:00', close: '21:00', isClosed: false }
     },
-    
+
     // Delivery Settings
     deliveryFee: 3.99,
     minimumOrder: 15.00,
@@ -74,18 +71,7 @@ export default function VendorOnboarding() {
     }));
   };
 
-  const handleHoursChange = (day: string, field: 'open' | 'close' | 'isClosed', value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      openingHours: {
-        ...prev.openingHours,
-        [day]: {
-          ...prev.openingHours[day as keyof typeof prev.openingHours],
-          [field]: value
-        }
-      }
-    }));
-  };
+  // Removed unused function
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -118,7 +104,7 @@ export default function VendorOnboarding() {
         <div className="text-center mb-8">
           <BuildingStorefrontIcon className="h-16 w-16 text-orange-500 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900">Welcome to Tap2Go!</h1>
-          <p className="text-gray-600 mt-2">Let's set up your restaurant and get you started</p>
+          <p className="text-gray-600 mt-2">Let&apos;s set up your restaurant and get you started</p>
         </div>
 
         {/* Progress Bar */}
@@ -127,8 +113,8 @@ export default function VendorOnboarding() {
             {[1, 2, 3, 4].map((stepNumber) => (
               <div key={stepNumber} className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step >= stepNumber 
-                    ? 'bg-orange-500 text-white' 
+                  step >= stepNumber
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-200 text-gray-600'
                 }`}>
                   {stepNumber}
@@ -154,7 +140,7 @@ export default function VendorOnboarding() {
           {step === 1 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Restaurant Information</h2>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Restaurant Name *
@@ -244,7 +230,7 @@ export default function VendorOnboarding() {
           {step === 2 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Restaurant Location</h2>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Street Address *
@@ -364,7 +350,7 @@ export default function VendorOnboarding() {
             >
               Previous
             </button>
-            
+
             {step < 4 ? (
               <button
                 onClick={() => setStep(Math.min(4, step + 1))}

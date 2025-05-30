@@ -33,27 +33,12 @@ export default function SignIn() {
     setLoading(true);
 
     try {
-      const userCredential = await signIn(email, password);
-
-      // Check user role and redirect accordingly
-      if (userCredential?.user) {
-        // Get user data from Firestore to check role
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-
-        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-        const userData = userDoc.data();
-
-        if (userData?.role === 'admin') {
-          router.push('/admin');
-        } else {
-          router.push('/');
-        }
-      } else {
-        router.push('/');
-      }
-    } catch (error: any) {
-      setError(error.message || 'Failed to sign in');
+      await signIn(email, password);
+      // The auth context will handle the redirect based on user role
+      router.push('/');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign in';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

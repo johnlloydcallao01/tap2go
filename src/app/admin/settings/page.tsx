@@ -33,7 +33,7 @@ export default function AdminSettings() {
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  
+
   const [settings, setSettings] = useState<PlatformSettings>({
     commissionRate: 15,
     deliveryFee: 5.99,
@@ -62,7 +62,7 @@ export default function AdminSettings() {
       // Simulate saving settings
       await new Promise(resolve => setTimeout(resolve, 1000));
       setMessage({ type: 'success', text: 'Settings saved successfully!' });
-    } catch (error: any) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to save settings' });
     } finally {
       setLoading(false);
@@ -125,7 +125,7 @@ export default function AdminSettings() {
           {activeTab === 'general' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">General Settings</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="flex items-center">
@@ -185,7 +185,7 @@ export default function AdminSettings() {
           {activeTab === 'financial' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Financial Settings</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -255,7 +255,7 @@ export default function AdminSettings() {
           {activeTab === 'delivery' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Delivery Settings</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -278,7 +278,7 @@ export default function AdminSettings() {
           {activeTab === 'operations' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Operating Hours</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -287,8 +287,8 @@ export default function AdminSettings() {
                   <input
                     type="time"
                     value={settings.operatingHours.start}
-                    onChange={(e) => setSettings({ 
-                      ...settings, 
+                    onChange={(e) => setSettings({
+                      ...settings,
                       operatingHours: { ...settings.operatingHours, start: e.target.value }
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -302,8 +302,8 @@ export default function AdminSettings() {
                   <input
                     type="time"
                     value={settings.operatingHours.end}
-                    onChange={(e) => setSettings({ 
-                      ...settings, 
+                    onChange={(e) => setSettings({
+                      ...settings,
                       operatingHours: { ...settings.operatingHours, end: e.target.value }
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -316,7 +316,7 @@ export default function AdminSettings() {
           {activeTab === 'notifications' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Notification Settings</h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="flex items-center">

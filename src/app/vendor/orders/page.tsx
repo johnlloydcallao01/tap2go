@@ -4,12 +4,10 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { 
+import {
   ClockIcon,
   CheckCircleIcon,
-  XMarkIcon,
   EyeIcon,
-  PhoneIcon,
   MapPinIcon
 } from '@heroicons/react/24/outline';
 import { Order, OrderStatus } from '@/types';
@@ -177,8 +175,8 @@ export default function VendorOrders() {
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
       // In a real app, this would call an API
-      setOrders(prev => prev.map(order => 
-        order.id === orderId 
+      setOrders(prev => prev.map(order =>
+        order.id === orderId
           ? { ...order, status: newStatus, updatedAt: new Date() }
           : order
       ));
@@ -219,8 +217,8 @@ export default function VendorOrders() {
     }
   };
 
-  const filteredOrders = filter === 'all' 
-    ? orders 
+  const filteredOrders = filter === 'all'
+    ? orders
     : orders.filter(order => order.status === filter);
 
   if (!user || user.role !== 'vendor') {
@@ -260,7 +258,7 @@ export default function VendorOrders() {
               {['all', 'pending', 'confirmed', 'preparing', 'ready'].map((status) => (
                 <button
                   key={status}
-                  onClick={() => setFilter(status as any)}
+                  onClick={() => setFilter(status as 'all' | OrderStatus)}
                   className={`py-2 px-1 border-b-2 font-medium text-sm capitalize ${
                     filter === status
                       ? 'border-orange-500 text-orange-600'
@@ -269,8 +267,8 @@ export default function VendorOrders() {
                 >
                   {status === 'all' ? 'All Orders' : status.replace('_', ' ')}
                   <span className="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">
-                    {status === 'all' 
-                      ? orders.length 
+                    {status === 'all'
+                      ? orders.length
                       : orders.filter(o => o.status === status).length
                     }
                   </span>
@@ -298,8 +296,8 @@ export default function VendorOrders() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">No orders found</h2>
             <p className="text-gray-600">
-              {filter === 'all' 
-                ? 'No orders have been placed yet.' 
+              {filter === 'all'
+                ? 'No orders have been placed yet.'
                 : `No ${filter} orders at the moment.`
               }
             </p>

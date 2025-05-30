@@ -34,7 +34,7 @@ export default function AdminDrivers() {
     const loadDrivers = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         const mockDrivers: Driver[] = [
           {
             id: '1',
@@ -76,7 +76,7 @@ export default function AdminDrivers() {
             isOnline: true,
           },
         ];
-        
+
         setDrivers(mockDrivers);
       } catch (error) {
         console.error('Error loading drivers:', error);
@@ -89,16 +89,16 @@ export default function AdminDrivers() {
   }, []);
 
   const handleApproveDriver = async (driverId: string) => {
-    setDrivers(drivers.map(driver => 
-      driver.id === driverId 
+    setDrivers(drivers.map(driver =>
+      driver.id === driverId
         ? { ...driver, status: 'approved' as const }
         : driver
     ));
   };
 
   const handleRejectDriver = async (driverId: string) => {
-    setDrivers(drivers.map(driver => 
-      driver.id === driverId 
+    setDrivers(drivers.map(driver =>
+      driver.id === driverId
         ? { ...driver, status: 'suspended' as const }
         : driver
     ));
@@ -108,7 +108,7 @@ export default function AdminDrivers() {
     const matchesSearch = driver.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          driver.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = selectedStatus === 'all' || driver.status === selectedStatus;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -122,7 +122,7 @@ export default function AdminDrivers() {
     }
   };
 
-  const getVehicleIcon = (vehicleType: string) => {
+  const getVehicleIcon = () => {
     return TruckIcon; // You could customize this based on vehicle type
   };
 
@@ -206,10 +206,10 @@ export default function AdminDrivers() {
             Drivers ({filteredDrivers.length})
           </h3>
         </div>
-        
+
         <div className="divide-y divide-gray-200">
           {filteredDrivers.map((driver) => {
-            const VehicleIcon = getVehicleIcon(driver.vehicleType);
+            const VehicleIcon = getVehicleIcon();
             return (
               <div key={driver.id} className="p-6 hover:bg-gray-50">
                 <div className="flex items-center justify-between">
@@ -233,7 +233,7 @@ export default function AdminDrivers() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-6">
                     <div className="text-center">
                       <div className="flex items-center justify-center">
@@ -244,7 +244,7 @@ export default function AdminDrivers() {
                       </div>
                       <p className="text-xs text-gray-500">{driver.totalDeliveries} deliveries</p>
                     </div>
-                    
+
                     <div className="text-right">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(driver.status)}`}>
                         {driver.status}
@@ -256,12 +256,12 @@ export default function AdminDrivers() {
                         <p className="text-xs text-green-600 mt-1">● Online</p>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       <button className="text-blue-600 hover:text-blue-900 p-2">
                         <EyeIcon className="h-5 w-5" />
                       </button>
-                      
+
                       {driver.status === 'pending' && (
                         <>
                           <button
