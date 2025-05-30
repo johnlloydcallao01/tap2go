@@ -135,43 +135,43 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here&apos;s what&apos;s happening with your platform.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
+        <div className="mb-4 sm:mb-0">
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm lg:text-base text-gray-600">Welcome back! Here&apos;s what&apos;s happening with your platform.</p>
         </div>
-        <div className="text-sm text-gray-500">
+        <div className="text-xs lg:text-sm text-gray-500">
           Last updated: {new Date().toLocaleString()}
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
         {statCards.map((stat) => (
-          <div key={stat.name} className="bg-white rounded-lg shadow p-6">
+          <div key={stat.name} className="bg-white rounded-lg shadow p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs lg:text-sm font-medium text-gray-600">{stat.name}</p>
+                <p className="text-xl lg:text-2xl font-bold text-gray-900">{stat.value}</p>
               </div>
-              <div className={`p-3 rounded-full ${stat.color}`}>
-                <stat.icon className="h-6 w-6 text-white" />
+              <div className={`p-2 lg:p-3 rounded-full ${stat.color}`}>
+                <stat.icon className="h-5 w-5 lg:h-6 lg:w-6 text-white" />
               </div>
             </div>
-            <div className="mt-4 flex items-center">
+            <div className="mt-3 lg:mt-4 flex items-center">
               {stat.changeType === 'increase' ? (
-                <ArrowUpIcon className="h-4 w-4 text-green-500" />
+                <ArrowUpIcon className="h-3 w-3 lg:h-4 lg:w-4 text-green-500" />
               ) : (
-                <ArrowDownIcon className="h-4 w-4 text-red-500" />
+                <ArrowDownIcon className="h-3 w-3 lg:h-4 lg:w-4 text-red-500" />
               )}
               <span
-                className={`text-sm font-medium ml-1 ${
+                className={`text-xs lg:text-sm font-medium ml-1 ${
                   stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
                 }`}
               >
                 {stat.change}
               </span>
-              <span className="text-sm text-gray-500 ml-1">from last month</span>
+              <span className="text-xs lg:text-sm text-gray-500 ml-1">from last month</span>
             </div>
           </div>
         ))}

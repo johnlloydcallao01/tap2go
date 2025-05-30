@@ -33,7 +33,7 @@ export default function AdminUsers() {
       try {
         // Simulate loading users data
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         const mockUsers: User[] = [
           {
             id: '1',
@@ -75,7 +75,7 @@ export default function AdminUsers() {
             lastLoginAt: '2024-01-20',
           },
         ];
-        
+
         setUsers(mockUsers);
       } catch (error) {
         console.error('Error loading users:', error);
@@ -91,12 +91,12 @@ export default function AdminUsers() {
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = selectedRole === 'all' || user.role === selectedRole;
-    const matchesStatus = selectedStatus === 'all' || 
+    const matchesStatus = selectedStatus === 'all' ||
                          (selectedStatus === 'active' && user.isActive) ||
                          (selectedStatus === 'inactive' && !user.isActive) ||
                          (selectedStatus === 'verified' && user.isVerified) ||
                          (selectedStatus === 'unverified' && !user.isVerified);
-    
+
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -139,30 +139,30 @@ export default function AdminUsers() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Users Management</h1>
-          <p className="text-gray-600">Manage all platform users including customers, vendors, drivers, and admins.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
+        <div className="mb-4 sm:mb-0">
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Users Management</h1>
+          <p className="text-sm lg:text-base text-gray-600">Manage all platform users including customers, vendors, drivers, and admins.</p>
         </div>
-        <button className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600 flex items-center">
-          <UserPlusIcon className="h-5 w-5 mr-2" />
+        <button className="bg-orange-500 text-white px-3 lg:px-4 py-2 rounded-md hover:bg-orange-600 flex items-center text-sm lg:text-base">
+          <UserPlusIcon className="h-4 w-4 lg:h-5 lg:w-5 mr-2" />
           Add User
         </button>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-white rounded-lg shadow p-4 lg:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search</label>
             <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 lg:h-5 lg:w-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full pl-8 lg:pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function AdminUsers() {
             Users ({filteredUsers.length})
           </h3>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
