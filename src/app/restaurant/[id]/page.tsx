@@ -16,6 +16,7 @@ import {
 } from '@heroicons/react/24/solid';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { transformRestaurantData } from '@/lib/transformers/restaurant';
 
 // FoodPanda-style menu items for each restaurant
 const getMenuItemsForRestaurant = (restaurantId: string): MenuItemType[] => {
@@ -223,36 +224,8 @@ export default function RestaurantPage() {
         const restaurantSnap = await getDoc(restaurantRef);
 
         if (restaurantSnap.exists()) {
-          const data = restaurantSnap.data();
-
-          // Transform database fields to match TypeScript interface
-          const restaurantData: Restaurant = {
-            id: restaurantSnap.id,
-            name: data.outletName || data.name || '',
-            description: data.description || '',
-            image: data.coverImageUrl || data.image || '',
-            coverImage: data.coverImageUrl || data.image || '',
-            cuisine: data.cuisineTags || data.cuisine || [],
-            address: data.address || {},
-            phone: data.outletPhone || data.phone || '',
-            email: data.email || '',
-            ownerId: data.vendorRef || data.ownerId || '',
-            rating: data.avgRating || data.rating || 0,
-            reviewCount: data.totalReviews || data.reviewCount || 0,
-            deliveryTime: data.estimatedDeliveryRange || data.deliveryTime || 'N/A',
-            deliveryFee: data.deliveryFees?.base || data.deliveryFee || 0,
-            minimumOrder: data.minOrderValue || data.minimumOrder || 0,
-            isOpen: data.isAcceptingOrders !== undefined ? data.isAcceptingOrders : (data.isOpen !== undefined ? data.isOpen : true),
-            openingHours: data.operatingHours || data.openingHours || {},
-            featured: data.featured || false,
-            status: data.platformStatus || data.status || 'active',
-            commissionRate: data.commissionRate || 15,
-            totalOrders: data.totalOrders || 0,
-            totalRevenue: data.totalRevenue || 0,
-            averagePreparationTime: data.preparationTime?.average || data.averagePreparationTime || 20,
-            createdAt: data.createdAt?.toDate?.() || new Date(),
-            updatedAt: data.updatedAt?.toDate?.() || new Date()
-          };
+          // Use centralized transformer for consistency
+          const restaurantData = transformRestaurantData(restaurantSnap);
 
           setRestaurant(restaurantData);
 

@@ -8,6 +8,7 @@ import { Restaurant, Category } from '@/types';
 import { MagnifyingGlassIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { transformRestaurantsData } from '@/lib/transformers/restaurant';
 
 // No mock data - using real Firestore data only
 
@@ -38,37 +39,8 @@ export default function Home() {
         const restaurantsQuery = query(restaurantsRef, limit(12));
         const restaurantsSnapshot = await getDocs(restaurantsQuery);
 
-        const restaurantsData = restaurantsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          // Transform database fields to match TypeScript interface
-          return {
-            id: doc.id,
-            name: data.outletName || data.name || '',
-            description: data.description || '',
-            image: data.coverImageUrl || data.image || '',
-            coverImage: data.coverImageUrl || data.image || '',
-            cuisine: data.cuisineTags || data.cuisine || [],
-            address: data.address || {},
-            phone: data.outletPhone || data.phone || '',
-            email: data.email || '',
-            ownerId: data.vendorRef || data.ownerId || '',
-            rating: data.avgRating || data.rating || 0,
-            reviewCount: data.totalReviews || data.reviewCount || 0,
-            deliveryTime: data.estimatedDeliveryRange || data.deliveryTime || 'N/A',
-            deliveryFee: data.deliveryFees?.base || data.deliveryFee || 0,
-            minimumOrder: data.minOrderValue || data.minimumOrder || 0,
-            isOpen: data.isAcceptingOrders !== undefined ? data.isAcceptingOrders : (data.isOpen !== undefined ? data.isOpen : true),
-            openingHours: data.operatingHours || data.openingHours || {},
-            featured: data.featured || false,
-            status: data.platformStatus || data.status || 'active',
-            commissionRate: data.commissionRate || 15,
-            totalOrders: data.totalOrders || 0,
-            totalRevenue: data.totalRevenue || 0,
-            averagePreparationTime: data.preparationTime?.average || data.averagePreparationTime || 20,
-            createdAt: data.createdAt?.toDate?.() || new Date(),
-            updatedAt: data.updatedAt?.toDate?.() || new Date()
-          };
-        }) as Restaurant[];
+        // Use centralized transformer for consistency
+        const restaurantsData = transformRestaurantsData(restaurantsSnapshot.docs);
 
         setRestaurants(restaurantsData);
 
