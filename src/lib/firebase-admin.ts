@@ -1,9 +1,9 @@
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
 // Firebase Admin SDK configuration
-const firebaseAdminConfig = {
+const firebaseAdminConfig: ServiceAccount = {
   type: process.env.FIREBASE_ADMIN_TYPE,
   project_id: process.env.FIREBASE_ADMIN_PROJECT_ID,
   private_key_id: process.env.FIREBASE_ADMIN_PRIVATE_KEY_ID,
@@ -16,13 +16,13 @@ const firebaseAdminConfig = {
   auth_provider_x509_cert_url: process.env.FIREBASE_ADMIN_AUTH_PROVIDER_X509_CERT_URL,
   client_x509_cert_url: process.env.FIREBASE_ADMIN_CLIENT_X509_CERT_URL,
   universe_domain: process.env.FIREBASE_ADMIN_UNIVERSE_DOMAIN,
-};
+} as ServiceAccount;
 
 // Initialize Firebase Admin (only once)
 let adminApp;
 if (!getApps().length) {
   adminApp = initializeApp({
-    credential: cert(firebaseAdminConfig as any),
+    credential: cert(firebaseAdminConfig),
     projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
   }, 'admin');
 } else {

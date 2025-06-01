@@ -116,7 +116,7 @@ export const verifyAdminAuthPages = async (
 };
 
 // Helper function to check if user is admin
-export const isAdmin = (customClaims: any): boolean => {
+export const isAdmin = (customClaims: Record<string, unknown>): boolean => {
   return customClaims?.role === 'admin';
 };
 
