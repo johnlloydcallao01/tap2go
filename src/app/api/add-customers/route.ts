@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 export async function POST() {
   try {
+    // Dynamic import to avoid initialization during build
+    const { db } = await import('@/lib/firebase');
+
     console.log('🚀 Adding customers collection to Firebase...');
 
     // Add customers structure documentation
