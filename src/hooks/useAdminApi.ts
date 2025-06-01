@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/lib/firebase';
 
 // Custom hook for admin API operations
 export const useAdminApi = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
 
   const makeAdminRequest = async (endpoint: string, options: RequestInit = {}) => {
     setLoading(true);

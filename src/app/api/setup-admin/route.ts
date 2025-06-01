@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { setupSuperAdmin, verifyAdminSetup } from '@/scripts/setup-admin';
 
 export async function POST() {
