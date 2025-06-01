@@ -1,5 +1,5 @@
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Firestore } from 'firebase-admin/firestore';
 
 // Order interface for type safety
 interface OrderDocument {
@@ -53,7 +53,12 @@ export interface AdminDriverDocument {
 
 // Admin function to approve a driver
 export const adminApproveDriver = async (driverUid: string, adminUid: string): Promise<void> => {
-  const driverRef = adminDb.collection('drivers').doc(driverUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const driverRef = database.collection('drivers').doc(driverUid);
   
   await driverRef.update({
     status: 'approved',
@@ -71,7 +76,12 @@ export const adminApproveDriver = async (driverUid: string, adminUid: string): P
 
 // Admin function to reject a driver
 export const adminRejectDriver = async (driverUid: string, adminUid: string, reason?: string): Promise<void> => {
-  const driverRef = adminDb.collection('drivers').doc(driverUid);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const driverRef = database.collection('drivers').doc(driverUid);
   
   await driverRef.update({
     status: 'rejected',
@@ -84,7 +94,12 @@ export const adminRejectDriver = async (driverUid: string, adminUid: string, rea
 
 // Admin function to suspend a driver
 export const adminSuspendDriver = async (driverUid: string, adminUid: string, reason?: string): Promise<void> => {
-  const driverRef = adminDb.collection('drivers').doc(driverUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const driverRef = database.collection('drivers').doc(driverUid);
   
   await driverRef.update({
     status: 'suspended',
@@ -111,8 +126,13 @@ export const adminGetDriverFinancials = async (driverUid: string): Promise<{
     orders: OrderDocument[];
   };
 }> => {
-  const driverRef = adminDb.collection('drivers').doc(driverUid);
-  const ordersRef = adminDb.collection('orders').where('driverId', '==', driverUid);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const driverRef = database.collection('drivers').doc(driverUid);
+  const ordersRef = database.collection('orders').where('driverId', '==', driverUid);
   
   const [driverDoc, ordersSnapshot] = await Promise.all([
     driverRef.get(),
@@ -143,7 +163,12 @@ export const adminGetDriverFinancials = async (driverUid: string): Promise<{
 
 // Admin function to get all pending drivers
 export const adminGetPendingDrivers = async (): Promise<AdminDriverDocument[]> => {
-  const snapshot = await adminDb.collection('drivers')
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const snapshot = await database.collection('drivers')
     .where('status', '==', 'pending')
     .orderBy('createdAt', 'desc')
     .get();
@@ -162,7 +187,12 @@ export const adminGetDriverAnalytics = async (): Promise<{
   suspended: number;
   rejectedCount: number;
 }> => {
-  const driversRef = adminDb.collection('drivers');
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const driversRef = database.collection('drivers');
   
   const [totalSnapshot, pendingSnapshot, approvedSnapshot, suspendedSnapshot] = await Promise.all([
     driversRef.get(),
@@ -182,10 +212,15 @@ export const adminGetDriverAnalytics = async (): Promise<{
 
 // Admin function for bulk operations
 export const adminBulkUpdateDrivers = async (driverUids: string[], updates: Partial<AdminDriverDocument>): Promise<void> => {
-  const batch = adminDb.batch();
-  
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const batch = database.batch();
+
   driverUids.forEach(uid => {
-    const driverRef = adminDb.collection('drivers').doc(uid);
+    const driverRef = database.collection('drivers').doc(uid);
     batch.update(driverRef, {
       ...updates,
       updatedAt: FieldValue.serverTimestamp()

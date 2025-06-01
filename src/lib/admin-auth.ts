@@ -23,6 +23,14 @@ export interface AuthResult {
 // App Router version - for /app/api routes
 export const verifyAdminAuth = async (request: NextRequest): Promise<AuthResult> => {
   try {
+    // Check if Firebase Admin is initialized
+    if (!adminAuth) {
+      return {
+        success: false,
+        message: 'Firebase Admin not initialized'
+      };
+    }
+
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
 
@@ -72,6 +80,14 @@ export const verifyAdminAuthPages = async (
   handler: (req: AuthenticatedRequest, res: NextApiResponse) => Promise<void>
 ) => {
   try {
+    // Check if Firebase Admin is initialized
+    if (!adminAuth) {
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Firebase Admin not initialized'
+      });
+    }
+
     // Get the authorization header
     const authHeader = req.headers.authorization;
 

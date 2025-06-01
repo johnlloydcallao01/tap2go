@@ -1,5 +1,5 @@
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Firestore } from 'firebase-admin/firestore';
 
 // Order interface for type safety
 interface OrderData {
@@ -61,7 +61,12 @@ export const adminGetUsers = async (
   role?: string,
   status?: string
 ): Promise<{ users: AdminUserDocument[]; hasMore: boolean }> => {
-  let query = adminDb.collection('users').orderBy('createdAt', 'desc');
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  let query = database.collection('users').orderBy('createdAt', 'desc');
 
   if (role) {
     query = query.where('role', '==', role);
@@ -72,7 +77,7 @@ export const adminGetUsers = async (
   }
 
   if (startAfter) {
-    const startAfterDoc = await adminDb.collection('users').doc(startAfter).get();
+    const startAfterDoc = await database.collection('users').doc(startAfter).get();
     query = query.startAfter(startAfterDoc);
   }
 
@@ -90,7 +95,12 @@ export const adminGetUsers = async (
 
 // Admin function to suspend a user
 export const adminSuspendUser = async (userUid: string, adminUid: string, reason: string): Promise<void> => {
-  const userRef = adminDb.collection('users').doc(userUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const userRef = database.collection('users').doc(userUid);
   
   await userRef.update({
     status: 'suspended',
@@ -106,7 +116,12 @@ export const adminSuspendUser = async (userUid: string, adminUid: string, reason
 
 // Admin function to ban a user
 export const adminBanUser = async (userUid: string, adminUid: string, reason: string): Promise<void> => {
-  const userRef = adminDb.collection('users').doc(userUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const userRef = database.collection('users').doc(userUid);
   
   await userRef.update({
     status: 'banned',
@@ -122,7 +137,12 @@ export const adminBanUser = async (userUid: string, adminUid: string, reason: st
 
 // Admin function to reactivate a user
 export const adminReactivateUser = async (userUid: string, adminUid: string): Promise<void> => {
-  const userRef = adminDb.collection('users').doc(userUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const userRef = database.collection('users').doc(userUid);
   
   await userRef.update({
     status: 'active',
@@ -137,7 +157,12 @@ export const adminReactivateUser = async (userUid: string, adminUid: string): Pr
 
 // Admin function to update user role
 export const adminUpdateUserRole = async (userUid: string, newRole: string, adminUid: string): Promise<void> => {
-  const userRef = adminDb.collection('users').doc(userUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const userRef = database.collection('users').doc(userUid);
   
   await userRef.update({
     role: newRole,
@@ -165,7 +190,12 @@ export const adminGetUserAnalytics = async (): Promise<{
     banned: number;
   };
 }> => {
-  const usersRef = adminDb.collection('users');
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const usersRef = database.collection('users');
   
   const [
     totalSnapshot,
@@ -203,8 +233,13 @@ export const adminGetUserAnalytics = async (): Promise<{
 
 // Admin function to search users
 export const adminSearchUsers = async (searchTerm: string, limit: number = 20): Promise<AdminUserDocument[]> => {
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
   // Note: This is a basic implementation. For production, consider using Algolia or similar
-  const usersSnapshot = await adminDb.collection('users')
+  const database = adminDb as Firestore;
+  const usersSnapshot = await database.collection('users')
     .where('email', '>=', searchTerm.toLowerCase())
     .where('email', '<=', searchTerm.toLowerCase() + '\uf8ff')
     .limit(limit)
@@ -227,9 +262,14 @@ export const adminGetUserDetails = async (userUid: string): Promise<{
     recentOrders: OrderData[];
   };
 }> => {
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
   const [userDoc, ordersSnapshot] = await Promise.all([
-    adminDb.collection('users').doc(userUid).get(),
-    adminDb.collection('orders').where('customerId', '==', userUid).orderBy('createdAt', 'desc').get()
+    database.collection('users').doc(userUid).get(),
+    database.collection('orders').where('customerId', '==', userUid).orderBy('createdAt', 'desc').get()
   ]);
 
   if (!userDoc.exists) {
@@ -263,6 +303,10 @@ export const adminCreateAdminUser = async (
   lastName: string,
   createdByAdminUid: string
 ): Promise<string> => {
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
   // Create user in Firebase Auth
   const userRecord = await adminAuth.createUser({
     email,
@@ -274,7 +318,8 @@ export const adminCreateAdminUser = async (
   await adminAuth.setCustomUserClaims(userRecord.uid, { role: 'admin' });
 
   // Create user document in Firestore
-  await adminDb.collection('users').doc(userRecord.uid).set({
+  const database = adminDb as Firestore;
+  await database.collection('users').doc(userRecord.uid).set({
     email,
     firstName,
     lastName,
@@ -302,10 +347,15 @@ export const adminCreateAdminUser = async (
 
 // Admin function for bulk user operations
 export const adminBulkUpdateUsers = async (userUids: string[], updates: Record<string, unknown>): Promise<void> => {
-  const batch = adminDb.batch();
-  
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const batch = database.batch();
+
   userUids.forEach(uid => {
-    const userRef = adminDb.collection('users').doc(uid);
+    const userRef = database.collection('users').doc(uid);
     batch.update(userRef, {
       ...updates,
       updatedAt: FieldValue.serverTimestamp()

@@ -9,6 +9,11 @@ export const setupSuperAdmin = async () => {
   const lastName = 'Callao';
 
   try {
+    // Check if Firebase Admin is initialized
+    if (!adminAuth || !adminDb) {
+      throw new Error('Firebase Admin not initialized. Please check your environment variables.');
+    }
+
     console.log('Setting up super admin user...');
 
     // Check if admin user already exists
@@ -95,8 +100,13 @@ export const setupSuperAdmin = async () => {
 // Function to verify admin setup
 export const verifyAdminSetup = async () => {
   try {
+    // Check if Firebase Admin is initialized
+    if (!adminAuth || !adminDb) {
+      throw new Error('Firebase Admin not initialized. Please check your environment variables.');
+    }
+
     const adminEmail = 'johnlloydcallao@gmail.com';
-    
+
     // Get user from Firebase Auth
     const userRecord = await adminAuth.getUserByEmail(adminEmail);
     

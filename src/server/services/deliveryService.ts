@@ -21,6 +21,7 @@ import {
 } from '@/lib/maps/utils';
 import { db } from '@/lib/firebase-admin';
 import { Restaurant } from '@/types';
+import { Firestore } from 'firebase-admin/firestore';
 
 // ===== 1. DISTANCE & ROUTE CALCULATIONS =====
 
@@ -32,8 +33,14 @@ export async function calculateDeliveryInfo(
   deliveryAddress: string
 ): Promise<DeliveryCalculation> {
   try {
+    // Check if Firebase Admin is initialized
+    if (!db) {
+      throw new Error('Firebase Admin not initialized');
+    }
+
     // Get restaurant location from database
-    const restaurantDoc = await db.collection('restaurants').doc(restaurantId).get();
+    const database = db as Firestore;
+    const restaurantDoc = await database.collection('restaurants').doc(restaurantId).get();
     if (!restaurantDoc.exists) {
       throw new Error('Restaurant not found');
     }
@@ -143,8 +150,14 @@ export async function findRestaurantsInRadius(
   radiusKm: number = 10
 ): Promise<NearbyRestaurant[]> {
   try {
+    // Check if Firebase Admin is initialized
+    if (!db) {
+      throw new Error('Firebase Admin not initialized');
+    }
+
     // Get all active restaurants from database
-    const restaurantsSnapshot = await db
+    const database = db as Firestore;
+    const restaurantsSnapshot = await database
       .collection('restaurants')
       .where('status', '==', 'active')
       .where('isOpen', '==', true)
@@ -234,8 +247,14 @@ export async function checkDeliveryAvailability(
     const customerLocation = addressValidation.coordinates!;
 
     if (restaurantId) {
+      // Check if Firebase Admin is initialized
+      if (!db) {
+        throw new Error('Firebase Admin not initialized');
+      }
+
       // Check specific restaurant delivery availability
-      const restaurantDoc = await db.collection('restaurants').doc(restaurantId).get();
+      const database = db as Firestore;
+      const restaurantDoc = await database.collection('restaurants').doc(restaurantId).get();
       if (!restaurantDoc.exists) {
         return { isAvailable: false, reason: 'Restaurant not found' };
       }
@@ -333,8 +352,14 @@ export async function findNearestAvailableDriver(
   pickupLocation: Coordinates
 ): Promise<{ driverId: string; distance: number; estimatedArrival: number } | null> {
   try {
+    // Check if Firebase Admin is initialized
+    if (!db) {
+      throw new Error('Firebase Admin not initialized');
+    }
+
     // Get available drivers from database
-    const driversSnapshot = await db
+    const database = db as Firestore;
+    const driversSnapshot = await database
       .collection('drivers')
       .where('isOnline', '==', true)
       .where('isAvailable', '==', true)

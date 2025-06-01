@@ -1,5 +1,5 @@
 import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Firestore } from 'firebase-admin/firestore';
 
 // Order interface for type safety
 interface OrderData {
@@ -90,7 +90,12 @@ export const adminGetOrderAnalytics = async (dateRange?: { start: Date; end: Dat
   completionRate: number;
   cancellationRate: number;
 }> => {
-  const ordersRef = adminDb.collection('orders');
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const ordersRef = database.collection('orders');
   let ordersSnapshot;
 
   if (dateRange) {
@@ -129,7 +134,12 @@ export const adminGetOrderAnalytics = async (dateRange?: { start: Date; end: Dat
 
 // Admin function to get orders by status
 export const adminGetOrdersByStatus = async (status: string, limit: number = 50): Promise<AdminOrderDocument[]> => {
-  const snapshot = await adminDb.collection('orders')
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const snapshot = await database.collection('orders')
     .where('status', '==', status)
     .orderBy('createdAt', 'desc')
     .limit(limit)
@@ -143,7 +153,12 @@ export const adminGetOrdersByStatus = async (status: string, limit: number = 50)
 
 // Admin function to force cancel an order
 export const adminCancelOrder = async (orderId: string, adminUid: string, reason: string): Promise<void> => {
-  const orderRef = adminDb.collection('orders').doc(orderId);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const orderRef = database.collection('orders').doc(orderId);
   
   await orderRef.update({
     status: 'cancelled',
@@ -156,7 +171,12 @@ export const adminCancelOrder = async (orderId: string, adminUid: string, reason
 
 // Admin function to reassign order to different driver
 export const adminReassignOrder = async (orderId: string, newDriverId: string, adminUid: string): Promise<void> => {
-  const orderRef = adminDb.collection('orders').doc(orderId);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const orderRef = database.collection('orders').doc(orderId);
   
   await orderRef.update({
     driverId: newDriverId,
@@ -168,7 +188,12 @@ export const adminReassignOrder = async (orderId: string, newDriverId: string, a
 
 // Admin function to process refund
 export const adminProcessRefund = async (orderId: string, refundAmount: number, adminUid: string, reason: string): Promise<void> => {
-  const orderRef = adminDb.collection('orders').doc(orderId);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const orderRef = database.collection('orders').doc(orderId);
   
   await orderRef.update({
     paymentStatus: 'refunded',
@@ -206,7 +231,12 @@ export const adminGetRevenueAnalytics = async (period: 'daily' | 'weekly' | 'mon
       break;
   }
 
-  const ordersSnapshot = await adminDb.collection('orders')
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const ordersSnapshot = await database.collection('orders')
     .where('status', '==', 'delivered')
     .where('createdAt', '>=', startDate)
     .orderBy('createdAt', 'asc')
@@ -277,7 +307,12 @@ export const adminGetTopVendors = async (limit: number = 10): Promise<Array<{
   vendorName: string;
   vendorEmail: string;
 }>> => {
-  const ordersSnapshot = await adminDb.collection('orders')
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const ordersSnapshot = await database.collection('orders')
     .where('status', '==', 'delivered')
     .get();
 
@@ -320,9 +355,10 @@ export const adminGetTopVendors = async (limit: number = 10): Promise<Array<{
     .slice(0, limit);
 
   // Get vendor details
+  const vendorDatabase = adminDb as Firestore;
   const vendorDetails = await Promise.all(
     topVendors.map(async (vendor) => {
-      const vendorDoc = await adminDb.collection('vendors').doc(vendor.vendorId).get();
+      const vendorDoc = await vendorDatabase.collection('vendors').doc(vendor.vendorId).get();
       return {
         ...vendor,
         vendorName: vendorDoc.data()?.businessName || 'Unknown',

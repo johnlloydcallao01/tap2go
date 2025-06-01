@@ -1,5 +1,5 @@
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Firestore } from 'firebase-admin/firestore';
 
 // Order interface for type safety
 interface OrderData {
@@ -64,7 +64,12 @@ export interface AdminVendorDocument {
 
 // Admin function to approve a vendor
 export const adminApproveVendor = async (vendorUid: string, adminUid: string): Promise<void> => {
-  const vendorRef = adminDb.collection('vendors').doc(vendorUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const vendorRef = database.collection('vendors').doc(vendorUid);
   
   await vendorRef.update({
     status: 'approved',
@@ -82,7 +87,12 @@ export const adminApproveVendor = async (vendorUid: string, adminUid: string): P
 
 // Admin function to reject a vendor
 export const adminRejectVendor = async (vendorUid: string, adminUid: string, reason?: string): Promise<void> => {
-  const vendorRef = adminDb.collection('vendors').doc(vendorUid);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const vendorRef = database.collection('vendors').doc(vendorUid);
   
   await vendorRef.update({
     status: 'rejected',
@@ -95,7 +105,12 @@ export const adminRejectVendor = async (vendorUid: string, adminUid: string, rea
 
 // Admin function to suspend a vendor
 export const adminSuspendVendor = async (vendorUid: string, adminUid: string, reason?: string): Promise<void> => {
-  const vendorRef = adminDb.collection('vendors').doc(vendorUid);
+  if (!adminDb || !adminAuth) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const vendorRef = database.collection('vendors').doc(vendorUid);
   
   await vendorRef.update({
     status: 'suspended',
@@ -124,8 +139,13 @@ export const adminGetVendorFinancials = async (vendorUid: string): Promise<{
     orders: OrderData[];
   };
 }> => {
-  const vendorRef = adminDb.collection('vendors').doc(vendorUid);
-  const ordersRef = adminDb.collection('orders').where('vendorId', '==', vendorUid);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const vendorRef = database.collection('vendors').doc(vendorUid);
+  const ordersRef = database.collection('orders').where('vendorId', '==', vendorUid);
   
   const [vendorDoc, ordersSnapshot] = await Promise.all([
     vendorRef.get(),
@@ -165,7 +185,12 @@ export const adminCalculatePlatformRevenue = async (): Promise<{
   averageCommissionRate: number;
   averageOrderValue: number;
 }> => {
-  const ordersSnapshot = await adminDb.collection('orders')
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const ordersSnapshot = await database.collection('orders')
     .where('status', '==', 'delivered')
     .get();
 
@@ -189,7 +214,12 @@ export const adminCalculatePlatformRevenue = async (): Promise<{
 
 // Admin function to get all pending vendors
 export const adminGetPendingVendors = async (): Promise<AdminVendorDocument[]> => {
-  const snapshot = await adminDb.collection('vendors')
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const snapshot = await database.collection('vendors')
     .where('status', '==', 'pending')
     .orderBy('createdAt', 'desc')
     .get();
@@ -208,7 +238,12 @@ export const adminGetVendorAnalytics = async (): Promise<{
   suspended: number;
   rejectedCount: number;
 }> => {
-  const vendorsRef = adminDb.collection('vendors');
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const vendorsRef = database.collection('vendors');
   
   const [totalSnapshot, pendingSnapshot, approvedSnapshot, suspendedSnapshot] = await Promise.all([
     vendorsRef.get(),
@@ -228,7 +263,12 @@ export const adminGetVendorAnalytics = async (): Promise<{
 
 // Admin function to update vendor commission rate
 export const adminUpdateVendorCommission = async (vendorUid: string, commissionRate: number): Promise<void> => {
-  const vendorRef = adminDb.collection('vendors').doc(vendorUid);
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const vendorRef = database.collection('vendors').doc(vendorUid);
   
   await vendorRef.update({
     commissionRate: commissionRate,
@@ -238,10 +278,15 @@ export const adminUpdateVendorCommission = async (vendorUid: string, commissionR
 
 // Admin function for bulk vendor operations
 export const adminBulkUpdateVendors = async (vendorUids: string[], updates: Partial<AdminVendorDocument>): Promise<void> => {
-  const batch = adminDb.batch();
-  
+  if (!adminDb) {
+    throw new Error('Firebase Admin not initialized');
+  }
+
+  const database = adminDb as Firestore;
+  const batch = database.batch();
+
   vendorUids.forEach(uid => {
-    const vendorRef = adminDb.collection('vendors').doc(uid);
+    const vendorRef = database.collection('vendors').doc(uid);
     batch.update(vendorRef, {
       ...updates,
       updatedAt: FieldValue.serverTimestamp()
