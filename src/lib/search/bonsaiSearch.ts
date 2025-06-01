@@ -4,6 +4,22 @@
 import { bonsaiClient, INDICES } from '@/lib/bonsai';
 import { Restaurant } from '@/types';
 
+// Search body interface for type safety
+interface SearchBody {
+  from: number;
+  size: number;
+  query: {
+    bool: {
+      must: unknown[];
+      filter: unknown[];
+      should?: unknown[];
+      minimum_should_match?: number;
+    };
+  };
+  aggs: Record<string, unknown>;
+  sort?: unknown;
+}
+
 // Search interfaces
 export interface SearchFilters {
   cuisine?: string[];
@@ -53,20 +69,7 @@ export const searchRestaurants = async (
     } = options;
 
     // Build Elasticsearch query
-    const searchBody: {
-      from: number;
-      size: number;
-      query: {
-        bool: {
-          must: unknown[];
-          filter: unknown[];
-          should?: unknown[];
-          minimum_should_match?: number;
-        };
-      };
-      aggs: Record<string, unknown>;
-      sort?: Record<string, unknown>[];
-    } = {
+    const searchBody: SearchBody = {
       from,
       size,
       query: {
@@ -222,7 +225,7 @@ export const searchRestaurants = async (
     }
 
     // Add sorting
-    const sort: Record<string, unknown>[] = [];
+    const sort: unknown[] = [];
     
     if (sortBy === 'relevance') {
       sort.push({ _score: { order: sortOrder } });
@@ -252,19 +255,18 @@ export const searchRestaurants = async (
     // Execute search
     const response = await bonsaiClient.search({
       index: INDICES.RESTAURANTS,
-      body: searchBody
+      body: searchBody as unknown as Record<string, unknown>
     });
 
     // Process results
-    const restaurants: Restaurant[] = response.body.hits.hits.map((hit: {
-      _id: string;
-      _source: Restaurant;
-      _score?: number;
-    }) => ({
-      id: hit._id,
-      ...hit._source,
-      _score: hit._score // Include relevance score
-    }));
+    const restaurants: Restaurant[] = response.body.hits.hits.map((hit) => {
+      const source = hit._source as Restaurant;
+      return {
+        ...source,
+        id: hit._id, // Override with Elasticsearch document ID
+        _score: hit._score // Include relevance score
+      } as Restaurant & { _score?: number };
+    });
 
     const total = typeof response.body.hits.total === 'object'
       ? response.body.hits.total.value || 0
@@ -439,7 +441,7 @@ const getFallbackSuggestions = async (query: string): Promise<string[]> => {
       }
     });
 
-    const suggestions = response.body.hits.hits.map((hit: { _source: { name: string } }) => hit._source.name);
+    const suggestions = response.body.hits.hits.map((hit) => (hit._source as { name: string }).name);
     return [...new Set(suggestions)]; // Remove duplicates
   } catch (error) {
     console.error('Fallback suggestion error:', error);
@@ -487,15 +489,14 @@ export const searchNearbyRestaurants = async (
       }
     });
 
-    return response.body.hits.hits.map((hit: {
-      _id: string;
-      _source: Restaurant;
-      sort: number[];
-    }) => ({
-      id: hit._id,
-      ...hit._source,
-      distance: hit.sort[0] // Distance in km
-    }));
+    return response.body.hits.hits.map((hit) => {
+      const source = hit._source as Restaurant;
+      return {
+        ...source,
+        id: hit._id,
+        distance: hit.sort?.[0] // Distance in km
+      } as Restaurant & { distance?: number };
+    });
   } catch (error) {
     console.error('Nearby search error:', error);
     throw new Error('Location search failed. Please try again.');
