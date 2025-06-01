@@ -1,13 +1,12 @@
 // Google Maps Backend Service for Tap2Go Platform
 // Handles server-side Google Maps operations using backend API key
 
-import { 
-  Coordinates, 
-  GeocodeResult, 
-  DistanceResult, 
+import {
+  Coordinates,
+  GeocodeResult,
+  DistanceResult,
   RouteInfo,
-  DeliveryCalculation,
-  MapsError 
+  DeliveryCalculation
 } from '@/lib/maps/types';
 import { 
   calculateDeliveryInfo, 
@@ -60,7 +59,7 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult> {
       coordinates,
       formattedAddress: result.formatted_address,
       placeId: result.place_id,
-      addressComponents: result.address_components.map((component: any) => ({
+      addressComponents: result.address_components.map((component: google.maps.GeocoderAddressComponent) => ({
         longName: component.long_name,
         shortName: component.short_name,
         types: component.types
@@ -71,7 +70,7 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult> {
     if (error instanceof Error && 'code' in error) {
       throw error; // Re-throw MapsError
     }
-    throw createMapsError('GEOCODING_FAILED', 'Failed to geocode address', error);
+    throw createMapsError('GEOCODING_FAILED', 'Failed to geocode address', error as Record<string, unknown>);
   }
 }
 
@@ -103,7 +102,7 @@ export async function reverseGeocode(coordinates: Coordinates): Promise<GeocodeR
       coordinates,
       formattedAddress: result.formatted_address,
       placeId: result.place_id,
-      addressComponents: result.address_components.map((component: any) => ({
+      addressComponents: result.address_components.map((component: google.maps.GeocoderAddressComponent) => ({
         longName: component.long_name,
         shortName: component.short_name,
         types: component.types
@@ -114,7 +113,7 @@ export async function reverseGeocode(coordinates: Coordinates): Promise<GeocodeR
     if (error instanceof Error && 'code' in error) {
       throw error;
     }
-    throw createMapsError('GEOCODING_FAILED', 'Failed to reverse geocode coordinates', error);
+    throw createMapsError('GEOCODING_FAILED', 'Failed to reverse geocode coordinates', error as Record<string, unknown>);
   }
 }
 
@@ -154,7 +153,7 @@ export async function calculateDistance(
     if (error instanceof Error && 'code' in error) {
       throw error;
     }
-    throw createMapsError('DISTANCE_CALCULATION_FAILED', 'Failed to calculate distance', error);
+    throw createMapsError('DISTANCE_CALCULATION_FAILED', 'Failed to calculate distance', error as Record<string, unknown>);
   }
 }
 
@@ -185,7 +184,7 @@ export async function calculateDistanceMatrix(
     }
     
     const elements = data.rows[0]?.elements || [];
-    return elements.map((element: any) => ({
+    return elements.map((element: google.maps.DistanceMatrixResponseElement) => ({
       distance: element.distance || { text: 'N/A', value: 0 },
       duration: element.duration || { text: 'N/A', value: 0 },
       status: element.status
@@ -194,7 +193,7 @@ export async function calculateDistanceMatrix(
     if (error instanceof Error && 'code' in error) {
       throw error;
     }
-    throw createMapsError('DISTANCE_CALCULATION_FAILED', 'Failed to calculate distance matrix', error);
+    throw createMapsError('DISTANCE_CALCULATION_FAILED', 'Failed to calculate distance matrix', error as Record<string, unknown>);
   }
 }
 
@@ -243,7 +242,7 @@ export async function getDirections(
       distance: leg.distance,
       duration: leg.duration,
       polyline: route.overview_polyline.points,
-      steps: leg.steps.map((step: any) => ({
+      steps: leg.steps.map((step: google.maps.DirectionsStep) => ({
         distance: step.distance,
         duration: step.duration,
         startLocation: {
@@ -254,8 +253,8 @@ export async function getDirections(
           lat: step.end_location.lat,
           lng: step.end_location.lng
         },
-        instructions: step.html_instructions.replace(/<[^>]*>/g, ''), // Strip HTML
-        polyline: step.polyline.points
+        instructions: step.instructions?.replace(/<[^>]*>/g, '') || '', // Strip HTML
+        polyline: step.polyline?.points || ''
       })),
       bounds: {
         northeast: {
@@ -272,7 +271,7 @@ export async function getDirections(
     if (error instanceof Error && 'code' in error) {
       throw error;
     }
-    throw createMapsError('DISTANCE_CALCULATION_FAILED', 'Failed to get directions', error);
+    throw createMapsError('DISTANCE_CALCULATION_FAILED', 'Failed to get directions', error as Record<string, unknown>);
   }
 }
 
@@ -325,7 +324,8 @@ export async function findNearbyRestaurants(
   // 2. Calculate distances to each restaurant
   // 3. Filter by radius
   // 4. Return restaurant coordinates
-  
+
+  console.log(`Finding restaurants near ${customerLocation.lat}, ${customerLocation.lng} within ${radiusKm}km`);
   return [];
 }
 

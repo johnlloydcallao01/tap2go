@@ -1,18 +1,15 @@
 // Google Maps Utility Functions for Tap2Go Platform
 
-import { 
-  Coordinates, 
-  MapAddress, 
-  DistanceResult, 
+import {
+  Coordinates,
+  MapAddress,
   DeliveryCalculation,
-  GeocodeResult,
-  MapsError 
+  MapsError
 } from './types';
-import { 
-  DELIVERY_CONFIG, 
-  VALIDATION_RULES, 
-  ERROR_MESSAGES,
-  PHILIPPINES_CONFIG 
+import {
+  DELIVERY_CONFIG,
+  VALIDATION_RULES,
+  ERROR_MESSAGES
 } from './constants';
 
 // ===== COORDINATE UTILITIES =====
@@ -286,9 +283,9 @@ export function adjustForPeakHours(baseTime: number): number {
  * Creates standardized maps error
  */
 export function createMapsError(
-  code: string, 
-  message?: string, 
-  details?: any
+  code: string,
+  message?: string,
+  details?: Record<string, unknown>
 ): MapsError {
   return {
     code,

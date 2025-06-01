@@ -187,17 +187,21 @@ export const useMapsApi = () => mapsApi;
 // Import MAP_CONFIG directly from constants when needed
 
 // Error handling utilities
-export const handleMapsApiError = (error: any) => {
+export const handleMapsApiError = (error: unknown) => {
   console.error('Maps API Error:', error);
-  
-  if (error.success === false) {
-    return error.error || 'Maps service error';
+
+  if (error && typeof error === 'object' && 'success' in error && error.success === false) {
+    return (error as { error?: string }).error || 'Maps service error';
   }
-  
-  if (error.message) {
-    return error.message;
+
+  if (error && typeof error === 'object' && 'message' in error) {
+    return (error as { message: string }).message;
   }
-  
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
   return 'Unknown maps error occurred';
 };
 
@@ -218,8 +222,10 @@ export const validateCoordinatesInput = (lat: string, lng: string): { isValid: b
 };
 
 // Default export for convenience
-export default {
+const mapsUtils = {
   mapsApi,
   handleMapsApiError,
   validateCoordinatesInput
 };
+
+export default mapsUtils;

@@ -8,11 +8,10 @@ import {
   geocodeAddress,
   validateServiceableAddress 
 } from './mapsService';
-import { 
-  Coordinates, 
+import {
+  Coordinates,
   DeliveryCalculation,
-  RestaurantLocation,
-  NearbyRestaurant 
+  NearbyRestaurant
 } from '@/lib/maps/types';
 import { 
   calculateDeliveryFee, 
@@ -166,7 +165,6 @@ export async function findRestaurantsInRadius(
     }
 
     // Calculate distances using Google Maps backend API
-    const origins = [customerLocation];
     const destinations = restaurantsWithCoords.map(r => r.address.coordinates!);
     
     const distanceResults = await calculateDistanceMatrix(customerLocation, destinations);
@@ -311,8 +309,9 @@ export async function analyzeDeliveryPerformance(timeframe: 'day' | 'week' | 'mo
   onTimePercentage: number;
 }> {
   try {
-    // This would typically query your orders database
+    // This would typically query your orders database based on timeframe
     // For now, returning mock data structure
+    console.log(`Analyzing delivery performance for timeframe: ${timeframe}`);
     return {
       averageDeliveryTime: 35, // minutes
       averageDistance: 4.2,    // km

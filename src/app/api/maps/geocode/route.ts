@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
           addressComponents: [],
           types: []
         }],
-        message: 'Address validated and geocoded successfully'
+        message: 'Address validated and geocoded successfully',
+        status: 'OK'
       } as GeocodeResponse, { status: 200 });
     }
 
@@ -59,7 +60,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: [result],
-      message: 'Address geocoded successfully'
+      message: 'Address geocoded successfully',
+      status: 'OK'
     } as GeocodeResponse, { status: 200 });
 
   } catch (error: unknown) {
@@ -125,7 +127,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: [result],
-      message: 'Coordinates reverse geocoded successfully'
+      message: 'Coordinates reverse geocoded successfully',
+      status: 'OK'
     } as GeocodeResponse, { status: 200 });
 
   } catch (error: unknown) {

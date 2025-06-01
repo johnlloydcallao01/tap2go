@@ -26,10 +26,10 @@ export default function ProfessionalMap({
   onLocationSelect
 }: MapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const infoWindowRef = useRef<any>(null);
-  const autocompleteRef = useRef<any>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.Marker | null>(null);
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
   const [isLoaded, setIsLoaded] = useState(false);
@@ -85,13 +85,13 @@ export default function ProfessionalMap({
       });
 
       // Add click listener for location selection
-      mapInstanceRef.current.addListener('click', (event: any) => {
+      mapInstanceRef.current.addListener('click', (event: google.maps.MapMouseEvent) => {
         // Close any open info windows when clicking on empty map area
         if (infoWindowRef.current) {
           infoWindowRef.current.close();
         }
-        const lat = event.latLng.lat();
-        const lng = event.latLng.lng();
+        const lat = event.latLng?.lat() ?? 0;
+        const lng = event.latLng?.lng() ?? 0;
         
         // Remove existing marker and info window
         if (markerRef.current) {
@@ -103,8 +103,8 @@ export default function ProfessionalMap({
 
         // Reverse geocode to get address first
         const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
-          if (status === 'OK' && results[0]) {
+        geocoder.geocode({ location: { lat, lng } }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+          if (status === 'OK' && results && results[0]) {
             const address = results[0].formatted_address;
             const placeName = results[0].address_components?.[0]?.long_name || 'Selected Location';
 
@@ -145,27 +145,32 @@ export default function ProfessionalMap({
             });
 
             // Open info window immediately
-            infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+            if (infoWindowRef.current && mapInstanceRef.current && markerRef.current) {
+              infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+            }
 
             // Add click listener to marker to reopen info window
             markerRef.current.addListener('click', () => {
-              infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+              if (infoWindowRef.current && mapInstanceRef.current && markerRef.current) {
+                infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+              }
             });
 
             // Add drag listener to update location when marker is dragged
-            markerRef.current.addListener('dragend', (event: any) => {
-              const newLat = event.latLng.lat();
-              const newLng = event.latLng.lng();
+            markerRef.current.addListener('dragend', (event: google.maps.MapMouseEvent) => {
+              const newLat = event.latLng?.lat() ?? 0;
+              const newLng = event.latLng?.lng() ?? 0;
 
               // Update info window content with new coordinates
               const geocoder = new window.google.maps.Geocoder();
-              geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results: any, status: any) => {
-                if (status === 'OK' && results[0]) {
+              geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+                if (status === 'OK' && results && results[0]) {
                   const newAddress = results[0].formatted_address;
                   const newPlaceName = results[0].address_components?.[0]?.long_name || 'Dragged Location';
 
                   // Update info window content
-                  infoWindowRef.current.setContent(`
+                  if (infoWindowRef.current) {
+                    infoWindowRef.current.setContent(`
                     <div style="padding: 12px; min-width: 200px; font-family: Roboto, Arial, sans-serif;">
                       <div style="font-weight: 500; font-size: 16px; color: #202124; margin-bottom: 4px;">
                         ${newPlaceName}
@@ -182,9 +187,12 @@ export default function ProfessionalMap({
                       </div>
                     </div>
                   `);
+                  }
 
                   // Update marker title
-                  markerRef.current.setTitle(newAddress);
+                  if (markerRef.current) {
+                    markerRef.current.setTitle(newAddress);
+                  }
 
                   // Update state
                   setSelectedLocation(newAddress);
@@ -193,7 +201,8 @@ export default function ProfessionalMap({
                   // Fallback if geocoding fails
                   const fallbackAddress = `Dragged to ${newLat.toFixed(6)}, ${newLng.toFixed(6)}`;
 
-                  infoWindowRef.current.setContent(`
+                  if (infoWindowRef.current) {
+                    infoWindowRef.current.setContent(`
                     <div style="padding: 12px; min-width: 200px; font-family: Roboto, Arial, sans-serif;">
                       <div style="font-weight: 500; font-size: 16px; color: #202124; margin-bottom: 4px;">
                         Dragged Location
@@ -207,8 +216,11 @@ export default function ProfessionalMap({
                       </div>
                     </div>
                   `);
+                  }
 
-                  markerRef.current.setTitle(fallbackAddress);
+                  if (markerRef.current) {
+                    markerRef.current.setTitle(fallbackAddress);
+                  }
                   setSelectedLocation(fallbackAddress);
                   onLocationSelect?.({ lat: newLat, lng: newLng, address: fallbackAddress });
                 }
@@ -252,25 +264,30 @@ export default function ProfessionalMap({
               pixelOffset: new window.google.maps.Size(0, -10)
             });
 
-            infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+            if (infoWindowRef.current && mapInstanceRef.current && markerRef.current) {
+              infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+            }
 
             markerRef.current.addListener('click', () => {
-              infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+              if (infoWindowRef.current && mapInstanceRef.current && markerRef.current) {
+                infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+              }
             });
 
             // Add drag listener for fallback marker
-            markerRef.current.addListener('dragend', (event: any) => {
-              const newLat = event.latLng.lat();
-              const newLng = event.latLng.lng();
+            markerRef.current.addListener('dragend', (event: google.maps.MapMouseEvent) => {
+              const newLat = event.latLng?.lat() ?? 0;
+              const newLng = event.latLng?.lng() ?? 0;
 
               // Try to get address for new position
               const geocoder = new window.google.maps.Geocoder();
-              geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results: any, status: any) => {
-                if (status === 'OK' && results[0]) {
+              geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+                if (status === 'OK' && results && results[0]) {
                   const newAddress = results[0].formatted_address;
                   const newPlaceName = results[0].address_components?.[0]?.long_name || 'Dragged Location';
 
-                  infoWindowRef.current.setContent(`
+                  if (infoWindowRef.current) {
+                    infoWindowRef.current.setContent(`
                     <div style="padding: 12px; min-width: 200px; font-family: Roboto, Arial, sans-serif;">
                       <div style="font-weight: 500; font-size: 16px; color: #202124; margin-bottom: 4px;">
                         ${newPlaceName}
@@ -287,14 +304,18 @@ export default function ProfessionalMap({
                       </div>
                     </div>
                   `);
+                  }
 
-                  markerRef.current.setTitle(newAddress);
+                  if (markerRef.current) {
+                    markerRef.current.setTitle(newAddress);
+                  }
                   setSelectedLocation(newAddress);
                   onLocationSelect?.({ lat: newLat, lng: newLng, address: newAddress });
                 } else {
                   const newFallbackAddress = `Dragged to ${newLat.toFixed(6)}, ${newLng.toFixed(6)}`;
 
-                  infoWindowRef.current.setContent(`
+                  if (infoWindowRef.current) {
+                    infoWindowRef.current.setContent(`
                     <div style="padding: 12px; min-width: 200px; font-family: Roboto, Arial, sans-serif;">
                       <div style="font-weight: 500; font-size: 16px; color: #202124; margin-bottom: 4px;">
                         Dragged Location
@@ -308,8 +329,11 @@ export default function ProfessionalMap({
                       </div>
                     </div>
                   `);
+                  }
 
-                  markerRef.current.setTitle(newFallbackAddress);
+                  if (markerRef.current) {
+                    markerRef.current.setTitle(newFallbackAddress);
+                  }
                   setSelectedLocation(newFallbackAddress);
                   onLocationSelect?.({ lat: newLat, lng: newLng, address: newFallbackAddress });
                 }
@@ -342,6 +366,7 @@ export default function ProfessionalMap({
       );
 
       autocompleteRef.current.addListener('place_changed', () => {
+        if (!autocompleteRef.current) return;
         const place = autocompleteRef.current.getPlace();
         
         if (!place.geometry || !place.geometry.location) {
@@ -421,22 +446,26 @@ export default function ProfessionalMap({
         });
 
         // Open info window immediately
-        infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+        if (infoWindowRef.current && mapInstanceRef.current && markerRef.current) {
+          infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+        }
 
         // Add click listener to marker to reopen info window
         markerRef.current.addListener('click', () => {
-          infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+          if (infoWindowRef.current && mapInstanceRef.current && markerRef.current) {
+            infoWindowRef.current.open(mapInstanceRef.current, markerRef.current);
+          }
         });
 
         // Add drag listener for search result marker
-        markerRef.current.addListener('dragend', (event: any) => {
-          const newLat = event.latLng.lat();
-          const newLng = event.latLng.lng();
+        markerRef.current.addListener('dragend', (event: google.maps.MapMouseEvent) => {
+          const newLat = event.latLng?.lat() ?? 0;
+          const newLng = event.latLng?.lng() ?? 0;
 
           // Get new address for dragged position
           const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results: any, status: any) => {
-            if (status === 'OK' && results[0]) {
+          geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+            if (status === 'OK' && results && results[0]) {
               const newAddress = results[0].formatted_address;
               const newPlaceName = results[0].address_components?.[0]?.long_name || 'Dragged Location';
               const newPlaceTypes = results[0].types || [];
@@ -453,7 +482,8 @@ export default function ProfessionalMap({
               else newPlaceTypeDisplay = '📍 Dragged Location';
 
               // Update info window content
-              infoWindowRef.current.setContent(`
+              if (infoWindowRef.current) {
+                infoWindowRef.current.setContent(`
                 <div style="padding: 16px; min-width: 250px; max-width: 300px; font-family: Roboto, Arial, sans-serif;">
                   <div style="font-weight: 500; font-size: 18px; color: #202124; margin-bottom: 6px; line-height: 1.3;">
                     ${newPlaceName}
@@ -472,15 +502,19 @@ export default function ProfessionalMap({
                   </div>
                 </div>
               `);
+              }
 
-              markerRef.current.setTitle(newAddress);
+              if (markerRef.current) {
+                markerRef.current.setTitle(newAddress);
+              }
               setSelectedLocation(newAddress);
               onLocationSelect?.({ lat: newLat, lng: newLng, address: newAddress });
             } else {
               // Fallback if geocoding fails
               const fallbackAddress = `Dragged to ${newLat.toFixed(6)}, ${newLng.toFixed(6)}`;
 
-              infoWindowRef.current.setContent(`
+              if (infoWindowRef.current) {
+                infoWindowRef.current.setContent(`
                 <div style="padding: 16px; min-width: 250px; max-width: 300px; font-family: Roboto, Arial, sans-serif;">
                   <div style="font-weight: 500; font-size: 18px; color: #202124; margin-bottom: 6px; line-height: 1.3;">
                     Dragged Location
@@ -496,16 +530,19 @@ export default function ProfessionalMap({
                   </div>
                 </div>
               `);
+              }
 
-              markerRef.current.setTitle(fallbackAddress);
+              if (markerRef.current) {
+                markerRef.current.setTitle(fallbackAddress);
+              }
               setSelectedLocation(fallbackAddress);
               onLocationSelect?.({ lat: newLat, lng: newLng, address: fallbackAddress });
             }
           });
         });
 
-        setSelectedLocation(address);
-        onLocationSelect?.({ lat, lng, address });
+        setSelectedLocation(address || 'Selected Location');
+        onLocationSelect?.({ lat, lng, address: address || 'Selected Location' });
       });
 
     } catch (err) {

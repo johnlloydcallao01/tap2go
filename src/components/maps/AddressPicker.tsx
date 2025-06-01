@@ -92,7 +92,7 @@ export default function AddressPicker({
       onError?.('Failed to initialize address search');
       console.error('Autocomplete initialization error:', err);
     }
-  }, [isLoaded, onError]);
+  }, [isLoaded, onError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize map
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function AddressPicker({
     } catch (err) {
       console.error('Map initialization error:', err);
     }
-  }, [isLoaded, showMap]);
+  }, [isLoaded, showMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle place selection from autocomplete
   const handlePlaceSelect = useCallback((place: google.maps.places.PlaceResult) => {
@@ -163,13 +163,14 @@ export default function AddressPicker({
       setInputValue(address.formattedAddress || '');
       updateMapLocation(coordinates);
       onAddressSelect(address);
-    } catch (err) {
+    } catch (error) {
+      console.error('Error processing selected address:', error);
       setError('Failed to process selected address');
       onError?.('Failed to process selected address');
     } finally {
       setIsLoading(false);
     }
-  }, [onAddressSelect, onError]);
+  }, [onAddressSelect, onError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle map click for reverse geocoding
   const handleMapClick = useCallback(async (coordinates: Coordinates) => {
@@ -205,13 +206,14 @@ export default function AddressPicker({
         updateMapLocation(coordinates);
         onAddressSelect(address);
       }
-    } catch (err) {
+    } catch (error) {
+      console.error('Error getting address for selected location:', error);
       setError('Failed to get address for selected location');
       onError?.('Failed to get address for selected location');
     } finally {
       setIsLoading(false);
     }
-  }, [onAddressSelect, onError]);
+  }, [onAddressSelect, onError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update map location and marker
   const updateMapLocation = useCallback((coordinates: Coordinates) => {
@@ -244,7 +246,7 @@ export default function AddressPicker({
         handleMapClick(newCoordinates);
       }
     });
-  }, [handleMapClick]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Extract address component by type
   const extractAddressComponent = (

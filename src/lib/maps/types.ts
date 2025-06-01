@@ -228,24 +228,39 @@ export interface MapMarker {
 
 // ===== API RESPONSE TYPES =====
 
-export interface MapsApiResponse<T = any> {
+export interface MapsApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
   message?: string;
 }
 
-export interface DistanceMatrixResponse extends MapsApiResponse<DistanceResult[]> {}
-export interface GeocodeResponse extends MapsApiResponse<GeocodeResult[]> {}
-export interface PlaceAutocompleteResponse extends MapsApiResponse<PlaceAutocompletePrediction[]> {}
-export interface PlaceDetailsResponse extends MapsApiResponse<PlaceDetailsResult> {}
+export interface DistanceMatrixResponse extends MapsApiResponse<DistanceResult[]> {
+  status: string;
+  errorMessage?: string;
+}
+
+export interface GeocodeResponse extends MapsApiResponse<GeocodeResult[]> {
+  status: string;
+  errorMessage?: string;
+}
+
+export interface PlaceAutocompleteResponse extends MapsApiResponse<PlaceAutocompletePrediction[]> {
+  status: string;
+  sessionToken?: string;
+}
+
+export interface PlaceDetailsResponse extends MapsApiResponse<PlaceDetailsResult> {
+  status: string;
+  htmlAttributions?: string[];
+}
 
 // ===== ERROR TYPES =====
 
 export interface MapsError {
   code: string;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export type MapsErrorCode = 

@@ -77,13 +77,13 @@ class GoogleMapsLoader {
       const callbackName = `googleMapsCallback_${Date.now()}`;
       
       // Set up global callback
-      (window as any)[callbackName] = () => {
+      (window as unknown as Record<string, unknown>)[callbackName] = () => {
         this.isLoaded = true;
         this.isLoading = false;
         this.notifyCallbacks();
-        
+
         // Clean up
-        delete (window as any)[callbackName];
+        delete (window as unknown as Record<string, unknown>)[callbackName];
         resolve();
       };
 

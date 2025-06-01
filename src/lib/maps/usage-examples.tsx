@@ -2,12 +2,11 @@
 // Demonstrates proper frontend vs backend API key usage patterns
 
 import React, { useState, useEffect } from 'react';
-import { 
-  GoogleMap, 
-  AddressAutocomplete, 
-  RestaurantMapView, 
-  DeliveryTracker,
-  mapsApi 
+import {
+  GoogleMap,
+  AddressAutocomplete,
+  RestaurantMapView,
+  DeliveryTracker
 } from '@/lib/maps';
 import { Coordinates, MapAddress, DeliveryCalculation } from '@/lib/maps/types';
 import { Restaurant } from '@/types';
@@ -323,6 +322,7 @@ export function CheckoutFlowExample({ restaurantId }: { restaurantId: string }) 
         setValidationError('Unable to calculate delivery fee');
       }
     } catch (error) {
+      console.error('Checkout flow error:', error);
       setValidationError('Service temporarily unavailable');
     } finally {
       setIsValidating(false);
@@ -384,7 +384,7 @@ export function CheckoutFlowExample({ restaurantId }: { restaurantId: string }) 
   );
 }
 
-export default {
+const usageExamples = {
   RestaurantLocationExample,
   AddressSelectionExample,
   DeliveryTrackingExample,
@@ -394,3 +394,5 @@ export default {
   validateAddressExample,
   findNearbyRestaurantsExample
 };
+
+export default usageExamples;
