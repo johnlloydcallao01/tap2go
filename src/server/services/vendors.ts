@@ -11,7 +11,7 @@ interface OrderData {
   vendorId: string;
   customerId: string;
   driverId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Admin-specific vendor operations with elevated privileges
@@ -113,7 +113,17 @@ export const adminSuspendVendor = async (vendorUid: string, adminUid: string, re
 };
 
 // Admin function to get vendor financial data
-export const adminGetVendorFinancials = async (vendorUid: string): Promise<any> => {
+export const adminGetVendorFinancials = async (vendorUid: string): Promise<{
+  vendor: { id: string; [key: string]: unknown };
+  financials: {
+    totalRevenue: number;
+    totalCommission: number;
+    netEarnings: number;
+    completedOrders: number;
+    averageOrderValue: number;
+    orders: OrderData[];
+  };
+}> => {
   const vendorRef = adminDb.collection('vendors').doc(vendorUid);
   const ordersRef = adminDb.collection('orders').where('vendorId', '==', vendorUid);
   
@@ -126,7 +136,7 @@ export const adminGetVendorFinancials = async (vendorUid: string): Promise<any> 
     throw new Error('Vendor not found');
   }
 
-  const orders: OrderData[] = ordersSnapshot.docs.map((doc: any) => ({
+  const orders: OrderData[] = ordersSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as OrderData));
@@ -148,12 +158,18 @@ export const adminGetVendorFinancials = async (vendorUid: string): Promise<any> 
 };
 
 // Admin function to calculate platform commission
-export const adminCalculatePlatformRevenue = async (): Promise<any> => {
+export const adminCalculatePlatformRevenue = async (): Promise<{
+  totalCommission: number;
+  totalOrderValue: number;
+  totalOrders: number;
+  averageCommissionRate: number;
+  averageOrderValue: number;
+}> => {
   const ordersSnapshot = await adminDb.collection('orders')
     .where('status', '==', 'delivered')
     .get();
 
-  const orders: OrderData[] = ordersSnapshot.docs.map((doc: any) => ({
+  const orders: OrderData[] = ordersSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as OrderData));
@@ -178,14 +194,20 @@ export const adminGetPendingVendors = async (): Promise<AdminVendorDocument[]> =
     .orderBy('createdAt', 'desc')
     .get();
 
-  return snapshot.docs.map((doc: any) => ({
+  return snapshot.docs.map((doc) => ({
     uid: doc.id,
     ...doc.data()
   } as AdminVendorDocument));
 };
 
 // Admin function to get vendor analytics
-export const adminGetVendorAnalytics = async (): Promise<any> => {
+export const adminGetVendorAnalytics = async (): Promise<{
+  total: number;
+  pending: number;
+  approved: number;
+  suspended: number;
+  rejectedCount: number;
+}> => {
   const vendorsRef = adminDb.collection('vendors');
   
   const [totalSnapshot, pendingSnapshot, approvedSnapshot, suspendedSnapshot] = await Promise.all([

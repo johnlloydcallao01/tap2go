@@ -10,8 +10,8 @@ interface OrderDocument {
   customerId: string;
   driverId?: string;
   total?: number;
-  createdAt: any;
-  [key: string]: any;
+  createdAt: Date;
+  [key: string]: unknown;
 }
 
 // Admin-specific driver operations with elevated privileges
@@ -102,7 +102,15 @@ export const adminSuspendDriver = async (driverUid: string, adminUid: string, re
 };
 
 // Admin function to get driver financial data
-export const adminGetDriverFinancials = async (driverUid: string): Promise<any> => {
+export const adminGetDriverFinancials = async (driverUid: string): Promise<{
+  driver: { id: string; [key: string]: unknown };
+  financials: {
+    totalEarnings: number;
+    completedOrders: number;
+    averageEarningsPerOrder: number;
+    orders: OrderDocument[];
+  };
+}> => {
   const driverRef = adminDb.collection('drivers').doc(driverUid);
   const ordersRef = adminDb.collection('orders').where('driverId', '==', driverUid);
   
@@ -115,7 +123,7 @@ export const adminGetDriverFinancials = async (driverUid: string): Promise<any> 
     throw new Error('Driver not found');
   }
 
-  const orders: OrderDocument[] = ordersSnapshot.docs.map((doc: any) => ({
+  const orders: OrderDocument[] = ordersSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as OrderDocument));
@@ -140,14 +148,20 @@ export const adminGetPendingDrivers = async (): Promise<AdminDriverDocument[]> =
     .orderBy('createdAt', 'desc')
     .get();
 
-  return snapshot.docs.map((doc: any) => ({
+  return snapshot.docs.map((doc) => ({
     uid: doc.id,
     ...doc.data()
   } as AdminDriverDocument));
 };
 
 // Admin function to get driver analytics
-export const adminGetDriverAnalytics = async (): Promise<any> => {
+export const adminGetDriverAnalytics = async (): Promise<{
+  total: number;
+  pending: number;
+  approved: number;
+  suspended: number;
+  rejectedCount: number;
+}> => {
   const driversRef = adminDb.collection('drivers');
   
   const [totalSnapshot, pendingSnapshot, approvedSnapshot, suspendedSnapshot] = await Promise.all([

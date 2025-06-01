@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
+import { auth } from '@/lib/firebase';
 
 // Custom hook for admin API operations
 export const useAdminApi = () => {
@@ -12,8 +13,13 @@ export const useAdminApi = () => {
     setError(null);
 
     try {
-      // Get the user's ID token
-      const token = await user?.getIdToken();
+      // Get the user's ID token from Firebase Auth
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('No authenticated user');
+      }
+
+      const token = await currentUser.getIdToken();
       
       if (!token) {
         throw new Error('No authentication token available');

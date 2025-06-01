@@ -9,7 +9,7 @@ interface OrderData {
     total: number;
   };
   customerId: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Admin-specific user operations with elevated privileges
@@ -77,7 +77,7 @@ export const adminGetUsers = async (
   }
 
   const snapshot = await query.limit(limit + 1).get();
-  const users = snapshot.docs.slice(0, limit).map((doc: any) => ({
+  const users = snapshot.docs.slice(0, limit).map((doc) => ({
     uid: doc.id,
     ...doc.data()
   } as AdminUserDocument));
@@ -151,7 +151,20 @@ export const adminUpdateUserRole = async (userUid: string, newRole: string, admi
 };
 
 // Admin function to get user analytics
-export const adminGetUserAnalytics = async (): Promise<any> => {
+export const adminGetUserAnalytics = async (): Promise<{
+  total: number;
+  byRole: {
+    customers: number;
+    vendors: number;
+    drivers: number;
+    admins: number;
+  };
+  byStatus: {
+    active: number;
+    suspended: number;
+    banned: number;
+  };
+}> => {
   const usersRef = adminDb.collection('users');
   
   const [
@@ -197,14 +210,23 @@ export const adminSearchUsers = async (searchTerm: string, limit: number = 20): 
     .limit(limit)
     .get();
 
-  return usersSnapshot.docs.map((doc: any) => ({
+  return usersSnapshot.docs.map((doc) => ({
     uid: doc.id,
     ...doc.data()
   } as AdminUserDocument));
 };
 
 // Admin function to get user details with order history
-export const adminGetUserDetails = async (userUid: string): Promise<any> => {
+export const adminGetUserDetails = async (userUid: string): Promise<{
+  user: { uid: string; [key: string]: unknown };
+  orderHistory: {
+    totalOrders: number;
+    completedOrders: number;
+    totalSpent: number;
+    averageOrderValue: number;
+    recentOrders: OrderData[];
+  };
+}> => {
   const [userDoc, ordersSnapshot] = await Promise.all([
     adminDb.collection('users').doc(userUid).get(),
     adminDb.collection('orders').where('customerId', '==', userUid).orderBy('createdAt', 'desc').get()
@@ -214,7 +236,7 @@ export const adminGetUserDetails = async (userUid: string): Promise<any> => {
     throw new Error('User not found');
   }
 
-  const orders: OrderData[] = ordersSnapshot.docs.map((doc: any) => ({
+  const orders: OrderData[] = ordersSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as OrderData));
@@ -279,7 +301,7 @@ export const adminCreateAdminUser = async (
 };
 
 // Admin function for bulk user operations
-export const adminBulkUpdateUsers = async (userUids: string[], updates: any): Promise<void> => {
+export const adminBulkUpdateUsers = async (userUids: string[], updates: Record<string, unknown>): Promise<void> => {
   const batch = adminDb.batch();
   
   userUids.forEach(uid => {

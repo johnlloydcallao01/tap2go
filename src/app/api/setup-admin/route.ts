@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setupSuperAdmin, verifyAdminSetup } from '@/scripts/setup-admin';
 
-export async function POST(_request: NextRequest) {
+export async function POST() {
   try {
     // Check if admin already exists first
     const verification = await verifyAdminSetup();

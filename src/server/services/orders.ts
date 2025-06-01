@@ -20,8 +20,8 @@ interface OrderData {
     driverEarnings: number;
     platformCommission: number;
   };
-  createdAt: any;
-  [key: string]: any;
+  createdAt: Date;
+  [key: string]: unknown;
 }
 
 // Admin-specific order operations with elevated privileges
@@ -79,17 +79,29 @@ export interface AdminOrderDocument {
 }
 
 // Admin function to get order analytics
-export const adminGetOrderAnalytics = async (dateRange?: { start: Date; end: Date }): Promise<any> => {
-  let ordersQuery: any = adminDb.collection('orders');
+export const adminGetOrderAnalytics = async (dateRange?: { start: Date; end: Date }): Promise<{
+  totalOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  pendingOrders: number;
+  totalRevenue: number;
+  platformRevenue: number;
+  averageOrderValue: number;
+  completionRate: number;
+  cancellationRate: number;
+}> => {
+  const ordersRef = adminDb.collection('orders');
+  let ordersSnapshot;
 
   if (dateRange) {
-    ordersQuery = ordersQuery
+    ordersSnapshot = await ordersRef
       .where('createdAt', '>=', dateRange.start)
-      .where('createdAt', '<=', dateRange.end);
+      .where('createdAt', '<=', dateRange.end)
+      .get();
+  } else {
+    ordersSnapshot = await ordersRef.get();
   }
-
-  const ordersSnapshot = await ordersQuery.get();
-  const orders: OrderData[] = ordersSnapshot.docs.map((doc: any) => ({
+  const orders: OrderData[] = ordersSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as OrderData));
@@ -123,7 +135,7 @@ export const adminGetOrdersByStatus = async (status: string, limit: number = 50)
     .limit(limit)
     .get();
 
-  return snapshot.docs.map((doc: any) => ({
+  return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as AdminOrderDocument));
@@ -171,7 +183,14 @@ export const adminProcessRefund = async (orderId: string, refundAmount: number, 
 };
 
 // Admin function to get revenue analytics
-export const adminGetRevenueAnalytics = async (period: 'daily' | 'weekly' | 'monthly' = 'daily'): Promise<any> => {
+export const adminGetRevenueAnalytics = async (period: 'daily' | 'weekly' | 'monthly' = 'daily'): Promise<Array<{
+  period: string;
+  totalRevenue: number;
+  platformRevenue: number;
+  vendorRevenue: number;
+  driverRevenue: number;
+  orderCount: number;
+}>> => {
   const now = new Date();
   let startDate: Date;
 
@@ -193,14 +212,14 @@ export const adminGetRevenueAnalytics = async (period: 'daily' | 'weekly' | 'mon
     .orderBy('createdAt', 'asc')
     .get();
 
-  const orders: OrderData[] = ordersSnapshot.docs.map((doc: any) => ({
+  const orders: OrderData[] = ordersSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as OrderData));
 
   // Group orders by time period
   const revenueData = orders.reduce((acc, order) => {
-    const orderDate = order.createdAt.toDate();
+    const orderDate = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt);
     let periodKey: string;
 
     switch (period) {
@@ -237,18 +256,32 @@ export const adminGetRevenueAnalytics = async (period: 'daily' | 'weekly' | 'mon
     acc[periodKey].orderCount += 1;
 
     return acc;
-  }, {} as Record<string, any>);
+  }, {} as Record<string, {
+    period: string;
+    totalRevenue: number;
+    platformRevenue: number;
+    vendorRevenue: number;
+    driverRevenue: number;
+    orderCount: number;
+  }>);
 
   return Object.values(revenueData).sort((a, b) => a.period.localeCompare(b.period));
 };
 
 // Admin function to get top performing vendors
-export const adminGetTopVendors = async (limit: number = 10): Promise<any[]> => {
+export const adminGetTopVendors = async (limit: number = 10): Promise<Array<{
+  vendorId: string;
+  totalOrders: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+  vendorName: string;
+  vendorEmail: string;
+}>> => {
   const ordersSnapshot = await adminDb.collection('orders')
     .where('status', '==', 'delivered')
     .get();
 
-  const orders: OrderData[] = ordersSnapshot.docs.map((doc: any) => ({
+  const orders: OrderData[] = ordersSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data()
   } as OrderData));
@@ -270,7 +303,12 @@ export const adminGetTopVendors = async (limit: number = 10): Promise<any[]> => 
     acc[vendorId].totalRevenue += order.pricing?.total || 0;
 
     return acc;
-  }, {} as Record<string, any>);
+  }, {} as Record<string, {
+    vendorId: string;
+    totalOrders: number;
+    totalRevenue: number;
+    averageOrderValue: number;
+  }>);
 
   // Calculate average order value and sort
   const topVendors = Object.values(vendorMetrics)

@@ -16,7 +16,7 @@ export const setupSuperAdmin = async () => {
     try {
       userRecord = await adminAuth.getUserByEmail(adminEmail);
       console.log('Admin user already exists:', userRecord.uid);
-    } catch (error) {
+    } catch {
       // User doesn't exist, create new one
       console.log('Creating new admin user...');
       userRecord = await adminAuth.createUser({
