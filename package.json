@@ -18,8 +18,11 @@
     "deploy-rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^9.0.2",
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
+    "@opensearch-project/opensearch": "^3.5.1",
+    "dotenv": "^16.5.0",
     "firebase": "^11.8.1",
     "firebase-admin": "^13.4.0",
     "lucide-react": "^0.511.0",

@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
+import HeaderSearch from '@/components/search/HeaderSearch';
 import {
   ShoppingCartIcon,
   UserIcon,
-  MagnifyingGlassIcon,
   MapPinIcon,
   HeartIcon
 } from '@heroicons/react/24/outline';
@@ -16,8 +15,6 @@ import {
 export default function Header() {
   const { user, signOut } = useAuth();
   const { cart } = useCart();
-  const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
   const currentLocation = 'Manila';
 
   const handleSignOut = async () => {
@@ -25,13 +22,6 @@ export default function Header() {
       await signOut();
     } catch (error) {
       console.error('Error signing out:', error);
-    }
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
@@ -73,16 +63,10 @@ export default function Header() {
 
         {/* Search Bar */}
         <div className="px-4 pb-4">
-          <form onSubmit={handleSearch} className="relative">
-            <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Pizza Hut 50% OFF Flash Sale!"
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-full text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 shadow-sm"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </form>
+          <HeaderSearch
+            placeholder="Pizza Hut 50% OFF Flash Sale!"
+            isMobile={true}
+          />
         </div>
       </div>
 
@@ -100,16 +84,10 @@ export default function Header() {
 
             {/* Search Bar - Desktop */}
             <div className="flex flex-1 max-w-lg mx-8">
-              <form onSubmit={handleSearch} className="relative w-full">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search restaurants, cuisines..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
-                />
-              </form>
+              <HeaderSearch
+                placeholder="Search restaurants, cuisines..."
+                isMobile={false}
+              />
             </div>
 
             {/* Navigation - Desktop */}

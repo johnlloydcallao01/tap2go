@@ -58,68 +58,48 @@ export default function SearchPage() {
     setLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Call real Bonsai search API
+      const response = await fetch(`/api/search/restaurants?q=${encodeURIComponent(query)}&limit=20`);
 
-      const mockResults: SearchResult[] = [
-        {
-          id: '1',
-          type: 'restaurant',
-          name: 'Pizza Palace',
-          description: 'Authentic Italian pizza and pasta',
-          image: '/api/placeholder/300/200',
-          rating: 4.5,
-          deliveryTime: '25-35 min',
-          cuisineTypes: ['Italian'],
-        },
-        {
-          id: '2',
-          type: 'dish',
-          name: 'Margherita Pizza',
-          description: 'Classic tomato, mozzarella, and basil',
-          image: '/api/placeholder/300/200',
-          price: 14.99,
-          restaurantName: 'Pizza Palace',
-        },
-        {
-          id: '3',
-          type: 'restaurant',
-          name: 'Dragon Garden',
-          description: 'Traditional Chinese cuisine',
-          image: '/api/placeholder/300/200',
-          rating: 4.3,
-          deliveryTime: '30-40 min',
-          cuisineTypes: ['Chinese'],
-        },
-        {
-          id: '4',
-          type: 'dish',
-          name: 'Kung Pao Chicken',
-          description: 'Spicy stir-fried chicken with peanuts',
-          image: '/api/placeholder/300/200',
-          price: 16.99,
-          restaurantName: 'Dragon Garden',
-        },
-      ];
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
 
-      // Filter results based on search query and selected filter
-      const filtered = mockResults.filter(result => {
-        const matchesQuery = result.name.toLowerCase().includes(query.toLowerCase()) ||
-                           result.description.toLowerCase().includes(query.toLowerCase());
-        const matchesFilter = selectedFilter === 'all' || result.type === selectedFilter;
-        return matchesQuery && matchesFilter;
-      });
+      const data = await response.json();
 
-      setResults(filtered);
+      if (data.success && data.data.restaurants) {
+        // Transform restaurant data to SearchResult format
+        const restaurantResults: SearchResult[] = data.data.restaurants.map((restaurant: any) => ({
+          id: restaurant.id,
+          type: 'restaurant' as const,
+          name: restaurant.name,
+          description: restaurant.description || '',
+          image: restaurant.image || restaurant.coverImage || '/api/placeholder/300/200',
+          rating: restaurant.rating || 0,
+          deliveryTime: restaurant.deliveryTime || 'N/A',
+          cuisineTypes: Array.isArray(restaurant.cuisine) ? restaurant.cuisine : [restaurant.cuisine].filter(Boolean),
+        }));
 
-      // Add to recent searches
-      if (query.trim() && !recentSearches.includes(query)) {
-        const updated = [query, ...recentSearches.slice(0, 4)];
-        setRecentSearches(updated);
-        localStorage.setItem('recentSearches', JSON.stringify(updated));
+        // Filter by selected filter type
+        const filtered = selectedFilter === 'all'
+          ? restaurantResults
+          : restaurantResults.filter(result => result.type === selectedFilter);
+
+        setResults(filtered);
+
+        // Add to recent searches
+        if (query.trim() && !recentSearches.includes(query)) {
+          const updated = [query, ...recentSearches.slice(0, 4)];
+          setRecentSearches(updated);
+          localStorage.setItem('recentSearches', JSON.stringify(updated));
+        }
+      } else {
+        setResults([]);
       }
     } catch (error) {
       console.error('Search error:', error);
+      setResults([]);
+      // You could show an error message to the user here
     } finally {
       setLoading(false);
     }
