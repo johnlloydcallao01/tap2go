@@ -29,8 +29,7 @@ export default function AddressAutocomplete({
   className = '',
   defaultValue = '',
   disabled = false,
-  required = false,
-  showIcon = true
+  required = false
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);

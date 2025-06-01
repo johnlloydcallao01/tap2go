@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateDistance, calculateDistanceMatrix, calculateDeliveryDetails } from '@/server/services/mapsService';
 import { DistanceMatrixResponse, MapsApiResponse, Coordinates } from '@/lib/maps/types';
-import { isValidPhilippinesCoordinates, createMapsError } from '@/lib/maps/utils';
+import { isValidPhilippinesCoordinates } from '@/lib/maps/utils';
 
 // POST /api/maps/distance - Calculate distance between two points
 export async function POST(request: NextRequest) {
@@ -57,18 +57,19 @@ export async function POST(request: NextRequest) {
       } as DistanceMatrixResponse, { status: 200 });
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Distance calculation API error:', error);
 
     // Handle known Maps errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
@@ -151,18 +152,19 @@ export async function PUT(request: NextRequest) {
       message: 'Distance matrix calculated successfully'
     } as DistanceMatrixResponse, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Distance matrix API error:', error);
 
     // Handle known Maps errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
@@ -178,7 +180,7 @@ export async function PUT(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    
+
     // Extract coordinates from query parameters
     const originLat = searchParams.get('origin_lat');
     const originLng = searchParams.get('origin_lng');
@@ -239,18 +241,19 @@ export async function GET(request: NextRequest) {
       message: 'Delivery fee calculated successfully'
     } as MapsApiResponse, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delivery fee calculation API error:', error);
 
     // Handle known Maps errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
@@ -263,14 +266,17 @@ export async function GET(request: NextRequest) {
 }
 
 // Helper function to validate coordinate format
-function isValidCoordinates(coords: any): coords is Coordinates {
+function isValidCoordinates(coords: unknown): coords is Coordinates {
   return (
-    coords &&
+    coords !== null &&
     typeof coords === 'object' &&
-    typeof coords.lat === 'number' &&
-    typeof coords.lng === 'number' &&
-    !isNaN(coords.lat) &&
-    !isNaN(coords.lng)
+    coords !== null &&
+    'lat' in coords &&
+    'lng' in coords &&
+    typeof (coords as { lat: unknown }).lat === 'number' &&
+    typeof (coords as { lng: unknown }).lng === 'number' &&
+    !isNaN((coords as { lat: number }).lat) &&
+    !isNaN((coords as { lng: number }).lng)
   );
 }
 

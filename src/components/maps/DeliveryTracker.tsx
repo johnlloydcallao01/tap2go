@@ -4,9 +4,9 @@
 // Shows live driver location and delivery progress
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Coordinates, DeliveryTracking, TrackingUpdate, MapMarker } from '@/lib/maps/types';
+import { Coordinates, DeliveryTracking, TrackingUpdate } from '@/lib/maps/types';
 import { MAP_CONFIG, MARKER_CONFIG, TRACKING_CONFIG } from '@/lib/maps/constants';
-import { coordinatesToLatLng, formatDistance, formatDuration } from '@/lib/maps/utils';
+import { coordinatesToLatLng } from '@/lib/maps/utils';
 import { 
   TruckIcon, 
   ClockIcon, 

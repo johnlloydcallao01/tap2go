@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { geocodeAddress, reverseGeocode, validateServiceableAddress } from '@/server/services/mapsService';
 import { GeocodeResponse, MapsApiResponse } from '@/lib/maps/types';
-import { isValidAddress, sanitizeSearchQuery, createMapsError } from '@/lib/maps/utils';
+import { isValidAddress, sanitizeSearchQuery } from '@/lib/maps/utils';
 
 // POST /api/maps/geocode - Convert address to coordinates
 export async function POST(request: NextRequest) {
@@ -62,18 +62,19 @@ export async function POST(request: NextRequest) {
       message: 'Address geocoded successfully'
     } as GeocodeResponse, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Geocoding API error:', error);
 
     // Handle known Maps errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
@@ -127,18 +128,19 @@ export async function GET(request: NextRequest) {
       message: 'Coordinates reverse geocoded successfully'
     } as GeocodeResponse, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Reverse geocoding API error:', error);
 
     // Handle known Maps errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
@@ -165,7 +167,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const sanitizedAddress = sanitizeSearchQuery(address);
-    
+
     if (!isValidAddress(sanitizedAddress)) {
       return NextResponse.json({
         success: false,
@@ -178,25 +180,26 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: validationResult,
-      message: validationResult.isServiceable 
-        ? 'Address is serviceable' 
+      message: validationResult.isServiceable
+        ? 'Address is serviceable'
         : 'Address is not serviceable'
-    } as MapsApiResponse, { 
-      status: validationResult.isServiceable ? 200 : 400 
+    } as MapsApiResponse, {
+      status: validationResult.isServiceable ? 200 : 400
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Address validation API error:', error);
 
     // Handle known Maps errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 

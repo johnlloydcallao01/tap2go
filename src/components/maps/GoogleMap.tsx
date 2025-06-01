@@ -17,7 +17,7 @@ declare global {
 }
 
 // Get frontend API key from environment
-const FRONTEND_API_KEY = process.env.NEXT_PUBLIC_MAPS_FRONTEND_KEY;
+// const FRONTEND_API_KEY = process.env.NEXT_PUBLIC_MAPS_FRONTEND_KEY;
 
 interface GoogleMapProps extends MapProps {
   height?: string;
@@ -49,7 +49,7 @@ export default function GoogleMap({
   const markersRef = useRef<google.maps.Marker[]>([]);
   const currentLocationMarkerRef = useRef<google.maps.Marker | null>(null);
   
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Coordinates | null>(null);
 

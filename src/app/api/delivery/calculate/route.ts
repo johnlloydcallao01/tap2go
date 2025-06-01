@@ -45,18 +45,18 @@ export async function POST(request: NextRequest) {
       message: 'Delivery information calculated successfully'
     } as MapsApiResponse, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delivery calculation API error:', error);
 
     // Handle specific errors
-    if (error.message === 'Restaurant not found') {
+    if (error instanceof Error && error.message === 'Restaurant not found') {
       return NextResponse.json({
         success: false,
         error: 'Restaurant not found'
       } as MapsApiResponse, { status: 404 });
     }
 
-    if (error.message === 'Restaurant location not available') {
+    if (error instanceof Error && error.message === 'Restaurant location not available') {
       return NextResponse.json({
         success: false,
         error: 'Restaurant location not available'
@@ -64,14 +64,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle Maps API errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
@@ -130,18 +131,19 @@ export async function PUT(request: NextRequest) {
       message: 'Address validated successfully'
     } as MapsApiResponse, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Address validation API error:', error);
 
     // Handle Maps API errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
@@ -212,18 +214,19 @@ export async function GET(request: NextRequest) {
       message: `Found ${nearbyRestaurants.length} restaurants within ${radius}km`
     } as MapsApiResponse, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Nearby restaurants API error:', error);
 
     // Handle Maps API errors
-    if (error.code) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      const mapsError = error as { code: string; message: string; details?: unknown };
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error.details
-      } as MapsApiResponse, { 
-        status: error.code === 'NOT_FOUND' ? 404 : 
-               error.code === 'INVALID_REQUEST' ? 400 : 500 
+        error: mapsError.message,
+        details: mapsError.details
+      } as MapsApiResponse, {
+        status: mapsError.code === 'NOT_FOUND' ? 404 :
+               mapsError.code === 'INVALID_REQUEST' ? 400 : 500
       });
     }
 
