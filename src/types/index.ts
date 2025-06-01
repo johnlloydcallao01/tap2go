@@ -75,6 +75,7 @@ export interface Restaurant {
   reviewCount: number;
   deliveryTime: string;
   deliveryFee: number;
+  deliveryRadius?: number; // Delivery radius in kilometers
   minimumOrder: number;
   isOpen: boolean;
   openingHours: OpeningHours;

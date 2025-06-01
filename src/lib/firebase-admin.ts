@@ -26,4 +26,7 @@ if (!getApps().length) {
 export const adminDb = getFirestore(adminApp);
 export const adminAuth = getAuth(adminApp);
 
+// Export db as alias for compatibility
+export const db = adminDb;
+
 export default adminApp;

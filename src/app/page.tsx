@@ -5,10 +5,11 @@ import Header from '@/components/Header';
 import MobileFooterNav from '@/components/MobileFooterNav';
 import RestaurantCard from '@/components/RestaurantCard';
 import { Restaurant, Category } from '@/types';
-import { MagnifyingGlassIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { transformRestaurantsData } from '@/lib/transformers/restaurant';
+import ProfessionalMap from '@/components/ProfessionalMap';
 
 // No mock data - using real Firestore data only
 
@@ -18,6 +19,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  // Professional map state
+  const [showMap, setShowMap] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{lat: number; lng: number; address: string} | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -69,6 +74,16 @@ export default function Home() {
     return matchesSearch && matchesCategory;
   });
 
+  // Professional map handlers
+  const handleLocationSelect = (location: {lat: number; lng: number; address: string}) => {
+    setSelectedLocation(location);
+    console.log('Location selected:', location);
+  };
+
+  const toggleMapView = () => {
+    setShowMap(!showMap);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
@@ -98,12 +113,11 @@ export default function Home() {
                     style={{ '--tw-ring-color': '#f3a823' } as React.CSSProperties}
                   />
                 </div>
-                <div className="flex-1 relative">
-                  <MapPinIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <div className="flex-1">
                   <input
                     type="text"
                     placeholder="Enter delivery address"
-                    className="w-full pl-10 pr-4 py-3 text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent"
+                    className="w-full px-4 py-3 text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent"
                     style={{ '--tw-ring-color': '#f3a823' } as React.CSSProperties}
                   />
                 </div>
@@ -118,6 +132,48 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Professional Map Section */}
+      <section className="py-8 bg-white border-b border-gray-200">
+        <div className="container-custom">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Explore Locations</h2>
+              <p className="text-gray-600 mt-1">
+                {selectedLocation
+                  ? `Selected: ${selectedLocation.address}`
+                  : 'Search and explore any location in the Philippines'
+                }
+              </p>
+            </div>
+            <button
+              onClick={toggleMapView}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                showMap
+                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {showMap ? 'Hide Map' : 'Show Map'}
+            </button>
+          </div>
+
+          {showMap && (
+            <div className="bg-gray-50 rounded-lg p-4">
+              <ProfessionalMap
+                height="500px"
+                className="w-full"
+                onLocationSelect={handleLocationSelect}
+                center={selectedLocation ? { lat: selectedLocation.lat, lng: selectedLocation.lng } : undefined}
+              />
+
+              <div className="mt-4 text-sm text-gray-600 text-center">
+                <p>Search any location • Click on the map to select • Drag markers to adjust position • Professional Google Maps integration</p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
