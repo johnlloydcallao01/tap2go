@@ -126,7 +126,12 @@ export async function GET(request: NextRequest) {
 }
 
 // Handle search tracking
-async function handleTrackSearch(eventData: any) {
+async function handleTrackSearch(eventData: {
+  query: string;
+  results?: number;
+  userId?: string;
+  sessionId?: string;
+}) {
   const searchEvent: SearchEvent = {
     query: eventData.query,
     results: eventData.results || 0,
@@ -139,7 +144,14 @@ async function handleTrackSearch(eventData: any) {
 }
 
 // Handle click tracking
-async function handleTrackClick(eventData: any) {
+async function handleTrackClick(eventData: {
+  query: string;
+  totalResults?: number;
+  clickedResult?: string;
+  position?: number;
+  userId?: string;
+  sessionId?: string;
+}) {
   const clickEvent: SearchEvent = {
     query: eventData.query,
     results: eventData.totalResults || 0,

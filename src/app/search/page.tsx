@@ -69,7 +69,16 @@ export default function SearchPage() {
 
       if (data.success && data.data.restaurants) {
         // Transform restaurant data to SearchResult format
-        const restaurantResults: SearchResult[] = data.data.restaurants.map((restaurant: any) => ({
+        const restaurantResults: SearchResult[] = data.data.restaurants.map((restaurant: {
+          id: string;
+          name: string;
+          description?: string;
+          image?: string;
+          coverImage?: string;
+          rating?: number;
+          deliveryTime?: string;
+          cuisine?: string | string[];
+        }) => ({
           id: restaurant.id,
           type: 'restaurant' as const,
           name: restaurant.name,

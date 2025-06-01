@@ -42,12 +42,12 @@ const transformRestaurantForSearch = (restaurant: Restaurant) => {
     createdAt: restaurant.createdAt instanceof Date
       ? restaurant.createdAt.toISOString()
       : (typeof restaurant.createdAt === 'object' && restaurant.createdAt && 'toDate' in restaurant.createdAt
-          ? (restaurant.createdAt as any).toDate().toISOString()
+          ? (restaurant.createdAt as { toDate: () => Date }).toDate().toISOString()
           : new Date().toISOString()),
     updatedAt: restaurant.updatedAt instanceof Date
       ? restaurant.updatedAt.toISOString()
       : (typeof restaurant.updatedAt === 'object' && restaurant.updatedAt && 'toDate' in restaurant.updatedAt
-          ? (restaurant.updatedAt as any).toDate().toISOString()
+          ? (restaurant.updatedAt as { toDate: () => Date }).toDate().toISOString()
           : new Date().toISOString()),
     
     // Search suggestions (for auto-complete)
@@ -136,7 +136,7 @@ export const syncAllRestaurantsToBonsai = async (): Promise<{
     }
     
     // Prepare bulk operations
-    const bulkOperations: any[] = [];
+    const bulkOperations: Record<string, unknown>[] = [];
     
     restaurants.forEach(restaurant => {
       const transformedData = transformRestaurantForSearch(restaurant);
@@ -165,7 +165,7 @@ export const syncAllRestaurantsToBonsai = async (): Promise<{
     let failed = 0;
     
     if (response.body.items) {
-      response.body.items.forEach((item: any) => {
+      response.body.items.forEach((item: { index?: { error?: unknown } }) => {
         if (item.index && item.index.error) {
           failed++;
           console.error('❌ Bulk index error:', item.index.error);
@@ -200,7 +200,7 @@ export const deleteRestaurantFromBonsai = async (restaurantId: string): Promise<
     console.log(`🗑️ Deleted restaurant from search index: ${restaurantId}`);
     return true;
   } catch (error) {
-    if (error && typeof error === 'object' && 'meta' in error && (error as any).meta?.statusCode === 404) {
+    if (error && typeof error === 'object' && 'meta' in error && (error as { meta?: { statusCode?: number } }).meta?.statusCode === 404) {
       console.log(`ℹ️ Restaurant not found in search index: ${restaurantId}`);
       return true; // Not an error if it doesn't exist
     }

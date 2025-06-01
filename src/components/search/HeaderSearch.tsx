@@ -114,14 +114,14 @@ export default function HeaderSearch({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   // Debounced search
   const debouncedFetchSuggestions = useCallback((searchQuery: string) => {
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
-    
+
     debounceTimer.current = setTimeout(() => {
       fetchSuggestions(searchQuery);
     }, 300); // 300ms delay like FoodPanda

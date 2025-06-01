@@ -53,7 +53,20 @@ export const searchRestaurants = async (
     } = options;
 
     // Build Elasticsearch query
-    const searchBody: any = {
+    const searchBody: {
+      from: number;
+      size: number;
+      query: {
+        bool: {
+          must: unknown[];
+          filter: unknown[];
+          should?: unknown[];
+          minimum_should_match?: number;
+        };
+      };
+      aggs: Record<string, unknown>;
+      sort?: Record<string, unknown>[];
+    } = {
       from,
       size,
       query: {
@@ -194,7 +207,7 @@ export const searchRestaurants = async (
 
     // Add price range filter
     if (filters.priceRange) {
-      const priceFilter: any = {};
+      const priceFilter: Record<string, number> = {};
       if (filters.priceRange.min !== undefined) {
         priceFilter.gte = filters.priceRange.min;
       }
@@ -209,7 +222,7 @@ export const searchRestaurants = async (
     }
 
     // Add sorting
-    const sort: any[] = [];
+    const sort: Record<string, unknown>[] = [];
     
     if (sortBy === 'relevance') {
       sort.push({ _score: { order: sortOrder } });
@@ -243,7 +256,11 @@ export const searchRestaurants = async (
     });
 
     // Process results
-    const restaurants: Restaurant[] = response.body.hits.hits.map((hit: any) => ({
+    const restaurants: Restaurant[] = response.body.hits.hits.map((hit: {
+      _id: string;
+      _source: Restaurant;
+      _score?: number;
+    }) => ({
       id: hit._id,
       ...hit._source,
       _score: hit._score // Include relevance score
@@ -255,12 +272,12 @@ export const searchRestaurants = async (
 
     // Process aggregations with type safety
     const aggregations = {
-      cuisines: (response.body.aggregations?.cuisines as any)?.buckets?.map((bucket: any) => ({
+      cuisines: (response.body.aggregations?.cuisines as { buckets: Array<{ key: string; doc_count: number }> })?.buckets?.map((bucket) => ({
         key: bucket.key,
         count: bucket.doc_count
       })) || [],
-      avgRating: (response.body.aggregations?.avgRating as any)?.value || 0,
-      priceRanges: (response.body.aggregations?.priceRanges as any)?.buckets?.map((bucket: any) => ({
+      avgRating: (response.body.aggregations?.avgRating as { value: number })?.value || 0,
+      priceRanges: (response.body.aggregations?.priceRanges as { buckets: Array<{ key: string; doc_count: number }> })?.buckets?.map((bucket) => ({
         key: bucket.key,
         count: bucket.doc_count
       })) || []
@@ -357,13 +374,13 @@ export const getSearchSuggestions = async (query: string): Promise<string[]> => 
     });
 
     // Extract restaurant name suggestions
-    const nameSuggestions = (response.body.aggregations?.suggestions as any)?.buckets?.map(
-      (bucket: any) => bucket.key
+    const nameSuggestions = (response.body.aggregations?.suggestions as { buckets: Array<{ key: string }> })?.buckets?.map(
+      (bucket) => bucket.key
     ) || [];
 
     // Extract cuisine suggestions
-    const cuisineSuggestions = (response.body.aggregations?.cuisine_suggestions as any)?.buckets?.map(
-      (bucket: any) => bucket.key
+    const cuisineSuggestions = (response.body.aggregations?.cuisine_suggestions as { buckets: Array<{ key: string }> })?.buckets?.map(
+      (bucket) => bucket.key
     ) || [];
 
     // Combine and deduplicate suggestions
@@ -422,7 +439,7 @@ const getFallbackSuggestions = async (query: string): Promise<string[]> => {
       }
     });
 
-    const suggestions = response.body.hits.hits.map((hit: any) => hit._source.name);
+    const suggestions = response.body.hits.hits.map((hit: { _source: { name: string } }) => hit._source.name);
     return [...new Set(suggestions)]; // Remove duplicates
   } catch (error) {
     console.error('Fallback suggestion error:', error);
@@ -470,7 +487,11 @@ export const searchNearbyRestaurants = async (
       }
     });
 
-    return response.body.hits.hits.map((hit: any) => ({
+    return response.body.hits.hits.map((hit: {
+      _id: string;
+      _source: Restaurant;
+      sort: number[];
+    }) => ({
       id: hit._id,
       ...hit._source,
       distance: hit.sort[0] // Distance in km
@@ -588,12 +609,12 @@ export const getIntelligentSuggestions = async (query: string): Promise<string[]
       }
     });
 
-    const nameSuggestions = (response.body.aggregations?.suggestions as any)?.buckets?.map(
-      (bucket: any) => bucket.key
+    const nameSuggestions = (response.body.aggregations?.suggestions as { buckets: Array<{ key: string }> })?.buckets?.map(
+      (bucket) => bucket.key
     ) || [];
 
-    const cuisineSuggestions = (response.body.aggregations?.cuisine_suggestions as any)?.buckets?.map(
-      (bucket: any) => bucket.key
+    const cuisineSuggestions = (response.body.aggregations?.cuisine_suggestions as { buckets: Array<{ key: string }> })?.buckets?.map(
+      (bucket) => bucket.key
     ) || [];
 
     const allSuggestions = [...nameSuggestions, ...cuisineSuggestions];

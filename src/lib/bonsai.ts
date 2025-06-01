@@ -157,7 +157,7 @@ export const initializeBonsaiIndices = async () => {
       console.log('Creating restaurants index...');
       await bonsaiClient.indices.create({
         index: INDICES.RESTAURANTS,
-        body: RESTAURANT_INDEX_CONFIG as any // Type assertion for OpenSearch compatibility
+        body: RESTAURANT_INDEX_CONFIG as Record<string, unknown> // Type assertion for OpenSearch compatibility
       });
       console.log('✅ Restaurants index created');
     } else {

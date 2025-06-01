@@ -2,7 +2,7 @@
 // GET /api/search/restaurants?q=pizza&cuisine=italian&lat=14.5995&lng=120.9842
 
 import { NextRequest, NextResponse } from 'next/server';
-import { searchRestaurants, SearchFilters, SearchOptions, getSearchSuggestions } from '@/lib/search/bonsaiSearch';
+import { searchRestaurants, SearchFilters, SearchOptions } from '@/lib/search/bonsaiSearch';
 
 export async function GET(request: NextRequest) {
   try {
