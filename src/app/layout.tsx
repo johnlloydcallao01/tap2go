@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import LoadingProvider from "@/components/loading/LoadingProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,9 +21,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
         <AuthProvider>
-          <CartProvider>
-            {children}
-          </CartProvider>
+          <LoadingProvider variant="facebook" showInitialLoad={true}>
+            <CartProvider>
+              {children}
+            </CartProvider>
+          </LoadingProvider>
         </AuthProvider>
       </body>
     </html>

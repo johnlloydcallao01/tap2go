@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSSRSafeAuthState } from '@/hooks/useSSRSafeAuth';
 import {
   HomeIcon,
   BuildingStorefrontIcon,
@@ -46,7 +46,7 @@ const navigation = [
 
 export default function MobileFooterNav() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, isHydrated } = useSSRSafeAuthState();
 
   // Don't show footer nav on admin, vendor dashboard, or auth pages
   if (!pathname ||
@@ -64,6 +64,9 @@ export default function MobileFooterNav() {
   }
 
   const getAccountHref = () => {
+    if (!isHydrated) {
+      return '/account'; // SSR-safe default
+    }
     if (!user) {
       return '/auth/signin';
     }

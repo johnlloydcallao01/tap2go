@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useSSRSafeAuthState } from '@/hooks/useSSRSafeAuth';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import HeaderSearch from '@/components/search/HeaderSearch';
@@ -13,7 +14,8 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function Header() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const { user, loading, canShowAuthContent, canShowUserContent, canShowGuestContent } = useSSRSafeAuthState();
   const { cart } = useCart();
   const currentLocation = 'Manila';
 
@@ -92,7 +94,7 @@ export default function Header() {
 
             {/* Navigation - Desktop */}
             <nav className="flex items-center space-x-6">
-              {user ? (
+              {canShowUserContent ? (
                 <>
                   {user.role === 'customer' && (
                     <Link href="/orders" className="text-white hover:text-orange-200 transition-colors">
@@ -128,6 +130,11 @@ export default function Header() {
                     </Link>
                   )}
 
+                  {/* Temporary Test Link - Remove after testing */}
+                  <Link href="/test/cloudinary" className="text-white hover:text-orange-200 transition-colors text-sm bg-white/20 px-2 py-1 rounded">
+                    🧪 Test Cloudinary
+                  </Link>
+
                   {/* Wishlist */}
                   <Link href="/wishlist" className="relative">
                     <HeartIcon className="h-6 w-6 text-white hover:text-orange-200 transition-colors" />
@@ -146,7 +153,7 @@ export default function Header() {
                   <div className="relative group">
                     <button className="flex items-center space-x-1 text-white hover:text-orange-200 transition-colors">
                       <UserIcon className="h-6 w-6" />
-                      <span>{user.name}</span>
+                      <span>{user.email}</span>
                     </button>
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                       <Link href="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
@@ -161,7 +168,7 @@ export default function Header() {
                     </div>
                   </div>
                 </>
-              ) : (
+              ) : canShowGuestContent ? (
                 <>
                   <Link href="/auth/signin" className="text-white hover:text-orange-200 transition-colors">
                     Sign In
@@ -170,6 +177,12 @@ export default function Header() {
                     Sign Up
                   </Link>
                 </>
+              ) : (
+                // Show minimal loading state only when needed
+                <div className="flex items-center space-x-6">
+                  <div className="h-4 w-16 bg-white/20 rounded animate-pulse"></div>
+                  <div className="h-4 w-20 bg-white/20 rounded animate-pulse"></div>
+                </div>
               )}
             </nav>
           </div>

@@ -137,7 +137,7 @@ const getStatusColor = (status: Order['status']) => {
 };
 
 export default function OrdersPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -158,6 +158,8 @@ export default function OrdersPage() {
 
     loadOrders();
   }, [user]);
+
+  // FAST LOADING: Don't block page render for auth loading
 
   if (!user) {
     return (

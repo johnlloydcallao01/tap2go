@@ -303,6 +303,8 @@ export interface AuthContextType {
   signUp: (email: string, password: string, name: string, role: User['role']) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  authError?: string | null;
+  isInitialized?: boolean;
 }
 
 export interface CartContextType {

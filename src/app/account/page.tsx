@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import Header from '@/components/Header';
 import MobileFooterNav from '@/components/MobileFooterNav';
 import {
   Cog6ToothIcon,
@@ -17,9 +18,12 @@ export default function AccountPage() {
   const { user, signOut } = useAuth();
   const router = useRouter();
 
+  // FAST LOADING: Don't block page render for loading state
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <Header />
         <div className="container-custom py-16">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">Please sign in to view your account</h1>
@@ -28,6 +32,7 @@ export default function AccountPage() {
             </Link>
           </div>
         </div>
+        <MobileFooterNav />
       </div>
     );
   }
