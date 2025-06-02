@@ -21,7 +21,7 @@ export default function DirectCloudinaryUpload({
   value,
   onChange,
   uploadType,
-  additionalData = {},
+  additionalData: _additionalData = {}, // eslint-disable-line @typescript-eslint/no-unused-vars
   placeholder = 'Click to upload image',
   disabled = false,
 }: DirectCloudinaryUploadProps) {
@@ -62,9 +62,9 @@ export default function DirectCloudinaryUpload({
                     uploadType === 'menu-item' ? 'menu-items' : 'avatars';
       formData.append('folder', folder);
 
-      // Generate signature for authenticated upload
-      const apiSecret = 'G-_izp68I2eJuZOCvAKOmPkTXdI'; // Your API secret
-      const paramsToSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}`;
+      // Generate signature for authenticated upload (currently unused)
+      // const apiSecret = 'G-_izp68I2eJuZOCvAKOmPkTXdI'; // Your API secret
+      // const paramsToSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}`;
 
       // For now, let's try without signature (unsigned upload)
       formData.append('api_key', '191284661715922');

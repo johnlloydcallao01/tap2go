@@ -92,7 +92,18 @@ export async function POST(request: NextRequest) {
 /**
  * Handle successful payment
  */
-async function handlePaymentPaid(paymentData: any) {
+async function handlePaymentPaid(paymentData: {
+  id: string;
+  attributes: {
+    payment_intent_id: string;
+    amount: number;
+    currency: string;
+    metadata?: Record<string, unknown>;
+    source?: { type?: string };
+    created_at: number;
+    paid_at: number;
+  };
+}) {
   try {
     if (!db) {
       throw new Error('Database connection not available');
@@ -112,7 +123,7 @@ async function handlePaymentPaid(paymentData: any) {
     });
 
     // Update order status in Firestore
-    if (metadata.order_id) {
+    if (metadata.order_id && typeof metadata.order_id === 'string') {
       await database.collection('orders').doc(metadata.order_id).update({
         payment_status: 'paid',
         payment_id: paymentId,
@@ -152,7 +163,18 @@ async function handlePaymentPaid(paymentData: any) {
 /**
  * Handle failed payment
  */
-async function handlePaymentFailed(paymentData: any) {
+async function handlePaymentFailed(paymentData: {
+  id: string;
+  attributes: {
+    payment_intent_id: string;
+    amount: number;
+    currency: string;
+    metadata?: Record<string, unknown>;
+    source?: { type?: string };
+    last_payment_error?: unknown;
+    created_at: number;
+  };
+}) {
   try {
     if (!db) {
       throw new Error('Database connection not available');
@@ -170,7 +192,7 @@ async function handlePaymentFailed(paymentData: any) {
     });
 
     // Update order status in Firestore
-    if (metadata.order_id) {
+    if (metadata.order_id && typeof metadata.order_id === 'string') {
       await database.collection('orders').doc(metadata.order_id).update({
         payment_status: 'failed',
         payment_id: paymentId,
@@ -209,7 +231,13 @@ async function handlePaymentFailed(paymentData: any) {
 /**
  * Handle refunded payment
  */
-async function handlePaymentRefunded(paymentData: any) {
+async function handlePaymentRefunded(paymentData: {
+  id: string;
+  attributes: {
+    metadata?: Record<string, unknown>;
+    refunds?: Array<{ amount?: number }>;
+  };
+}) {
   try {
     if (!db) {
       throw new Error('Database connection not available');
@@ -227,7 +255,7 @@ async function handlePaymentRefunded(paymentData: any) {
     });
 
     // Update order status in Firestore
-    if (metadata.order_id) {
+    if (metadata.order_id && typeof metadata.order_id === 'string') {
       await database.collection('orders').doc(metadata.order_id).update({
         payment_status: 'refunded',
         refund_amount: refundAmount / 100,

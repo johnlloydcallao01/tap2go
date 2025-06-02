@@ -70,7 +70,7 @@ export default function ImageUpload({
 
     try {
       await uploadFile(file, uploadType, additionalData);
-    } catch (error) {
+    } catch {
       // Reset preview on error
       setPreview(value || null);
       URL.revokeObjectURL(previewUrl);

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useEnterpriseAuth } from '@/hooks/useEnterpriseAuth';
 import { User } from '@/types';
 
@@ -27,11 +28,9 @@ export default function AuthWrapper({
 }: AuthWrapperProps) {
   const {
     user,
-    loading,
     isAuthenticated,
     isAuthorized,
-    authError,
-    isInitialized
+    authError
   } = useEnterpriseAuth({ requireAuth, allowedRoles });
 
   // FAST LOADING: Only show loading for critical auth errors
@@ -114,7 +113,7 @@ export default function AuthWrapper({
             Access Denied
           </h1>
           <p className="text-gray-600 mb-6">
-            You don't have permission to access this page.
+            You don&apos;t have permission to access this page.
             {allowedRoles.length > 0 && (
               <span className="block mt-2 text-sm">
                 Required role{allowedRoles.length > 1 ? 's' : ''}: {allowedRoles.join(', ')}
@@ -122,12 +121,12 @@ export default function AuthWrapper({
             )}
           </p>
           <div className="space-x-3">
-            <a
+            <Link
               href="/"
               className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             >
               Go Home
-            </a>
+            </Link>
             {user?.role === 'admin' && (
               <a
                 href="/admin"

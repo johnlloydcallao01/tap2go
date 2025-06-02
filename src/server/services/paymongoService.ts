@@ -3,6 +3,7 @@
  * Handles all PayMongo API operations with proper error handling
  */
 
+import crypto from 'crypto';
 import {
   paymongoSecretClient,
   paymongoPublicClient,
@@ -31,7 +32,7 @@ export interface CreatePaymentIntentRequest {
       request_three_d_secure?: 'automatic' | 'any';
     };
   };
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -58,7 +59,7 @@ export interface CreatePaymentMethodRequest {
       postal_code: string;
     };
   };
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -238,7 +239,7 @@ export class PayMongoService {
     paymentId: string,
     amount?: number,
     reason?: string
-  ): Promise<any> {
+  ): Promise<PayMongoResponse<unknown>> {
     try {
       const payload = {
         data: {
@@ -271,7 +272,7 @@ export class PayMongoService {
     secret: string
   ): boolean {
     try {
-      const crypto = require('crypto');
+
       const expectedSignature = crypto
         .createHmac('sha256', secret)
         .update(payload)

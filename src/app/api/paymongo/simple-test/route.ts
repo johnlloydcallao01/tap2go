@@ -6,10 +6,10 @@
  * Returns JSON data for the UI page
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { paymongoSecretClient, getSupportedPaymentMethods } from '@/lib/paymongo';
+import { NextResponse } from 'next/server';
+import { paymongoSecretClient } from '@/lib/paymongo';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('🚀 Running PayMongo simple test...');
     
@@ -124,25 +124,37 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('PayMongo simple test failed:', error);
 
     // Parse error details
     let errorDetails = 'Unknown error';
     let statusCode = 500;
 
-    if (error.response) {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as {
+        response?: {
+          status?: number;
+          data?: {
+            errors?: Array<{ detail?: string }>;
+            message?: string;
+          };
+          headers?: unknown;
+        };
+        message?: string;
+      };
       console.error('PayMongo API Error Response:', {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+        headers: axiosError.response?.headers
       });
-      errorDetails = error.response.data?.errors?.[0]?.detail ||
-                    error.response.data?.message ||
-                    JSON.stringify(error.response.data) ||
-                    error.message;
-      statusCode = error.response.status;
-    } else {
+      errorDetails = axiosError.response?.data?.errors?.[0]?.detail ||
+                    axiosError.response?.data?.message ||
+                    JSON.stringify(axiosError.response?.data) ||
+                    axiosError.message ||
+                    'Unknown error';
+      statusCode = axiosError.response?.status || 500;
+    } else if (error instanceof Error) {
       errorDetails = error.message;
     }
     

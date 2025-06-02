@@ -8,12 +8,7 @@ interface UploadedImage {
   publicId: string;
 }
 
-// Cloudinary Upload Widget types
-declare global {
-  interface Window {
-    cloudinary: any;
-  }
-}
+// Cloudinary Upload Widget types (using types from CloudinaryUploadWidget component)
 
 export default function CloudinaryTestPage() {
   const [lastUploadedImage, setLastUploadedImage] = useState<UploadedImage | null>(null);
@@ -84,7 +79,8 @@ export default function CloudinaryTestPage() {
 
           if (error) {
             console.error('Upload error:', error);
-            setError(`Upload failed: ${error.message || 'Unknown error'}`);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            setError(`Upload failed: ${errorMessage}`);
             setIsLoading(false);
             return;
           }
@@ -95,7 +91,7 @@ export default function CloudinaryTestPage() {
             setError(null);
           }
 
-          if (result && result.event === 'success') {
+          if (result && result.event === 'success' && result.info) {
             console.log('Upload successful:', result.info);
             setLastUploadedImage({
               url: result.info.secure_url,
@@ -186,7 +182,7 @@ export default function CloudinaryTestPage() {
                   <strong>Error:</strong> {error}
                 </p>
                 <p className="text-red-500 text-xs mt-2">
-                  If you see "Upload preset not found", you need to create an upload preset named "tap2go_test" in your Cloudinary dashboard.
+                  If you see &quot;Upload preset not found&quot;, you need to create an upload preset named &quot;tap2go_test&quot; in your Cloudinary dashboard.
                 </p>
               </div>
             )}

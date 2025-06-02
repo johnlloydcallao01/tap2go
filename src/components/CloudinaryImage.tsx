@@ -6,7 +6,7 @@ import {
   getOptimizedImageUrl,
   isCloudinaryUrl,
   extractPublicId,
-  generateSrcSet
+  // generateSrcSet // Currently unused
 } from '@/lib/cloudinary/transform';
 
 interface CloudinaryImageProps {
@@ -89,22 +89,22 @@ export default function CloudinaryImage({
     return src;
   };
 
-  // Generate srcSet for responsive images
-  const getSrcSet = () => {
-    if (!isCloudinaryUrl(src) || !width) {
-      return undefined;
-    }
+  // Generate srcSet for responsive images (currently unused)
+  // const getSrcSet = () => {
+  //   if (!isCloudinaryUrl(src) || !width) {
+  //     return undefined;
+  //   }
 
-    const publicId = extractPublicId(src);
-    if (!publicId) {
-      return undefined;
-    }
+  //   const publicId = extractPublicId(src);
+  //   if (!publicId) {
+  //     return undefined;
+  //   }
 
-    return generateSrcSet(publicId, width);
-  };
+  //   return generateSrcSet(publicId, width);
+  // };
 
   const imageSrc = getImageSrc();
-  const srcSet = getSrcSet();
+  // const srcSet = getSrcSet(); // Commented out as it's not used
 
   // Fallback content when no image
   if (!imageSrc) {

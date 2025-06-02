@@ -21,7 +21,7 @@ export default function BasicImageUpload({
   value,
   onChange,
   uploadType,
-  additionalData = {},
+  additionalData: _additionalData = {}, // eslint-disable-line @typescript-eslint/no-unused-vars
   placeholder = 'Click to upload image',
   disabled = false,
 }: BasicImageUploadProps) {

@@ -87,7 +87,15 @@ export async function POST(request: NextRequest) {
     const fileBuffer = await fileToBuffer(file);
 
     // Prepare upload options based on type
-    let uploadOptions: any = {
+    const uploadOptions: {
+      resource_type: 'auto' | 'video';
+      quality: string;
+      format: string;
+      folder?: string;
+      public_id?: string;
+      tags?: string[];
+      overwrite?: boolean;
+    } = {
       resource_type: fileType === 'video' ? 'video' : 'auto',
       quality: 'auto',
       format: 'auto',

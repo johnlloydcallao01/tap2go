@@ -16,7 +16,7 @@ interface FacebookStyleSplashProps {
  */
 export default function FacebookStyleSplash({
   isLoading = false,
-  duration = 600, // Very brief, just like Facebook
+  duration: _duration = 600, // eslint-disable-line @typescript-eslint/no-unused-vars
   className = ''
 }: FacebookStyleSplashProps) {
   const [show, setShow] = useState(isLoading);

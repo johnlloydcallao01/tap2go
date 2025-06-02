@@ -123,11 +123,15 @@ export async function POST(request: NextRequest) {
           console.log('🎯 This will redirect to actual', paymentMethod.toUpperCase(), 'payment page!');
         }
 
-      } catch (pmError: any) {
+      } catch (pmError: unknown) {
+        const axiosError = pmError as {
+          response?: { status?: number; data?: unknown };
+          message?: string;
+        };
         console.error('❌ Payment method creation/attachment error:', {
-          status: pmError.response?.status,
-          data: pmError.response?.data,
-          message: pmError.message
+          status: axiosError.response?.status,
+          data: axiosError.response?.data,
+          message: axiosError.message
         });
 
         // If attachment fails, try to get checkout URL from payment intent directly
@@ -174,25 +178,38 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Process payment error:', error);
     
     let errorMessage = 'Payment processing failed';
     let statusCode = 500;
-    
-    if (error.response) {
-      errorMessage = error.response.data?.errors?.[0]?.detail || 
-                    error.response.data?.message || 
-                    error.message;
-      statusCode = error.response.status;
-    } else {
+
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as {
+        response?: {
+          status?: number;
+          data?: {
+            errors?: Array<{ detail?: string }>;
+            message?: string;
+          };
+        };
+        message?: string;
+      };
+      errorMessage = axiosError.response?.data?.errors?.[0]?.detail ||
+                    axiosError.response?.data?.message ||
+                    axiosError.message ||
+                    'Unknown error';
+      statusCode = axiosError.response?.status || 500;
+    } else if (error instanceof Error) {
       errorMessage = error.message;
     }
-    
+
     return NextResponse.json({
       success: false,
       error: errorMessage,
-      details: error.response?.data || error.message,
+      details: error && typeof error === 'object' && 'response' in error
+        ? (error as { response?: { data?: unknown } }).response?.data
+        : error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     }, { status: statusCode });
   }
@@ -202,7 +219,11 @@ export async function POST(request: NextRequest) {
  * Get payment instructions based on payment method
  */
 function getPaymentInstructions(paymentMethod: string, checkoutUrl?: string | null, realPaymentFlow?: boolean) {
-  const instructions: Record<string, any> = {
+  const instructions: Record<string, {
+    title: string;
+    steps: string[];
+    redirectUrl?: string | null;
+  }> = {
     gcash: {
       title: realPaymentFlow ? '🚀 REAL GCash Payment Ready!' : 'GCash Payment',
       steps: checkoutUrl ? [

@@ -15,7 +15,7 @@ import {
 
 export default function Header() {
   const { signOut } = useAuth();
-  const { user, loading, canShowAuthContent, canShowUserContent, canShowGuestContent } = useSSRSafeAuthState();
+  const { user, canShowUserContent, canShowGuestContent } = useSSRSafeAuthState();
   const { cart } = useCart();
   const currentLocation = 'Manila';
 

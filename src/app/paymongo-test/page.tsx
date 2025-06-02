@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { CheckCircleIcon, XCircleIcon, CreditCardIcon } from '@heroicons/react/24/solid';
+import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 
 interface PaymentMethod {
   name: string;
@@ -74,7 +74,7 @@ export default function PayMongoTestPage() {
         } else {
           setError(data.details || 'PayMongo test failed');
         }
-      } catch (err) {
+      } catch {
         setError('Failed to connect to PayMongo API');
       } finally {
         setLoading(false);

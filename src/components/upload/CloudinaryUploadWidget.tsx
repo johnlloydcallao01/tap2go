@@ -9,9 +9,26 @@ import {
 } from '@heroicons/react/24/outline';
 
 // Cloudinary Upload Widget types
+interface CloudinaryWidget {
+  open: () => void;
+}
+
+interface CloudinaryUploadResult {
+  event: string;
+  info?: {
+    secure_url: string;
+    public_id: string;
+  };
+}
+
 declare global {
   interface Window {
-    cloudinary: any;
+    cloudinary: {
+      createUploadWidget: (
+        config: Record<string, unknown>,
+        callback: (error: unknown, result: CloudinaryUploadResult) => void
+      ) => CloudinaryWidget;
+    };
   }
 }
 
@@ -28,14 +45,14 @@ export default function CloudinaryUploadWidget({
   value,
   onChange,
   uploadType,
-  additionalData = {},
+  additionalData: _additionalData = {}, // eslint-disable-line @typescript-eslint/no-unused-vars
   placeholder = 'Click to upload image',
   disabled = false,
 }: CloudinaryUploadWidgetProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(value || null);
-  const widgetRef = useRef<any>(null);
+  const widgetRef = useRef<CloudinaryWidget | null>(null);
 
   // Load Cloudinary Upload Widget script
   useEffect(() => {
@@ -91,7 +108,7 @@ export default function CloudinaryUploadWidget({
             }
           }
         },
-        (error: any, result: any) => {
+        (error: unknown, result: CloudinaryUploadResult) => {
           if (error) {
             console.error('Upload error:', error);
             setError('Upload failed. Please try again.');
@@ -99,7 +116,7 @@ export default function CloudinaryUploadWidget({
             return;
           }
 
-          if (result.event === 'success') {
+          if (result.event === 'success' && result.info) {
             console.log('Upload successful:', result.info);
             setPreview(result.info.secure_url);
             setError(null);

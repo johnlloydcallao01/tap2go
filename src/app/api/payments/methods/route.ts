@@ -3,10 +3,10 @@
  * GET /api/payments/methods
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { paymongoSecretClient } from '@/lib/paymongo';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('Fetching available payment methods from PayMongo...');
     
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     // Log more details about the error
     if (error && typeof error === 'object' && 'response' in error) {
-      const axiosError = error as any;
+      const axiosError = error as { response?: { status?: number; data?: unknown } };
       console.error('Response status:', axiosError.response?.status);
       console.error('Response data:', axiosError.response?.data);
     }
