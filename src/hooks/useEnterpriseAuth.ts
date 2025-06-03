@@ -2,8 +2,8 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { User } from '@/types';
+import { useEffect, useState, useCallback } from 'react';
+import { User, AuthContextType } from '@/types';
 
 interface UseEnterpriseAuthOptions {
   requireAuth?: boolean;
@@ -35,7 +35,7 @@ export function useEnterpriseAuth(options: UseEnterpriseAuthOptions = {}): Enter
     onUnauthorized
   } = options;
 
-  const auth = useAuth() as any; // Extended auth context
+  const auth = useAuth() as AuthContextType & { authError?: string | null; isInitialized?: boolean };
   const router = useRouter();
   const [hasRedirected, setHasRedirected] = useState(false);
 
@@ -49,7 +49,7 @@ export function useEnterpriseAuth(options: UseEnterpriseAuthOptions = {}): Enter
   // Computed auth states
   const isAuthenticated = !!user;
   const hasRole = (role: User['role']) => user?.role === role;
-  const hasAnyRole = (roles: User['role'][]) => user ? roles.includes(user.role) : false;
+  const hasAnyRole = useCallback((roles: User['role'][]) => user ? roles.includes(user.role) : false, [user]);
   
   // Check if user is authorized based on requirements
   const isAuthorized = (() => {
@@ -122,8 +122,8 @@ export function useEnterpriseAuth(options: UseEnterpriseAuthOptions = {}): Enter
     hasRole,
     hasAnyRole,
     isAuthorized,
-    authError,
-    isInitialized
+    authError: authError || null,
+    isInitialized: isInitialized || false
   };
 }
 

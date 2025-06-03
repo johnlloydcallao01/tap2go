@@ -222,7 +222,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribe();
       cleanupTokenRefresh();
     };
-  }, [handleUserLoad, setupTokenRefresh, cleanupTokenRefresh]);
+  }, [handleUserLoad, setupTokenRefresh, cleanupTokenRefresh, isHydrated]);
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);

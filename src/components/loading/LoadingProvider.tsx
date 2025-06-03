@@ -3,6 +3,7 @@
 import React, { createContext, useContext } from 'react';
 import { usePageLoading, useManualLoading, useAuthLoading } from '@/hooks/usePageLoading';
 import { useAuth } from '@/contexts/AuthContext';
+import { AuthContextType } from '@/types';
 import FacebookStyleSplash, { TopProgressBar, LoadingDot } from './PageLoadingIndicator';
 
 interface LoadingContextType {
@@ -53,7 +54,7 @@ export default function LoadingProvider({
   const pageLoading = usePageLoading();
   const manualLoading = useManualLoading();
   const authLoading = useAuthLoading();
-  const auth = useAuth() as any;
+  const auth = useAuth() as AuthContextType & { isInitialized?: boolean };
 
   const value: LoadingContextType = {
     // Page loading

@@ -306,6 +306,7 @@ export default function Home() {
                 <li><a href="#" className="hover:text-white transition-colors">Partner with Us</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Restaurant Dashboard</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Business Support</a></li>
+                <li><a href="/analytics-demo" className="hover:text-orange-400 transition-colors font-medium">📊 Analytics Demo</a></li>
               </ul>
             </div>
           </div>

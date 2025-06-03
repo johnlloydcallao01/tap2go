@@ -315,14 +315,14 @@ export const updatePayoutStatus = async (
 ): Promise<void> => {
   const payoutRef = doc(db, COLLECTIONS.VENDORS, vendorUid, COLLECTIONS.VENDOR_PAYOUTS, payoutId);
 
-  const updates: any = { status };
+  const updates: Partial<{ status: string; transactionId: string; processedAt: Timestamp }> = { status };
 
   if (transactionId) {
     updates.transactionId = transactionId;
   }
 
   if (status === 'completed') {
-    updates.processedAt = serverTimestamp();
+    updates.processedAt = serverTimestamp() as Timestamp;
   }
 
   await updateDoc(payoutRef, updates);

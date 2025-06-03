@@ -9,6 +9,29 @@ import React from 'react';
 import { doc, setDoc, onSnapshot, collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
+  UserDocument,
+  VendorDocument,
+  DriverDocument,
+  OrderDocument,
+  PlatformConfigDocument,
+  NotificationDocument,
+  DisputeDocument,
+  AnalyticsDocument
+} from './schema';
+
+// API Request/Response types
+interface ApiRequest {
+  user: { uid: string };
+  body: Record<string, unknown>;
+  params: Record<string, string>;
+  query: Record<string, string>;
+}
+
+interface ApiResponse {
+  status: (code: number) => ApiResponse;
+  json: (data: Record<string, unknown>) => void;
+}
+import {
   createUser,
   getUser,
   updateUser,
@@ -179,10 +202,10 @@ export const completeVendorOnboarding = async (
     businessType: 'restaurant' | 'cafe' | 'bakery' | 'food_truck' | 'catering' | 'grocery' | 'other';
     businessLicense: string;
     taxId: string;
-    businessAddress: any;
-    contactInfo: any;
-    operatingHours: any;
-    deliverySettings: any;
+    businessAddress: VendorDocument['businessAddress'];
+    contactInfo: VendorDocument['contactInfo'];
+    operatingHours: VendorDocument['operatingHours'];
+    deliverySettings: VendorDocument['deliverySettings'];
   }
 ) => {
   try {
@@ -260,7 +283,7 @@ export const uploadBusinessDocument = async (
 
 // Example: Custom hook for user data
 export const useUserData = (uid: string) => {
-  const [user, setUser] = React.useState<any>(null);
+  const [user, setUser] = React.useState<UserDocument | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -286,7 +309,7 @@ export const useUserData = (uid: string) => {
 
 // Example: Custom hook for vendor data
 export const useVendorData = (uid: string) => {
-  const [vendor, setVendor] = React.useState<any>(null);
+  const [vendor, setVendor] = React.useState<VendorDocument | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -313,7 +336,7 @@ export const useVendorData = (uid: string) => {
 // ===== API ROUTE EXAMPLES =====
 
 // Example: API route for user profile update
-export const apiUpdateProfile = async (req: any, res: any) => {
+export const apiUpdateProfile = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid } = req.user; // From authentication middleware
     const updates = req.body;
@@ -328,7 +351,7 @@ export const apiUpdateProfile = async (req: any, res: any) => {
 };
 
 // Example: API route for vendor approval
-export const apiApproveVendor = async (req: any, res: any) => {
+export const apiApproveVendor = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { vendorUid } = req.params;
     const { uid: adminUid } = req.user; // From authentication middleware
@@ -345,7 +368,7 @@ export const apiApproveVendor = async (req: any, res: any) => {
 // ===== BATCH OPERATIONS EXAMPLES =====
 
 // Example: Batch create multiple categories
-export const createMultipleCategories = async (categories: any[]) => {
+export const createMultipleCategories = async (categories: Array<{ id: string; [key: string]: unknown }>) => {
   try {
     const promises = categories.map(category =>
       setDoc(doc(db, 'categories', category.id), category)
@@ -379,18 +402,18 @@ export const batchUpdateVendorStatuses = async (
 // ===== REAL-TIME LISTENERS EXAMPLES =====
 
 // Example: Listen to user changes
-export const listenToUserChanges = (uid: string, callback: (user: any) => void) => {
+export const listenToUserChanges = (uid: string, callback: (user: UserDocument) => void) => {
   const userRef = doc(db, 'users', uid);
 
   return onSnapshot(userRef, (doc) => {
     if (doc.exists()) {
-      callback(doc.data());
+      callback(doc.data() as UserDocument);
     }
   });
 };
 
 // Example: Listen to vendor orders
-export const listenToVendorOrders = (vendorUid: string, callback: (orders: any[]) => void) => {
+export const listenToVendorOrders = (vendorUid: string, callback: (orders: OrderDocument[]) => void) => {
   const ordersRef = collection(db, 'orders');
   const q = query(ordersRef, where('restaurantOwnerId', '==', vendorUid));
 
@@ -399,7 +422,7 @@ export const listenToVendorOrders = (vendorUid: string, callback: (orders: any[]
       id: doc.id,
       ...doc.data()
     }));
-    callback(orders);
+    callback(orders as unknown as OrderDocument[]);
   });
 };
 
@@ -534,7 +557,7 @@ export const exampleAddDriverReview = async () => {
 
 // Example: Custom hook for driver data
 export const useDriverData = (uid: string) => {
-  const [driver, setDriver] = React.useState<any>(null);
+  const [driver, setDriver] = React.useState<DriverDocument | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -560,7 +583,7 @@ export const useDriverData = (uid: string) => {
 
 // Example: Custom hook for driver stats
 export const useDriverStats = (uid: string) => {
-  const [stats, setStats] = React.useState<any>(null);
+  const [stats, setStats] = React.useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -585,7 +608,7 @@ export const useDriverStats = (uid: string) => {
 };
 
 // Example: API route for driver approval
-export const apiApproveDriver = async (req: any, res: any) => {
+export const apiApproveDriver = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { driverUid } = req.params;
     const { uid: adminUid } = req.user; // From authentication middleware
@@ -600,7 +623,7 @@ export const apiApproveDriver = async (req: any, res: any) => {
 };
 
 // Example: API route for getting available drivers
-export const apiGetAvailableDrivers = async (req: any, res: any) => {
+export const apiGetAvailableDrivers = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const drivers = await getAvailableDrivers();
 
@@ -612,7 +635,7 @@ export const apiGetAvailableDrivers = async (req: any, res: any) => {
 };
 
 // Example: Listen to driver location updates
-export const listenToDriverLocation = (driverUid: string, callback: (location: any) => void) => {
+export const listenToDriverLocation = (driverUid: string, callback: (location: { latitude: number; longitude: number }) => void) => {
   const driverRef = doc(db, 'drivers', driverUid);
 
   return onSnapshot(driverRef, (doc) => {
@@ -792,7 +815,7 @@ export const exampleCalculateTotal = () => {
 
 // Example: Custom hook for order data
 export const useOrderData = (orderId: string) => {
-  const [order, setOrder] = React.useState<any>(null);
+  const [order, setOrder] = React.useState<OrderDocument | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -818,7 +841,7 @@ export const useOrderData = (orderId: string) => {
 
 // Example: Custom hook for customer orders
 export const useCustomerOrders = (customerUid: string) => {
-  const [orders, setOrders] = React.useState<any[]>([]);
+  const [orders, setOrders] = React.useState<OrderDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -843,7 +866,7 @@ export const useCustomerOrders = (customerUid: string) => {
 };
 
 // Example: API route for creating order
-export const apiCreateOrder = async (req: any, res: any) => {
+export const apiCreateOrder = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid: customerUid } = req.user; // From authentication middleware
     const orderData = req.body;
@@ -852,7 +875,7 @@ export const apiCreateOrder = async (req: any, res: any) => {
     orderData.customerRef = `customers/${customerUid}`;
     orderData.orderNumber = generateOrderNumber();
 
-    const orderId = await createOrder(orderData);
+    const orderId = await createOrder(orderData as Omit<OrderDocument, 'createdAt' | 'updatedAt'>);
 
     res.status(200).json({
       success: true,
@@ -867,17 +890,17 @@ export const apiCreateOrder = async (req: any, res: any) => {
 };
 
 // Example: API route for updating order status
-export const apiUpdateOrderStatus = async (req: any, res: any) => {
+export const apiUpdateOrderStatus = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { orderId } = req.params;
     const { status, message } = req.body;
 
-    await updateOrderStatus(orderId, status);
+    await updateOrderStatus(orderId, status as OrderDocument['status']);
 
     if (message) {
       await addTrackingUpdate(orderId, {
-        status,
-        message
+        status: status as string,
+        message: message as string
       });
     }
 
@@ -889,18 +912,18 @@ export const apiUpdateOrderStatus = async (req: any, res: any) => {
 };
 
 // Example: Listen to order updates
-export const listenToOrderUpdates = (orderId: string, callback: (order: any) => void) => {
+export const listenToOrderUpdates = (orderId: string, callback: (order: OrderDocument) => void) => {
   const orderRef = doc(db, 'orders', orderId);
 
   return onSnapshot(orderRef, (doc) => {
     if (doc.exists()) {
-      callback({ id: doc.id, ...doc.data() });
+      callback({ id: doc.id, ...doc.data() } as unknown as OrderDocument);
     }
   });
 };
 
 // Example: Listen to restaurant orders
-export const listenToRestaurantOrders = (restaurantId: string, callback: (orders: any[]) => void) => {
+export const listenToRestaurantOrders = (restaurantId: string, callback: (orders: OrderDocument[]) => void) => {
   const ordersRef = collection(db, 'orders');
   const q = query(ordersRef, where('restaurantRef', '==', `restaurants/${restaurantId}`));
 
@@ -909,7 +932,7 @@ export const listenToRestaurantOrders = (restaurantId: string, callback: (orders
       id: doc.id,
       ...doc.data()
     }));
-    callback(orders);
+    callback(orders as unknown as OrderDocument[]);
   });
 };
 
@@ -990,7 +1013,7 @@ export const exampleUpdateNotificationTemplate = async () => {
 // Example: Check if feature is enabled
 export const exampleCheckFeature = async (featureName: string) => {
   try {
-    const isEnabled = await isFeatureEnabled(featureName as any);
+    const isEnabled = await isFeatureEnabled(featureName as keyof PlatformConfigDocument['features']);
     console.log(`Feature ${featureName} is ${isEnabled ? 'enabled' : 'disabled'}`);
     return isEnabled;
   } catch (error) {
@@ -1025,7 +1048,7 @@ export const exampleGetMinimumOrder = async () => {
 
 // Example: Custom hook for platform config
 export const usePlatformConfig = () => {
-  const [config, setConfig] = React.useState<any>(null);
+  const [config, setConfig] = React.useState<PlatformConfigDocument | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -1048,7 +1071,7 @@ export const usePlatformConfig = () => {
 };
 
 // Example: API route for updating platform config
-export const apiUpdatePlatformConfig = async (req: any, res: any) => {
+export const apiUpdatePlatformConfig = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid: adminUid } = req.user; // From authentication middleware
     const updates = req.body;
@@ -1072,7 +1095,7 @@ export const apiUpdatePlatformConfig = async (req: any, res: any) => {
 };
 
 // Example: API route for getting platform config
-export const apiGetPlatformConfig = async (req: any, res: any) => {
+export const apiGetPlatformConfig = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const config = await getPlatformConfig();
 
@@ -1231,7 +1254,7 @@ export const exampleGetUnreadCount = async (userUid: string) => {
 
 // Example: Custom hook for user notifications
 export const useUserNotifications = (userUid: string) => {
-  const [notifications, setNotifications] = React.useState<any[]>([]);
+  const [notifications, setNotifications] = React.useState<NotificationDocument[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
@@ -1263,7 +1286,7 @@ export const useUserNotifications = (userUid: string) => {
 
 // Example: Custom hook for unread notifications
 export const useUnreadNotifications = (userUid: string) => {
-  const [unreadNotifications, setUnreadNotifications] = React.useState<any[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = React.useState<NotificationDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -1288,12 +1311,12 @@ export const useUnreadNotifications = (userUid: string) => {
 };
 
 // Example: API route for creating notification
-export const apiCreateNotification = async (req: any, res: any) => {
+export const apiCreateNotification = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid: senderUid } = req.user; // From authentication middleware
     const notificationData = req.body;
 
-    const notificationId = await createNotification(notificationData);
+    const notificationId = await createNotification(notificationData as Omit<NotificationDocument, 'createdAt'>);
 
     res.status(200).json({
       success: true,
@@ -1307,12 +1330,12 @@ export const apiCreateNotification = async (req: any, res: any) => {
 };
 
 // Example: API route for getting user notifications
-export const apiGetUserNotifications = async (req: any, res: any) => {
+export const apiGetUserNotifications = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid: userUid } = req.user; // From authentication middleware
     const { limit = 50 } = req.query;
 
-    const notifications = await getNotificationsByUser(userUid, parseInt(limit));
+    const notifications = await getNotificationsByUser(userUid, typeof limit === 'string' ? parseInt(limit) : limit as number);
 
     res.status(200).json({
       success: true,
@@ -1326,7 +1349,7 @@ export const apiGetUserNotifications = async (req: any, res: any) => {
 };
 
 // Example: API route for marking notification as read
-export const apiMarkNotificationAsRead = async (req: any, res: any) => {
+export const apiMarkNotificationAsRead = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { notificationId } = req.params;
 
@@ -1343,7 +1366,7 @@ export const apiMarkNotificationAsRead = async (req: any, res: any) => {
 };
 
 // Example: Listen to user notifications
-export const listenToUserNotifications = (userUid: string, callback: (notifications: any[]) => void) => {
+export const listenToUserNotifications = (userUid: string, callback: (notifications: NotificationDocument[]) => void) => {
   const notificationsRef = collection(db, 'notifications');
   const q = query(
     notificationsRef,
@@ -1356,7 +1379,7 @@ export const listenToUserNotifications = (userUid: string, callback: (notificati
       id: doc.id,
       ...doc.data()
     }));
-    callback(notifications);
+    callback(notifications as NotificationDocument[]);
   });
 };
 
@@ -1460,7 +1483,7 @@ export const exampleGetDisputeStats = async () => {
 // Example: Update dispute status
 export const exampleUpdateDisputeStatus = async (disputeId: string, status: string) => {
   try {
-    await updateDisputeStatus(disputeId, status as any);
+    await updateDisputeStatus(disputeId, status as DisputeDocument['status']);
     console.log(`Dispute status updated to: ${status}`);
   } catch (error) {
     console.error('Error updating dispute status:', error);
@@ -1479,7 +1502,7 @@ export const exampleCloseDispute = async (disputeId: string, satisfied: boolean)
 
 // Example: Custom hook for customer disputes
 export const useCustomerDisputes = (customerUid: string) => {
-  const [disputes, setDisputes] = React.useState<any[]>([]);
+  const [disputes, setDisputes] = React.useState<DisputeDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -1505,9 +1528,9 @@ export const useCustomerDisputes = (customerUid: string) => {
 
 // Example: Custom hook for admin dispute management
 export const useAdminDisputes = () => {
-  const [openDisputes, setOpenDisputes] = React.useState<any[]>([]);
-  const [urgentDisputes, setUrgentDisputes] = React.useState<any[]>([]);
-  const [stats, setStats] = React.useState<any>(null);
+  const [openDisputes, setOpenDisputes] = React.useState<DisputeDocument[]>([]);
+  const [urgentDisputes, setUrgentDisputes] = React.useState<DisputeDocument[]>([]);
+  const [stats, setStats] = React.useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -1537,7 +1560,7 @@ export const useAdminDisputes = () => {
 };
 
 // Example: API route for creating dispute
-export const apiCreateDispute = async (req: any, res: any) => {
+export const apiCreateDispute = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid: customerUid } = req.user; // From authentication middleware
     const disputeData = req.body;
@@ -1545,7 +1568,7 @@ export const apiCreateDispute = async (req: any, res: any) => {
     // Add customer reference
     disputeData.customerRef = `customers/${customerUid}`;
 
-    const disputeId = await createDispute(disputeData);
+    const disputeId = await createDispute(disputeData as Omit<DisputeDocument, 'createdAt' | 'updatedAt'>);
 
     res.status(200).json({
       success: true,
@@ -1559,7 +1582,7 @@ export const apiCreateDispute = async (req: any, res: any) => {
 };
 
 // Example: API route for admin dispute management
-export const apiAssignDispute = async (req: any, res: any) => {
+export const apiAssignDispute = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid: adminUid } = req.user; // From authentication middleware
     const { disputeId } = req.params;
@@ -1583,7 +1606,7 @@ export const apiAssignDispute = async (req: any, res: any) => {
 };
 
 // Example: API route for resolving dispute
-export const apiResolveDispute = async (req: any, res: any) => {
+export const apiResolveDispute = async (req: ApiRequest, res: ApiResponse) => {
   try {
     const { uid: adminUid } = req.user; // From authentication middleware
     const { disputeId } = req.params;
@@ -1596,9 +1619,9 @@ export const apiResolveDispute = async (req: any, res: any) => {
     }
 
     // Add admin info to resolution
-    resolution.resolvedBy = adminUid;
+    (resolution as Record<string, unknown>).resolvedBy = adminUid;
 
-    await resolveDispute(disputeId, resolution, customerSatisfied);
+    await resolveDispute(disputeId, resolution as DisputeDocument['resolution'], customerSatisfied as boolean);
 
     res.status(200).json({
       success: true,
@@ -1673,7 +1696,7 @@ export const exampleCreateDailyAnalytics = async () => {
 // Example: Get latest analytics
 export const exampleGetLatestAnalytics = async (period: string) => {
   try {
-    const analytics = await getLatestAnalytics(period as any);
+    const analytics = await getLatestAnalytics(period as AnalyticsDocument['period']);
     console.log(`Latest ${period} analytics:`, analytics);
     return analytics;
   } catch (error) {
@@ -1720,10 +1743,10 @@ export const exampleGetGrowthRate = async () => {
 
 // Example: Custom hook for analytics dashboard
 export const useAnalyticsDashboard = () => {
-  const [dailyAnalytics, setDailyAnalytics] = React.useState<any[]>([]);
-  const [monthlyAnalytics, setMonthlyAnalytics] = React.useState<any[]>([]);
-  const [topRestaurants, setTopRestaurants] = React.useState<any[]>([]);
-  const [topDrivers, setTopDrivers] = React.useState<any[]>([]);
+  const [dailyAnalytics, setDailyAnalytics] = React.useState<AnalyticsDocument[]>([]);
+  const [monthlyAnalytics, setMonthlyAnalytics] = React.useState<AnalyticsDocument[]>([]);
+  const [topRestaurants, setTopRestaurants] = React.useState<AnalyticsDocument['topPerformingRestaurants']>([]);
+  const [topDrivers, setTopDrivers] = React.useState<AnalyticsDocument['topPerformingDrivers']>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -1739,8 +1762,8 @@ export const useAnalyticsDashboard = () => {
 
         setDailyAnalytics(daily);
         setMonthlyAnalytics(monthly);
-        setTopRestaurants(restaurants);
-        setTopDrivers(drivers);
+        setTopRestaurants(restaurants as unknown as AnalyticsDocument['topPerformingRestaurants']);
+        setTopDrivers(drivers as unknown as AnalyticsDocument['topPerformingDrivers']);
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {

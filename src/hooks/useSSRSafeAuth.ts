@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { AuthContextType } from '@/types';
 
 /**
  * FAST SSR-safe authentication hook that prevents hydration mismatches
  * and allows immediate page rendering without blocking
  */
 export function useSSRSafeAuth() {
-  const auth = useAuth() as any;
+  const auth = useAuth() as AuthContextType & { authError?: string | null; isInitialized?: boolean };
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Mark as hydrated after first render

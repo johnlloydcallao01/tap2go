@@ -539,7 +539,7 @@ export interface NotificationDocument {
   type: 'order_update' | 'promotional' | 'system' | 'payment' | 'rating_request';
   title: string;
   message: string;
-  data?: Record<string, any>; // additional payload data
+  data?: Record<string, unknown>; // additional payload data
   isRead: boolean;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   deliveryMethod: string[]; // ["push", "email", "sms"]

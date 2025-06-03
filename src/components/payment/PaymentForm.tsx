@@ -5,7 +5,7 @@
  * Handles card payments and e-wallet payments
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,12 +13,32 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CreditCard, Smartphone } from 'lucide-react';
 
+interface PaymentData {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  description: string;
+  payment_method?: {
+    id: string;
+    type: string;
+  };
+  next_action?: {
+    redirect?: {
+      url: string;
+    };
+  };
+  last_payment_error?: {
+    detail: string;
+  };
+}
+
 interface PaymentFormProps {
   orderId: string;
   amount: number;
   description: string;
   customerId?: string;
-  onSuccess: (paymentData: any) => void;
+  onSuccess: (paymentData: PaymentData) => void;
   onError: (error: string) => void;
 }
 
@@ -88,12 +108,7 @@ export default function PaymentForm({
     },
   });
 
-  // Create payment intent on component mount
-  useEffect(() => {
-    createPaymentIntent();
-  }, []);
-
-  const createPaymentIntent = async () => {
+  const createPaymentIntent = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -125,7 +140,12 @@ export default function PaymentForm({
     } finally {
       setLoading(false);
     }
-  };
+  }, [amount, description, orderId, customerId, onError]);
+
+  // Create payment intent on component mount
+  useEffect(() => {
+    createPaymentIntent();
+  }, [createPaymentIntent]);
 
   const handleCardPayment = async () => {
     if (!paymentIntent) return;

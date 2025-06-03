@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import LoadingProvider from "@/components/loading/LoadingProvider";
+import ReduxProvider from "@/store/ReduxProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,13 +21,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
-        <AuthProvider>
-          <LoadingProvider variant="facebook" showInitialLoad={true}>
-            <CartProvider>
-              {children}
-            </CartProvider>
-          </LoadingProvider>
-        </AuthProvider>
+        <ReduxProvider>
+          <AuthProvider>
+            <LoadingProvider variant="facebook" showInitialLoad={true}>
+              <CartProvider>
+                {children}
+              </CartProvider>
+            </LoadingProvider>
+          </AuthProvider>
+        </ReduxProvider>
       </body>
     </html>
   );

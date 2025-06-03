@@ -14,11 +14,23 @@ export interface CloudinaryUploadResult {
   created_at: string;
 }
 
+// Cloudinary transformation interface
+export interface CloudinaryTransformation {
+  width?: number;
+  height?: number;
+  crop?: string;
+  quality?: string | number;
+  format?: string;
+  gravity?: string;
+  fetch_format?: string;
+  [key: string]: unknown;
+}
+
 // Upload options interface
 export interface UploadOptions {
   folder?: string;
   public_id?: string;
-  transformation?: any;
+  transformation?: CloudinaryTransformation;
   resource_type?: 'image' | 'video' | 'raw' | 'auto';
   tags?: string[];
   context?: Record<string, string>;

@@ -17,6 +17,45 @@ import { db } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
 import { NotificationDocument } from './schema';
 
+// Notification data interfaces
+interface OrderNotificationData {
+  orderId: string;
+  orderNumber?: string;
+  restaurantName?: string;
+  estimatedTime?: string;
+  status?: string;
+  amount?: number;
+  [key: string]: unknown;
+}
+
+interface PromoNotificationData {
+  promoCode?: string;
+  discountPercent?: number;
+  discountAmount?: number;
+  expiryDays?: number;
+  minOrderValue?: number;
+  validDays?: string[];
+  [key: string]: unknown;
+}
+
+interface SystemNotificationData {
+  maintenanceMode?: boolean;
+  maintenanceMessage?: string;
+  featureUpdate?: string;
+  systemStatus?: string;
+  [key: string]: unknown;
+}
+
+interface PaymentNotificationData {
+  paymentId?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  method?: string;
+  transactionId?: string;
+  [key: string]: unknown;
+}
+
 // ===== NOTIFICATION OPERATIONS =====
 
 export const createNotification = async (
@@ -249,7 +288,7 @@ export const createOrderUpdateNotification = async (
   recipientRole: NotificationDocument['recipientRole'],
   title: string,
   message: string,
-  orderData: Record<string, any>,
+  orderData: OrderNotificationData,
   priority: NotificationDocument['priority'] = 'medium'
 ): Promise<string> => {
   return createNotification({
@@ -269,7 +308,7 @@ export const createPromotionalNotification = async (
   recipientUid: string,
   title: string,
   message: string,
-  promoData: Record<string, any>
+  promoData: PromoNotificationData
 ): Promise<string> => {
   return createNotification({
     recipientRef: `users/${recipientUid}`,
@@ -288,7 +327,7 @@ export const createSystemNotification = async (
   recipientUid: string,
   title: string,
   message: string,
-  systemData: Record<string, any>,
+  systemData: SystemNotificationData,
   priority: NotificationDocument['priority'] = 'medium'
 ): Promise<string> => {
   return createNotification({
@@ -309,7 +348,7 @@ export const createPaymentNotification = async (
   recipientRole: NotificationDocument['recipientRole'],
   title: string,
   message: string,
-  paymentData: Record<string, any>
+  paymentData: PaymentNotificationData
 ): Promise<string> => {
   return createNotification({
     recipientRef: `users/${recipientUid}`,
@@ -328,7 +367,7 @@ export const createRatingRequestNotification = async (
   recipientUid: string,
   title: string,
   message: string,
-  orderData: Record<string, any>
+  orderData: OrderNotificationData
 ): Promise<string> => {
   return createNotification({
     recipientRef: `users/${recipientUid}`,

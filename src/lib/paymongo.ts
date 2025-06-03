@@ -53,6 +53,15 @@ export interface PayMongoResponse<T> {
   };
 }
 
+export interface PaymentError {
+  code: string;
+  detail: string;
+  source?: {
+    pointer: string;
+    attribute: string;
+  };
+}
+
 export interface PaymentIntentAttributes {
   amount: number;
   currency: string;
@@ -62,9 +71,13 @@ export interface PaymentIntentAttributes {
   client_key: string;
   created_at: number;
   updated_at: number;
-  last_payment_error?: any;
+  last_payment_error?: PaymentError;
   payment_method_allowed: string[];
-  payments?: any[];
+  payments?: Array<{
+    id: string;
+    type: string;
+    attributes: PaymentAttributes;
+  }>;
   next_action?: {
     type: string;
     redirect: {
@@ -72,7 +85,7 @@ export interface PaymentIntentAttributes {
       return_url: string;
     };
   };
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PaymentMethodAttributes {
@@ -96,7 +109,7 @@ export interface PaymentMethodAttributes {
       postal_code: string;
     };
   };
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PaymentAttributes {
@@ -108,7 +121,7 @@ export interface PaymentAttributes {
   payment_method_id?: string;
   created_at: number;
   updated_at: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -130,7 +143,7 @@ export interface PayMongoErrorResponse {
 /**
  * Utility function to handle PayMongo API errors
  */
-export const handlePayMongoError = (error: any): string => {
+export const handlePayMongoError = (error: { response?: { data?: PayMongoErrorResponse }; message?: string }): string => {
   if (error.response?.data?.errors) {
     const errors = error.response.data.errors as PayMongoError[];
     return errors.map(err => err.detail).join(', ');
@@ -195,7 +208,7 @@ export const PAYMONGO_CONFIG = {
   TIMEOUT: 30000, // 30 seconds
 } as const;
 
-export default {
+const PayMongoSDK = {
   publicClient: paymongoPublicClient,
   secretClient: paymongoSecretClient,
   handleError: handlePayMongoError,
@@ -205,3 +218,5 @@ export default {
   getSupportedPaymentMethods,
   config: PAYMONGO_CONFIG,
 };
+
+export default PayMongoSDK;

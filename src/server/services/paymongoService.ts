@@ -11,12 +11,24 @@ import {
   PaymentIntentAttributes,
   PaymentMethodAttributes,
   PaymentAttributes,
+  PayMongoErrorResponse,
   handlePayMongoError,
   toCentavos,
   fromCentavos,
   validatePaymentAmount,
   getSupportedPaymentMethods,
 } from '@/lib/paymongo';
+
+/**
+ * Error type for PayMongo API operations
+ */
+interface PayMongoApiError {
+  response?: {
+    data?: PayMongoErrorResponse;
+    status?: number;
+  };
+  message?: string;
+}
 
 /**
  * Create Payment Intent Request Interface
@@ -114,7 +126,7 @@ export class PayMongoService {
       return response.data;
     } catch (error) {
       console.error('PayMongo createPaymentIntent error:', error);
-      throw new Error(handlePayMongoError(error));
+      throw new Error(handlePayMongoError(error as PayMongoApiError));
     }
   }
 
@@ -135,7 +147,7 @@ export class PayMongoService {
       return response.data;
     } catch (error) {
       console.error('PayMongo getPaymentIntent error:', error);
-      throw new Error(handlePayMongoError(error));
+      throw new Error(handlePayMongoError(error as PayMongoApiError));
     }
   }
 
@@ -164,7 +176,7 @@ export class PayMongoService {
       return response.data;
     } catch (error) {
       console.error('PayMongo createPaymentMethod error:', error);
-      throw new Error(handlePayMongoError(error));
+      throw new Error(handlePayMongoError(error as PayMongoApiError));
     }
   }
 
@@ -192,7 +204,7 @@ export class PayMongoService {
       return response.data;
     } catch (error) {
       console.error('PayMongo attachPaymentMethod error:', error);
-      throw new Error(handlePayMongoError(error));
+      throw new Error(handlePayMongoError(error as PayMongoApiError));
     }
   }
 
@@ -205,7 +217,7 @@ export class PayMongoService {
       return response.data;
     } catch (error) {
       console.error('PayMongo getPayment error:', error);
-      throw new Error(handlePayMongoError(error));
+      throw new Error(handlePayMongoError(error as PayMongoApiError));
     }
   }
 
@@ -228,7 +240,7 @@ export class PayMongoService {
       return response.data;
     } catch (error) {
       console.error('PayMongo listPayments error:', error);
-      throw new Error(handlePayMongoError(error));
+      throw new Error(handlePayMongoError(error as PayMongoApiError));
     }
   }
 
@@ -259,7 +271,7 @@ export class PayMongoService {
       return response.data;
     } catch (error) {
       console.error('PayMongo createRefund error:', error);
-      throw new Error(handlePayMongoError(error));
+      throw new Error(handlePayMongoError(error as PayMongoApiError));
     }
   }
 

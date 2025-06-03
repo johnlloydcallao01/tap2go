@@ -282,7 +282,7 @@ export const updateDeliveryStatus = async (
 ): Promise<void> => {
   const deliveryRef = doc(db, COLLECTIONS.DRIVERS, driverUid, COLLECTIONS.DRIVER_DELIVERY_HISTORY, deliveryId);
 
-  const updates: any = { status };
+  const updates: Partial<{ status: string; deliveredAt: Timestamp }> = { status };
   if (deliveredAt) {
     updates.deliveredAt = deliveredAt;
   }

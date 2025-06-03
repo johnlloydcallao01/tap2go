@@ -96,12 +96,12 @@ export default function Header() {
             <nav className="flex items-center space-x-6">
               {canShowUserContent ? (
                 <>
-                  {user.role === 'customer' && (
+                  {user?.role === 'customer' && (
                     <Link href="/orders" className="text-white hover:text-orange-200 transition-colors">
                       Orders
                     </Link>
                   )}
-                  {user.role === 'vendor' && (
+                  {user?.role === 'vendor' && (
                     <>
                       <Link href="/vendor/dashboard" className="text-white hover:text-orange-200 transition-colors">
                         Dashboard
@@ -114,7 +114,7 @@ export default function Header() {
                       </Link>
                     </>
                   )}
-                  {user.role === 'driver' && (
+                  {user?.role === 'driver' && (
                     <>
                       <Link href="/driver/dashboard" className="text-white hover:text-orange-200 transition-colors">
                         Dashboard
@@ -124,7 +124,7 @@ export default function Header() {
                       </Link>
                     </>
                   )}
-                  {user.role === 'admin' && (
+                  {user?.role === 'admin' && (
                     <Link href="/admin" className="text-white hover:text-orange-200 transition-colors">
                       Admin Panel
                     </Link>
@@ -153,7 +153,7 @@ export default function Header() {
                   <div className="relative group">
                     <button className="flex items-center space-x-1 text-white hover:text-orange-200 transition-colors">
                       <UserIcon className="h-6 w-6" />
-                      <span>{user.email}</span>
+                      <span>{user?.email}</span>
                     </button>
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                       <Link href="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
