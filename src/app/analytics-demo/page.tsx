@@ -1,12 +1,12 @@
 /**
  * Comprehensive Analytics Demo Page
- * Showcases all Plotly.js analytics components for Tap2Go platform
+ * Showcases ECharts analytics with 90/10 strategy for Tap2Go platform
  */
 
 'use client';
 
 import React, { useState } from 'react';
-import { ChartBarIcon, CurrencyDollarIcon, TruckIcon, UserIcon, BuildingStorefrontIcon } from '@heroicons/react/24/outline';
+import { ChartBarIcon, CurrencyDollarIcon, TruckIcon, UserIcon, BuildingStorefrontIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
 
 // Import analytics components
 import AdminRevenueCharts from '@/components/analytics/admin/AdminRevenueCharts';
@@ -14,6 +14,7 @@ import AdminOrderCharts from '@/components/analytics/admin/AdminOrderCharts';
 import VendorSalesCharts from '@/components/analytics/vendor/VendorSalesCharts';
 import DriverEarningsCharts from '@/components/analytics/driver/DriverEarningsCharts';
 import CustomerOrderCharts from '@/components/analytics/customer/CustomerOrderCharts';
+import DirectChartsExamples from '@/components/analytics/DirectChartsExamples';
 
 // Import demo data generators
 import {
@@ -27,7 +28,7 @@ import {
   generateCustomerPreferences,
 } from '@/components/analytics/demoData';
 
-type DemoSection = 'admin-revenue' | 'admin-orders' | 'vendor' | 'driver' | 'customer';
+type DemoSection = 'admin-revenue' | 'admin-orders' | 'vendor' | 'driver' | 'customer' | 'direct-echarts';
 
 export default function AnalyticsDemoPage() {
   const [activeSection, setActiveSection] = useState<DemoSection>('admin-revenue');
@@ -77,6 +78,13 @@ export default function AnalyticsDemoPage() {
       description: 'Customer ordering patterns and preferences',
       icon: UserIcon,
       color: 'bg-pink-500',
+    },
+    {
+      id: 'direct-echarts' as DemoSection,
+      title: 'Direct ECharts Implementation',
+      description: 'Professional approach using ECharts directly',
+      icon: CodeBracketIcon,
+      color: 'bg-indigo-500',
     },
   ];
 
@@ -151,11 +159,18 @@ export default function AnalyticsDemoPage() {
                 Track order history and provide personalized insights.
               </p>
             </div>
-            <CustomerOrderCharts 
+            <CustomerOrderCharts
               orderHistory={customerOrderHistory}
               spendingData={customerSpendingData}
               preferences={customerPreferences}
             />
+          </div>
+        );
+
+      case 'direct-echarts':
+        return (
+          <div>
+            <DirectChartsExamples />
           </div>
         );
 
@@ -176,12 +191,12 @@ export default function AnalyticsDemoPage() {
                   Tap2Go Analytics Demo
                 </h1>
                 <p className="text-gray-600 mt-2">
-                  Comprehensive analytics suite powered by Plotly.js for FoodPanda-scale platform
+                  Comprehensive analytics suite powered by ECharts for FoodPanda-scale platform
                 </p>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                  Plotly.js Powered
+                  ECharts Powered
                 </div>
                 <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                   Real-time Analytics
@@ -266,11 +281,11 @@ export default function AnalyticsDemoPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="text-center text-gray-600">
             <p className="text-sm">
-              Tap2Go Analytics Demo - Powered by Plotly.js | 
+              Tap2Go Analytics Demo - Powered by ECharts |
               <span className="font-medium text-orange-600"> Professional Food Delivery Platform</span>
             </p>
             <p className="text-xs mt-1">
-              Comprehensive analytics suite for Admin, Vendor, Driver, and Customer panels
+              Hybrid Implementation Reference: React Wrapper + Direct ECharts • Complete Analytics Suite
             </p>
           </div>
         </div>

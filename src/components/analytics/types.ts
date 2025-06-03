@@ -219,9 +219,13 @@ export interface DeliveryHeatmapData {
   }[];
 }
 
+// Re-export ECharts types for convenience
+export type { CallbackDataParams } from 'echarts/types/dist/shared';
+export type { ECharts } from 'echarts';
+
 // Chart Configuration Types
 export interface ChartConfig {
-  title: string;
+  title?: string;
   subtitle?: string;
   xAxisTitle?: string;
   yAxisTitle?: string;

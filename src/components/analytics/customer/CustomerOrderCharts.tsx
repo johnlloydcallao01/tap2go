@@ -8,6 +8,7 @@
 import React from 'react';
 import BaseChart, { TAP2GO_COLORS, CHART_COLOR_PALETTE } from '../BaseChart';
 import { CustomerOrderHistory, CustomerSpendingAnalytics, CustomerPreferences } from '../types';
+import type { EChartsOption } from 'echarts';
 
 interface CustomerOrderChartsProps {
   orderHistory: CustomerOrderHistory;
@@ -23,125 +24,237 @@ const CustomerOrderCharts: React.FC<CustomerOrderChartsProps> = ({
   className = '' 
 }) => {
   // Order Pattern Timeline
-  const orderPatternsData: Plotly.Data[] = [
-    {
-      x: orderHistory.orderPatterns.map(item => item.date),
-      y: orderHistory.orderPatterns.map(item => item.value),
-      type: 'scatter' as const,
-      mode: 'lines+markers',
-      name: 'Orders',
-      line: {
-        color: TAP2GO_COLORS.primary,
-        width: 2,
-      },
-      marker: {
-        color: TAP2GO_COLORS.primary,
-        size: 4,
-      },
-      hovertemplate: '<b>%{x}</b><br>Orders: %{y}<extra></extra>',
+  const orderPatternsOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: orderHistory.orderPatterns.map(item => item.date),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
     },
-  ];
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    series: [{
+      data: orderHistory.orderPatterns.map(item => item.value),
+      type: 'line',
+      smooth: true,
+      lineStyle: { color: TAP2GO_COLORS.primary, width: 2 },
+      itemStyle: { color: TAP2GO_COLORS.primary },
+      symbol: 'circle',
+      symbolSize: 4,
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Orders: ${data.value}`;
+      },
+    },
+  };
 
   // Monthly Spending Trend
-  const monthlySpendingData: Plotly.Data[] = [
-    {
-      x: spendingData.monthlySpending.map(item => item.date),
-      y: spendingData.monthlySpending.map(item => item.value),
-      type: 'scatter' as const,
-      mode: 'lines+markers',
-      name: 'Monthly Spending',
-      line: {
-        color: TAP2GO_COLORS.success,
-        width: 3,
-      },
-      marker: {
-        color: TAP2GO_COLORS.success,
-        size: 6,
-      },
-      fill: 'tonexty',
-      fillcolor: 'rgba(16, 185, 129, 0.1)',
-      hovertemplate: '<b>%{x}</b><br>Spent: ₱%{y:,.2f}<extra></extra>',
+  const monthlySpendingOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: spendingData.monthlySpending.map(item => item.date),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
     },
-  ];
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        color: '#6b7280',
+        formatter: (value: number) => `₱${value.toLocaleString()}`,
+      },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    series: [{
+      data: spendingData.monthlySpending.map(item => item.value),
+      type: 'line',
+      smooth: true,
+      areaStyle: {
+        color: 'rgba(16, 185, 129, 0.1)',
+      },
+      lineStyle: { color: TAP2GO_COLORS.success, width: 3 },
+      itemStyle: { color: TAP2GO_COLORS.success },
+      symbol: 'circle',
+      symbolSize: 6,
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Spent: ₱${data.value.toLocaleString()}`;
+      },
+    },
+  };
 
   // Spending Breakdown Pie Chart
-  const spendingBreakdownData: Plotly.Data[] = [
-    {
-      values: [
-        spendingData.spendingBreakdown.food,
-        spendingData.spendingBreakdown.deliveryFees,
-        spendingData.spendingBreakdown.tips,
-        spendingData.spendingBreakdown.taxes,
+  const spendingBreakdownOption: EChartsOption = {
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      data: [
+        {
+          value: spendingData.spendingBreakdown.food,
+          name: 'Food',
+          itemStyle: { color: TAP2GO_COLORS.primary },
+        },
+        {
+          value: spendingData.spendingBreakdown.deliveryFees,
+          name: 'Delivery Fees',
+          itemStyle: { color: TAP2GO_COLORS.info },
+        },
+        {
+          value: spendingData.spendingBreakdown.tips,
+          name: 'Tips',
+          itemStyle: { color: TAP2GO_COLORS.success },
+        },
+        {
+          value: spendingData.spendingBreakdown.taxes,
+          name: 'Taxes',
+          itemStyle: { color: TAP2GO_COLORS.warning },
+        },
       ],
-      labels: ['Food', 'Delivery Fees', 'Tips', 'Taxes'],
-      type: 'pie' as const,
-      hole: 0.4,
-      marker: {
-        colors: [TAP2GO_COLORS.primary, TAP2GO_COLORS.info, TAP2GO_COLORS.success, TAP2GO_COLORS.warning],
-      },
-      textinfo: 'label+percent',
-      textposition: 'outside',
-      hovertemplate: '<b>%{label}</b><br>Amount: ₱%{value:,.2f}<br>Percentage: %{percent}<extra></extra>',
-    },
-  ];
-
-  // Favorite Restaurants Bar Chart
-  const favoriteRestaurantsData: Plotly.Data[] = [
-    {
-      x: orderHistory.favoriteRestaurants.slice(0, 5).map(item => item.orderCount),
-      y: orderHistory.favoriteRestaurants.slice(0, 5).map(item => item.restaurantName),
-      type: 'bar' as const,
-      orientation: 'h',
-      marker: {
-        color: CHART_COLOR_PALETTE.slice(0, 5),
-      },
-      text: orderHistory.favoriteRestaurants.slice(0, 5).map(item => `${item.orderCount} orders`),
-      textposition: 'auto',
-      hovertemplate: '<b>%{y}</b><br>Orders: %{x}<br>Total Spent: ₱%{customdata:,.2f}<extra></extra>',
-      customdata: orderHistory.favoriteRestaurants.slice(0, 5).map(item => item.totalSpent),
-    },
-  ];
-
-  // Cuisine Preferences Donut Chart
-  const cuisinePreferencesData: Plotly.Data[] = [
-    {
-      values: preferences.cuisinePreferences.map(item => item.orderCount),
-      labels: preferences.cuisinePreferences.map(item => item.cuisine),
-      type: 'pie' as const,
-      hole: 0.6,
-      marker: {
-        colors: CHART_COLOR_PALETTE,
-      },
-      textinfo: 'label+percent',
-      textposition: 'outside',
-      hovertemplate: '<b>%{label}</b><br>Orders: %{value}<br>Percentage: %{percent}<extra></extra>',
-    },
-  ];
-
-  // Order Time Preferences
-  const timePreferencesData: Plotly.Data[] = [
-    {
-      x: preferences.timePreferences.map(item => item.x),
-      y: preferences.timePreferences.map(item => item.y),
-      type: 'bar' as const,
-      marker: {
-        color: preferences.timePreferences.map(item => item.y),
-        colorscale: [
-          [0, '#fef3c7'],
-          [0.5, TAP2GO_COLORS.warning],
-          [1, TAP2GO_COLORS.primary],
-        ],
-        showscale: true,
-        colorbar: {
-          title: 'Orders',
-          titleside: 'right',
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowOffsetX: 0,
+          shadowColor: 'rgba(0, 0, 0, 0.5)',
         },
       },
-      text: preferences.timePreferences.map(item => item.y.toString()),
-      textposition: 'auto',
-      hovertemplate: '<b>%{x}:00</b><br>Orders: %{y}<extra></extra>',
+      label: {
+        show: true,
+        formatter: '{b}: {d}%',
+      },
+    }],
+    tooltip: {
+      trigger: 'item',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        return `<b>${params.name}</b><br/>Amount: ₱${params.value.toLocaleString()}<br/>Percentage: ${params.percent}%`;
+      },
     },
-  ];
+  };
+
+  // Favorite Restaurants Bar Chart
+  const favoriteRestaurantsOption: EChartsOption = {
+    xAxis: {
+      type: 'value',
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    yAxis: {
+      type: 'category',
+      data: orderHistory.favoriteRestaurants.slice(0, 5).map(item => item.restaurantName),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+    },
+    series: [{
+      data: orderHistory.favoriteRestaurants.slice(0, 5).map((item, index) => ({
+        value: item.orderCount,
+        itemStyle: { color: CHART_COLOR_PALETTE[index % CHART_COLOR_PALETTE.length] },
+      })),
+      type: 'bar',
+      label: {
+        show: true,
+        position: 'right',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        formatter: (params: any) => `${params.value} orders`,
+      },
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        const restaurant = orderHistory.favoriteRestaurants.slice(0, 5)[data.dataIndex];
+        return `<b>${data.axisValue}</b><br/>Orders: ${data.value}<br/>Total Spent: ₱${restaurant.totalSpent.toLocaleString()}`;
+      },
+    },
+  };
+
+  // Cuisine Preferences Donut Chart
+  const cuisinePreferencesOption: EChartsOption = {
+    series: [{
+      type: 'pie',
+      radius: ['50%', '80%'],
+      data: preferences.cuisinePreferences.map((item, index) => ({
+        value: item.orderCount,
+        name: item.cuisine,
+        itemStyle: { color: CHART_COLOR_PALETTE[index % CHART_COLOR_PALETTE.length] },
+      })),
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowOffsetX: 0,
+          shadowColor: 'rgba(0, 0, 0, 0.5)',
+        },
+      },
+      label: {
+        show: true,
+        formatter: '{b}: {d}%',
+      },
+    }],
+    tooltip: {
+      trigger: 'item',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        return `<b>${params.name}</b><br/>Orders: ${params.value}<br/>Percentage: ${params.percent}%`;
+      },
+    },
+  };
+
+  // Order Time Preferences
+  const timePreferencesOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: preferences.timePreferences.map(item => `${item.x}:00`),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    series: [{
+      data: preferences.timePreferences.map(item => ({
+        value: item.y,
+        itemStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: TAP2GO_COLORS.primary },
+              { offset: 1, color: TAP2GO_COLORS.warning }
+            ]
+          }
+        }
+      })),
+      type: 'bar',
+      label: {
+        show: true,
+        position: 'top',
+      },
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Orders: ${data.value}`;
+      },
+    },
+  };
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -170,36 +283,27 @@ const CustomerOrderCharts: React.FC<CustomerOrderChartsProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Order Patterns */}
         <BaseChart
-          data={orderPatternsData}
+          option={orderPatternsOption}
           config={{
             title: 'Your Order History',
             subtitle: 'Track your ordering patterns over time',
-            xAxisTitle: 'Date',
-            yAxisTitle: 'Number of Orders',
             height: 350,
           }}
         />
 
         {/* Monthly Spending */}
         <BaseChart
-          data={monthlySpendingData}
+          option={monthlySpendingOption}
           config={{
             title: 'Monthly Spending Trend',
             subtitle: 'Your spending patterns over time',
-            xAxisTitle: 'Month',
-            yAxisTitle: 'Amount Spent (₱)',
             height: 350,
-          }}
-          layout={{
-            yaxis: {
-              tickformat: '₱,.0f',
-            },
           }}
         />
 
         {/* Spending Breakdown */}
         <BaseChart
-          data={spendingBreakdownData}
+          option={spendingBreakdownOption}
           config={{
             title: 'Spending Breakdown',
             subtitle: 'Where your money goes',
@@ -210,27 +314,17 @@ const CustomerOrderCharts: React.FC<CustomerOrderChartsProps> = ({
 
         {/* Favorite Restaurants */}
         <BaseChart
-          data={favoriteRestaurantsData}
+          option={favoriteRestaurantsOption}
           config={{
             title: 'Your Favorite Restaurants',
             subtitle: 'Most ordered restaurants',
-            xAxisTitle: 'Number of Orders',
-            yAxisTitle: 'Restaurant',
             height: 350,
-          }}
-          layout={{
-            margin: {
-              l: 120,
-              r: 30,
-              t: 60,
-              b: 50,
-            },
           }}
         />
 
         {/* Cuisine Preferences */}
         <BaseChart
-          data={cuisinePreferencesData}
+          option={cuisinePreferencesOption}
           config={{
             title: 'Cuisine Preferences',
             subtitle: 'Your favorite types of food',
@@ -241,12 +335,10 @@ const CustomerOrderCharts: React.FC<CustomerOrderChartsProps> = ({
 
         {/* Order Time Preferences */}
         <BaseChart
-          data={timePreferencesData}
+          option={timePreferencesOption}
           config={{
             title: 'Preferred Order Times',
             subtitle: 'When you usually order food',
-            xAxisTitle: 'Hour of Day',
-            yAxisTitle: 'Number of Orders',
             height: 350,
           }}
         />

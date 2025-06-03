@@ -8,6 +8,7 @@
 import React from 'react';
 import BaseChart, { TAP2GO_COLORS, CHART_COLOR_PALETTE } from '../BaseChart';
 import { OrderAnalytics } from '../types';
+import type { EChartsOption } from 'echarts';
 
 interface AdminOrderChartsProps {
   data: OrderAnalytics;
@@ -16,89 +17,163 @@ interface AdminOrderChartsProps {
 
 const AdminOrderCharts: React.FC<AdminOrderChartsProps> = ({ data, className = '' }) => {
   // Order Status Distribution Pie Chart
-  const orderStatusData: Plotly.Data[] = [
-    {
-      values: data.orderStatusDistribution.map(item => item.count),
-      labels: data.orderStatusDistribution.map(item => item.status),
-      type: 'pie' as const,
-      hole: 0.4,
-      marker: {
-        colors: CHART_COLOR_PALETTE,
-      },
-      textinfo: 'label+percent',
-      textposition: 'outside',
-      hovertemplate: '<b>%{label}</b><br>Orders: %{value}<br>Percentage: %{percent}<extra></extra>',
-    },
-  ];
-
-  // Orders by Hour Heatmap
-  const ordersByHourData: Plotly.Data[] = [
-    {
-      x: data.ordersByHour.map(item => item.x),
-      y: data.ordersByHour.map(item => item.y),
-      type: 'bar' as const,
-      marker: {
-        color: data.ordersByHour.map(item => item.y),
-        colorscale: [
-          [0, '#fef3c7'],
-          [0.5, TAP2GO_COLORS.warning],
-          [1, TAP2GO_COLORS.primary],
-        ],
-        showscale: true,
-        colorbar: {
-          title: 'Orders',
-          titleside: 'right',
+  const orderStatusOption: EChartsOption = {
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      data: data.orderStatusDistribution.map((item, index) => ({
+        value: item.count,
+        name: item.status,
+        itemStyle: { color: CHART_COLOR_PALETTE[index % CHART_COLOR_PALETTE.length] },
+      })),
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowOffsetX: 0,
+          shadowColor: 'rgba(0, 0, 0, 0.5)',
         },
       },
-      text: data.ordersByHour.map(item => item.y.toString()),
-      textposition: 'auto',
-      hovertemplate: '<b>%{x}:00</b><br>Orders: %{y}<extra></extra>',
+      label: {
+        show: true,
+        formatter: '{b}: {d}%',
+      },
+    }],
+    tooltip: {
+      trigger: 'item',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        return `<b>${params.name}</b><br/>Orders: ${params.value}<br/>Percentage: ${params.percent}%`;
+      },
     },
-  ];
+  };
+
+  // Orders by Hour Bar Chart
+  const ordersByHourOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: data.ordersByHour.map(item => `${item.x}:00`),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    series: [{
+      data: data.ordersByHour.map(item => ({
+        value: item.y,
+        itemStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: TAP2GO_COLORS.primary },
+              { offset: 1, color: TAP2GO_COLORS.secondary }
+            ]
+          }
+        }
+      })),
+      type: 'bar',
+      label: {
+        show: true,
+        position: 'top',
+      },
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Orders: ${data.value}`;
+      },
+    },
+  };
 
   // Order Trends Line Chart
-  const orderTrendsData: Plotly.Data[] = [
-    {
-      x: data.orderTrends.map(item => item.date),
-      y: data.orderTrends.map(item => item.value),
-      type: 'scatter' as const,
-      mode: 'lines+markers',
-      name: 'Total Orders',
-      line: {
-        color: TAP2GO_COLORS.info,
-        width: 3,
-      },
-      marker: {
-        color: TAP2GO_COLORS.info,
-        size: 6,
-      },
-      hovertemplate: '<b>%{x}</b><br>Orders: %{y}<extra></extra>',
+  const orderTrendsOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: data.orderTrends.map(item => item.date),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
     },
-  ];
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    series: [{
+      data: data.orderTrends.map(item => item.value),
+      type: 'line',
+      smooth: true,
+      lineStyle: { color: TAP2GO_COLORS.info, width: 3 },
+      itemStyle: { color: TAP2GO_COLORS.info },
+      symbol: 'circle',
+      symbolSize: 6,
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Orders: ${data.value}`;
+      },
+    },
+  };
 
   // Order Completion Funnel
-  const orderFunnelData: Plotly.Data[] = [
-    {
-      type: 'funnel' as const,
-      y: ['Orders Placed', 'Orders Confirmed', 'Orders Prepared', 'Orders Delivered'],
-      x: [
-        data.totalOrders,
-        data.totalOrders - data.cancelledOrders,
-        data.completedOrders + data.pendingOrders,
-        data.completedOrders,
-      ],
-      textinfo: 'value+percent',
-      marker: {
-        color: [
-          TAP2GO_COLORS.info,
-          TAP2GO_COLORS.warning,
-          TAP2GO_COLORS.secondary,
-          TAP2GO_COLORS.success,
-        ],
+  const orderFunnelOption: EChartsOption = {
+    series: [{
+      type: 'funnel',
+      left: '10%',
+      top: 60,
+      bottom: 60,
+      width: '80%',
+      min: 0,
+      max: data.totalOrders,
+      minSize: '0%',
+      maxSize: '100%',
+      sort: 'descending',
+      gap: 2,
+      label: {
+        show: true,
+        position: 'inside',
       },
-      hovertemplate: '<b>%{y}</b><br>Count: %{x}<br>Percentage: %{percentInitial}<extra></extra>',
+      labelLine: {
+        length: 10,
+        lineStyle: {
+          width: 1,
+          type: 'solid'
+        }
+      },
+      itemStyle: {
+        borderColor: '#fff',
+        borderWidth: 1
+      },
+      emphasis: {
+        label: {
+          fontSize: 20
+        }
+      },
+      data: [
+        { value: data.totalOrders, name: 'Orders Placed', itemStyle: { color: TAP2GO_COLORS.info } },
+        { value: data.totalOrders - data.cancelledOrders, name: 'Orders Confirmed', itemStyle: { color: TAP2GO_COLORS.warning } },
+        { value: data.completedOrders + data.pendingOrders, name: 'Orders Prepared', itemStyle: { color: TAP2GO_COLORS.secondary } },
+        { value: data.completedOrders, name: 'Orders Delivered', itemStyle: { color: TAP2GO_COLORS.success } },
+      ]
+    }],
+    tooltip: {
+      trigger: 'item',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const percentage = ((params.value / data.totalOrders) * 100).toFixed(1);
+        return `<b>${params.name}</b><br/>Count: ${params.value}<br/>Percentage: ${percentage}%`;
+      },
     },
-  ];
+  };
 
   // Order Performance Metrics
   const completionRate = ((data.completedOrders / data.totalOrders) * 100).toFixed(1);
@@ -136,7 +211,7 @@ const AdminOrderCharts: React.FC<AdminOrderChartsProps> = ({ data, className = '
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Order Status Distribution */}
         <BaseChart
-          data={orderStatusData}
+          option={orderStatusOption}
           config={{
             title: 'Order Status Distribution',
             subtitle: 'Current breakdown of orders by status',
@@ -147,39 +222,32 @@ const AdminOrderCharts: React.FC<AdminOrderChartsProps> = ({ data, className = '
 
         {/* Orders by Hour */}
         <BaseChart
-          data={ordersByHourData}
+          option={ordersByHourOption}
           config={{
             title: 'Orders by Hour of Day',
             subtitle: 'Peak ordering times throughout the day',
-            xAxisTitle: 'Hour of Day',
-            yAxisTitle: 'Number of Orders',
             height: 400,
           }}
         />
 
         {/* Order Trends */}
         <BaseChart
-          data={orderTrendsData}
+          option={orderTrendsOption}
           config={{
             title: 'Order Volume Trends',
             subtitle: 'Daily order volume over time',
-            xAxisTitle: 'Date',
-            yAxisTitle: 'Number of Orders',
             height: 400,
           }}
         />
 
         {/* Order Completion Funnel */}
         <BaseChart
-          data={orderFunnelData}
+          option={orderFunnelOption}
           config={{
             title: 'Order Completion Funnel',
             subtitle: 'Order flow from placement to delivery',
             height: 400,
           }}
-          layout={{
-            funnelmode: 'stack',
-          } as Partial<Plotly.Layout>}
         />
       </div>
 

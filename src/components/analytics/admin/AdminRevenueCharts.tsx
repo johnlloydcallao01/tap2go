@@ -8,6 +8,7 @@
 import React from 'react';
 import BaseChart, { TAP2GO_COLORS } from '../BaseChart';
 import { RevenueAnalytics } from '../types';
+import type { EChartsOption } from 'echarts';
 
 interface AdminRevenueChartsProps {
   data: RevenueAnalytics;
@@ -16,90 +17,161 @@ interface AdminRevenueChartsProps {
 
 const AdminRevenueCharts: React.FC<AdminRevenueChartsProps> = ({ data, className = '' }) => {
   // Revenue Trend Line Chart
-  const revenueTrendData: Plotly.Data[] = [
-    {
-      x: data.revenueByPeriod.map(item => item.date),
-      y: data.revenueByPeriod.map(item => item.value),
-      type: 'scatter' as const,
-      mode: 'lines+markers',
-      name: 'Total Revenue',
-      line: {
-        color: TAP2GO_COLORS.primary,
-        width: 3,
-      },
-      marker: {
-        color: TAP2GO_COLORS.primary,
-        size: 6,
-      },
-      hovertemplate: '<b>%{x}</b><br>Revenue: ₱%{y:,.2f}<extra></extra>',
+  const revenueTrendOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: data.revenueByPeriod.map(item => item.date),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
     },
-  ];
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        color: '#6b7280',
+        formatter: (value: number) => `₱${value.toLocaleString()}`,
+      },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    series: [{
+      data: data.revenueByPeriod.map(item => item.value),
+      type: 'line',
+      smooth: true,
+      lineStyle: { color: TAP2GO_COLORS.primary, width: 3 },
+      itemStyle: { color: TAP2GO_COLORS.primary },
+      symbol: 'circle',
+      symbolSize: 6,
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Revenue: ₱${data.value.toLocaleString()}`;
+      },
+    },
+  };
 
   // Revenue Breakdown Pie Chart
-  const revenueBreakdownData: Plotly.Data[] = [
-    {
-      values: [
-        data.revenueBreakdown.platformFees,
-        data.revenueBreakdown.commissions,
-        data.revenueBreakdown.deliveryFees,
+  const revenueBreakdownOption: EChartsOption = {
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      data: [
+        {
+          value: data.revenueBreakdown.platformFees,
+          name: 'Platform Fees',
+          itemStyle: { color: TAP2GO_COLORS.primary },
+        },
+        {
+          value: data.revenueBreakdown.commissions,
+          name: 'Vendor Commissions',
+          itemStyle: { color: TAP2GO_COLORS.secondary },
+        },
+        {
+          value: data.revenueBreakdown.deliveryFees,
+          name: 'Delivery Fees',
+          itemStyle: { color: TAP2GO_COLORS.success },
+        },
       ],
-      labels: ['Platform Fees', 'Vendor Commissions', 'Delivery Fees'],
-      type: 'pie' as const,
-      hole: 0.4,
-      marker: {
-        colors: [TAP2GO_COLORS.primary, TAP2GO_COLORS.secondary, TAP2GO_COLORS.success],
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowOffsetX: 0,
+          shadowColor: 'rgba(0, 0, 0, 0.5)',
+        },
       },
-      textinfo: 'label+percent',
-      textposition: 'outside',
-      hovertemplate: '<b>%{label}</b><br>Amount: ₱%{value:,.2f}<br>Percentage: %{percent}<extra></extra>',
+      label: {
+        show: true,
+        formatter: '{b}: {d}%',
+      },
+    }],
+    tooltip: {
+      trigger: 'item',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        return `<b>${params.name}</b><br/>Amount: ₱${params.value.toLocaleString()}<br/>Percentage: ${params.percent}%`;
+      },
     },
-  ];
+  };
 
   // Revenue Distribution Bar Chart
-  const revenueDistributionData: Plotly.Data[] = [
-    {
-      x: ['Platform Revenue', 'Vendor Revenue', 'Driver Revenue'],
-      y: [data.platformRevenue, data.vendorRevenue, data.driverRevenue],
-      type: 'bar' as const,
-      marker: {
-        color: [TAP2GO_COLORS.primary, TAP2GO_COLORS.secondary, TAP2GO_COLORS.success],
-      },
-      text: [
-        `₱${data.platformRevenue.toLocaleString()}`,
-        `₱${data.vendorRevenue.toLocaleString()}`,
-        `₱${data.driverRevenue.toLocaleString()}`,
-      ],
-      textposition: 'auto',
-      hovertemplate: '<b>%{x}</b><br>Amount: ₱%{y:,.2f}<extra></extra>',
+  const revenueDistributionOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: ['Platform Revenue', 'Vendor Revenue', 'Driver Revenue'],
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
     },
-  ];
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        color: '#6b7280',
+        formatter: (value: number) => `₱${value.toLocaleString()}`,
+      },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
+    },
+    series: [{
+      data: [
+        { value: data.platformRevenue, itemStyle: { color: TAP2GO_COLORS.primary } },
+        { value: data.vendorRevenue, itemStyle: { color: TAP2GO_COLORS.secondary } },
+        { value: data.driverRevenue, itemStyle: { color: TAP2GO_COLORS.success } },
+      ],
+      type: 'bar',
+      label: {
+        show: true,
+        position: 'top',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        formatter: (params: any) => `₱${params.value.toLocaleString()}`,
+      },
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Amount: ₱${data.value.toLocaleString()}`;
+      },
+    },
+  };
 
   // Revenue Growth Area Chart
-  const revenueGrowthData: Plotly.Data[] = [
-    {
-      x: data.revenueByPeriod.map(item => item.date),
-      y: data.revenueByPeriod.map(item => item.value),
-      fill: 'tonexty',
-      type: 'scatter' as const,
-      mode: 'none',
-      name: 'Revenue Growth',
-      fillcolor: `rgba(243, 168, 35, 0.3)`,
-      line: { color: 'transparent' },
-      hovertemplate: '<b>%{x}</b><br>Revenue: ₱%{y:,.2f}<extra></extra>',
+  const revenueGrowthOption: EChartsOption = {
+    xAxis: {
+      type: 'category',
+      data: data.revenueByPeriod.map(item => item.date),
+      axisLabel: { color: '#6b7280' },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
     },
-    {
-      x: data.revenueByPeriod.map(item => item.date),
-      y: data.revenueByPeriod.map(item => item.value),
-      type: 'scatter' as const,
-      mode: 'lines',
-      name: 'Revenue Trend',
-      line: {
-        color: TAP2GO_COLORS.primary,
-        width: 2,
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        color: '#6b7280',
+        formatter: (value: number) => `₱${value.toLocaleString()}`,
       },
-      hovertemplate: '<b>%{x}</b><br>Revenue: ₱%{y:,.2f}<extra></extra>',
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      splitLine: { lineStyle: { color: '#f3f4f6' } },
     },
-  ];
+    series: [{
+      data: data.revenueByPeriod.map(item => item.value),
+      type: 'line',
+      smooth: true,
+      areaStyle: {
+        color: 'rgba(243, 168, 35, 0.3)',
+      },
+      lineStyle: { color: TAP2GO_COLORS.primary, width: 2 },
+      itemStyle: { color: TAP2GO_COLORS.primary },
+    }],
+    tooltip: {
+      trigger: 'axis',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatter: (params: any) => {
+        const data = params[0];
+        return `<b>${data.axisValue}</b><br/>Revenue: ₱${data.value.toLocaleString()}`;
+      },
+    },
+  };
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -127,24 +199,17 @@ const AdminRevenueCharts: React.FC<AdminRevenueChartsProps> = ({ data, className
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Trend Chart */}
         <BaseChart
-          data={revenueTrendData}
+          option={revenueTrendOption}
           config={{
             title: 'Revenue Trend Over Time',
             subtitle: 'Track revenue performance across different time periods',
-            xAxisTitle: 'Date',
-            yAxisTitle: 'Revenue (₱)',
             height: 400,
-          }}
-          layout={{
-            yaxis: {
-              tickformat: '₱,.0f',
-            },
           }}
         />
 
         {/* Revenue Breakdown Pie Chart */}
         <BaseChart
-          data={revenueBreakdownData}
+          option={revenueBreakdownOption}
           config={{
             title: 'Revenue Breakdown',
             subtitle: 'Distribution of revenue by source',
@@ -155,35 +220,21 @@ const AdminRevenueCharts: React.FC<AdminRevenueChartsProps> = ({ data, className
 
         {/* Revenue Distribution Bar Chart */}
         <BaseChart
-          data={revenueDistributionData}
+          option={revenueDistributionOption}
           config={{
             title: 'Revenue Distribution by Stakeholder',
             subtitle: 'Revenue allocation across platform participants',
-            xAxisTitle: 'Stakeholder',
-            yAxisTitle: 'Revenue (₱)',
             height: 400,
-          }}
-          layout={{
-            yaxis: {
-              tickformat: '₱,.0f',
-            },
           }}
         />
 
         {/* Revenue Growth Area Chart */}
         <BaseChart
-          data={revenueGrowthData}
+          option={revenueGrowthOption}
           config={{
             title: 'Revenue Growth Pattern',
             subtitle: 'Visual representation of revenue growth over time',
-            xAxisTitle: 'Date',
-            yAxisTitle: 'Revenue (₱)',
             height: 400,
-          }}
-          layout={{
-            yaxis: {
-              tickformat: '₱,.0f',
-            },
           }}
         />
       </div>
