@@ -74,13 +74,27 @@ export default function LoadingProvider({
     withAuthLoading: authLoading.withAuthLoading,
   };
 
+  // PROFESSIONAL AUTH-AWARE SPLASH SCREEN LOGIC
+  // Wait for ACTUAL auth resolution, not arbitrary timing
+  React.useEffect(() => {
+    // Once auth is initialized and we're not in initial load anymore, complete the page loading
+    if (auth.isInitialized && !auth.loading && pageLoading.isInitialLoad) {
+      // Small delay to ensure smooth transition without flashing
+      const timer = setTimeout(() => {
+        pageLoading.completeInitialLoad();
+      }, 300); // Just enough to prevent flash, but not arbitrary long delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [auth.isInitialized, auth.loading, pageLoading.isInitialLoad, pageLoading.completeInitialLoad, pageLoading]);
+
   // Determine if any loading is active
   const isAnyLoading = pageLoading.isLoading || manualLoading.isLoading || authLoading.isAuthLoading;
   const shouldShowInitialLoad = showInitialLoad && pageLoading.isInitialLoad;
 
-  // Show splash screen until auth is resolved AND page loading is complete
-  // This prevents layout shifts by ensuring we don't show content until everything is ready
-  const shouldShowSplash = shouldShowInitialLoad && (pageLoading.isLoading || !auth.isInitialized);
+  // FIXED: Show splash screen until auth is ACTUALLY resolved
+  // This prevents layout shifts by ensuring we don't show content until auth state is determined
+  const shouldShowSplash = shouldShowInitialLoad && (!auth.isInitialized || auth.loading);
 
   return (
     <LoadingContext.Provider value={value}>

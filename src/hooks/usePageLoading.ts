@@ -14,20 +14,20 @@ export function usePageLoading() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const pathname = usePathname();
 
-  // Track initial page load - PROPER TIMING TO PREVENT LAYOUT SHIFTS
+  // Track initial page load - WAIT FOR AUTH RESOLUTION, NOT ARBITRARY TIMING
   useEffect(() => {
     if (isInitialLoad) {
       setIsLoading(true);
-
-      // Longer duration to allow auth state to resolve and prevent layout shifts
-      const initialTimer = setTimeout(() => {
-        setIsLoading(false);
-        setIsInitialLoad(false);
-      }, 1500); // Enough time for auth to resolve and prevent layout shifts
-
-      return () => clearTimeout(initialTimer);
+      // Don't set arbitrary timeout - let LoadingProvider control when to hide splash
+      // based on actual auth state resolution
     }
   }, [isInitialLoad]);
+
+  // Method to manually complete initial load (called by LoadingProvider)
+  const completeInitialLoad = () => {
+    setIsLoading(false);
+    setIsInitialLoad(false);
+  };
 
   // Track route changes - NO LOADING for route changes to maintain speed
   useEffect(() => {
@@ -40,7 +40,8 @@ export function usePageLoading() {
   return {
     isLoading,
     isInitialLoad,
-    pathname
+    pathname,
+    completeInitialLoad
   };
 }
 

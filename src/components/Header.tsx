@@ -15,7 +15,7 @@ import {
 
 export default function Header() {
   const { signOut } = useAuth();
-  const { user, canShowUserContent, canShowGuestContent } = useSSRSafeAuthState();
+  const { user, canShowUserContent, canShowGuestContent, shouldWaitForAuth } = useSSRSafeAuthState();
   const { cart } = useCart();
   const currentLocation = 'Manila';
 
@@ -177,8 +177,14 @@ export default function Header() {
                     Sign Up
                   </Link>
                 </>
+              ) : shouldWaitForAuth ? (
+                // PROFESSIONAL: Show consistent loading state to prevent layout shifts
+                <div className="flex items-center space-x-6">
+                  <div className="h-6 w-16 bg-white/20 rounded animate-pulse"></div>
+                  <div className="h-8 w-20 bg-white/20 rounded-lg animate-pulse"></div>
+                </div>
               ) : (
-                // Show minimal loading state only when needed
+                // Fallback - should rarely be seen
                 <div className="flex items-center space-x-6">
                   <div className="h-4 w-16 bg-white/20 rounded animate-pulse"></div>
                   <div className="h-4 w-20 bg-white/20 rounded animate-pulse"></div>

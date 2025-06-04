@@ -46,7 +46,7 @@ const navigation = [
 
 export default function MobileFooterNav() {
   const pathname = usePathname();
-  const { user, isHydrated } = useSSRSafeAuthState();
+  const { user, shouldWaitForAuth } = useSSRSafeAuthState();
 
   // Don't show footer nav on admin, vendor dashboard, or auth pages
   if (!pathname ||
@@ -64,8 +64,8 @@ export default function MobileFooterNav() {
   }
 
   const getAccountHref = () => {
-    if (!isHydrated) {
-      return '/account'; // SSR-safe default
+    if (shouldWaitForAuth) {
+      return '/account'; // SSR-safe default while loading
     }
     if (!user) {
       return '/auth/signin';
