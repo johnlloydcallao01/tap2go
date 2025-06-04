@@ -155,12 +155,11 @@ export default function PayMongoTestPage() {
 
   const sampleOrder = {
     items: [
-      { name: 'Chicken Adobo Rice Bowl', price: 180, quantity: 1 },
-      { name: 'Iced Coffee', price: 85, quantity: 1 }
+      { name: 'Test Item', price: 20, quantity: 1 }
     ],
-    subtotal: 265,
-    deliveryFee: 35,
-    total: 300
+    subtotal: 20,
+    deliveryFee: 0,
+    total: 20
   };
 
   return (

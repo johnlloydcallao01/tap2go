@@ -49,12 +49,21 @@ Tap2Go is a full-scale food delivery ecosystem featuring:
 - Wishlist management and order history
 - Professional Tap2Go branding (#f3a823 primary, #ef7b06 secondary)
 
-### � Payment Integration
-- PayMongo payment gateway with live production keys
-- Multiple payment methods (GCash, Cards, Maya, GrabPay)
-- Secure payment processing with 3D Secure
-- Real-time payment status tracking
-- Professional checkout experience
+### 💳 Payment Integration
+- **PayMongo Live Integration** - Production payment gateway with live keys
+- **Real-time Webhooks** - Firebase Cloud Functions for instant payment processing
+- **Multiple Payment Methods** - GCash, Cards, Maya, GrabPay support
+- **Secure Processing** - HMAC SHA256 signature verification
+- **3D Secure Support** - Enhanced payment security
+- **Professional Checkout** - Seamless payment experience
+
+### 🔔 Real-time Notifications
+- **Firebase Cloud Messaging (FCM)** - Professional push notification system
+- **Multi-scenario Support** - Payment, order, delivery, and status notifications
+- **Cross-platform Delivery** - Web and mobile notification support
+- **Background Processing** - Service worker for offline notification handling
+- **Professional UI** - Notification bell component with management interface
+- **Token Management** - Automatic cleanup and refresh handling
 
 ### 📊 Advanced Analytics
 - **ECharts Implementation** with strategic 90/10 rule approach
@@ -100,8 +109,10 @@ Tap2Go is a full-scale food delivery ecosystem featuring:
 
 ### Backend & Database
 - **Firebase Firestore** - Real-time NoSQL database (tap2go-kuucn)
-- **Firebase Admin SDK** - Server-side operations
+- **Firebase Cloud Functions** - Serverless backend with TypeScript
+- **Firebase Admin SDK** - Server-side operations and FCM
 - **Firebase Auth** - Authentication and user management
+- **Firebase Cloud Messaging** - Real-time push notifications
 - **Comprehensive database schema** - Professional data modeling
 
 ### Payment & Maps
@@ -186,7 +197,10 @@ tap2go/
 │   ├── DATABASE_SETUP.md             # Database setup guide
 │   ├── REDUX_IMPLEMENTATION.md       # Redux implementation
 │   ├── ECHARTS_IMPLEMENTATION_GUIDE.md # ECharts 90/10 strategy guide
-│   └── ECHARTS_QUICK_REFERENCE.md    # ECharts quick reference
+│   ├── ECHARTS_QUICK_REFERENCE.md    # ECharts quick reference
+│   ├── ENVIRONMENT_SETUP.md          # Complete environment configuration
+│   ├── FIREBASE_FUNCTIONS_ARCHITECTURE.md # Cloud Functions architecture
+│   └── FCM_INTEGRATION_GUIDE.md      # Push notifications setup
 └── package.json                      # Dependencies & scripts
 ```
 
@@ -287,6 +301,9 @@ npm run dev
 - **Vendor Panel**: [http://localhost:3000/vendor](http://localhost:3000/vendor)
 - **Driver Panel**: [http://localhost:3000/driver](http://localhost:3000/driver)
 - **Analytics Demo**: [http://localhost:3000/analytics-demo](http://localhost:3000/analytics-demo)
+- **FCM Testing**: [http://localhost:3000/test-notifications](http://localhost:3000/test-notifications)
+- **Complete Flow Test**: [http://localhost:3000/test-all-notifications](http://localhost:3000/test-all-notifications)
+- **PayMongo Testing**: [http://localhost:3000/paymongo-test](http://localhost:3000/paymongo-test)
 
 ### Default Admin Account
 - **Email**: johnlloydcallao@gmail.com
@@ -345,9 +362,22 @@ GET  /api/admin/test           # Admin authentication test
 
 ### Payment Processing
 ```
-POST /api/paymongo/simple-test        # PayMongo integration test
-POST /api/paymongo/process-payment    # Process real payments
-GET  /api/paymongo/payment-methods    # Get available payment methods
+POST /api/paymongo/simple-test           # PayMongo integration test
+POST /api/paymongo/process-payment       # Process real payments
+POST /api/paymongo/create-payment-intent # Create payment intent
+GET  /api/paymongo/payment-methods       # Get available payment methods
+GET  /api/paymongo/get-webhook-secret    # Get webhook secret for setup
+```
+
+### Firebase Cloud Functions
+```
+POST https://us-central1-tap2go-kuucn.cloudfunctions.net/paymongoWebhook
+# PayMongo webhook handler with signature verification
+```
+
+### Notifications
+```
+POST /api/test-fcm-notification         # Test FCM notifications
 ```
 
 ### Maps & Location
@@ -422,7 +452,9 @@ npm run deploy-rules           # Deploy Firestore security rules
 ## 🔮 Implemented Features
 
 ✅ **Multi-Panel Architecture** - Admin, Vendor, Driver, Customer panels
-✅ **Payment Integration** - PayMongo with live production keys
+✅ **Payment Integration** - PayMongo with live production keys and webhooks
+✅ **Real-time Notifications** - Firebase Cloud Messaging with professional UI
+✅ **Firebase Cloud Functions** - TypeScript serverless backend with webhook processing
 ✅ **Real-time Analytics** - ECharts with 90/10 strategy across all panels
 ✅ **Advanced Search** - Elasticsearch with fuzzy matching
 ✅ **Google Maps Integration** - Location services and tracking
@@ -431,10 +463,12 @@ npm run deploy-rules           # Deploy Firestore security rules
 ✅ **Cloud Storage** - Cloudinary image management
 ✅ **Mobile-First Design** - Responsive across all devices
 ✅ **Database Schema** - Comprehensive Firestore structure
+✅ **Webhook Security** - HMAC SHA256 signature verification
+✅ **Comprehensive Testing** - FCM, payment, and integration test suites
 
 ## 🚧 Future Enhancements
 
-- [ ] Push Notifications (Firebase Cloud Messaging)
+- [ ] Mobile App (React Native)
 - [ ] Real-time Chat Support
 - [ ] Advanced Loyalty Program
 - [ ] Multi-language Support (i18n)

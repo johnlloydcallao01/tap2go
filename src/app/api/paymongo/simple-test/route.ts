@@ -34,10 +34,10 @@ export async function GET() {
     const testPayload = {
       data: {
         attributes: {
-          amount: 30000, // ₱300.00 in centavos (sample order amount)
+          amount: 2000, // ₱20.00 in centavos (PayMongo minimum)
           currency: 'PHP',
-          description: 'Tap2Go Sample Order - Chicken Adobo Rice Bowl + Iced Coffee',
-          statement_descriptor: 'Tap2Go Order',
+          description: 'Tap2Go Test Order - Sample Item',
+          statement_descriptor: 'Tap2Go Test',
           payment_method_allowed: [
             'card',
             'gcash',
