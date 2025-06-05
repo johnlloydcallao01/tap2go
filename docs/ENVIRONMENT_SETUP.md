@@ -47,6 +47,25 @@ CLOUDINARY_API_KEY=191284661715922
 CLOUDINARY_API_SECRET=G-_izp68I2eJuZOCvAKOmPkTXdI
 ```
 
+### Hybrid Database Configuration (Prisma + Neon)
+```bash
+# Neon PostgreSQL Database (Primary Database)
+DATABASE_URL=postgresql://tap2godb_owner:npg_ru51KZGMFTlt@ep-winter-river-a118fvup-pooler.ap-southeast-1.aws.neon.tech/tap2godb?sslmode=require
+DATABASE_SSL=true
+DATABASE_POOL_MIN=2
+DATABASE_POOL_MAX=10
+DATABASE_CONNECTION_TIMEOUT=60000
+
+# Prisma Configuration
+PRISMA_GENERATE_DATAPROXY=false
+PRISMA_HIDE_UPDATE_MESSAGE=true
+
+# Feature Flags
+ENABLE_HYBRID_DATABASE=true
+ENABLE_STRAPI_INTEGRATION=false
+ENABLE_CONTENT_CACHING=true
+```
+
 ### Elasticsearch Configuration
 ```bash
 # Bonsai Elasticsearch (Search)
@@ -57,7 +76,25 @@ BONSAI_PASSWORD=bKJCacZSz8h27HxjXEeYVd
 
 ## 🚀 Deployment Steps
 
-### 1. Firebase Functions Deployment
+### 1. Hybrid Database Setup
+```bash
+# Install required dependencies
+npm install prisma @prisma/client @prisma/adapter-neon @neondatabase/serverless ws @types/ws
+
+# Generate Prisma client
+npx prisma generate
+
+# Run database migration
+npx prisma migrate dev --name init
+
+# Test hybrid database connection
+npm run db:test
+
+# Seed sample data (optional)
+curl -X POST http://localhost:3000/api/database/test -H "Content-Type: application/json" -d '{"action":"seed"}'
+```
+
+### 2. Firebase Functions Deployment
 ```bash
 # Navigate to functions directory
 cd functions
@@ -75,13 +112,16 @@ firebase deploy --only functions
 firebase functions:log
 ```
 
-### 2. Environment Variables Setup
+### 3. Environment Variables Setup
 ```bash
 # Copy environment template
 cp .env.example .env.local
 
 # Edit with your actual values
 nano .env.local
+
+# Create .env file for Prisma CLI
+echo "DATABASE_URL=your_neon_connection_string" > .env
 
 # Restart development server
 npm run dev

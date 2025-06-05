@@ -78,3 +78,128 @@ body {
 .container-custom {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
 }
+
+/* Professional Scrollbar Styles for Admin Sidebar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f9fafb;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f9fafb;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Hide scrollbar for mobile while keeping functionality */
+@media (max-width: 1024px) {
+  .scrollbar-thin {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Smooth scrolling for better UX */
+.scrollbar-thin {
+  scroll-behavior: smooth;
+}
+
+/* Collapsible Sidebar Enhancements */
+.sidebar-tooltip {
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  z-index: 9999;
+}
+
+/* Smooth transitions for sidebar collapse */
+.sidebar-transition {
+  transition: width 0.3s ease-in-out, margin-left 0.3s ease-in-out;
+}
+
+/* Enhanced hover effects for collapsed sidebar icons */
+.collapsed-sidebar-item:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease-in-out;
+}
+
+/* Interactive collapsed sidebar enhancements */
+.collapsed-category-button {
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.collapsed-category-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.collapsed-category-button:active {
+  transform: scale(0.98);
+}
+
+/* Enhanced tooltip for interactive collapsed sidebar */
+.interactive-tooltip {
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  border: 1px solid #4b5563;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.interactive-tooltip::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid #1f2937;
+}
+
+/* Tooltip arrow positioning */
+.tooltip-arrow {
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background-color: inherit;
+}
+
+/* Category text alignment fixes */
+.category-text {
+  word-break: break-word;
+  hyphens: auto;
+  line-height: 1.2;
+  text-align: left;
+}
+
+/* Ensure proper alignment for multi-line category names */
+.category-button {
+  align-items: flex-start !important;
+}
+
+.category-icon {
+  margin-top: 2px; /* Slight offset to align with first line of text */
+}

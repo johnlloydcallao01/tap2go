@@ -194,13 +194,18 @@ tap2go/
 │   └── setup-customers.js            # Setup customer data
 ├── docs/                             # Documentation
 │   ├── README.md                     # Documentation overview
+│   ├── AUTHENTICATION_IMPROVEMENTS.md # Enterprise-grade authentication system
+│   ├── AUTHENTICATION_LAYOUT_SHIFT_FIXES.md # Professional layout shift fixes
 │   ├── DATABASE_SETUP.md             # Database setup guide
-│   ├── REDUX_IMPLEMENTATION.md       # Redux implementation
+│   ├── FACEBOOK_SPLASH_SCREEN.md     # Facebook-style splash screen implementation
+│   ├── FAST_LOADING_IMPROVEMENTS.md  # Lightning-fast loading system
+│   ├── REDUX_IMPLEMENTATION.md       # Redux Toolkit state management
 │   ├── ECHARTS_IMPLEMENTATION_GUIDE.md # ECharts 90/10 strategy guide
 │   ├── ECHARTS_QUICK_REFERENCE.md    # ECharts quick reference
 │   ├── ENVIRONMENT_SETUP.md          # Complete environment configuration
 │   ├── FIREBASE_FUNCTIONS_ARCHITECTURE.md # Cloud Functions architecture
-│   └── FCM_INTEGRATION_GUIDE.md      # Push notifications setup
+│   ├── FCM_INTEGRATION_GUIDE.md      # Push notifications setup
+│   └── TROUBLESHOOTING_GUIDE.md      # Comprehensive troubleshooting guide
 └── package.json                      # Dependencies & scripts
 ```
 

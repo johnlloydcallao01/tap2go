@@ -16,6 +16,24 @@ export default function AdminLayout({
   const { user, loading } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Handle expand sidebar and navigate to specific page
+  const handleExpandAndNavigate = (href: string, categoryName: string) => {
+    // First expand the sidebar
+    setSidebarCollapsed(false);
+
+    // Then navigate to the specified page
+    router.push(href);
+
+    // Close mobile sidebar if open
+    setSidebarOpen(false);
+
+    // Optional: Add a small delay to show the expansion animation
+    setTimeout(() => {
+      console.log(`Expanded sidebar and navigated to ${href} from ${categoryName} category`);
+    }, 300);
+  };
 
   // FAST LOADING: Handle redirects without blocking render
   useEffect(() => {
@@ -61,13 +79,21 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AdminHeader onMenuClick={() => setSidebarOpen(true)} />
+      <AdminHeader
+        onMenuClick={() => setSidebarOpen(true)}
+        sidebarCollapsed={sidebarCollapsed}
+      />
       <div className="flex">
         <AdminSidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onExpandAndNavigate={handleExpandAndNavigate}
         />
-        <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8">
+        <main className={`flex-1 pt-16 p-4 lg:p-8 transition-all duration-300 ${
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+        }`}>
           {children}
         </main>
       </div>

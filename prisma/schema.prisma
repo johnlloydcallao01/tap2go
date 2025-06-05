@@ -1,0 +1,141 @@
+// Prisma Schema for Tap2Go - CMS Content Only
+// This schema defines ONLY CMS content tables
+// Business logic tables are handled by Firestore
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== PROFESSIONAL BLOG CONTENT MODEL =====
+// This model represents comprehensive blog content stored in Neon PostgreSQL
+// Inspired by WordPress wp_posts table and Strapi content types
+// All business logic models are handled by Firestore
+
+// Professional blog posts with enterprise features
+model BlogPost {
+  // Primary identification
+  id              Int       @id @default(autoincrement())
+  uuid            String    @unique @default(uuid())
+
+  // Core content fields (WordPress inspired)
+  title           String    @db.VarChar(255)
+  slug            String    @unique @db.VarChar(255)
+  content         String    @db.Text
+  excerpt         String?   @db.Text
+
+  // Content status and workflow
+  status          String    @default("draft") @db.VarChar(20) // draft, published, scheduled, private, trash
+
+  // Featured content
+  featuredImageUrl     String? @map("featured_image_url") @db.Text
+  featuredImageAlt     String? @map("featured_image_alt") @db.Text
+  featuredImageCaption String? @map("featured_image_caption") @db.Text
+  galleryImages        Json    @default("[]") @map("gallery_images")
+
+  // Author information (enhanced)
+  authorId         String? @map("author_id") @db.VarChar(255) // Firebase user ID
+  authorName       String? @map("author_name") @db.VarChar(255)
+  authorEmail      String? @map("author_email") @db.VarChar(255)
+  authorBio        String? @map("author_bio") @db.Text
+  authorAvatarUrl  String? @map("author_avatar_url") @db.Text
+  authorSocialLinks Json   @default("{}") @map("author_social_links")
+
+  // Content organization (Strapi inspired)
+  categories       Json    @default("[]")
+  tags             Json    @default("[]")
+
+  // Restaurant integration (Tap2Go specific)
+  relatedRestaurants    Json    @default("[]") @map("related_restaurants")
+  featuredRestaurantId  String? @map("featured_restaurant_id") @db.VarChar(255)
+
+  // Content metadata
+  readingTime      Int?    @map("reading_time")
+  wordCount        Int?    @map("word_count")
+  language         String  @default("en") @db.VarChar(10)
+
+  // Publishing and visibility
+  isFeatured       Boolean @default(false) @map("is_featured")
+  isSticky         Boolean @default(false) @map("is_sticky") // WordPress sticky posts
+  commentStatus    String  @default("open") @map("comment_status") @db.VarChar(20) // open, closed, disabled
+  pingStatus       String  @default("open") @map("ping_status") @db.VarChar(20) // open, closed
+
+  // SEO and metadata (comprehensive)
+  seoTitle         String? @map("seo_title") @db.VarChar(255)
+  seoDescription   String? @map("seo_description") @db.Text
+  seoKeywords      Json    @default("[]") @map("seo_keywords")
+  seoCanonicalUrl  String? @map("seo_canonical_url") @db.Text
+  seoOgImage       String? @map("seo_og_image") @db.Text
+  seoOgTitle       String? @map("seo_og_title") @db.VarChar(255)
+  seoOgDescription String? @map("seo_og_description") @db.Text
+  seoTwitterCard   String  @default("summary_large_image") @map("seo_twitter_card") @db.VarChar(50)
+  seoSchemaMarkup  Json    @default("{}") @map("seo_schema_markup")
+
+  // Content structure (Strapi blocks inspired)
+  contentBlocks    Json    @default("[]") @map("content_blocks") // For rich content blocks
+  tableOfContents  Json    @default("[]") @map("table_of_contents")
+
+  // Scheduling and automation
+  scheduledAt      DateTime? @map("scheduled_at")
+  publishedAt      DateTime? @map("published_at")
+
+  // Content versioning
+  version          Int     @default(1)
+  parentId         Int?    @map("parent_id")
+  parent           BlogPost? @relation("BlogPostVersions", fields: [parentId], references: [id])
+  versions         BlogPost[] @relation("BlogPostVersions")
+
+  // Performance and analytics
+  viewCount        Int     @default(0) @map("view_count")
+  likeCount        Int     @default(0) @map("like_count")
+  shareCount       Int     @default(0) @map("share_count")
+
+  // Content settings
+  allowComments    Boolean @default(true) @map("allow_comments")
+  allowPingbacks   Boolean @default(true) @map("allow_pingbacks")
+  passwordProtected Boolean @default(false) @map("password_protected")
+  contentPassword  String? @map("content_password") @db.VarChar(255)
+
+  // Timestamps (WordPress style)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at") // Soft delete
+
+  // Content quality
+  contentScore     Decimal? @map("content_score") @db.Decimal(3,2) // SEO/quality score 0-10
+  readabilityScore Decimal? @map("readability_score") @db.Decimal(3,2) // Readability score
+
+  // External integrations
+  externalId       String? @map("external_id") @db.VarChar(255) // For migrations/integrations
+  sourcePlatform   String? @map("source_platform") @db.VarChar(50) // 'wordpress', 'strapi', 'manual', etc.
+
+  // Advanced features
+  customFields     Json    @default("{}") @map("custom_fields") // Extensible custom data
+  template         String  @default("default") @db.VarChar(100) // Template selection
+
+  @@map("blog_posts")
+  @@index([uuid])
+  @@index([slug])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([scheduledAt])
+  @@index([isFeatured])
+  @@index([isSticky])
+  @@index([authorId])
+  @@index([language])
+  @@index([viewCount])
+  @@index([contentScore])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([isFeatured, status, publishedAt(sort: Desc)])
+  @@index([authorId, status, publishedAt(sort: Desc)])
+  @@index([deletedAt])
+}
+
+// ===== END OF PROFESSIONAL BLOG SCHEMA =====
+// All business logic models (Users, Orders, Restaurants, etc.) are handled by Firestore
+// This Prisma schema contains a comprehensive, production-ready blog post model for PostgreSQL

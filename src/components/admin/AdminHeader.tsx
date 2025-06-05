@@ -14,9 +14,10 @@ import Link from 'next/link';
 
 interface AdminHeaderProps {
   onMenuClick: () => void;
+  sidebarCollapsed?: boolean;
 }
 
-export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
+export default function AdminHeader({ onMenuClick, sidebarCollapsed = false }: AdminHeaderProps) {
   const { user, signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -29,7 +30,9 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 lg:left-64 z-40">
+    <header className={`bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40 transition-all duration-300 ${
+      sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'
+    }`}>
       <div className="px-4 lg:px-8 py-4">
         <div className="flex items-center justify-between">
           {/* Left side - Mobile menu button and Search */}
