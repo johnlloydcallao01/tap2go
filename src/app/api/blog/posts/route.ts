@@ -12,6 +12,14 @@ import { db } from '@/lib/database/hybrid-client';
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 GET /api/blog/posts - Starting request...');
+    console.log('🌍 Environment details:', {
+      isVercel: process.env.VERCEL === '1',
+      nodeEnv: process.env.NODE_ENV,
+      hasDbUrl: !!process.env.DATABASE_URL,
+      hasUnpooledUrl: !!process.env.DATABASE_URL_UNPOOLED,
+      hasPostgresUrl: !!process.env.POSTGRES_URL,
+      timestamp: new Date().toISOString()
+    });
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -26,13 +34,16 @@ export async function GET(request: NextRequest) {
     const params: (string | number)[] = [limit, offset];
 
     // Add deleted_at filter (assume it exists, handle error if it doesn't)
+    let hasDeletedAtColumn = false;
     try {
       // Test if deleted_at column exists by trying to query it
       await db.sql(`SELECT deleted_at FROM blog_posts LIMIT 1`);
       whereClause += ' AND deleted_at IS NULL';
+      hasDeletedAtColumn = true;
       console.log('✅ Using deleted_at filter');
-    } catch {
+    } catch (error) {
       console.log('⚠️ No deleted_at column found, proceeding without soft delete filter');
+      console.log('⚠️ Column check error:', error instanceof Error ? error.message : 'Unknown error');
     }
 
     if (status) {
@@ -41,10 +52,11 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('🔍 WHERE clause:', whereClause);
+    console.log('🔍 Query params array:', params);
 
     // Fetch posts using direct SQL for performance
     const postsQuery = `
-      SELECT 
+      SELECT
         id,
         uuid,
         title,
@@ -65,20 +77,48 @@ export async function GET(request: NextRequest) {
         published_at,
         created_at,
         updated_at
-      FROM blog_posts 
+      FROM blog_posts
       ${whereClause}
       ORDER BY created_at DESC
       LIMIT $1 OFFSET $2
     `;
 
+    console.log('🔍 Executing posts query:', postsQuery.substring(0, 200) + '...');
+    console.log('🔍 With parameters:', params);
+
     const posts = await db.sql(postsQuery, params);
     console.log(`📝 Found ${posts.length} posts`);
+
+    // Log first few posts for debugging
+    if (posts.length > 0) {
+      console.log('📝 Sample posts:', posts.slice(0, 2).map(p => ({
+        id: p.id,
+        title: p.title,
+        status: p.status,
+        created_at: p.created_at
+      })));
+    } else {
+      console.log('⚠️ No posts found - checking if table has any data...');
+      try {
+        const totalCount = await db.sql<{ count: number }>('SELECT COUNT(*) as count FROM blog_posts');
+        const count = totalCount[0]?.count || 0;
+        console.log('📊 Total posts in table:', count);
+
+        if (count > 0) {
+          console.log('📊 Sample of all posts in table:');
+          const samplePosts = await db.sql('SELECT id, title, status, created_at, deleted_at FROM blog_posts ORDER BY created_at DESC LIMIT 3');
+          console.log(samplePosts);
+        }
+      } catch (debugError) {
+        console.log('⚠️ Debug query failed:', debugError instanceof Error ? debugError.message : 'Unknown error');
+      }
+    }
 
     // Get total count for pagination (use same WHERE clause logic)
     let countWhereClause = 'WHERE 1=1';
 
     // Add deleted_at filter if it was used in main query
-    if (whereClause.includes('deleted_at IS NULL')) {
+    if (hasDeletedAtColumn) {
       countWhereClause += ' AND deleted_at IS NULL';
     }
 
@@ -92,13 +132,17 @@ export async function GET(request: NextRequest) {
       ${countWhereClause}
     `;
     const countParams = status ? [status] : [];
+
+    console.log('🔍 Executing count query:', countQuery);
+    console.log('🔍 Count params:', countParams);
+
     const [{ total }] = await db.sql(countQuery, countParams);
     console.log(`📊 Total count: ${total}`);
 
     // Calculate stats (use same deleted_at logic as main query)
     let statsQuery;
 
-    if (whereClause.includes('deleted_at IS NULL')) {
+    if (hasDeletedAtColumn) {
       // Use soft delete aware stats
       statsQuery = `
         SELECT
@@ -122,6 +166,7 @@ export async function GET(request: NextRequest) {
       `;
     }
 
+    console.log('🔍 Executing stats query:', statsQuery);
     const [stats] = await db.sql(statsQuery);
     console.log('📊 Stats:', stats);
 

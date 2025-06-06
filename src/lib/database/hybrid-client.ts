@@ -64,14 +64,23 @@ export class CustomDatabaseClient {
       throw new Error('Neon SQL client not initialized');
     }
 
+    console.log('🔍 executeNeonSql called:', {
+      isServerless,
+      isVercel,
+      hasParams: params.length > 0,
+      queryPreview: query.substring(0, 100) + '...'
+    });
+
     if (isVercel || isServerless) {
       // Vercel/Serverless optimized execution
       if (params.length === 0) {
         // Use template literal for queries without parameters
+        console.log('🔍 Using template literal execution (no params)');
         const result = await this.neonSql`${query}`;
         return result as T[];
       } else {
         // For parameterized queries, use Neon's serverless approach
+        console.log('🔍 Using parameterized query execution');
         try {
           // Get the connection string with fallbacks for Vercel
           const connectionString = process.env.DATABASE_URL_UNPOOLED ||
@@ -82,24 +91,30 @@ export class CustomDatabaseClient {
             throw new Error('No database connection string available');
           }
 
+          console.log('🔍 Creating temporary client for parameterized query');
           // Create a temporary client optimized for serverless
           const tempClient = new Client({
             connectionString,
             ssl: { rejectUnauthorized: false }, // Vercel compatibility
-            connectionTimeoutMillis: 10000, // 10 second timeout for Vercel
+            connectionTimeoutMillis: 15000, // 15 second timeout for Vercel
           });
 
           await tempClient.connect();
+          console.log('🔍 Temporary client connected, executing query');
           const result = await tempClient.query(query, params);
           await tempClient.end();
+          console.log('🔍 Query executed successfully, rows:', result.rows.length);
           return result.rows as T[];
         } catch (error) {
           console.error('❌ Serverless query execution failed:', error);
+          console.error('❌ Query was:', query);
+          console.error('❌ Params were:', params);
           throw error;
         }
       }
     } else {
       // Local development execution
+      console.log('🔍 Using local development execution');
       if (params.length === 0) {
         const result = await this.neonSql`${query}`;
         return result as T[];
