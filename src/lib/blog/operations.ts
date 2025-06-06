@@ -67,14 +67,14 @@ export class BlogOperations {
       ) VALUES (
         ${data.title}, ${data.slug}, ${data.content}, ${data.excerpt}, ${data.featured_image_url},
         ${data.author_name}, ${data.author_bio}, ${data.author_avatar_url},
-        ${JSON.stringify(data.categories || [])}, ${JSON.stringify(data.tags || [])}, 
+        ${JSON.stringify(data.categories || [])}, ${JSON.stringify(data.tags || [])},
         ${JSON.stringify(data.related_restaurants || [])}, ${data.reading_time},
         ${data.is_published || false}, ${data.is_featured || false}, ${JSON.stringify(data.seo_data || {})},
-        ${data.is_published ? new Date() : null}
+        ${data.is_published ? sql`NOW()` : null}
       )
       RETURNING *
     `;
-    
+
     return result[0] as BlogPost;
   }
 

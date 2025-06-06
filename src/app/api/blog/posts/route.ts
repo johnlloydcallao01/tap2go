@@ -11,20 +11,36 @@ import { db } from '@/lib/database/hybrid-client';
  */
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 GET /api/blog/posts - Starting request...');
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const status = searchParams.get('status');
     const offset = (page - 1) * limit;
 
+    console.log('📊 Query params:', { page, limit, status, offset });
+
     // Build query with optional status filter
-    let whereClause = 'WHERE deleted_at IS NULL';
+    let whereClause = 'WHERE 1=1';
     const params: (string | number)[] = [limit, offset];
-    
+
+    // Add deleted_at filter (assume it exists, handle error if it doesn't)
+    try {
+      // Test if deleted_at column exists by trying to query it
+      await db.sql(`SELECT deleted_at FROM blog_posts LIMIT 1`);
+      whereClause += ' AND deleted_at IS NULL';
+      console.log('✅ Using deleted_at filter');
+    } catch {
+      console.log('⚠️ No deleted_at column found, proceeding without soft delete filter');
+    }
+
     if (status) {
       whereClause += ' AND status = $3';
       params.push(status);
     }
+
+    console.log('🔍 WHERE clause:', whereClause);
 
     // Fetch posts using direct SQL for performance
     const postsQuery = `
@@ -56,27 +72,58 @@ export async function GET(request: NextRequest) {
     `;
 
     const posts = await db.sql(postsQuery, params);
+    console.log(`📝 Found ${posts.length} posts`);
 
-    // Get total count for pagination
+    // Get total count for pagination (use same WHERE clause logic)
+    let countWhereClause = 'WHERE 1=1';
+
+    // Add deleted_at filter if it was used in main query
+    if (whereClause.includes('deleted_at IS NULL')) {
+      countWhereClause += ' AND deleted_at IS NULL';
+    }
+
+    if (status) {
+      countWhereClause += ' AND status = $1';
+    }
+
     const countQuery = `
-      SELECT COUNT(*) as total 
-      FROM blog_posts 
-      ${whereClause.replace('$3', status ? '$1' : '')}
+      SELECT COUNT(*) as total
+      FROM blog_posts
+      ${countWhereClause}
     `;
     const countParams = status ? [status] : [];
     const [{ total }] = await db.sql(countQuery, countParams);
+    console.log(`📊 Total count: ${total}`);
 
-    // Calculate stats including trash count
-    const statsQuery = `
-      SELECT
-        COUNT(CASE WHEN deleted_at IS NULL THEN 1 END) as total_posts,
-        COUNT(CASE WHEN status = 'published' AND deleted_at IS NULL THEN 1 END) as published_posts,
-        COUNT(CASE WHEN status = 'draft' AND deleted_at IS NULL THEN 1 END) as draft_posts,
-        COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) as trashed_posts,
-        COALESCE(SUM(CASE WHEN deleted_at IS NULL THEN view_count ELSE 0 END), 0) as total_views
-      FROM blog_posts
-    `;
+    // Calculate stats (use same deleted_at logic as main query)
+    let statsQuery;
+
+    if (whereClause.includes('deleted_at IS NULL')) {
+      // Use soft delete aware stats
+      statsQuery = `
+        SELECT
+          COUNT(CASE WHEN deleted_at IS NULL THEN 1 END) as total_posts,
+          COUNT(CASE WHEN status = 'published' AND deleted_at IS NULL THEN 1 END) as published_posts,
+          COUNT(CASE WHEN status = 'draft' AND deleted_at IS NULL THEN 1 END) as draft_posts,
+          COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) as trashed_posts,
+          COALESCE(SUM(CASE WHEN deleted_at IS NULL THEN view_count ELSE 0 END), 0) as total_views
+        FROM blog_posts
+      `;
+    } else {
+      // Use simple stats without deleted_at
+      statsQuery = `
+        SELECT
+          COUNT(*) as total_posts,
+          COUNT(CASE WHEN status = 'published' THEN 1 END) as published_posts,
+          COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_posts,
+          0 as trashed_posts,
+          COALESCE(SUM(view_count), 0) as total_views
+        FROM blog_posts
+      `;
+    }
+
     const [stats] = await db.sql(statsQuery);
+    console.log('📊 Stats:', stats);
 
     // Transform data to match frontend interface
     const transformedPosts = posts.map((post: Record<string, unknown>) => ({
@@ -98,7 +145,7 @@ export async function GET(request: NextRequest) {
       reading_time: post.reading_time
     }));
 
-    return NextResponse.json({
+    const response = {
       success: true,
       posts: transformedPosts,
       stats: {
@@ -114,7 +161,10 @@ export async function GET(request: NextRequest) {
         total: parseInt(String(total || 0)),
         totalPages: Math.ceil(parseInt(String(total || 0)) / limit)
       }
-    });
+    };
+
+    console.log('✅ Returning response with', transformedPosts.length, 'posts');
+    return NextResponse.json(response);
 
   } catch (error: unknown) {
     console.error('Error fetching blog posts from database:', error);
@@ -167,6 +217,7 @@ export async function POST(request: NextRequest) {
     console.log('💾 Attempting database insert...');
 
     // Insert using direct SQL for maximum performance and reliability
+    // Use PostgreSQL NOW() for both created_at and published_at to avoid constraint violations
     const insertResult = await db.sql(`
       INSERT INTO blog_posts (
         title, slug, content, excerpt, status,
@@ -174,9 +225,11 @@ export async function POST(request: NextRequest) {
         categories, tags, is_featured, is_sticky,
         reading_time, published_at, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+              CASE WHEN $5 = 'published' THEN NOW() ELSE NULL END,
+              NOW(), NOW())
       RETURNING id, title, slug, content, excerpt, status,
-                featured_image_url, author_name, created_at, updated_at
+                featured_image_url, author_name, created_at, updated_at, published_at
     `, [
       body.title,
       slug,
@@ -190,8 +243,7 @@ export async function POST(request: NextRequest) {
       JSON.stringify(body.tags || []),
       body.is_featured || false,
       body.is_sticky || false,
-      body.reading_time || 5,
-      body.status === 'published' ? new Date() : null
+      body.reading_time || 5
     ]);
 
     const post = insertResult[0];
@@ -210,7 +262,8 @@ export async function POST(request: NextRequest) {
         featured_image_url: post.featured_image_url,
         author_name: post.author_name,
         created_at: post.created_at,
-        updated_at: post.updated_at
+        updated_at: post.updated_at,
+        published_at: post.published_at
       }
     });
 
@@ -269,6 +322,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update using direct SQL for maximum performance
+    // Use PostgreSQL NOW() for published_at when status changes to published to avoid constraint violations
     const updateResult = await db.sql(`
       UPDATE blog_posts
       SET
@@ -281,11 +335,15 @@ export async function PUT(request: NextRequest) {
         categories = $8,
         tags = $9,
         is_featured = $10,
-        published_at = $11,
+        published_at = CASE
+          WHEN $5 = 'published' AND published_at IS NULL THEN NOW()
+          WHEN $5 != 'published' THEN NULL
+          ELSE published_at
+        END,
         updated_at = NOW()
       WHERE id = $1
       RETURNING id, title, slug, content, excerpt, status,
-                featured_image_url, author_name, created_at, updated_at
+                featured_image_url, author_name, created_at, updated_at, published_at
     `, [
       parseInt(id),
       updateData.title,
@@ -296,10 +354,7 @@ export async function PUT(request: NextRequest) {
       updateData.featured_image_url,
       JSON.stringify(updateData.categories || []),
       JSON.stringify(updateData.tags || []),
-      updateData.is_featured || false,
-      updateData.status === 'published' && !updateData.published_at
-        ? new Date()
-        : updateData.published_at
+      updateData.is_featured || false
     ]);
 
     const post = updateResult[0];
@@ -317,7 +372,8 @@ export async function PUT(request: NextRequest) {
         featured_image_url: post.featured_image_url,
         author_name: post.author_name,
         created_at: post.created_at,
-        updated_at: post.updated_at
+        updated_at: post.updated_at,
+        published_at: post.published_at
       }
     });
 

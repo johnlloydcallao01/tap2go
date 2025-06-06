@@ -130,6 +130,7 @@ export async function POST() {
     console.log('📝 Test post data prepared:', { title: testPostData.title, slug });
     
     // Insert using the same logic as the main API
+    // Use PostgreSQL NOW() for both created_at and published_at to avoid constraint violations
     const insertResult = await db.sql(`
       INSERT INTO blog_posts (
         title, slug, content, excerpt, status,
@@ -137,9 +138,11 @@ export async function POST() {
         categories, tags, is_featured, is_sticky,
         reading_time, published_at, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+              CASE WHEN $5 = 'published' THEN NOW() ELSE NULL END,
+              NOW(), NOW())
       RETURNING id, title, slug, content, excerpt, status,
-                featured_image_url, author_name, created_at, updated_at
+                featured_image_url, author_name, created_at, updated_at, published_at
     `, [
       testPostData.title,
       slug,
@@ -153,8 +156,7 @@ export async function POST() {
       JSON.stringify([]),
       false,
       false,
-      5,
-      null
+      5
     ]);
     
     const post = insertResult[0];
