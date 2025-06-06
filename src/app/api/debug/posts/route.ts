@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/database/hybrid-client';
 
+/**
+ * Debug API Route for Blog Posts
+ * Provides detailed information about the database state and posts
+ * Uses only non-parameterized queries to avoid Vercel issues
+ */
+
 interface ConnectionTest {
   current_time: string;
   db_version: string;
@@ -16,10 +22,11 @@ interface ColumnInfo {
 interface SamplePost {
   id: number;
   title: string;
+  slug?: string;
   status: string;
   created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
+  updated_at?: string;
+  deleted_at?: string | null;
 }
 
 interface QueryResult {
@@ -41,10 +48,6 @@ interface StatsResult {
   error?: string;
 }
 
-/**
- * Debug API Route for Blog Posts
- * Provides detailed information about the database state and posts
- */
 export async function GET() {
   try {
     console.log('🔍 DEBUG /api/debug/posts - Starting diagnostic...');
@@ -74,7 +77,7 @@ export async function GET() {
       }
     };
 
-    // Test 1: Basic connection
+    // Test 1: Basic connection (no parameters)
     try {
       const connectionTest = await db.sql<ConnectionTest>('SELECT NOW() as current_time, version() as db_version');
       diagnostics.database.connectionTest = connectionTest[0];
@@ -84,7 +87,7 @@ export async function GET() {
       diagnostics.database.connectionTest = { error: error instanceof Error ? error.message : 'Unknown error' };
     }
 
-    // Test 2: Check if blog_posts table exists
+    // Test 2: Check if blog_posts table exists (no parameters)
     try {
       const tableCheck = await db.sql<ColumnInfo>(`
         SELECT table_name, column_name, data_type, is_nullable
@@ -101,7 +104,7 @@ export async function GET() {
       diagnostics.database.columnInfo = { error: error instanceof Error ? error.message : 'Unknown error' };
     }
 
-    // Test 3: Count total posts
+    // Test 3: Count total posts (no parameters)
     try {
       const countResult = await db.sql<{ total: number }>('SELECT COUNT(*) as total FROM blog_posts');
       diagnostics.database.totalPosts = parseInt(String(countResult[0]?.total || 0));
@@ -111,7 +114,7 @@ export async function GET() {
       diagnostics.database.totalPosts = -1;
     }
 
-    // Test 4: Get sample posts
+    // Test 4: Get sample posts (no parameters)
     try {
       const samplePosts = await db.sql<SamplePost>(`
         SELECT id, title, status, created_at, updated_at, deleted_at
@@ -126,7 +129,7 @@ export async function GET() {
       diagnostics.database.samplePosts = [{ error: error instanceof Error ? error.message : 'Unknown error' }];
     }
 
-    // Test 5: Test basic SELECT query (same as API)
+    // Test 5: Test basic SELECT query (same as API, no parameters)
     try {
       const basicQuery = await db.sql<SamplePost>(`
         SELECT id, title, slug, status, created_at
@@ -149,7 +152,7 @@ export async function GET() {
       };
     }
 
-    // Test 6: Test with deleted_at filter
+    // Test 6: Test with deleted_at filter (no parameters)
     try {
       const deletedAtQuery = await db.sql<SamplePost>(`
         SELECT id, title, slug, status, created_at, deleted_at
@@ -172,7 +175,7 @@ export async function GET() {
       };
     }
 
-    // Test 7: Test stats query
+    // Test 7: Test stats query (no parameters)
     try {
       const statsQuery = await db.sql<{
         total_posts: number;

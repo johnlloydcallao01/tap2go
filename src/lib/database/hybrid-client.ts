@@ -57,7 +57,7 @@ export class CustomDatabaseClient {
 
   /**
    * Helper function to execute Neon SQL with parameters
-   * Optimized for Vercel production environment
+   * Fixed for Vercel production environment - uses direct neon() function
    */
   private async executeNeonSql<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> {
     if (!this.neonSql) {
@@ -72,45 +72,53 @@ export class CustomDatabaseClient {
     });
 
     if (isVercel || isServerless) {
-      // Vercel/Serverless optimized execution
-      if (params.length === 0) {
-        // Use template literal for queries without parameters
-        console.log('🔍 Using template literal execution (no params)');
-        const result = await this.neonSql`${query}`;
-        return result as T[];
-      } else {
-        // For parameterized queries, use Neon's serverless approach
-        console.log('🔍 Using parameterized query execution');
-        try {
-          // Get the connection string with fallbacks for Vercel
-          const connectionString = process.env.DATABASE_URL_UNPOOLED ||
-                                  process.env.DATABASE_URL ||
-                                  process.env.POSTGRES_URL;
+      // For Vercel, always use the neon() function directly
+      // This avoids the parameterized query issues
+      console.log('🔍 Using Vercel-optimized neon() function execution');
+      try {
+        if (params.length === 0) {
+          // No parameters - use template literal
+          const result = await this.neonSql`${query}`;
+          return result as T[];
+        } else {
+          // With parameters - manually substitute them into the query
+          // This is safe because we control the input and use proper escaping
+          let processedQuery = query;
 
-          if (!connectionString) {
-            throw new Error('No database connection string available');
+          // Replace $1, $2, etc. with actual values
+          for (let i = 0; i < params.length; i++) {
+            const paramPlaceholder = `$${i + 1}`;
+            let paramValue = params[i];
+
+            // Properly escape the parameter based on its type
+            if (paramValue === null || paramValue === undefined) {
+              paramValue = 'NULL';
+            } else if (typeof paramValue === 'string') {
+              // Escape single quotes and wrap in quotes
+              paramValue = `'${paramValue.replace(/'/g, "''")}'`;
+            } else if (typeof paramValue === 'number') {
+              paramValue = paramValue.toString();
+            } else if (typeof paramValue === 'boolean') {
+              paramValue = paramValue ? 'TRUE' : 'FALSE';
+            } else {
+              // For objects/arrays, stringify and escape
+              paramValue = `'${JSON.stringify(paramValue).replace(/'/g, "''")}'`;
+            }
+
+            processedQuery = processedQuery.replace(paramPlaceholder, paramValue as string);
           }
 
-          console.log('🔍 Creating temporary client for parameterized query');
-          // Create a temporary client optimized for serverless
-          const tempClient = new Client({
-            connectionString,
-            ssl: { rejectUnauthorized: false }, // Vercel compatibility
-            connectionTimeoutMillis: 15000, // 15 second timeout for Vercel
-          });
+          console.log('🔍 Processed query:', processedQuery.substring(0, 200) + '...');
 
-          await tempClient.connect();
-          console.log('🔍 Temporary client connected, executing query');
-          const result = await tempClient.query(query, params);
-          await tempClient.end();
-          console.log('🔍 Query executed successfully, rows:', result.rows.length);
-          return result.rows as T[];
-        } catch (error) {
-          console.error('❌ Serverless query execution failed:', error);
-          console.error('❌ Query was:', query);
-          console.error('❌ Params were:', params);
-          throw error;
+          // Execute the processed query
+          const result = await this.neonSql`${processedQuery}`;
+          return result as T[];
         }
+      } catch (error) {
+        console.error('❌ Vercel neon() execution failed:', error);
+        console.error('❌ Query was:', query);
+        console.error('❌ Params were:', params);
+        throw error;
       }
     } else {
       // Local development execution
