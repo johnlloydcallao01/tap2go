@@ -55,6 +55,7 @@ export default function CMSDashboard() {
   const loadPosts = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('🔍 Loading posts for view mode:', viewMode);
 
       // Build endpoint and query parameters based on view mode
       let endpoint = '/api/blog/posts';
@@ -70,18 +71,43 @@ export default function CMSDashboard() {
       // 'all' mode doesn't need additional parameters
 
       const url = queryParams.toString() ? `${endpoint}?${queryParams}` : endpoint;
+      console.log('📡 Fetching from URL:', url);
+
       const response = await fetch(url);
+      console.log('📊 Response status:', response.status, response.statusText);
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Data received:', {
+          postsCount: data.posts?.length || 0,
+          stats: data.stats,
+          success: data.success
+        });
+
         setPosts(data.posts || []);
         // Use functional update to avoid dependency on current stats
         setStats(prevStats => ({ ...prevStats, ...data.stats }));
       } else {
-        console.error('Failed to fetch posts:', response.status, response.statusText);
+        console.error('❌ Failed to fetch posts:', response.status, response.statusText);
+
+        // Try to get error details
+        try {
+          const errorData = await response.json();
+          console.error('❌ Error details:', errorData);
+        } catch (parseError) {
+          console.error('❌ Could not parse error response:', parseError);
+        }
       }
     } catch (error) {
-      console.error('Error loading posts:', error);
+      console.error('❌ Network error loading posts:', error);
+
+      // Show user-friendly error in production
+      if (typeof window !== 'undefined') {
+        console.log('🌐 Environment:', {
+          hostname: window.location.hostname,
+          isProduction: window.location.hostname.includes('vercel.app')
+        });
+      }
     } finally {
       setLoading(false);
     }

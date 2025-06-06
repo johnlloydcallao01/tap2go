@@ -17,8 +17,15 @@ neonConfig.fetchConnectionCache = true;
 const isVercel = process.env.VERCEL === '1';
 const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || isVercel;
 
-// Configure WebSocket for Node.js environments (but not in serverless)
-if (typeof window === 'undefined' && !isServerless) {
+// Professional Vercel + Neon configuration
+if (isVercel) {
+  // Vercel-specific optimizations for Neon
+  neonConfig.webSocketConstructor = undefined; // Force HTTP for Vercel
+  neonConfig.useSecureWebSocket = false; // Disable WebSocket entirely
+  neonConfig.pipelineConnect = false; // Disable connection pipelining
+  console.log('✅ Vercel production mode configured for Neon');
+} else if (typeof window === 'undefined' && !isServerless) {
+  // Local development with WebSocket support
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ws = require('ws');
@@ -27,8 +34,8 @@ if (typeof window === 'undefined' && !isServerless) {
   } catch (error) {
     console.warn('WebSocket library not found. Install with: npm install ws');
   }
-} else if (isServerless) {
-  // For serverless environments, disable WebSocket and use HTTP-only
+} else {
+  // Other serverless environments
   neonConfig.webSocketConstructor = undefined;
   console.log('✅ HTTP-only mode configured for serverless environment');
 }
@@ -50,37 +57,49 @@ export class CustomDatabaseClient {
 
   /**
    * Helper function to execute Neon SQL with parameters
-   * Uses appropriate client based on environment
+   * Optimized for Vercel production environment
    */
   private async executeNeonSql<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> {
-    if (isServerless) {
-      // For serverless environments, use the neon() function directly
-      // This is the recommended approach for Vercel and other serverless platforms
-      if (!this.neonSql) {
-        throw new Error('Neon SQL client not initialized');
-      }
+    if (!this.neonSql) {
+      throw new Error('Neon SQL client not initialized');
+    }
 
+    if (isVercel || isServerless) {
+      // Vercel/Serverless optimized execution
       if (params.length === 0) {
         // Use template literal for queries without parameters
         const result = await this.neonSql`${query}`;
         return result as T[];
       } else {
-        // For parameterized queries in serverless, create a temporary client
-        const tempClient = new Client({
-          connectionString: process.env.DATABASE_URL!,
-          ssl: process.env.DATABASE_SSL === 'true',
-        });
-
+        // For parameterized queries, use Neon's serverless approach
         try {
+          // Get the connection string with fallbacks for Vercel
+          const connectionString = process.env.DATABASE_URL_UNPOOLED ||
+                                  process.env.DATABASE_URL ||
+                                  process.env.POSTGRES_URL;
+
+          if (!connectionString) {
+            throw new Error('No database connection string available');
+          }
+
+          // Create a temporary client optimized for serverless
+          const tempClient = new Client({
+            connectionString,
+            ssl: { rejectUnauthorized: false }, // Vercel compatibility
+            connectionTimeoutMillis: 10000, // 10 second timeout for Vercel
+          });
+
           await tempClient.connect();
           const result = await tempClient.query(query, params);
-          return result.rows as T[];
-        } finally {
           await tempClient.end();
+          return result.rows as T[];
+        } catch (error) {
+          console.error('❌ Serverless query execution failed:', error);
+          throw error;
         }
       }
-    } else if (this.neonSql) {
-      // For local development, use direct SQL
+    } else {
+      // Local development execution
       if (params.length === 0) {
         const result = await this.neonSql`${query}`;
         return result as T[];
@@ -98,31 +117,43 @@ export class CustomDatabaseClient {
           await tempClient.end();
         }
       }
-    } else {
-      throw new Error('No Neon client available');
     }
   }
 
   /**
-   * Initialize Direct Neon client
+   * Initialize Direct Neon client with Vercel production optimizations
    */
   private initializeClients(): void {
     try {
-      const connectionString = process.env.DATABASE_URL;
+      // Try multiple environment variable sources for Vercel
+      const connectionString = process.env.DATABASE_URL ||
+                              process.env.POSTGRES_URL ||
+                              process.env.DATABASE_URL_UNPOOLED;
 
       if (!connectionString) {
-        throw new Error('DATABASE_URL environment variable is required');
+        throw new Error('DATABASE_URL environment variable is required. Check Vercel environment variables.');
       }
 
       console.log('🔧 Initializing database client...', {
         isServerless,
         isVercel,
         nodeEnv: process.env.NODE_ENV,
-        hasDbUrl: !!connectionString
+        hasDbUrl: !!connectionString,
+        hasPostgresUrl: !!process.env.POSTGRES_URL,
+        hasUnpooledUrl: !!process.env.DATABASE_URL_UNPOOLED,
+        connectionType: connectionString.includes('pooler') ? 'pooled' : 'direct'
       });
 
-      // Initialize Direct Neon SQL client (works in all environments)
-      this.neonSql = neon(connectionString);
+      // Initialize Direct Neon SQL client with Vercel optimizations
+      if (isVercel) {
+        // Use unpooled connection for Vercel if available
+        const vercelConnectionString = process.env.DATABASE_URL_UNPOOLED || connectionString;
+        this.neonSql = neon(vercelConnectionString);
+        console.log('✅ Vercel-optimized Neon client initialized');
+      } else {
+        this.neonSql = neon(connectionString);
+        console.log('✅ Standard Neon client initialized');
+      }
 
       // Initialize Neon connection pool (only for non-serverless environments)
       if (!isServerless) {

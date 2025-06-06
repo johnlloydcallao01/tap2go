@@ -331,15 +331,15 @@ export async function PUT(request: NextRequest) {
         title = $2,
         content = $3,
         excerpt = $4,
-        status = $5::VARCHAR(20),
+        status = $5,
         author_name = $6,
         featured_image_url = $7,
         categories = $8,
         tags = $9,
         is_featured = $10,
         published_at = CASE
-          WHEN $5::VARCHAR(20) = 'published' AND published_at IS NULL THEN NOW()
-          WHEN $5::VARCHAR(20) != 'published' THEN NULL
+          WHEN $5 = 'published' AND published_at IS NULL THEN NOW()
+          WHEN $5 != 'published' THEN NULL
           ELSE published_at
         END,
         updated_at = NOW()
