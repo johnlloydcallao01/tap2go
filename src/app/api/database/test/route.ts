@@ -1,6 +1,6 @@
 /**
- * Database Test API Route - Hybrid Database Testing
- * Tests both Prisma ORM and Direct SQL connections
+ * Database Test API Route - Custom Database Testing
+ * Tests Direct SQL connections for the custom CMS
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,31 +9,16 @@ import { db } from '@/lib/database/hybrid-client';
 export async function GET() {
   try {
     const testResults = {
-      prisma: { status: 'unknown', data: null as Record<string, unknown> | null, error: null as string | null },
       directSQL: { status: 'unknown', data: null as Record<string, unknown> | null, error: null as string | null },
-      performance: { prismaTime: 0, sqlTime: 0 }
+      performance: { sqlTime: 0 }
     };
-
-    // Test Prisma ORM connection
-    try {
-      const prismaStart = Date.now();
-      const prismaResult = await db.orm.$queryRaw`SELECT NOW() as current_time, version() as db_version`;
-      const prismaEnd = Date.now();
-
-      testResults.prisma.status = 'success';
-      testResults.prisma.data = prismaResult as Record<string, unknown>;
-      testResults.performance.prismaTime = prismaEnd - prismaStart;
-    } catch (error) {
-      testResults.prisma.status = 'error';
-      testResults.prisma.error = error instanceof Error ? error.message : 'Unknown error';
-    }
 
     // Test Direct SQL connection
     try {
       const sqlStart = Date.now();
       const sqlResult = await db.sql('SELECT NOW() as current_time, version() as db_version');
       const sqlEnd = Date.now();
-      
+
       testResults.directSQL.status = 'success';
       testResults.directSQL.data = sqlResult[0];
       testResults.performance.sqlTime = sqlEnd - sqlStart;
@@ -43,18 +28,15 @@ export async function GET() {
     }
 
     // Overall status
-    const overallSuccess = testResults.prisma.status === 'success' && testResults.directSQL.status === 'success';
+    const overallSuccess = testResults.directSQL.status === 'success';
 
     return NextResponse.json({
       success: overallSuccess,
-      message: overallSuccess ? 'Hybrid database connection successful' : 'Some database connections failed',
+      message: overallSuccess ? 'Custom database connection successful' : 'Database connection failed',
       data: {
         connectionTests: testResults,
         performance: {
-          prismaLatency: `${testResults.performance.prismaTime}ms`,
-          sqlLatency: `${testResults.performance.sqlTime}ms`,
-          difference: `${Math.abs(testResults.performance.prismaTime - testResults.performance.sqlTime)}ms`,
-          faster: testResults.performance.prismaTime < testResults.performance.sqlTime ? 'Prisma' : 'Direct SQL'
+          sqlLatency: `${testResults.performance.sqlTime}ms`
         },
         timestamp: new Date().toISOString()
       }
@@ -78,38 +60,6 @@ export async function POST(request: NextRequest) {
     const { action } = await request.json();
 
     switch (action) {
-      case 'migrate':
-        // Run Prisma migrations
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { execSync } = require('child_process');
-        try {
-          execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-          return NextResponse.json({
-            success: true,
-            message: 'Database migrations completed successfully'
-          });
-        } catch (error) {
-          return NextResponse.json(
-            { success: false, error: 'Migration failed', details: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
-          );
-        }
-
-      case 'generate':
-        // Generate Prisma client
-        try {
-          execSync('npx prisma generate', { stdio: 'inherit' });
-          return NextResponse.json({
-            success: true,
-            message: 'Prisma client generated successfully'
-          });
-        } catch (error) {
-          return NextResponse.json(
-            { success: false, error: 'Client generation failed', details: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
-          );
-        }
-
       case 'seed':
         // Seed database with sample data
         try {
@@ -126,31 +76,31 @@ export async function POST(request: NextRequest) {
           );
         }
 
-      case 'reset':
-        // Reset database (development only)
-        if (process.env.NODE_ENV !== 'development') {
-          return NextResponse.json(
-            { success: false, error: 'Database reset only allowed in development' },
-            { status: 403 }
-          );
-        }
-        
+      case 'test_table':
+        // Test if blog_posts table exists
         try {
-          execSync('npx prisma migrate reset --force', { stdio: 'inherit' });
+          const tableExists = await db.sql(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables
+              WHERE table_schema = 'public'
+              AND table_name = 'blog_posts'
+            );
+          `);
           return NextResponse.json({
             success: true,
-            message: 'Database reset successfully'
+            message: 'Table check completed',
+            data: { tableExists: tableExists[0]?.exists || false }
           });
         } catch (error) {
           return NextResponse.json(
-            { success: false, error: 'Reset failed', details: error instanceof Error ? error.message : 'Unknown error' },
+            { success: false, error: 'Table check failed', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
           );
         }
 
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid action' },
+          { success: false, error: 'Invalid action. Available actions: seed, test_table' },
           { status: 400 }
         );
     }
@@ -175,26 +125,38 @@ async function seedDatabase() {
     blogPosts: 0
   };
 
-  // Create sample blog post
-  await db.orm.blogPost.upsert({
-    where: { slug: 'welcome-to-tap2go' },
-    update: {},
-    create: {
-      title: 'Welcome to Tap2Go',
-      slug: 'welcome-to-tap2go',
-      content: 'Welcome to Tap2Go, your premier food delivery platform. This is a sample blog post to test the CMS functionality.',
-      excerpt: 'Welcome to Tap2Go, your premier food delivery platform.',
-      status: 'published',
-      authorName: 'Tap2Go Team',
-      authorEmail: 'admin@tap2go.com',
-      publishedAt: new Date(),
-      categories: ['announcements', 'company'],
-      tags: ['welcome', 'launch', 'food-delivery'],
-      seoTitle: 'Welcome to Tap2Go - Food Delivery Platform',
-      seoDescription: 'Discover Tap2Go, the premier food delivery platform connecting you with your favorite restaurants.'
-    }
-  });
-  seedData.blogPosts++;
+  // Check if sample post already exists
+  const existingPost = await db.sql(`
+    SELECT id FROM blog_posts WHERE slug = $1
+  `, ['welcome-to-tap2go']);
+
+  if (existingPost.length === 0) {
+    // Create sample blog post using direct SQL
+    await db.sql(`
+      INSERT INTO blog_posts (
+        title, slug, content, excerpt, status,
+        author_name, author_email, published_at,
+        categories, tags, seo_title, seo_description,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW()
+      )
+    `, [
+      'Welcome to Tap2Go',
+      'welcome-to-tap2go',
+      'Welcome to Tap2Go, your premier food delivery platform. This is a sample blog post to test the CMS functionality.',
+      'Welcome to Tap2Go, your premier food delivery platform.',
+      'published',
+      'Tap2Go Team',
+      'admin@tap2go.com',
+      new Date(),
+      JSON.stringify(['announcements', 'company']),
+      JSON.stringify(['welcome', 'launch', 'food-delivery']),
+      'Welcome to Tap2Go - Food Delivery Platform',
+      'Discover Tap2Go, the premier food delivery platform connecting you with your favorite restaurants.'
+    ]);
+    seedData.blogPosts++;
+  }
 
   return seedData;
 }

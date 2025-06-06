@@ -1,15 +1,14 @@
 /**
- * Hybrid Database Client for Tap2Go
- * Combines Prisma ORM with Direct Neon SQL for maximum scalability
- * 
+ * Custom Database Client for Tap2Go
+ * Direct Neon SQL for maximum performance and control
+ *
  * Strategy:
- * - Use Prisma for 80% of operations (CRUD, type safety, developer experience)
- * - Use Direct SQL for 20% of operations (performance-critical, complex queries)
+ * - Use Direct SQL for all operations (performance-critical, full control)
+ * - Custom CMS implementation without ORM dependencies
+ * - Optimized for serverless environments
  */
 
-import { PrismaClient } from '@prisma/client';
 import { neon, neonConfig, Pool } from '@neondatabase/serverless';
-import { PrismaNeon } from '@prisma/adapter-neon';
 
 // Configure Neon for optimal performance
 neonConfig.fetchConnectionCache = true;
@@ -26,11 +25,10 @@ if (typeof window === 'undefined') {
 }
 
 /**
- * Hybrid Database Client Class
- * Provides both Prisma ORM and Direct SQL access
+ * Custom Database Client Class
+ * Provides Direct SQL access for maximum performance
  */
-export class HybridDatabaseClient {
-  private prisma!: PrismaClient;
+export class CustomDatabaseClient {
   private neonSql: ReturnType<typeof neon> | null;
   private neonPool!: Pool;
   private isInitialized: boolean = false;
@@ -41,7 +39,7 @@ export class HybridDatabaseClient {
   }
 
   /**
-   * Initialize both Prisma and Direct Neon clients
+   * Initialize Direct Neon client
    */
   private initializeClients(): void {
     try {
@@ -53,7 +51,7 @@ export class HybridDatabaseClient {
 
       // Initialize Direct Neon SQL client
       this.neonSql = neon(connectionString);
-      
+
       // Initialize Neon connection pool
       this.neonPool = new Pool({
         connectionString,
@@ -62,34 +60,12 @@ export class HybridDatabaseClient {
         max: parseInt(process.env.DATABASE_POOL_MAX || '10'),
       });
 
-      // Initialize Prisma with Neon adapter using Pool config
-      const adapter = new PrismaNeon({
-        connectionString,
-        ssl: process.env.DATABASE_SSL === 'true',
-        min: parseInt(process.env.DATABASE_POOL_MIN || '2'),
-        max: parseInt(process.env.DATABASE_POOL_MAX || '10'),
-      });
-      this.prisma = new PrismaClient({
-        adapter,
-        log: process.env.NODE_ENV === 'development' ? ['query', 'error'] : ['error']
-      });
-
       this.isInitialized = true;
-      console.log('✅ Hybrid Database Client initialized successfully');
+      console.log('✅ Custom Database Client initialized successfully');
     } catch (error) {
-      console.error('❌ Failed to initialize Hybrid Database Client:', error);
+      console.error('❌ Failed to initialize Custom Database Client:', error);
       throw error;
     }
-  }
-
-  /**
-   * Get Prisma client for standard ORM operations
-   */
-  get orm(): PrismaClient {
-    if (!this.isInitialized) {
-      throw new Error('Database client not initialized');
-    }
-    return this.prisma;
   }
 
   /**
@@ -352,9 +328,6 @@ export class HybridDatabaseClient {
    * Close database connections
    */
   async close(): Promise<void> {
-    if (this.prisma) {
-      await this.prisma.$disconnect();
-    }
     if (this.neonPool) {
       await this.neonPool.end();
     }
@@ -363,8 +336,4 @@ export class HybridDatabaseClient {
 }
 
 // Export singleton instance
-export const db = new HybridDatabaseClient();
-
-// Export types for use in other files
-export type { PrismaClient } from '@prisma/client';
-export * from '@prisma/client';
+export const db = new CustomDatabaseClient();
