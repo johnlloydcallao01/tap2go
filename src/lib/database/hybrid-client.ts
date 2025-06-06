@@ -160,39 +160,11 @@ export class CustomDatabaseClient {
           console.log('✅ Query executed successfully via Neon serverless (no params)');
           return result as T[];
         } else {
-          // For parameterized queries in serverless, we need to use a different approach
-          // According to Neon docs, we should use template literals with interpolation
-          console.log('⚠️ Parameterized query in serverless - converting to template literal');
+          // For parameterized queries, use the query() method as per official Neon docs
+          console.log('🔍 Using Neon serverless query() method for parameterized queries');
 
-          // Build the query with proper parameter substitution
-          let finalQuery = query;
-          for (let i = 0; i < params.length; i++) {
-            const placeholder = `$${i + 1}`;
-            const value = params[i];
-
-            // Properly format the value based on its type
-            let formattedValue: string;
-            if (value === null || value === undefined) {
-              formattedValue = 'NULL';
-            } else if (typeof value === 'string') {
-              // Escape single quotes and wrap in quotes
-              formattedValue = `'${value.replace(/'/g, "''")}'`;
-            } else if (typeof value === 'number') {
-              formattedValue = value.toString();
-            } else if (typeof value === 'boolean') {
-              formattedValue = value ? 'TRUE' : 'FALSE';
-            } else {
-              // For objects/arrays, stringify and escape
-              formattedValue = `'${JSON.stringify(value).replace(/'/g, "''")}'`;
-            }
-
-            finalQuery = finalQuery.replace(placeholder, formattedValue);
-          }
-
-          console.log('🔍 Final query:', finalQuery.substring(0, 200) + '...');
-
-          const result = await this.neonSql`${finalQuery}`;
-          console.log('✅ Query executed successfully via Neon serverless (with params)');
+          const result = await this.neonSql.query(query, params);
+          console.log('✅ Query executed successfully via Neon serverless query() method');
           return result as T[];
         }
       }
