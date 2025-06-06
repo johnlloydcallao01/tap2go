@@ -209,29 +209,30 @@ export default function AdminCustomers() {
           </h3>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto bg-white rounded-lg shadow">
+          <div className="min-w-max">
+            <table className="w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[280px]">
                   Customer
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
                   Orders
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                   Total Spent
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                   Last Order
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
                   Tier
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
                   Actions
                 </th>
               </tr>
@@ -241,15 +242,15 @@ export default function AdminCustomers() {
                 const { tier, color } = getCustomerTier(customer.totalSpent);
                 return (
                   <tr key={customer.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap min-w-[280px]">
                       <div className="flex items-center">
-                        <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center">
+                        <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
                           <UserIcon className="h-5 w-5 text-white" />
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{customer.fullName}</div>
-                          <div className="text-sm text-gray-500">{customer.email}</div>
-                          <div className="text-sm text-gray-500">{customer.phone}</div>
+                        <div className="ml-4 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{customer.fullName}</div>
+                          <div className="text-sm text-gray-500 truncate">{customer.email}</div>
+                          <div className="text-sm text-gray-500 truncate">{customer.phone}</div>
                         </div>
                       </div>
                     </td>
@@ -298,7 +299,8 @@ export default function AdminCustomers() {
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       </div>
     </div>

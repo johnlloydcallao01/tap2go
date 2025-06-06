@@ -17,6 +17,7 @@ neonConfig.fetchConnectionCache = true;
 // Configure WebSocket for Node.js environments
 if (typeof window === 'undefined') {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ws = require('ws');
     neonConfig.webSocketConstructor = ws;
   } catch (error) {
@@ -29,12 +30,13 @@ if (typeof window === 'undefined') {
  * Provides both Prisma ORM and Direct SQL access
  */
 export class HybridDatabaseClient {
-  private prisma: PrismaClient;
-  private neonSql: any;
-  private neonPool: Pool;
+  private prisma!: PrismaClient;
+  private neonSql: ReturnType<typeof neon> | null;
+  private neonPool!: Pool;
   private isInitialized: boolean = false;
 
   constructor() {
+    this.neonSql = null;
     this.initializeClients();
   }
 
@@ -44,7 +46,7 @@ export class HybridDatabaseClient {
   private initializeClients(): void {
     try {
       const connectionString = process.env.DATABASE_URL;
-      
+
       if (!connectionString) {
         throw new Error('DATABASE_URL environment variable is required');
       }
@@ -53,15 +55,20 @@ export class HybridDatabaseClient {
       this.neonSql = neon(connectionString);
       
       // Initialize Neon connection pool
-      this.neonPool = new Pool({ 
+      this.neonPool = new Pool({
         connectionString,
         ssl: process.env.DATABASE_SSL === 'true',
         min: parseInt(process.env.DATABASE_POOL_MIN || '2'),
         max: parseInt(process.env.DATABASE_POOL_MAX || '10'),
       });
 
-      // Initialize Prisma with Neon adapter (connection string is handled by the adapter)
-      const adapter = new PrismaNeon(this.neonPool);
+      // Initialize Prisma with Neon adapter using Pool config
+      const adapter = new PrismaNeon({
+        connectionString,
+        ssl: process.env.DATABASE_SSL === 'true',
+        min: parseInt(process.env.DATABASE_POOL_MIN || '2'),
+        max: parseInt(process.env.DATABASE_POOL_MAX || '10'),
+      });
       this.prisma = new PrismaClient({
         adapter,
         log: process.env.NODE_ENV === 'development' ? ['query', 'error'] : ['error']
@@ -89,25 +96,27 @@ export class HybridDatabaseClient {
    * Execute raw SQL query for performance-critical operations
    * Uses Neon's query method for parameterized queries
    */
-  async sql<T = any>(query: string, params: any[] = []): Promise<T[]> {
+  async sql<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> {
     if (!this.isInitialized) {
       throw new Error('Database client not initialized');
     }
 
+    const client = await this.neonPool.connect();
     try {
-      // Always use the query method for consistency
-      const result = await this.neonSql.query(query, params);
-      return result as T[];
+      const result = await client.query(query, params);
+      return result.rows as T[];
     } catch (error) {
       console.error('SQL Query Error:', error);
       throw error;
+    } finally {
+      client.release();
     }
   }
 
   /**
    * Execute single row SQL query
    */
-  async sqlOne<T = any>(query: string, params: any[] = []): Promise<T | null> {
+  async sqlOne<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T | null> {
     const result = await this.sql<T>(query, params);
     return result[0] || null;
   }
@@ -115,7 +124,7 @@ export class HybridDatabaseClient {
   /**
    * Execute SQL query with transaction support
    */
-  async transaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
+  async transaction<T>(callback: (client: { query: (sql: string, params?: unknown[]) => Promise<unknown> }) => Promise<T>): Promise<T> {
     if (!this.isInitialized) {
       throw new Error('Database client not initialized');
     }
@@ -247,8 +256,8 @@ export class HybridDatabaseClient {
       offset = 0
     } = params;
 
-    let whereConditions = ['r."isActive" = true'];
-    let queryParams: any[] = [];
+    const whereConditions = ['r."isActive" = true'];
+    const queryParams: unknown[] = [];
     let paramIndex = 1;
 
     // Text search

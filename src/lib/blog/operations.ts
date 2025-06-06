@@ -25,7 +25,7 @@ export interface BlogPost {
   reading_time?: number;
   is_published?: boolean;
   is_featured?: boolean;
-  seo_data?: any;
+  seo_data?: Record<string, unknown>;
   published_at?: Date;
   created_at?: Date;
   updated_at?: Date;
@@ -46,7 +46,7 @@ export interface CreateBlogPostData {
   reading_time?: number;
   is_published?: boolean;
   is_featured?: boolean;
-  seo_data?: any;
+  seo_data?: Record<string, unknown>;
 }
 
 /**
@@ -142,7 +142,7 @@ export class BlogOperations {
    */
   static async update(id: number, data: Partial<CreateBlogPostData>): Promise<BlogPost | null> {
     const updateFields: string[] = [];
-    const updateValues: any[] = [];
+    const updateValues: unknown[] = [];
     
     Object.entries(data).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -299,7 +299,12 @@ export class BlogOperations {
       FROM blog_posts
     `;
     
-    return result[0] as any;
+    return result[0] as {
+      total: number;
+      published: number;
+      featured: number;
+      drafts: number;
+    };
   }
 }
 

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     // Build query with optional status filter
     let whereClause = 'WHERE deleted_at IS NULL';
-    const params: any[] = [limit, offset];
+    const params: (string | number)[] = [limit, offset];
     
     if (status) {
       whereClause += ' AND status = $3';
@@ -66,20 +66,20 @@ export async function GET(request: NextRequest) {
     const countParams = status ? [status] : [];
     const [{ total }] = await db.sql(countQuery, countParams);
 
-    // Calculate stats
+    // Calculate stats including trash count
     const statsQuery = `
-      SELECT 
-        COUNT(*) as total_posts,
-        COUNT(CASE WHEN status = 'published' THEN 1 END) as published_posts,
-        COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_posts,
-        COALESCE(SUM(view_count), 0) as total_views
-      FROM blog_posts 
-      WHERE deleted_at IS NULL
+      SELECT
+        COUNT(CASE WHEN deleted_at IS NULL THEN 1 END) as total_posts,
+        COUNT(CASE WHEN status = 'published' AND deleted_at IS NULL THEN 1 END) as published_posts,
+        COUNT(CASE WHEN status = 'draft' AND deleted_at IS NULL THEN 1 END) as draft_posts,
+        COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) as trashed_posts,
+        COALESCE(SUM(CASE WHEN deleted_at IS NULL THEN view_count ELSE 0 END), 0) as total_views
+      FROM blog_posts
     `;
     const [stats] = await db.sql(statsQuery);
 
     // Transform data to match frontend interface
-    const transformedPosts = posts.map((post: any) => ({
+    const transformedPosts = posts.map((post: Record<string, unknown>) => ({
       id: post.id,
       title: post.title,
       slug: post.slug,
@@ -102,30 +102,32 @@ export async function GET(request: NextRequest) {
       success: true,
       posts: transformedPosts,
       stats: {
-        totalPosts: parseInt(stats.total_posts),
-        publishedPosts: parseInt(stats.published_posts),
-        draftPosts: parseInt(stats.draft_posts),
-        totalViews: parseInt(stats.total_views)
+        totalPosts: parseInt(String(stats.total_posts || 0)),
+        publishedPosts: parseInt(String(stats.published_posts || 0)),
+        draftPosts: parseInt(String(stats.draft_posts || 0)),
+        trashedPosts: parseInt(String(stats.trashed_posts || 0)),
+        totalViews: parseInt(String(stats.total_views || 0))
       },
       pagination: {
         page,
         limit,
-        total: parseInt(total),
-        totalPages: Math.ceil(parseInt(total) / limit)
+        total: parseInt(String(total || 0)),
+        totalPages: Math.ceil(parseInt(String(total || 0)) / limit)
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching blog posts from database:', error);
     
     return NextResponse.json({
       success: false,
-      message: error.message || 'Failed to fetch blog posts',
+      message: error instanceof Error ? error.message : 'Failed to fetch blog posts',
       posts: [],
       stats: {
         totalPosts: 0,
         publishedPosts: 0,
         draftPosts: 0,
+        trashedPosts: 0,
         totalViews: 0
       }
     }, { status: 500 });
@@ -200,12 +202,12 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating blog post:', error);
-    
+
     return NextResponse.json({
       success: false,
-      message: error.message || 'Failed to create blog post'
+      message: error instanceof Error ? error.message : 'Failed to create blog post'
     }, { status: 500 });
   }
 }
@@ -278,12 +280,12 @@ export async function PUT(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating blog post:', error);
-    
+
     return NextResponse.json({
       success: false,
-      message: error.message || 'Failed to update blog post'
+      message: error instanceof Error ? error.message : 'Failed to update blog post'
     }, { status: 500 });
   }
 }
@@ -296,31 +298,66 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
+    console.log('🗑️ DELETE request received for post ID:', id);
+
     if (!id) {
+      console.log('❌ No post ID provided');
       return NextResponse.json({
         success: false,
         message: 'Post ID is required'
       }, { status: 400 });
     }
 
-    // Soft delete by setting deleted_at timestamp using direct SQL
-    await db.sql(`
-      UPDATE blog_posts
-      SET deleted_at = NOW(), updated_at = NOW()
+    // Check if post exists before deletion
+    console.log('🔍 Checking if post exists...');
+    const existingPost = await db.sql(`
+      SELECT id, title, deleted_at
+      FROM blog_posts
       WHERE id = $1
     `, [parseInt(id)]);
 
+    if (existingPost.length === 0) {
+      console.log('❌ Post not found with ID:', id);
+      return NextResponse.json({
+        success: false,
+        message: 'Post not found'
+      }, { status: 404 });
+    }
+
+    console.log('📋 Post found:', existingPost[0]);
+
+    // Soft delete by setting deleted_at timestamp using direct SQL
+    console.log('🗑️ Performing soft delete...');
+    const deleteResult = await db.sql(`
+      UPDATE blog_posts
+      SET deleted_at = NOW(), updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, title, deleted_at
+    `, [parseInt(id)]);
+
+    console.log('✅ Delete result:', deleteResult);
+
+    // Verify the deletion
+    const verifyDelete = await db.sql(`
+      SELECT id, title, deleted_at
+      FROM blog_posts
+      WHERE id = $1
+    `, [parseInt(id)]);
+
+    console.log('🔍 Verification - Post after deletion:', verifyDelete[0]);
+
     return NextResponse.json({
       success: true,
-      message: 'Blog post deleted successfully'
+      message: 'Blog post deleted successfully',
+      deletedPost: deleteResult[0]
     });
 
-  } catch (error: any) {
-    console.error('Error deleting blog post:', error);
-    
+  } catch (error: unknown) {
+    console.error('❌ Error deleting blog post:', error);
+
     return NextResponse.json({
       success: false,
-      message: error.message || 'Failed to delete blog post'
+      message: error instanceof Error ? error.message : 'Failed to delete blog post'
     }, { status: 500 });
   }
 }

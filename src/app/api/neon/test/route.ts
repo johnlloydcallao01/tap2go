@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neonClient } from '@/lib/neon/client';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Test database connection
     const isConnected = await neonClient.testConnection();
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
         database: {
           version: dbInfo.version,
           size: dbInfo.size,
-          tableCount: dbInfo.tables?.length || 0,
-          tables: dbInfo.tables?.map(t => t.name) || [],
+          tableCount: Array.isArray(dbInfo.tables) ? dbInfo.tables.length : 0,
+          tables: Array.isArray(dbInfo.tables) ? dbInfo.tables.map((t: Record<string, unknown>) => t.name) : [],
           connectionString: dbInfo.connectionString
         },
         timestamp: new Date().toISOString()

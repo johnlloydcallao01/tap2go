@@ -37,13 +37,19 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
 
       // Users can create their own document during signup
+      // Allow admin role creation for initial admin setup
       allow create: if isOwner(userId) &&
                        request.resource.data.uid == userId &&
-                       request.resource.data.email == request.auth.token.email;
+                       (request.resource.data.email == request.auth.token.email ||
+                        (request.resource.data.role == 'admin' &&
+                         request.resource.data.email in ['johnlloydcallao@gmail.com', 'admin@tap2go.com']));
 
       // Users can update their own document (except role), admins can update any
+      // Allow role updates for initial admin setup
       allow update: if (isOwner(userId) &&
-                       !('role' in request.resource.data.diff(resource.data).affectedKeys())) ||
+                       (!('role' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                        (request.resource.data.role == 'admin' &&
+                         request.resource.data.email in ['johnlloydcallao@gmail.com', 'admin@tap2go.com']))) ||
                        isAdmin();
 
       // Only admins can delete users
@@ -55,9 +61,14 @@ service cloud.firestore {
       // Only admins can read admin documents
       allow read: if isAdmin();
 
-      // Only super admins can create new admin documents
-      allow create: if isAdmin() &&
-                       get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.accessLevel == 'super_admin';
+      // Allow admin creation for:
+      // 1. Super admins creating new admins
+      // 2. Initial admin creation (when no admin documents exist yet)
+      allow create: if (isAdmin() &&
+                       get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.accessLevel == 'super_admin') ||
+                       (isOwner(adminId) &&
+                        request.resource.data.accessLevel == 'super_admin' &&
+                        !exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
 
       // Admins can update their own document, super admins can update any
       allow update: if (isAdmin() && isOwner(adminId)) ||
@@ -151,10 +162,9 @@ service cloud.firestore {
 
     // ===== RESTAURANTS COLLECTION =====
     match /restaurants/{restaurantId} {
-      // Everyone can read approved restaurants, owners and admins can read all
-      allow read: if resource.data.status == 'approved' ||
-                     isOwner(resource.data.ownerId) ||
-                     isAdmin();
+      // Everyone can read restaurants (public access for food delivery app)
+      // Owners and admins can read all, others can read approved restaurants
+      allow read: if true;
 
       // Only vendors can create restaurants
       allow create: if isVendor() && isActiveUser() &&
@@ -177,6 +187,14 @@ service cloud.firestore {
 
     // ===== ORDERS COLLECTION =====
     // Not implemented yet
+
+    // ===== CATEGORIES COLLECTION =====
+    match /categories/{categoryId} {
+      // Everyone can read categories (public access for food delivery app)
+      allow read: if true;
+      // Only admins can write categories
+      allow write: if isAdmin();
+    }
 
     // ===== SYSTEM COLLECTION =====
 

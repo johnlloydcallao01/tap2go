@@ -13,12 +13,12 @@ export interface RestaurantContentRow {
   story?: string;
   long_description?: string;
   hero_image_url?: string;
-  gallery_images?: any[];
-  awards?: any[];
-  certifications?: any[];
-  special_features?: any[];
-  social_media?: any;
-  seo_data?: any;
+  gallery_images?: Record<string, unknown>[];
+  awards?: Record<string, unknown>[];
+  certifications?: Record<string, unknown>[];
+  special_features?: Record<string, unknown>[];
+  social_media?: Record<string, unknown>;
+  seo_data?: Record<string, unknown>;
   is_published?: boolean;
   published_at?: Date;
   created_at?: Date;
@@ -30,10 +30,13 @@ export interface MenuCategoryRow {
   firebase_id: string;
   restaurant_firebase_id: string;
   name: string;
+  slug?: string;
   description?: string;
+  long_description?: string;
   image_url?: string;
   sort_order?: number;
   is_active?: boolean;
+  seo_data?: Record<string, unknown>;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -44,21 +47,23 @@ export interface MenuItemRow {
   category_firebase_id: string;
   restaurant_firebase_id: string;
   name: string;
+  slug?: string;
+  description?: string;
   detailed_description?: string;
   short_description?: string;
-  images?: any[];
-  ingredients?: any[];
-  allergens?: any[];
-  nutritional_info?: any;
-  preparation_steps?: any[];
+  images?: Record<string, unknown>[];
+  ingredients?: Record<string, unknown>[];
+  allergens?: Record<string, unknown>[];
+  nutritional_info?: Record<string, unknown>;
+  preparation_steps?: Record<string, unknown>[];
   chef_notes?: string;
-  tags?: any[];
+  tags?: Record<string, unknown>[];
   is_vegetarian?: boolean;
   is_vegan?: boolean;
   is_gluten_free?: boolean;
   spice_level?: string;
   preparation_time?: number;
-  seo_data?: any;
+  seo_data?: Record<string, unknown>;
   is_published?: boolean;
   published_at?: Date;
   created_at?: Date;
@@ -75,13 +80,13 @@ export interface BlogPostRow {
   author_name?: string;
   author_bio?: string;
   author_avatar_url?: string;
-  categories?: any[];
-  tags?: any[];
-  related_restaurants?: any[];
+  categories?: Record<string, unknown>[];
+  tags?: Record<string, unknown>[];
+  related_restaurants?: Record<string, unknown>[];
   reading_time?: number;
   is_published?: boolean;
   is_featured?: boolean;
-  seo_data?: any;
+  seo_data?: Record<string, unknown>;
   published_at?: Date;
   created_at?: Date;
   updated_at?: Date;
@@ -91,6 +96,7 @@ export interface PromotionRow {
   id?: number;
   title: string;
   description: string;
+  long_description?: string;
   short_description?: string;
   image_url?: string;
   banner_image_url?: string;
@@ -101,15 +107,15 @@ export interface PromotionRow {
   valid_from: Date;
   valid_until: Date;
   is_active?: boolean;
-  target_restaurants?: any[];
-  target_categories?: any[];
-  target_menu_items?: any[];
+  target_restaurants?: Record<string, unknown>[];
+  target_categories?: Record<string, unknown>[];
+  target_menu_items?: Record<string, unknown>[];
   max_usage_per_user?: number;
   total_usage_limit?: number;
   current_usage_count?: number;
   promo_code?: string;
   terms?: string;
-  seo_data?: any;
+  seo_data?: Record<string, unknown>;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -117,7 +123,7 @@ export interface PromotionRow {
 /**
  * Restaurant Content Operations
  */
-export class RestaurantContentOps {
+class RestaurantContentOps {
   /**
    * Create restaurant content
    */
@@ -229,7 +235,7 @@ export class RestaurantContentOps {
 /**
  * Menu Category Operations
  */
-export class MenuCategoryOps {
+class MenuCategoryOps {
   /**
    * Create menu category
    */
@@ -296,7 +302,7 @@ export class MenuCategoryOps {
     params.push(id);
 
     const sql = `
-      UPDATE menu_categories 
+      UPDATE menu_categories
       SET ${updateFields.join(', ')}
       WHERE id = $${paramIndex}
       RETURNING *
@@ -305,12 +311,20 @@ export class MenuCategoryOps {
     const result = await neonClient.queryOne<MenuCategoryRow>(sql, params);
     return result!;
   }
+
+  /**
+   * Get category by restaurant and slug
+   */
+  static async getByRestaurantAndSlug(restaurantFirebaseId: string, slug: string): Promise<MenuCategoryRow | null> {
+    const sql = 'SELECT * FROM menu_categories WHERE restaurant_firebase_id = $1 AND slug = $2';
+    return await neonClient.queryOne<MenuCategoryRow>(sql, [restaurantFirebaseId, slug]);
+  }
 }
 
 /**
  * Menu Item Operations
  */
-export class MenuItemOps {
+class MenuItemOps {
   /**
    * Create menu item
    */
@@ -379,7 +393,7 @@ export class MenuItemOps {
    */
   static async getByRestaurant(restaurantFirebaseId: string): Promise<MenuItemRow[]> {
     const sql = `
-      SELECT * FROM menu_items 
+      SELECT * FROM menu_items
       WHERE restaurant_firebase_id = $1 AND is_published = true
       ORDER BY name ASC
     `;
@@ -390,7 +404,7 @@ export class MenuItemOps {
 /**
  * Blog Post Operations
  */
-export class BlogPostOps {
+class BlogPostOps {
   /**
    * Create blog post
    */
@@ -466,7 +480,7 @@ export class BlogPostOps {
 /**
  * Promotion Operations
  */
-export class PromotionOps {
+class PromotionOps {
   /**
    * Create promotion
    */

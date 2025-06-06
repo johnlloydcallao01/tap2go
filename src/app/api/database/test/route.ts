@@ -6,11 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/hybrid-client';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const testResults = {
-      prisma: { status: 'unknown', data: null, error: null },
-      directSQL: { status: 'unknown', data: null, error: null },
+      prisma: { status: 'unknown', data: null as Record<string, unknown> | null, error: null as string | null },
+      directSQL: { status: 'unknown', data: null as Record<string, unknown> | null, error: null as string | null },
       performance: { prismaTime: 0, sqlTime: 0 }
     };
 
@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
       const prismaStart = Date.now();
       const prismaResult = await db.orm.$queryRaw`SELECT NOW() as current_time, version() as db_version`;
       const prismaEnd = Date.now();
-      
+
       testResults.prisma.status = 'success';
-      testResults.prisma.data = prismaResult;
+      testResults.prisma.data = prismaResult as Record<string, unknown>;
       testResults.performance.prismaTime = prismaEnd - prismaStart;
     } catch (error) {
       testResults.prisma.status = 'error';
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'migrate':
         // Run Prisma migrations
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { execSync } = require('child_process');
         try {
           execSync('npx prisma migrate deploy', { stdio: 'inherit' });
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
           });
         } catch (error) {
           return NextResponse.json(
-            { success: false, error: 'Migration failed', details: error.message },
+            { success: false, error: 'Migration failed', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
           );
         }
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
           });
         } catch (error) {
           return NextResponse.json(
-            { success: false, error: 'Client generation failed', details: error.message },
+            { success: false, error: 'Client generation failed', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
           );
         }
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
           });
         } catch (error) {
           return NextResponse.json(
-            { success: false, error: 'Seeding failed', details: error.message },
+            { success: false, error: 'Seeding failed', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
           );
         }
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
           });
         } catch (error) {
           return NextResponse.json(
-            { success: false, error: 'Reset failed', details: error.message },
+            { success: false, error: 'Reset failed', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
           );
         }
@@ -169,179 +170,31 @@ export async function POST(request: NextRequest) {
 
 // Helper function to seed database
 async function seedDatabase() {
+  // Create sample blog posts for testing
   const seedData = {
-    users: 0,
-    restaurants: 0,
-    menuItems: 0
+    blogPosts: 0
   };
 
-  // Create sample admin user
-  const adminUser = await db.orm.user.upsert({
-    where: { email: 'admin@tap2go.com' },
+  // Create sample blog post
+  await db.orm.blogPost.upsert({
+    where: { slug: 'welcome-to-tap2go' },
     update: {},
     create: {
-      email: 'admin@tap2go.com',
-      role: 'ADMIN',
-      isActive: true,
-      isVerified: true
+      title: 'Welcome to Tap2Go',
+      slug: 'welcome-to-tap2go',
+      content: 'Welcome to Tap2Go, your premier food delivery platform. This is a sample blog post to test the CMS functionality.',
+      excerpt: 'Welcome to Tap2Go, your premier food delivery platform.',
+      status: 'published',
+      authorName: 'Tap2Go Team',
+      authorEmail: 'admin@tap2go.com',
+      publishedAt: new Date(),
+      categories: ['announcements', 'company'],
+      tags: ['welcome', 'launch', 'food-delivery'],
+      seoTitle: 'Welcome to Tap2Go - Food Delivery Platform',
+      seoDescription: 'Discover Tap2Go, the premier food delivery platform connecting you with your favorite restaurants.'
     }
   });
-  seedData.users++;
-
-  // Create sample customer
-  const customer = await db.orm.user.upsert({
-    where: { email: 'customer@example.com' },
-    update: {},
-    create: {
-      email: 'customer@example.com',
-      role: 'CUSTOMER',
-      isActive: true,
-      isVerified: true,
-      customerProfile: {
-        create: {
-          firstName: 'John',
-          lastName: 'Doe'
-        }
-      }
-    }
-  });
-  seedData.users++;
-
-  // Create sample vendor with restaurant
-  const vendor = await db.orm.user.upsert({
-    where: { email: 'vendor@example.com' },
-    update: {},
-    create: {
-      email: 'vendor@example.com',
-      role: 'VENDOR',
-      isActive: true,
-      isVerified: true,
-      vendorProfile: {
-        create: {
-          businessName: 'Sample Restaurant Business',
-          businessType: 'Restaurant',
-          contactPersonName: 'Jane Smith',
-          businessPhone: '+639123456789',
-          businessEmail: 'vendor@example.com',
-          businessAddress: {
-            street: '123 Sample Street',
-            city: 'Manila',
-            state: 'Metro Manila',
-            country: 'Philippines'
-          },
-          operatingHours: {
-            monday: { open: '09:00', close: '21:00', isClosed: false },
-            tuesday: { open: '09:00', close: '21:00', isClosed: false },
-            wednesday: { open: '09:00', close: '21:00', isClosed: false },
-            thursday: { open: '09:00', close: '21:00', isClosed: false },
-            friday: { open: '09:00', close: '21:00', isClosed: false },
-            saturday: { open: '09:00', close: '21:00', isClosed: false },
-            sunday: { open: '09:00', close: '21:00', isClosed: false }
-          },
-          deliverySettings: {
-            deliveryRadius: 5.0,
-            minimumOrderValue: 200,
-            deliveryFee: 50,
-            estimatedDeliveryTime: '30-45 min'
-          },
-          isApproved: true,
-          approvedAt: new Date()
-        }
-      }
-    },
-    include: {
-      vendorProfile: true
-    }
-  });
-  seedData.users++;
-
-  if (vendor.vendorProfile) {
-    // Create sample restaurant
-    const restaurant = await db.orm.restaurant.upsert({
-      where: { slug: 'sample-restaurant' },
-      update: {},
-      create: {
-        vendorId: vendor.vendorProfile.id,
-        name: 'Sample Restaurant',
-        slug: 'sample-restaurant',
-        description: 'A sample restaurant for testing the Tap2Go platform',
-        cuisineType: ['Filipino', 'Asian'],
-        address: {
-          street: '123 Sample Street',
-          city: 'Manila',
-          state: 'Metro Manila',
-          zipCode: '1000',
-          country: 'Philippines'
-        },
-        coordinates: {
-          latitude: 14.5995,
-          longitude: 120.9842
-        },
-        operatingHours: {
-          monday: { open: '09:00', close: '21:00', isClosed: false },
-          tuesday: { open: '09:00', close: '21:00', isClosed: false },
-          wednesday: { open: '09:00', close: '21:00', isClosed: false },
-          thursday: { open: '09:00', close: '21:00', isClosed: false },
-          friday: { open: '09:00', close: '21:00', isClosed: false },
-          saturday: { open: '09:00', close: '21:00', isClosed: false },
-          sunday: { open: '09:00', close: '21:00', isClosed: false }
-        },
-        isActive: true,
-        isVerified: true,
-        rating: 4.5
-      }
-    });
-    seedData.restaurants++;
-
-    // Create sample menu category and items
-    const category = await db.orm.menuCategory.upsert({
-      where: { id: 'sample-category' },
-      update: {},
-      create: {
-        id: 'sample-category',
-        restaurantId: restaurant.id,
-        name: 'Main Dishes',
-        description: 'Our signature main dishes',
-        sortOrder: 1
-      }
-    });
-
-    // Create sample menu items
-    const menuItems = [
-      {
-        name: 'Adobo Rice Bowl',
-        description: 'Classic Filipino adobo served with steamed rice',
-        price: 250,
-        categoryId: category.id,
-        restaurantId: restaurant.id,
-        isVegetarian: false,
-        isAvailable: true
-      },
-      {
-        name: 'Vegetable Lumpia',
-        description: 'Fresh spring rolls with mixed vegetables',
-        price: 180,
-        categoryId: category.id,
-        restaurantId: restaurant.id,
-        isVegetarian: true,
-        isAvailable: true
-      }
-    ];
-
-    for (const item of menuItems) {
-      await db.orm.menuItem.upsert({
-        where: { 
-          restaurantId_name: {
-            restaurantId: item.restaurantId,
-            name: item.name
-          }
-        },
-        update: {},
-        create: item
-      });
-      seedData.menuItems++;
-    }
-  }
+  seedData.blogPosts++;
 
   return seedData;
 }

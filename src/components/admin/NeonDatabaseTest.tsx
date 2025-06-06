@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircleIcon, XCircleIcon, DatabaseIcon, PlayIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, XCircleIcon, CircleStackIcon as DatabaseIcon, PlayIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface DatabaseInfo {
   isConnected: boolean;

@@ -79,24 +79,29 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header - Fixed at top, starts after sidebar on desktop */}
       <AdminHeader
         onMenuClick={() => setSidebarOpen(true)}
         sidebarCollapsed={sidebarCollapsed}
       />
-      <div className="flex">
-        <AdminSidebar
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          isCollapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          onExpandAndNavigate={handleExpandAndNavigate}
-        />
-        <main className={`flex-1 pt-16 p-4 lg:p-8 transition-all duration-300 ${
-          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-        }`}>
+
+      {/* Sidebar - Fixed on left, starts below header */}
+      <AdminSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onExpandAndNavigate={handleExpandAndNavigate}
+      />
+
+      {/* Main Content - Positioned after header height and sidebar width */}
+      <main className={`transition-all duration-300 ${
+        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+      } pt-14 lg:pt-16`}>
+        <div className="px-3 pt-8 pb-5 lg:p-6">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

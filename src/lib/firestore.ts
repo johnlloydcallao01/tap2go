@@ -107,6 +107,24 @@ export const getRestaurantById = async (id: string): Promise<Restaurant | null> 
   return null;
 };
 
+export const createRestaurant = async (restaurantData: Omit<Restaurant, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const docRef = await addDoc(collection(db, 'restaurants'), {
+    ...restaurantData,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  return docRef.id;
+};
+
+export const updateRestaurant = async (id: string, updateData: Partial<Restaurant>) => {
+  const docRef = doc(db, 'restaurants', id);
+  await updateDoc(docRef, {
+    ...updateData,
+    updatedAt: new Date(),
+  });
+};
+
 export const searchRestaurants = async (searchTerm: string, cuisine?: string) => {
   let q = query(collection(db, 'restaurants'));
 

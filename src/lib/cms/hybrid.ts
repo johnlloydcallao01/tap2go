@@ -3,10 +3,34 @@
  * Combines Firebase operational data with Strapi content data
  */
 
-import { collection, doc, getDoc, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { cms } from './index';
-import { strapiCache } from '../strapi/cache';
+
+// Type definitions for Strapi data structures
+interface StrapiImageData {
+  data?: {
+    attributes?: {
+      url: string;
+    };
+  };
+}
+
+interface StrapiGalleryData {
+  data?: Array<{
+    attributes: {
+      url: string;
+    };
+  }>;
+}
+
+interface StrapiImagesData {
+  data?: Array<{
+    attributes: {
+      url: string;
+    };
+  }>;
+}
 
 // Types for hybrid data structures
 export interface HybridRestaurant {
@@ -33,11 +57,11 @@ export interface HybridRestaurant {
     longDescription?: string;
     heroImage?: string;
     gallery?: string[];
-    awards?: any[];
-    certifications?: any[];
-    specialFeatures?: any[];
-    socialMedia?: any;
-    seo?: any;
+    awards?: Record<string, unknown>[];
+    certifications?: Record<string, unknown>[];
+    specialFeatures?: Record<string, unknown>[];
+    socialMedia?: Record<string, unknown>;
+    seo?: Record<string, unknown>;
   };
   
   // Metadata
@@ -62,12 +86,12 @@ export interface HybridMenuItem {
   content?: {
     detailedDescription?: string;
     images?: string[];
-    ingredients?: any[];
-    allergens?: any[];
-    nutritionalInfo?: any;
+    ingredients?: Record<string, unknown>[];
+    allergens?: Record<string, unknown>[];
+    nutritionalInfo?: Record<string, unknown>;
     preparationSteps?: string[];
     chefNotes?: string;
-    tags?: any[];
+    tags?: Record<string, unknown>[];
     isVegetarian?: boolean;
     isVegan?: boolean;
     isGlutenFree?: boolean;
@@ -106,7 +130,8 @@ export interface HybridMenuCategory {
  * Merges Firebase operational data with Strapi content data
  */
 export class HybridDataResolver {
-  private cache = strapiCache;
+  // Simple in-memory cache for hybrid data
+  private cache = new Map<string, { data: unknown; expires: number }>();
 
   /**
    * Get complete restaurant data (Firebase + Strapi)
@@ -115,9 +140,9 @@ export class HybridDataResolver {
     try {
       // Check cache first
       const cacheKey = `hybrid:restaurant:${restaurantId}`;
-      const cached = await this.cache.get<HybridRestaurant>(cacheKey);
-      if (cached) {
-        return cached;
+      const cached = this.cache.get(cacheKey);
+      if (cached && Date.now() < cached.expires) {
+        return cached.data as HybridRestaurant;
       }
 
       // Get operational data from Firebase
@@ -131,15 +156,18 @@ export class HybridDataResolver {
 
       // Merge data
       const hybridRestaurant: HybridRestaurant = {
-        ...operationalData,
-        content: contentData ? this.transformRestaurantContent(contentData) : undefined,
+        ...(operationalData as unknown as HybridRestaurant),
+        content: contentData ? this.transformRestaurantContent(contentData as unknown as Record<string, unknown>) : undefined,
         source: 'hybrid',
         lastUpdated: new Date().toISOString(),
         hasRichContent: !!contentData
       };
 
       // Cache the result for 15 minutes
-      await this.cache.set(cacheKey, hybridRestaurant, 900);
+      this.cache.set(cacheKey, {
+        data: hybridRestaurant,
+        expires: Date.now() + (15 * 60 * 1000)
+      });
 
       return hybridRestaurant;
     } catch (error) {
@@ -155,9 +183,9 @@ export class HybridDataResolver {
     try {
       // Check cache first
       const cacheKey = `hybrid:menu:${restaurantId}`;
-      const cached = await this.cache.get<HybridMenuCategory[]>(cacheKey);
-      if (cached) {
-        return cached;
+      const cached = this.cache.get(cacheKey);
+      if (cached && cached.expires > Date.now()) {
+        return cached.data as HybridMenuCategory[];
       }
 
       // Get operational menu data from Firebase
@@ -168,7 +196,7 @@ export class HybridDataResolver {
       const contentCategories = await cms.getMenuCategories(restaurantId);
 
       // Merge categories with content
-      const hybridCategories: HybridMenuCategory[] = operationalCategories.map(category => {
+      const hybridCategories: HybridMenuCategory[] = await Promise.all(operationalCategories.map(async category => {
         const contentCategory = contentCategories.find(c => 
           c.attributes.firebaseId === category.id
         );
@@ -177,16 +205,19 @@ export class HybridDataResolver {
         const categoryItems = operationalItems.filter(item => item.category === category.id);
 
         return {
-          ...category,
-          content: contentCategory ? this.transformCategoryContent(contentCategory) : undefined,
-          items: categoryItems.map(item => this.createHybridMenuItem(item, restaurantId)),
+          ...(category as unknown as HybridMenuCategory),
+          content: contentCategory ? this.transformCategoryContent(contentCategory as unknown as Record<string, unknown>) : undefined,
+          items: await Promise.all(categoryItems.map(item => this.createHybridMenuItem(item, restaurantId))),
           source: 'hybrid',
           hasRichContent: !!contentCategory
         };
-      });
+      }));
 
       // Cache the result for 30 minutes
-      await this.cache.set(cacheKey, hybridCategories, 1800);
+      this.cache.set(cacheKey, {
+        data: hybridCategories,
+        expires: Date.now() + (30 * 60 * 1000)
+      });
 
       return hybridCategories;
     } catch (error) {
@@ -209,7 +240,7 @@ export class HybridDataResolver {
       // Get content data from Strapi
       const contentItem = await cms.getMenuItemContent(itemId);
 
-      return this.createHybridMenuItem(operationalItem, restaurantId, contentItem);
+      return this.createHybridMenuItem(operationalItem, restaurantId, contentItem as unknown as Record<string, unknown> | undefined);
     } catch (error) {
       console.error('Error getting complete menu item data:', error);
       return null;
@@ -219,19 +250,19 @@ export class HybridDataResolver {
   /**
    * Search restaurants with content
    */
-  async searchRestaurantsWithContent(searchQuery: string, location?: { lat: number; lng: number }): Promise<HybridRestaurant[]> {
+  async searchRestaurantsWithContent(): Promise<HybridRestaurant[]> {
     try {
       // Get restaurants from Firebase (this would include search logic)
-      const firebaseRestaurants = await this.searchFirebaseRestaurants(searchQuery, location);
+      const firebaseRestaurants = await this.searchFirebaseRestaurants();
 
       // Enhance with content data
       const hybridRestaurants = await Promise.all(
         firebaseRestaurants.map(async (restaurant) => {
-          const contentData = await cms.getRestaurantContent(restaurant.id);
-          
+          const contentData = await cms.getRestaurantContent(String(restaurant.id));
+
           return {
-            ...restaurant,
-            content: contentData ? this.transformRestaurantContent(contentData) : undefined,
+            ...(restaurant as unknown as HybridRestaurant),
+            content: contentData ? this.transformRestaurantContent(contentData as unknown as Record<string, unknown>) : undefined,
             source: 'hybrid' as const,
             lastUpdated: new Date().toISOString(),
             hasRichContent: !!contentData
@@ -249,7 +280,7 @@ export class HybridDataResolver {
   /**
    * Get Firebase restaurant data
    */
-  private async getFirebaseRestaurant(restaurantId: string): Promise<any | null> {
+  private async getFirebaseRestaurant(restaurantId: string): Promise<Record<string, unknown> | null> {
     try {
       const restaurantRef = doc(db, 'restaurants', restaurantId);
       const restaurantSnap = await getDoc(restaurantRef);
@@ -271,7 +302,7 @@ export class HybridDataResolver {
   /**
    * Get Firebase menu categories
    */
-  private async getFirebaseMenuCategories(restaurantId: string): Promise<any[]> {
+  private async getFirebaseMenuCategories(restaurantId: string): Promise<Record<string, unknown>[]> {
     try {
       const categoriesRef = collection(db, `restaurants/${restaurantId}/menuCategories`);
       const categoriesQuery = query(categoriesRef, orderBy('sortOrder', 'asc'));
@@ -290,7 +321,7 @@ export class HybridDataResolver {
   /**
    * Get Firebase menu items
    */
-  private async getFirebaseMenuItems(restaurantId: string): Promise<any[]> {
+  private async getFirebaseMenuItems(restaurantId: string): Promise<Record<string, unknown>[]> {
     try {
       const itemsRef = collection(db, `restaurants/${restaurantId}/menuItems`);
       const itemsSnap = await getDocs(itemsRef);
@@ -308,7 +339,7 @@ export class HybridDataResolver {
   /**
    * Get single Firebase menu item
    */
-  private async getFirebaseMenuItem(restaurantId: string, itemId: string): Promise<any | null> {
+  private async getFirebaseMenuItem(restaurantId: string, itemId: string): Promise<Record<string, unknown> | null> {
     try {
       const itemRef = doc(db, `restaurants/${restaurantId}/menuItems`, itemId);
       const itemSnap = await getDoc(itemRef);
@@ -330,7 +361,7 @@ export class HybridDataResolver {
   /**
    * Search Firebase restaurants (placeholder implementation)
    */
-  private async searchFirebaseRestaurants(searchQuery: string, location?: { lat: number; lng: number }): Promise<any[]> {
+  private async searchFirebaseRestaurants(): Promise<Record<string, unknown>[]> {
     try {
       // This would implement actual search logic
       // For now, return a simple query
@@ -351,41 +382,44 @@ export class HybridDataResolver {
   /**
    * Transform Strapi restaurant content for hybrid structure
    */
-  private transformRestaurantContent(contentData: any): any {
+  private transformRestaurantContent(contentData: Record<string, unknown>): Record<string, unknown> {
+    const attributes = contentData.attributes as Record<string, unknown>;
     return {
-      story: contentData.attributes.story,
-      longDescription: contentData.attributes.longDescription,
-      heroImage: contentData.attributes.heroImage?.data?.attributes?.url,
-      gallery: contentData.attributes.gallery?.data?.map((img: any) => img.attributes.url) || [],
-      awards: contentData.attributes.awards || [],
-      certifications: contentData.attributes.certifications || [],
-      specialFeatures: contentData.attributes.specialFeatures || [],
-      socialMedia: contentData.attributes.socialMedia,
-      seo: contentData.attributes.seo
+      story: attributes?.story,
+      longDescription: attributes?.longDescription,
+      heroImage: (attributes?.heroImage as StrapiImageData)?.data?.attributes?.url,
+      gallery: (attributes?.gallery as StrapiGalleryData)?.data?.map((img: { attributes: { url: string } }) => img.attributes.url) || [],
+      awards: attributes?.awards || [],
+      certifications: attributes?.certifications || [],
+      specialFeatures: attributes?.specialFeatures || [],
+      socialMedia: attributes?.socialMedia,
+      seo: attributes?.seo
     };
   }
 
   /**
    * Transform Strapi category content for hybrid structure
    */
-  private transformCategoryContent(contentData: any): any {
+  private transformCategoryContent(contentData: Record<string, unknown>): Record<string, unknown> {
+    const attributes = contentData.attributes as Record<string, unknown>;
     return {
-      detailedDescription: contentData.attributes.description,
-      image: contentData.attributes.image?.data?.attributes?.url
+      detailedDescription: attributes?.description,
+      image: (attributes?.image as StrapiImageData)?.data?.attributes?.url
     };
   }
 
   /**
    * Create hybrid menu item
    */
-  private async createHybridMenuItem(operationalItem: any, restaurantId: string, contentItem?: any): Promise<HybridMenuItem> {
+  private async createHybridMenuItem(operationalItem: Record<string, unknown>, restaurantId: string, contentItem?: Record<string, unknown>): Promise<HybridMenuItem> {
     // If content item not provided, try to fetch it
     if (!contentItem) {
-      contentItem = await cms.getMenuItemContent(operationalItem.id);
+      const fetchedContent = await cms.getMenuItemContent(String(operationalItem.id));
+      contentItem = fetchedContent as unknown as Record<string, unknown> | undefined;
     }
 
     return {
-      ...operationalItem,
+      ...(operationalItem as unknown as HybridMenuItem),
       content: contentItem ? this.transformMenuItemContent(contentItem) : undefined,
       source: 'hybrid',
       hasRichContent: !!contentItem
@@ -395,20 +429,21 @@ export class HybridDataResolver {
   /**
    * Transform Strapi menu item content for hybrid structure
    */
-  private transformMenuItemContent(contentData: any): any {
+  private transformMenuItemContent(contentData: Record<string, unknown>): Record<string, unknown> {
+    const attributes = contentData.attributes as Record<string, unknown>;
     return {
-      detailedDescription: contentData.attributes.detailedDescription,
-      images: contentData.attributes.images?.data?.map((img: any) => img.attributes.url) || [],
-      ingredients: contentData.attributes.ingredients || [],
-      allergens: contentData.attributes.allergens || [],
-      nutritionalInfo: contentData.attributes.nutritionalInfo,
-      preparationSteps: contentData.attributes.preparationSteps || [],
-      chefNotes: contentData.attributes.chefNotes,
-      tags: contentData.attributes.tags || [],
-      isVegetarian: contentData.attributes.isVegetarian,
-      isVegan: contentData.attributes.isVegan,
-      isGlutenFree: contentData.attributes.isGlutenFree,
-      spiceLevel: contentData.attributes.spiceLevel
+      detailedDescription: attributes?.detailedDescription,
+      images: (attributes?.images as StrapiImagesData)?.data?.map((img: { attributes: { url: string } }) => img.attributes.url) || [],
+      ingredients: attributes?.ingredients || [],
+      allergens: attributes?.allergens || [],
+      nutritionalInfo: attributes?.nutritionalInfo,
+      preparationSteps: attributes?.preparationSteps || [],
+      chefNotes: attributes?.chefNotes,
+      tags: attributes?.tags || [],
+      isVegetarian: attributes?.isVegetarian,
+      isVegan: attributes?.isVegan,
+      isGlutenFree: attributes?.isGlutenFree,
+      spiceLevel: attributes?.spiceLevel
     };
   }
 }

@@ -1,25 +1,65 @@
 /**
  * CMS Abstraction Layer for Tap2Go
- * Provides a unified interface for content management operations
+ * Provides a unified interface for content management operations using custom CMS
  */
 
-import { strapiClient } from '../strapi/client';
-import { strapiCache } from '../strapi/cache';
+import { neonClient } from '../neon/client';
 import {
-  RestaurantContent,
-  MenuCategoryContent,
-  MenuItemContent,
-  PromotionContent,
-  BlogPost,
-  StaticPage,
-  HomepageBanner,
-  StrapiQueryParams
-} from '../strapi/types';
+  RestaurantContentOps,
+  MenuCategoryOps,
+  MenuItemOps,
+  BlogPostOps,
+  PromotionOps
+} from '../neon/operations';
+
+interface CMSQueryParams {
+  filters?: Record<string, unknown>;
+  sort?: string[];
+  pagination?: {
+    limit?: number;
+    offset?: number;
+  };
+}
+
+interface RestaurantContent {
+  id: number;
+  attributes: Record<string, unknown>;
+}
+
+interface MenuCategoryContent {
+  id: number;
+  attributes: Record<string, unknown>;
+}
+
+interface MenuItemContent {
+  id: number;
+  attributes: Record<string, unknown>;
+}
+
+interface PromotionContent {
+  id: number;
+  attributes: Record<string, unknown>;
+}
+
+interface BlogPost {
+  id: number;
+  attributes: Record<string, unknown>;
+}
+
+interface StaticPage {
+  id: number;
+  attributes: Record<string, unknown>;
+}
+
+interface HomepageBanner {
+  id: number;
+  attributes: Record<string, unknown>;
+}
 
 /**
  * CMS Interface - defines the contract for content management operations
  */
-export interface CMSInterface {
+interface CMSInterface {
   // Restaurant content operations
   getRestaurantContent(firebaseId: string): Promise<RestaurantContent | null>;
   getRestaurantBySlug(slug: string): Promise<RestaurantContent | null>;
@@ -36,7 +76,7 @@ export interface CMSInterface {
   getPromotionsByRestaurant(restaurantFirebaseId: string): Promise<PromotionContent[]>;
   
   // Blog operations
-  getBlogPosts(params?: StrapiQueryParams): Promise<BlogPost[]>;
+  getBlogPosts(params?: CMSQueryParams): Promise<BlogPost[]>;
   getBlogPost(slug: string): Promise<BlogPost | null>;
   getFeaturedBlogPosts(): Promise<BlogPost[]>;
   
@@ -48,57 +88,46 @@ export interface CMSInterface {
   getHomepageBanners(): Promise<HomepageBanner[]>;
   
   // Search operations
-  searchContent(query: string, contentTypes?: string[]): Promise<any[]>;
+  searchContent(query: string, contentTypes?: string[]): Promise<Record<string, unknown>[]>;
   
   // Cache operations
   invalidateCache(type: string, id?: string): Promise<void>;
 }
 
 /**
- * Strapi CMS Implementation
+ * Custom CMS Implementation using Neon PostgreSQL
  */
-export class StrapiCMS implements CMSInterface {
-  private client = strapiClient;
-  private cache = strapiCache;
+export class CustomCMS implements CMSInterface {
+  private client = neonClient;
 
   /**
    * Get restaurant content by Firebase ID
    */
   async getRestaurantContent(firebaseId: string): Promise<RestaurantContent | null> {
     try {
-      // Check cache first
-      const cached = await this.cache.getRestaurantContent(firebaseId);
-      if (cached) {
-        return cached;
-      }
+      const result = await RestaurantContentOps.getByFirebaseId(firebaseId);
+      if (!result) return null;
 
-      // Fetch from Strapi
-      const response = await this.client.get<RestaurantContent[]>('/restaurant-contents', {
-        filters: {
-          firebaseId: { $eq: firebaseId }
-        },
-        populate: [
-          'heroImage',
-          'gallery',
-          'awards',
-          'awards.image',
-          'certifications',
-          'certifications.certificateImage',
-          'specialFeatures',
-          'socialMedia',
-          'seo',
-          'seo.metaImage'
-        ]
-      });
-
-      const restaurant = response.data[0] || null;
-      
-      // Cache the result
-      if (restaurant) {
-        await this.cache.cacheRestaurantContent(firebaseId, restaurant);
-      }
-
-      return restaurant;
+      return {
+        id: result.id!,
+        attributes: {
+          firebaseId: result.firebase_id,
+          slug: result.slug,
+          story: result.story,
+          longDescription: result.long_description,
+          heroImage: result.hero_image_url,
+          gallery: result.gallery_images,
+          awards: result.awards,
+          certifications: result.certifications,
+          specialFeatures: result.special_features,
+          socialMedia: result.social_media,
+          seo: result.seo_data,
+          isPublished: result.is_published,
+          publishedAt: result.published_at,
+          createdAt: result.created_at,
+          updatedAt: result.updated_at
+        }
+      };
     } catch (error) {
       console.error('Error fetching restaurant content:', error);
       return null;
@@ -110,14 +139,25 @@ export class StrapiCMS implements CMSInterface {
    */
   async getRestaurantBySlug(slug: string): Promise<RestaurantContent | null> {
     try {
-      const response = await this.client.get<RestaurantContent[]>('/restaurant-contents', {
-        filters: {
-          slug: { $eq: slug }
-        },
-        populate: '*'
-      });
+      const result = await RestaurantContentOps.getBySlug(slug);
+      if (!result) return null;
 
-      return response.data[0] || null;
+      return {
+        id: result.id!,
+        attributes: {
+          firebaseId: result.firebase_id,
+          slug: result.slug,
+          story: result.story,
+          longDescription: result.long_description,
+          heroImage: result.hero_image_url,
+          gallery: result.gallery_images,
+          awards: result.awards,
+          certifications: result.certifications,
+          specialFeatures: result.special_features,
+          socialMedia: result.social_media,
+          seo: result.seo_data
+        }
+      };
     } catch (error) {
       console.error('Error fetching restaurant by slug:', error);
       return null;
@@ -129,14 +169,42 @@ export class StrapiCMS implements CMSInterface {
    */
   async createRestaurantContent(data: Partial<RestaurantContent>): Promise<RestaurantContent> {
     try {
-      const response = await this.client.post<RestaurantContent>('/restaurant-contents', data);
-      
-      // Invalidate cache
-      if (data.attributes?.firebaseId) {
-        await this.cache.invalidateRestaurantCache(data.attributes.firebaseId);
-      }
+      const attributes = data.attributes as Record<string, unknown>;
+      const result = await RestaurantContentOps.create({
+        firebase_id: String(attributes?.firebaseId || ''),
+        slug: String(attributes?.slug || ''),
+        story: attributes?.story as string | undefined,
+        long_description: attributes?.longDescription as string | undefined,
+        hero_image_url: attributes?.heroImage as string | undefined,
+        gallery_images: attributes?.gallery as Record<string, unknown>[] | undefined,
+        awards: attributes?.awards as Record<string, unknown>[] | undefined,
+        certifications: attributes?.certifications as Record<string, unknown>[] | undefined,
+        special_features: attributes?.specialFeatures as Record<string, unknown>[] | undefined,
+        social_media: attributes?.socialMedia as Record<string, unknown> | undefined,
+        seo_data: attributes?.seo as Record<string, unknown> | undefined,
+        is_published: Boolean(attributes?.isPublished || false)
+      });
 
-      return response.data;
+      return {
+        id: result.id!,
+        attributes: {
+          firebaseId: result.firebase_id,
+          slug: result.slug,
+          story: result.story,
+          longDescription: result.long_description,
+          heroImage: result.hero_image_url,
+          gallery: result.gallery_images,
+          awards: result.awards,
+          certifications: result.certifications,
+          specialFeatures: result.special_features,
+          socialMedia: result.social_media,
+          seo: result.seo_data,
+          isPublished: result.is_published,
+          publishedAt: result.published_at,
+          createdAt: result.created_at,
+          updatedAt: result.updated_at
+        }
+      };
     } catch (error) {
       console.error('Error creating restaurant content:', error);
       throw error;
@@ -148,14 +216,41 @@ export class StrapiCMS implements CMSInterface {
    */
   async updateRestaurantContent(id: number, data: Partial<RestaurantContent>): Promise<RestaurantContent> {
     try {
-      const response = await this.client.put<RestaurantContent>(`/restaurant-contents/${id}`, data);
-      
-      // Invalidate cache
-      if (data.attributes?.firebaseId) {
-        await this.cache.invalidateRestaurantCache(data.attributes.firebaseId);
-      }
+      const attributes = data.attributes as Record<string, unknown>;
+      const result = await RestaurantContentOps.update(id, {
+        slug: attributes?.slug as string | undefined,
+        story: attributes?.story as string | undefined,
+        long_description: attributes?.longDescription as string | undefined,
+        hero_image_url: attributes?.heroImage as string | undefined,
+        gallery_images: attributes?.gallery as Record<string, unknown>[] | undefined,
+        awards: attributes?.awards as Record<string, unknown>[] | undefined,
+        certifications: attributes?.certifications as Record<string, unknown>[] | undefined,
+        special_features: attributes?.specialFeatures as Record<string, unknown>[] | undefined,
+        social_media: attributes?.socialMedia as Record<string, unknown> | undefined,
+        seo_data: attributes?.seo as Record<string, unknown> | undefined,
+        is_published: attributes?.isPublished as boolean | undefined
+      });
 
-      return response.data;
+      return {
+        id: result.id!,
+        attributes: {
+          firebaseId: result.firebase_id,
+          slug: result.slug,
+          story: result.story,
+          longDescription: result.long_description,
+          heroImage: result.hero_image_url,
+          gallery: result.gallery_images,
+          awards: result.awards,
+          certifications: result.certifications,
+          specialFeatures: result.special_features,
+          socialMedia: result.social_media,
+          seo: result.seo_data,
+          isPublished: result.is_published,
+          publishedAt: result.published_at,
+          createdAt: result.created_at,
+          updatedAt: result.updated_at
+        }
+      };
     } catch (error) {
       console.error('Error updating restaurant content:', error);
       throw error;
@@ -167,28 +262,18 @@ export class StrapiCMS implements CMSInterface {
    */
   async getMenuCategories(restaurantFirebaseId: string): Promise<MenuCategoryContent[]> {
     try {
-      // Check cache first
-      const cached = await this.cache.getMenuContent(restaurantFirebaseId);
-      if (cached) {
-        return cached;
-      }
-
-      const response = await this.client.get<MenuCategoryContent[]>('/menu-category-contents', {
-        filters: {
-          restaurant: {
-            firebaseId: { $eq: restaurantFirebaseId }
-          }
-        },
-        populate: ['image', 'restaurant'],
-        sort: ['sortOrder:asc']
-      });
-
-      const categories = response.data;
-      
-      // Cache the result
-      await this.cache.cacheMenuContent(restaurantFirebaseId, categories);
-
-      return categories;
+      const results = await MenuCategoryOps.getByRestaurant(restaurantFirebaseId);
+      return results.map(result => ({
+        id: result.id!,
+        attributes: {
+          restaurantFirebaseId: result.restaurant_firebase_id,
+          slug: result.slug,
+          description: result.description,
+          longDescription: result.long_description,
+          image: result.image_url,
+          seo: result.seo_data
+        }
+      }));
     } catch (error) {
       console.error('Error fetching menu categories:', error);
       return [];
@@ -200,25 +285,25 @@ export class StrapiCMS implements CMSInterface {
    */
   async getMenuItems(categoryFirebaseId: string): Promise<MenuItemContent[]> {
     try {
-      const response = await this.client.get<MenuItemContent[]>('/menu-item-contents', {
-        filters: {
-          category: {
-            firebaseId: { $eq: categoryFirebaseId }
-          }
-        },
-        populate: [
-          'images',
-          'ingredients',
-          'allergens',
-          'nutritionalInfo',
-          'tags',
-          'category',
-          'restaurant',
-          'seo'
-        ]
-      });
-
-      return response.data;
+      const results = await MenuItemOps.getByCategory(categoryFirebaseId);
+      return results.map(result => ({
+        id: result.id!,
+        attributes: {
+          categoryFirebaseId: result.category_firebase_id,
+          restaurantFirebaseId: result.restaurant_firebase_id,
+          slug: result.slug,
+          description: result.description,
+          longDescription: result.detailed_description,
+          images: result.images,
+          ingredients: result.ingredients,
+          allergens: result.allergens,
+          nutritionalInfo: result.nutritional_info,
+          preparationSteps: result.preparation_steps,
+          chefNotes: result.chef_notes,
+          tags: result.tags,
+          seo: result.seo_data
+        }
+      }));
     } catch (error) {
       console.error('Error fetching menu items:', error);
       return [];
@@ -230,14 +315,27 @@ export class StrapiCMS implements CMSInterface {
    */
   async getMenuItemContent(firebaseId: string): Promise<MenuItemContent | null> {
     try {
-      const response = await this.client.get<MenuItemContent[]>('/menu-item-contents', {
-        filters: {
-          firebaseId: { $eq: firebaseId }
-        },
-        populate: '*'
-      });
+      const result = await MenuItemOps.getByFirebaseId(firebaseId);
+      if (!result) return null;
 
-      return response.data[0] || null;
+      return {
+        id: result.id!,
+        attributes: {
+          categoryFirebaseId: result.category_firebase_id,
+          restaurantFirebaseId: result.restaurant_firebase_id,
+          slug: result.slug,
+          description: result.description,
+          longDescription: result.detailed_description,
+          images: result.images,
+          ingredients: result.ingredients,
+          allergens: result.allergens,
+          nutritionalInfo: result.nutritional_info,
+          preparationSteps: result.preparation_steps,
+          chefNotes: result.chef_notes,
+          tags: result.tags,
+          seo: result.seo_data
+        }
+      };
     } catch (error) {
       console.error('Error fetching menu item content:', error);
       return null;
@@ -249,23 +347,26 @@ export class StrapiCMS implements CMSInterface {
    */
   async getActivePromotions(): Promise<PromotionContent[]> {
     try {
-      const response = await this.client.get<PromotionContent[]>('/promotion-contents', {
-        filters: {
-          isActive: { $eq: true },
-          validFrom: { $lte: new Date().toISOString() },
-          validUntil: { $gte: new Date().toISOString() }
-        },
-        populate: [
-          'image',
-          'bannerImage',
-          'restaurants',
-          'categories',
-          'menuItems'
-        ],
-        sort: ['createdAt:desc']
-      });
-
-      return response.data;
+      const results = await PromotionOps.getActive();
+      return results.map(result => ({
+        id: result.id!,
+        attributes: {
+          title: result.title,
+          description: result.description,
+          longDescription: result.long_description,
+          discountType: result.discount_type,
+          discountValue: result.discount_value,
+          validFrom: result.valid_from,
+          validUntil: result.valid_until,
+          isActive: result.is_active,
+          image: result.image_url,
+          bannerImage: result.banner_image_url,
+          targetRestaurants: result.target_restaurants,
+          targetCategories: result.target_categories,
+          targetMenuItems: result.target_menu_items,
+          seo: result.seo_data
+        }
+      }));
     } catch (error) {
       console.error('Error fetching active promotions:', error);
       return [];
@@ -277,17 +378,26 @@ export class StrapiCMS implements CMSInterface {
    */
   async getPromotionsByRestaurant(restaurantFirebaseId: string): Promise<PromotionContent[]> {
     try {
-      const response = await this.client.get<PromotionContent[]>('/promotion-contents', {
-        filters: {
-          isActive: { $eq: true },
-          restaurants: {
-            firebaseId: { $eq: restaurantFirebaseId }
-          }
-        },
-        populate: ['image', 'bannerImage']
-      });
-
-      return response.data;
+      const results = await PromotionOps.getByRestaurant(restaurantFirebaseId);
+      return results.map(result => ({
+        id: result.id!,
+        attributes: {
+          title: result.title,
+          description: result.description,
+          longDescription: result.long_description,
+          discountType: result.discount_type,
+          discountValue: result.discount_value,
+          validFrom: result.valid_from,
+          validUntil: result.valid_until,
+          isActive: result.is_active,
+          image: result.image_url,
+          bannerImage: result.banner_image_url,
+          targetRestaurants: result.target_restaurants,
+          targetCategories: result.target_categories,
+          targetMenuItems: result.target_menu_items,
+          seo: result.seo_data
+        }
+      }));
     } catch (error) {
       console.error('Error fetching restaurant promotions:', error);
       return [];
@@ -297,26 +407,35 @@ export class StrapiCMS implements CMSInterface {
   /**
    * Get blog posts
    */
-  async getBlogPosts(params?: StrapiQueryParams): Promise<BlogPost[]> {
+  async getBlogPosts(params?: CMSQueryParams): Promise<BlogPost[]> {
     try {
-      const defaultParams: StrapiQueryParams = {
-        filters: {
-          isPublished: { $eq: true }
-        },
-        populate: [
-          'featuredImage',
-          'author',
-          'author.avatar',
-          'categories',
-          'tags',
-          'relatedRestaurants'
-        ],
-        sort: ['publishedAt:desc'],
-        ...params
-      };
+      const limit = params?.pagination?.limit || 10;
+      const offset = params?.pagination?.offset || 0;
 
-      const response = await this.client.get<BlogPost[]>('/blog-posts', defaultParams);
-      return response.data;
+      const results = await BlogPostOps.listPublished(limit, offset);
+      return results.map(result => ({
+        id: result.id!,
+        attributes: {
+          title: result.title,
+          slug: result.slug,
+          content: result.content,
+          excerpt: result.excerpt,
+          featuredImage: result.featured_image_url,
+          authorName: result.author_name,
+          authorBio: result.author_bio,
+          authorAvatar: result.author_avatar_url,
+          categories: result.categories,
+          tags: result.tags,
+          relatedRestaurants: result.related_restaurants,
+          readingTime: result.reading_time,
+          isPublished: result.is_published,
+          isFeatured: result.is_featured,
+          seo: result.seo_data,
+          publishedAt: result.published_at,
+          createdAt: result.created_at,
+          updatedAt: result.updated_at
+        }
+      }));
     } catch (error) {
       console.error('Error fetching blog posts:', error);
       return [];
@@ -328,15 +447,32 @@ export class StrapiCMS implements CMSInterface {
    */
   async getBlogPost(slug: string): Promise<BlogPost | null> {
     try {
-      const response = await this.client.get<BlogPost[]>('/blog-posts', {
-        filters: {
-          slug: { $eq: slug },
-          isPublished: { $eq: true }
-        },
-        populate: '*'
-      });
+      const result = await BlogPostOps.getBySlug(slug);
+      if (!result) return null;
 
-      return response.data[0] || null;
+      return {
+        id: result.id!,
+        attributes: {
+          title: result.title,
+          slug: result.slug,
+          content: result.content,
+          excerpt: result.excerpt,
+          featuredImage: result.featured_image_url,
+          authorName: result.author_name,
+          authorBio: result.author_bio,
+          authorAvatar: result.author_avatar_url,
+          categories: result.categories,
+          tags: result.tags,
+          relatedRestaurants: result.related_restaurants,
+          readingTime: result.reading_time,
+          isPublished: result.is_published,
+          isFeatured: result.is_featured,
+          seo: result.seo_data,
+          publishedAt: result.published_at,
+          createdAt: result.created_at,
+          updatedAt: result.updated_at
+        }
+      };
     } catch (error) {
       console.error('Error fetching blog post:', error);
       return null;
@@ -348,17 +484,30 @@ export class StrapiCMS implements CMSInterface {
    */
   async getFeaturedBlogPosts(): Promise<BlogPost[]> {
     try {
-      const response = await this.client.get<BlogPost[]>('/blog-posts', {
-        filters: {
-          isPublished: { $eq: true },
-          isFeatured: { $eq: true }
-        },
-        populate: ['featuredImage', 'author', 'categories'],
-        sort: ['publishedAt:desc'],
-        pagination: { limit: 6 }
-      });
-
-      return response.data;
+      const results = await BlogPostOps.getFeatured(6);
+      return results.map(result => ({
+        id: result.id!,
+        attributes: {
+          title: result.title,
+          slug: result.slug,
+          content: result.content,
+          excerpt: result.excerpt,
+          featuredImage: result.featured_image_url,
+          authorName: result.author_name,
+          authorBio: result.author_bio,
+          authorAvatar: result.author_avatar_url,
+          categories: result.categories,
+          tags: result.tags,
+          relatedRestaurants: result.related_restaurants,
+          readingTime: result.reading_time,
+          isPublished: result.is_published,
+          isFeatured: result.is_featured,
+          seo: result.seo_data,
+          publishedAt: result.published_at,
+          createdAt: result.created_at,
+          updatedAt: result.updated_at
+        }
+      }));
     } catch (error) {
       console.error('Error fetching featured blog posts:', error);
       return [];
@@ -368,122 +517,53 @@ export class StrapiCMS implements CMSInterface {
   /**
    * Get static page by slug
    */
-  async getStaticPage(slug: string): Promise<StaticPage | null> {
-    try {
-      const response = await this.client.get<StaticPage[]>('/static-pages', {
-        filters: {
-          slug: { $eq: slug },
-          isPublished: { $eq: true }
-        },
-        populate: ['seo']
-      });
-
-      return response.data[0] || null;
-    } catch (error) {
-      console.error('Error fetching static page:', error);
-      return null;
-    }
+  async getStaticPage(): Promise<StaticPage | null> {
+    // Static pages not implemented in custom CMS yet
+    console.warn('Static pages not yet implemented in custom CMS');
+    return null;
   }
 
   /**
    * Get navigation pages
    */
   async getNavigationPages(): Promise<StaticPage[]> {
-    try {
-      const response = await this.client.get<StaticPage[]>('/static-pages', {
-        filters: {
-          isPublished: { $eq: true },
-          showInNavigation: { $eq: true }
-        },
-        sort: ['navigationOrder:asc']
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching navigation pages:', error);
-      return [];
-    }
+    // Navigation pages not implemented in custom CMS yet
+    console.warn('Navigation pages not yet implemented in custom CMS');
+    return [];
   }
 
   /**
    * Get homepage banners
    */
   async getHomepageBanners(): Promise<HomepageBanner[]> {
-    try {
-      const response = await this.client.get<HomepageBanner[]>('/homepage-banners', {
-        filters: {
-          isActive: { $eq: true },
-          $or: [
-            { startDate: { $null: true } },
-            { startDate: { $lte: new Date().toISOString() } }
-          ],
-          $and: [
-            {
-              $or: [
-                { endDate: { $null: true } },
-                { endDate: { $gte: new Date().toISOString() } }
-              ]
-            }
-          ]
-        },
-        populate: ['image', 'mobileImage'],
-        sort: ['sortOrder:asc']
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching homepage banners:', error);
-      return [];
-    }
+    // Homepage banners not implemented in custom CMS yet
+    console.warn('Homepage banners not yet implemented in custom CMS');
+    return [];
   }
 
   /**
    * Search content across multiple content types
    */
-  async searchContent(query: string, contentTypes?: string[]): Promise<any[]> {
-    try {
-      // This would require implementing search functionality in Strapi
-      // For now, return empty array
-      console.warn('Search functionality not yet implemented');
-      return [];
-    } catch (error) {
-      console.error('Error searching content:', error);
-      return [];
-    }
+  async searchContent(): Promise<Record<string, unknown>[]> {
+    // Search functionality not implemented in custom CMS yet
+    console.warn('Search functionality not yet implemented in custom CMS');
+    return [];
   }
 
   /**
    * Invalidate cache
    */
-  async invalidateCache(type: string, id?: string): Promise<void> {
-    try {
-      switch (type) {
-        case 'restaurant':
-          await this.cache.invalidateRestaurantCache(id);
-          break;
-        case 'menu':
-          await this.cache.invalidateMenuCache(id);
-          break;
-        case 'blog':
-          await this.cache.invalidateBlogCache();
-          break;
-        case 'promotion':
-          await this.cache.invalidatePromotionCache();
-          break;
-        default:
-          console.warn(`Unknown cache type: ${type}`);
-      }
-    } catch (error) {
-      console.error('Error invalidating cache:', error);
-    }
+  async invalidateCache(type: string): Promise<void> {
+    // Cache invalidation not implemented in custom CMS yet
+    console.warn(`Cache invalidation for ${type} not yet implemented in custom CMS`);
   }
 }
 
 // Export singleton instance
-export const cms = new StrapiCMS();
+export const cms = new CustomCMS();
 
 // Export CMS interface for dependency injection
-export { CMSInterface };
+export type { CMSInterface };
 
 // Export default CMS instance
 export default cms;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -17,8 +17,7 @@ import {
   CurrencyDollarIcon,
   UserGroupIcon,
   XMarkIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
+
   PresentationChartLineIcon,
   BanknotesIcon,
   ShieldCheckIcon,
@@ -41,8 +40,21 @@ import {
   ChevronRightIcon as ChevronRightIconSolid,
 } from '@heroicons/react/24/outline';
 
+// Type definitions for navigation structure
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface NavigationCategory {
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavigationItem[];
+}
+
 // Professional menu categorization structure with category icons
-const navigationCategories = [
+const navigationCategories: NavigationCategory[] = [
   {
     name: 'Overview',
     icon: HomeIcon,
@@ -150,27 +162,14 @@ export default function AdminSidebar({
   onExpandAndNavigate
 }: AdminSidebarProps) {
   const pathname = usePathname();
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([
-    'Overview', 'User Management', 'Operations' // Default expanded categories for immediate access
-  ]);
-
-  const toggleCategory = (categoryName: string) => {
-    setExpandedCategories(prev =>
-      prev.includes(categoryName)
-        ? prev.filter(name => name !== categoryName)
-        : [...prev, categoryName]
-    );
-  };
 
   const isItemActive = (href: string) => {
     return pathname === href || (href === '/admin/dashboard' && pathname === '/admin');
   };
 
-  const isCategoryActive = (category: any) => {
-    return category.items.some((item: any) => isItemActive(item.href));
-  };
 
-  const handleCollapsedCategoryClick = (category: any) => {
+
+  const handleCollapsedCategoryClick = (category: NavigationCategory) => {
     if (onExpandAndNavigate && category.items.length > 0) {
       // Get the first item in the category
       const firstItem = category.items[0];
@@ -194,7 +193,7 @@ export default function AdminSidebar({
         isOpen ? 'translate-x-0' : '-translate-x-full'
       } ${isCollapsed ? 'w-16' : 'w-64'}`}>
         {/* Fixed Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-gray-200 bg-white relative z-10">
+        <div className="flex items-center justify-between px-4 min-h-16 border-b border-gray-200 bg-white relative z-10">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">T</span>
@@ -234,11 +233,9 @@ export default function AdminSidebar({
           style={{ height: 'calc(100vh - 4rem)' }}
         >
           {/* Navigation */}
-          <nav className={`py-6 ${isCollapsed ? 'px-2' : 'px-4'}`}>
+          <nav className={`py-3 ${isCollapsed ? 'px-2' : 'px-4'}`}>
             <div className="space-y-1">
               {navigationCategories.map((category) => {
-                const isExpanded = expandedCategories.includes(category.name);
-                const categoryActive = isCategoryActive(category);
 
                 if (isCollapsed) {
                   // Collapsed view - show only category icons (interactive)
@@ -246,11 +243,7 @@ export default function AdminSidebar({
                     <div key={category.name} className="relative group">
                       <button
                         onClick={() => handleCollapsedCategoryClick(category)}
-                        className={`w-full flex items-center justify-center p-3 rounded-md transition-all duration-200 hover:scale-105 ${
-                          categoryActive
-                            ? 'bg-orange-100 text-orange-700 shadow-md'
-                            : 'text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:shadow-sm'
-                        }`}
+                        className="w-full flex items-center justify-center p-3 rounded-md transition-all duration-200 hover:scale-105 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:shadow-sm"
                         title={`${category.name} - Click to expand and view ${category.items[0]?.name || 'items'}`}
                       >
                         <category.icon className="h-6 w-6" />
@@ -268,60 +261,41 @@ export default function AdminSidebar({
                   );
                 }
 
-                // Expanded view - show full categories and items
+                // Expanded view - show full categories and items (always visible)
                 return (
-                  <div key={category.name} className="space-y-1">
-                    {/* Category Header */}
-                    <button
-                      onClick={() => toggleCategory(category.name)}
-                      className={`category-button w-full flex items-start justify-between px-3 py-2 text-sm font-semibold rounded-md transition-colors ${
-                        categoryActive
-                          ? 'bg-orange-50 text-orange-700'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <div className="flex items-start space-x-2 flex-1 min-w-0">
-                        <category.icon className="category-icon h-4 w-4 flex-shrink-0" />
-                        <span className="category-text uppercase tracking-wider text-xs text-left leading-tight">
-                          {category.name}
-                        </span>
-                      </div>
-                      <div className="flex-shrink-0 ml-2">
-                        {isExpanded ? (
-                          <ChevronDownIcon className="h-4 w-4 mt-0.5" />
-                        ) : (
-                          <ChevronRightIcon className="h-4 w-4 mt-0.5" />
-                        )}
-                      </div>
-                    </button>
+                  <div key={category.name}>
+                    {/* Category Header - Static Label */}
+                    <div className="category-header px-3 py-2 text-gray-700">
+                      <span className="category-text uppercase tracking-wide text-sm font-bold leading-tight">
+                        {category.name}
+                      </span>
+                    </div>
 
-                    {/* Category Items */}
-                    {isExpanded && (
-                      <div className="ml-2 space-y-1">
-                        {category.items.map((item) => {
-                          const isActive = isItemActive(item.href);
-                          return (
-                            <Link
-                              key={item.name}
-                              href={item.href}
-                              onClick={onClose}
-                              className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                isActive
-                                  ? 'bg-orange-100 text-orange-700 border-r-2 border-orange-500'
-                                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    {/* Category Items - Always Visible */}
+                    <div className="ml-3 space-y-1 mt-1 mb-4">
+                      {category.items.map((item) => {
+                        const isActive = isItemActive(item.href);
+                        return (
+                          <Link
+                            key={item.name}
+                            href={item.href}
+                            onClick={onClose}
+                            className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors ${
+                              isActive
+                                ? 'bg-orange-100 text-orange-700 border-r-2 border-orange-500'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                          >
+                            <item.icon
+                              className={`mr-3 h-4 w-4 ${
+                                isActive ? 'text-orange-500' : 'text-gray-400 group-hover:text-gray-500'
                               }`}
-                            >
-                              <item.icon
-                                className={`mr-3 h-5 w-5 ${
-                                  isActive ? 'text-orange-500' : 'text-gray-400 group-hover:text-gray-500'
-                                }`}
-                              />
-                              {item.name}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    )}
+                            />
+                            <span className="text-sm font-normal">{item.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}

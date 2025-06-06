@@ -1,517 +1,264 @@
 /**
  * Database Operations for Tap2Go
  * High-level business logic operations using the hybrid database client
+ *
+ * Note: This file handles CMS operations using Prisma (BlogPost model)
+ * Business logic operations (Users, Orders, Restaurants) are handled by Firestore
  */
 
 import { db } from './hybrid-client';
-import type { 
-  User, 
-  Restaurant, 
-  MenuItem, 
-  Order, 
-  CustomerProfile,
-  VendorProfile,
-  DriverProfile 
-} from '@prisma/client';
+import type { BlogPost, Prisma } from '@prisma/client';
 
-// ===== USER OPERATIONS =====
-export class UserOperations {
+// ===== CMS OPERATIONS (PRISMA) =====
+// Only BlogPost operations are handled by Prisma
+// All business logic operations are handled by Firestore
+
+export class BlogPostOperations {
   /**
-   * Create a new user with profile (uses Prisma for transaction safety)
+   * Create a new blog post
    */
-  static async createUser(userData: {
-    email: string;
-    phoneNumber?: string;
-    role: 'CUSTOMER' | 'VENDOR' | 'DRIVER';
-    profileData: any;
-  }) {
-    return db.orm.$transaction(async (prisma) => {
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email: userData.email,
-          phoneNumber: userData.phoneNumber,
-          role: userData.role,
-        }
-      });
-
-      // Create role-specific profile
-      let profile;
-      switch (userData.role) {
-        case 'CUSTOMER':
-          profile = await prisma.customerProfile.create({
-            data: {
-              userId: user.id,
-              ...userData.profileData
-            }
-          });
-          break;
-        case 'VENDOR':
-          profile = await prisma.vendorProfile.create({
-            data: {
-              userId: user.id,
-              ...userData.profileData
-            }
-          });
-          break;
-        case 'DRIVER':
-          profile = await prisma.driverProfile.create({
-            data: {
-              userId: user.id,
-              ...userData.profileData
-            }
-          });
-          break;
-      }
-
-      return { user, profile };
-    });
-  }
-
-  /**
-   * Get user with profile (uses Prisma for type safety)
-   */
-  static async getUserWithProfile(userId: string) {
-    return db.orm.user.findUnique({
-      where: { id: userId },
-      include: {
-        customerProfile: {
-          include: {
-            addresses: true
-          }
-        },
-        vendorProfile: {
-          include: {
-            restaurants: true
-          }
-        },
-        driverProfile: true
-      }
-    });
-  }
-
-  /**
-   * Update user FCM tokens for notifications
-   */
-  static async updateFCMTokens(userId: string, tokens: string[]) {
-    return db.orm.user.update({
-      where: { id: userId },
-      data: { fcmTokens: tokens }
-    });
-  }
-}
-
-// ===== RESTAURANT OPERATIONS =====
-export class RestaurantOperations {
-  /**
-   * Create restaurant with menu structure (uses Prisma transaction)
-   */
-  static async createRestaurant(restaurantData: {
-    vendorId: string;
-    name: string;
+  static async createBlogPost(postData: {
+    title: string;
     slug: string;
-    description?: string;
-    cuisineType: string[];
-    address: any;
-    coordinates?: any;
-    operatingHours: any;
-    deliverySettings: any;
+    content: string;
+    excerpt?: string;
+    status?: string;
+    authorId?: string;
+    authorName?: string;
+    authorEmail?: string;
+    featuredImageUrl?: string;
+    categories?: Record<string, unknown>[];
+    tags?: Record<string, unknown>[];
+    seoTitle?: string;
+    seoDescription?: string;
   }) {
-    return db.orm.restaurant.create({
-      data: restaurantData,
-      include: {
-        vendor: true
+    return db.orm.blogPost.create({
+      data: {
+        title: postData.title,
+        slug: postData.slug,
+        content: postData.content,
+        excerpt: postData.excerpt,
+        status: postData.status || 'draft',
+        authorId: postData.authorId,
+        authorName: postData.authorName,
+        authorEmail: postData.authorEmail,
+        featuredImageUrl: postData.featuredImageUrl,
+        categories: (postData.categories || []) as Prisma.InputJsonValue,
+        tags: (postData.tags || []) as Prisma.InputJsonValue,
+        seoTitle: postData.seoTitle,
+        seoDescription: postData.seoDescription,
       }
     });
   }
 
   /**
-   * Get restaurant with full menu (uses Prisma for relations)
+   * Get blog post by ID
    */
-  static async getRestaurantWithMenu(restaurantId: string) {
-    return db.orm.restaurant.findUnique({
-      where: { id: restaurantId },
-      include: {
-        vendor: true,
-        menuCategories: {
-          include: {
-            menuItems: {
-              include: {
-                customizations: true
-              }
-            }
-          },
-          orderBy: { sortOrder: 'asc' }
-        }
+  static async getBlogPostById(postId: number) {
+    return db.orm.blogPost.findUnique({
+      where: { id: postId }
+    });
+  }
+
+  /**
+   * Get blog post by slug
+   */
+  static async getBlogPostBySlug(slug: string) {
+    return db.orm.blogPost.findUnique({
+      where: { slug }
+    });
+  }
+
+  /**
+   * Update blog post
+   */
+  static async updateBlogPost(postId: number, updateData: Partial<BlogPost>) {
+    // Remove fields that shouldn't be updated directly
+    const { id, createdAt, updatedAt, parentId, ...cleanData } = updateData;
+
+    // Convert any null values to undefined for Prisma
+    const prismaData = Object.fromEntries(
+      Object.entries(cleanData).map(([key, value]) => [key, value === null ? undefined : value])
+    );
+
+    return db.orm.blogPost.update({
+      where: { id: postId },
+      data: {
+        ...prismaData,
+        updatedAt: new Date()
       }
     });
   }
 
   /**
-   * Get popular restaurants (uses direct SQL for performance)
+   * Delete blog post (soft delete)
    */
-  static async getPopularRestaurants(limit: number = 20, offset: number = 0) {
-    return db.getPopularRestaurants(limit, offset);
+  static async deleteBlogPost(postId: number) {
+    return db.orm.blogPost.update({
+      where: { id: postId },
+      data: {
+        deletedAt: new Date(),
+        status: 'trash'
+      }
+    });
   }
-
   /**
-   * Search restaurants with complex filters (uses direct SQL)
+   * Get published blog posts with pagination
    */
-  static async searchRestaurants(searchParams: {
-    query?: string;
-    latitude?: number;
-    longitude?: number;
-    radius?: number;
-    cuisineTypes?: string[];
-    minRating?: number;
-    maxDeliveryFee?: number;
+  static async getPublishedPosts(params: {
     limit?: number;
     offset?: number;
-  }) {
-    return db.searchRestaurants(searchParams);
-  }
+    category?: string;
+    tag?: string;
+  } = {}) {
+    const { limit = 10, offset = 0, category, tag } = params;
 
-  /**
-   * Update restaurant rating (uses direct SQL for performance)
-   */
-  static async updateRestaurantRating(restaurantId: string) {
-    return db.sql(`
-      UPDATE tap2go_restaurants 
-      SET 
-        rating = (
-          SELECT AVG(rating) 
-          FROM tap2go_reviews 
-          WHERE "restaurantId" = $1 AND "isVisible" = true
-        ),
-        "totalReviews" = (
-          SELECT COUNT(*) 
-          FROM tap2go_reviews 
-          WHERE "restaurantId" = $1 AND "isVisible" = true
-        ),
-        "updatedAt" = NOW()
-      WHERE id = $1
-      RETURNING *
-    `, [restaurantId]);
-  }
-
-  /**
-   * Get restaurant analytics (uses direct SQL for complex queries)
-   */
-  static async getRestaurantAnalytics(restaurantId: string, days: number = 30) {
-    return db.getRestaurantAnalytics(restaurantId, days);
-  }
-}
-
-// ===== MENU OPERATIONS =====
-export class MenuOperations {
-  /**
-   * Create menu category with items (uses Prisma transaction)
-   */
-  static async createMenuCategory(categoryData: {
-    restaurantId: string;
-    name: string;
-    description?: string;
-    imageUrl?: string;
-    sortOrder?: number;
-    menuItems?: any[];
-  }) {
-    return db.orm.$transaction(async (prisma) => {
-      const category = await prisma.menuCategory.create({
-        data: {
-          restaurantId: categoryData.restaurantId,
-          name: categoryData.name,
-          description: categoryData.description,
-          imageUrl: categoryData.imageUrl,
-          sortOrder: categoryData.sortOrder || 0
-        }
-      });
-
-      if (categoryData.menuItems && categoryData.menuItems.length > 0) {
-        const menuItems = await prisma.menuItem.createMany({
-          data: categoryData.menuItems.map(item => ({
-            ...item,
-            restaurantId: categoryData.restaurantId,
-            categoryId: category.id
-          }))
-        });
-
-        return { category, menuItems };
+    const where: Record<string, unknown> = {
+      status: 'published',
+      deletedAt: null,
+      publishedAt: {
+        lte: new Date()
       }
-
-      return { category };
-    });
-  }
-
-  /**
-   * Get menu items with customizations (uses Prisma for relations)
-   */
-  static async getMenuItemsWithCustomizations(restaurantId: string) {
-    return db.orm.menuItem.findMany({
-      where: { 
-        restaurantId,
-        isAvailable: true 
-      },
-      include: {
-        category: true,
-        customizations: true
-      },
-      orderBy: [
-        { category: { sortOrder: 'asc' } },
-        { sortOrder: 'asc' }
-      ]
-    });
-  }
-
-  /**
-   * Update menu item availability in bulk (uses direct SQL for performance)
-   */
-  static async updateMenuItemsAvailability(
-    restaurantId: string, 
-    updates: { itemId: string; isAvailable: boolean }[]
-  ) {
-    const updateCases = updates.map((update, index) => 
-      `WHEN id = $${index * 2 + 2} THEN $${index * 2 + 3}`
-    ).join(' ');
-    
-    const itemIds = updates.map(u => u.itemId);
-    const availabilityValues = updates.map(u => u.isAvailable);
-    
-    const params = [restaurantId, ...itemIds.flatMap((id, i) => [id, availabilityValues[i]])];
-
-    return db.sql(`
-      UPDATE tap2go_menu_items 
-      SET 
-        "isAvailable" = CASE ${updateCases} END,
-        "updatedAt" = NOW()
-      WHERE "restaurantId" = $1 
-        AND id IN (${itemIds.map((_, i) => `$${i * 2 + 2}`).join(', ')})
-      RETURNING *
-    `, params);
-  }
-}
-
-// ===== ORDER OPERATIONS =====
-export class OrderOperations {
-  /**
-   * Create order with items (uses Prisma transaction for data integrity)
-   */
-  static async createOrder(orderData: {
-    customerId: string;
-    restaurantId: string;
-    deliveryAddressId?: string;
-    orderItems: any[];
-    pricing: {
-      subtotal: number;
-      deliveryFee: number;
-      serviceFee: number;
-      tax: number;
-      discount: number;
-      total: number;
     };
-    paymentMethod: string;
-    customerNotes?: string;
-    scheduledFor?: Date;
-  }) {
-    return db.orm.$transaction(async (prisma) => {
-      // Generate unique order number
-      const orderNumber = `TAP${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
-      // Create order
-      const order = await prisma.order.create({
-        data: {
-          orderNumber,
-          customerId: orderData.customerId,
-          restaurantId: orderData.restaurantId,
-          deliveryAddressId: orderData.deliveryAddressId,
-          paymentMethod: orderData.paymentMethod,
-          customerNotes: orderData.customerNotes,
-          scheduledFor: orderData.scheduledFor,
-          ...orderData.pricing
-        }
-      });
-
-      // Create order items
-      const orderItems = await prisma.orderItem.createMany({
-        data: orderData.orderItems.map(item => ({
-          orderId: order.id,
-          menuItemId: item.menuItemId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-          customizations: item.customizations,
-          specialInstructions: item.specialInstructions
-        }))
-      });
-
-      // Create initial tracking entry
-      await prisma.orderTracking.create({
-        data: {
-          orderId: order.id,
-          status: 'PENDING',
-          message: 'Order placed successfully'
-        }
-      });
-
-      return { order, orderItems };
-    });
-  }
-
-  /**
-   * Get order with full details (uses Prisma for relations)
-   */
-  static async getOrderWithDetails(orderId: string) {
-    return db.orm.order.findUnique({
-      where: { id: orderId },
-      include: {
-        customer: {
-          include: {
-            customerProfile: true
-          }
-        },
-        restaurant: {
-          include: {
-            vendor: true
-          }
-        },
-        deliveryAddress: true,
-        driver: true,
-        orderItems: {
-          include: {
-            menuItem: true
-          }
-        },
-        orderTracking: {
-          orderBy: { timestamp: 'desc' }
-        }
-      }
-    });
-  }
-
-  /**
-   * Update order status with tracking (uses Prisma transaction)
-   */
-  static async updateOrderStatus(
-    orderId: string, 
-    status: string, 
-    message?: string,
-    location?: { latitude: number; longitude: number },
-    driverId?: string
-  ) {
-    return db.orm.$transaction(async (prisma) => {
-      // Update order
-      const updateData: any = { 
-        status,
-        updatedAt: new Date()
+    if (category) {
+      where.categories = {
+        array_contains: category
       };
-
-      // Set timestamp fields based on status
-      switch (status) {
-        case 'CONFIRMED':
-          updateData.confirmedAt = new Date();
-          break;
-        case 'READY':
-          updateData.readyAt = new Date();
-          break;
-        case 'PICKED_UP':
-          updateData.pickedUpAt = new Date();
-          if (driverId) updateData.driverId = driverId;
-          break;
-        case 'DELIVERED':
-          updateData.deliveredAt = new Date();
-          break;
-        case 'CANCELLED':
-          updateData.cancelledAt = new Date();
-          break;
-      }
-
-      const order = await prisma.order.update({
-        where: { id: orderId },
-        data: updateData
-      });
-
-      // Add tracking entry
-      await prisma.orderTracking.create({
-        data: {
-          orderId,
-          status,
-          message,
-          location: location ? JSON.stringify(location) : null
-        }
-      });
-
-      return order;
-    });
-  }
-
-  /**
-   * Get orders for restaurant dashboard (uses direct SQL for performance)
-   */
-  static async getRestaurantOrders(
-    restaurantId: string, 
-    status?: string,
-    limit: number = 50,
-    offset: number = 0
-  ) {
-    let whereClause = 'WHERE o."restaurantId" = $1';
-    const params: any[] = [restaurantId];
-    
-    if (status) {
-      whereClause += ' AND o.status = $2';
-      params.push(status);
-      params.push(limit, offset);
-    } else {
-      params.push(limit, offset);
     }
 
-    return db.sql(`
-      SELECT 
-        o.*,
-        json_build_object(
-          'id', c.id,
-          'email', c.email,
-          'firstName', cp."firstName",
-          'lastName', cp."lastName",
-          'phoneNumber', c."phoneNumber"
-        ) as customer,
-        json_build_object(
-          'id', da.id,
-          'label', da.label,
-          'street', da.street,
-          'city', da.city
-        ) as delivery_address,
-        (
-          SELECT json_agg(
-            json_build_object(
-              'id', oi.id,
-              'quantity', oi.quantity,
-              'unitPrice', oi."unitPrice",
-              'totalPrice', oi."totalPrice",
-              'menuItem', json_build_object(
-                'id', mi.id,
-                'name', mi.name,
-                'imageUrl', mi."imageUrl"
-              )
-            )
-          )
-          FROM tap2go_order_items oi
-          JOIN tap2go_menu_items mi ON oi."menuItemId" = mi.id
-          WHERE oi."orderId" = o.id
-        ) as order_items
-      FROM tap2go_orders o
-      JOIN tap2go_users c ON o."customerId" = c.id
-      LEFT JOIN tap2go_customer_profiles cp ON c.id = cp."userId"
-      LEFT JOIN tap2go_customer_addresses da ON o."deliveryAddressId" = da.id
-      ${whereClause}
-      ORDER BY o."createdAt" DESC
-      LIMIT $${params.length - 1} OFFSET $${params.length}
-    `, params);
+    if (tag) {
+      where.tags = {
+        array_contains: tag
+      };
+    }
+
+    return db.orm.blogPost.findMany({
+      where,
+      orderBy: {
+        publishedAt: 'desc'
+      },
+      take: limit,
+      skip: offset
+    });
+  }
+
+  /**
+   * Get all blog posts for admin (including drafts)
+   */
+  static async getAllPosts(params: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+  } = {}) {
+    const { limit = 10, offset = 0, status } = params;
+
+    const where: Record<string, unknown> = {
+      deletedAt: null
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    return db.orm.blogPost.findMany({
+      where,
+      orderBy: {
+        updatedAt: 'desc'
+      },
+      take: limit,
+      skip: offset
+    });
+  }
+
+  /**
+   * Search blog posts
+   */
+  static async searchPosts(query: string, limit: number = 10) {
+    return db.orm.blogPost.findMany({
+      where: {
+        AND: [
+          { deletedAt: null },
+          { status: 'published' },
+          {
+            OR: [
+              { title: { contains: query, mode: 'insensitive' } },
+              { content: { contains: query, mode: 'insensitive' } },
+              { excerpt: { contains: query, mode: 'insensitive' } }
+            ]
+          }
+        ]
+      },
+      orderBy: {
+        publishedAt: 'desc'
+      },
+      take: limit
+    });
   }
 }
 
-// Export all operations
-export {
-  UserOperations,
-  RestaurantOperations,
-  MenuOperations,
-  OrderOperations
-};
+// ===== FIRESTORE OPERATIONS PLACEHOLDER =====
+// Note: All business logic operations (Users, Orders, Restaurants, etc.)
+// should be implemented using Firebase SDK directly, not Prisma
+// This file only handles CMS content stored in PostgreSQL
+
+export class RestaurantOperations {
+  /**
+   * Placeholder for Firestore restaurant operations
+   * All restaurant operations should use Firebase SDK directly
+   */
+  static async createRestaurant(_restaurantData: Record<string, unknown>) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+
+  static async updateRestaurant(_restaurantId: string, _updateData: Record<string, unknown>) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+
+  static async getRestaurantById(_restaurantId: string) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+
+  static async searchRestaurants(_searchParams: Record<string, unknown>) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+
+  static async getRestaurantWithMenu(_restaurantId: string) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+
+  static async getPopularRestaurants(_limit?: number, _offset?: number) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+
+  static async updateRestaurantRating(_restaurantId: string) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+
+  static async getRestaurantAnalytics(_restaurantId: string, _days?: number) {
+    throw new Error('Restaurant operations should use Firebase SDK directly. This is a placeholder.');
+  }
+}
+
+// ===== PLACEHOLDER OPERATIONS FOR FIRESTORE =====
+// These are placeholders - actual implementations should use Firebase SDK
+
+export class UserOperations {
+  static async createUser() {
+    throw new Error('User operations should use Firebase SDK directly. This is a placeholder.');
+  }
+}
+
+export class MenuOperations {
+  static async createMenuCategory() {
+    throw new Error('Menu operations should use Firebase SDK directly. This is a placeholder.');
+  }
+}
+
+export class OrderOperations {
+  static async createOrder() {
+    throw new Error('Order operations should use Firebase SDK directly. This is a placeholder.');
+  }
+}
+
+// All operations are already exported individually above

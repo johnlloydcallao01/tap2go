@@ -13,9 +13,10 @@ neonConfig.fetchConnectionCache = true;
 if (typeof window === 'undefined') {
   // Server-side: Use ws library for WebSocket support
   try {
-    const ws = require('ws');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+const ws = require('ws');
     neonConfig.webSocketConstructor = ws;
-  } catch (error) {
+  } catch {
     console.warn('WebSocket library not found. Install with: npm install ws');
   }
 }
@@ -34,11 +35,12 @@ const DATABASE_CONFIG = {
  * Provides direct PostgreSQL operations for CMS content
  */
 export class NeonClient {
-  private sql: any;
+  private sql: ReturnType<typeof neon> | null;
   private pool: Pool | null;
   private isConnected: boolean;
 
   constructor() {
+    this.sql = null;
     this.pool = null;
     this.isConnected = false;
     this.initializeConnection();
@@ -85,24 +87,27 @@ export class NeonClient {
   /**
    * Execute SQL query with parameters
    */
-  async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-    if (!this.isReady()) {
+  async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+    if (!this.pool) {
       throw new Error('Neon database not connected');
     }
 
+    const client = await this.pool.connect();
     try {
-      const result = await this.sql(sql, params);
-      return result as T[];
+      const result = await client.query(sql, params);
+      return result.rows as T[];
     } catch (error) {
       console.error('Neon query error:', error);
       throw error;
+    } finally {
+      client.release();
     }
   }
 
   /**
    * Execute query and return single row
    */
-  async queryOne<T = any>(sql: string, params: any[] = []): Promise<T | null> {
+  async queryOne<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T | null> {
     const results = await this.query<T>(sql, params);
     return results.length > 0 ? results[0] : null;
   }
@@ -110,7 +115,7 @@ export class NeonClient {
   /**
    * Execute transaction
    */
-  async transaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
+  async transaction<T>(callback: (client: { query: (sql: string, params?: unknown[]) => Promise<unknown> }) => Promise<T>): Promise<T> {
     if (!this.pool) {
       throw new Error('Connection pool not available');
     }
@@ -147,7 +152,7 @@ export class NeonClient {
   /**
    * Get database information
    */
-  async getDatabaseInfo(): Promise<any> {
+  async getDatabaseInfo(): Promise<Record<string, unknown>> {
     try {
       const [version, size, tables] = await Promise.all([
         this.queryOne('SELECT version()'),

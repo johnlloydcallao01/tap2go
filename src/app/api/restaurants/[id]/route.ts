@@ -1,10 +1,10 @@
 /**
- * Restaurant Detail API Route - Hybrid Database Approach
- * Uses Prisma for detailed restaurant data with relations
+ * Restaurant Detail API Route - Firestore Implementation
+ * Uses Firestore for restaurant data and menu relations
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { RestaurantOperations } from '@/lib/database/operations';
+import { getRestaurantById, updateRestaurant } from '@/lib/firestore';
 
 export async function GET(
   request: NextRequest,
@@ -20,8 +20,8 @@ export async function GET(
       );
     }
 
-    // Use Prisma for detailed restaurant data with relations
-    const restaurant = await RestaurantOperations.getRestaurantWithMenu(restaurantId);
+    // Use Firestore for restaurant data
+    const restaurant = await getRestaurantById(restaurantId);
 
     if (!restaurant) {
       return NextResponse.json(
@@ -64,8 +64,9 @@ export async function PUT(
       );
     }
 
-    // Use Prisma for update operations
-    const updatedRestaurant = await RestaurantOperations.updateRestaurant(restaurantId, body);
+    // Use Firestore for update operations
+    await updateRestaurant(restaurantId, body);
+    const updatedRestaurant = await getRestaurantById(restaurantId);
 
     return NextResponse.json({
       success: true,
@@ -100,10 +101,11 @@ export async function DELETE(
       );
     }
 
-    // Soft delete - set isActive to false
-    const deletedRestaurant = await RestaurantOperations.updateRestaurant(restaurantId, {
-      isActive: false
+    // Soft delete - set status to inactive
+    await updateRestaurant(restaurantId, {
+      status: 'inactive'
     });
+    const deletedRestaurant = await getRestaurantById(restaurantId);
 
     return NextResponse.json({
       success: true,

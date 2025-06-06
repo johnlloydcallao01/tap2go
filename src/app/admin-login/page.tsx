@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
@@ -47,106 +47,188 @@ export default function AdminLogin() {
 
     try {
       console.log('🔐 Attempting admin login...');
+      console.log(`Attempting login with: ${credentials.email}`);
 
-      // Try multiple possible email variations
-      const emailsToTry = [
-        credentials.email,
-        'admin-1748557049871@tap2go.com', // The temporary email created
-        'admin@tap2go.com'
-      ];
+      let userCredential;
+      try {
+        // First, try to sign in with existing credentials
+        userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
+        console.log(`✅ Login successful with existing user: ${credentials.email}`);
+      } catch (authError: unknown) {
+        const errorCode = authError && typeof authError === 'object' && 'code' in authError ? authError.code : 'unknown';
+        console.log(`❌ Firebase Auth failed with code:`, errorCode);
+        console.log(`❌ Full error:`, authError);
 
-      let userCredential = null;
+        // Handle different error cases
+        if (errorCode === 'auth/user-not-found' || errorCode === 'auth/invalid-credential') {
+          console.log('👤 User not found or invalid credentials, attempting to create admin user...');
+          try {
+            userCredential = await createUserWithEmailAndPassword(auth, credentials.email, credentials.password);
+            console.log('✅ Admin user created successfully in Firebase Auth');
+          } catch (createError: unknown) {
+            const createErrorCode = createError && typeof createError === 'object' && 'code' in createError ? createError.code : 'unknown';
+            console.log(`❌ User creation failed with code:`, createErrorCode);
+            console.log(`❌ Full creation error:`, createError);
 
-      for (const email of emailsToTry) {
-        try {
-          console.log(`Trying email: ${email}`);
-          userCredential = await signInWithEmailAndPassword(auth, email, credentials.password);
-          console.log(`✅ Login successful with: ${email}`);
-          break;
-        } catch (authError: unknown) {
-          const errorCode = authError && typeof authError === 'object' && 'code' in authError ? authError.code : 'unknown';
-          console.log(`❌ Failed with ${email}:`, errorCode);
-          continue;
+            if (createErrorCode === 'auth/email-already-in-use') {
+              // Email exists but password is wrong - this is a real authentication failure
+              throw new Error('Email already exists but password is incorrect. Please check your password.');
+            } else if (createErrorCode === 'auth/weak-password') {
+              throw new Error('Password is too weak. Please use a stronger password.');
+            } else if (createErrorCode === 'auth/invalid-email') {
+              throw new Error('Invalid email address format.');
+            } else {
+              throw new Error(`Failed to create admin user: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+            }
+          }
+        } else if (errorCode === 'auth/wrong-password') {
+          throw new Error('Incorrect password. Please check your password and try again.');
+        } else if (errorCode === 'auth/too-many-requests') {
+          throw new Error('Too many failed login attempts. Please try again later or reset your password.');
+        } else if (errorCode === 'auth/network-request-failed') {
+          throw new Error('Network error. Please check your internet connection and try again.');
+        } else if (errorCode === 'auth/user-disabled') {
+          throw new Error('This account has been disabled. Please contact support.');
+        } else {
+          throw new Error(`Authentication failed: ${authError instanceof Error ? authError.message : 'Unknown error'}`);
         }
       }
 
-      if (!userCredential) {
-        throw new Error('Unable to login with any known admin credentials');
-      }
-
       const user = userCredential.user;
-      console.log('👤 User UID:', user.uid);
+      console.log('👤 Authenticated user UID:', user.uid);
+      console.log('👤 Authenticated user email:', user.email);
 
       // Check if user document exists in Firestore
       const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
+      let userDoc;
+
+      try {
+        userDoc = await getDoc(userDocRef);
+        console.log('📄 User document fetch result:', userDoc.exists());
+      } catch (firestoreError) {
+        console.error('❌ Error fetching user document:', firestoreError);
+        throw new Error('Failed to access user database. Please try again.');
+      }
 
       if (!userDoc.exists()) {
-        console.log('📝 Creating user document...');
-        // Create user document with admin role
-        const userData = {
-          uid: user.uid,
-          email: credentials.email, // Use the desired email
-          name: 'John Lloyd Callao',
-          role: 'admin',
-          isActive: true,
-          isVerified: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-
-        await setDoc(userDocRef, userData);
-        console.log('✅ Created user document');
-      } else {
-        console.log('📄 User document exists');
-        const userData = userDoc.data();
-
-        // Ensure user has admin role
-        if (userData.role !== 'admin') {
-          console.log('🔄 Updating user role to admin...');
-          await setDoc(userDocRef, {
-            role: 'admin',
+        console.log('📝 Creating user document in Firestore...');
+        try {
+          // Create user document with admin role
+          const userData = {
+            uid: user.uid,
             email: credentials.email,
             name: 'John Lloyd Callao',
+            role: 'admin',
             isActive: true,
             isVerified: true,
-            updatedAt: new Date()
-          }, { merge: true });
-          console.log('✅ Updated user role');
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastLoginAt: new Date()
+          };
+
+          await setDoc(userDocRef, userData);
+          console.log('✅ Created user document successfully');
+        } catch (createDocError) {
+          console.error('❌ Error creating user document:', createDocError);
+          throw new Error('Failed to create user profile. Please try again.');
+        }
+      } else {
+        console.log('📄 User document exists, checking role...');
+        const userData = userDoc.data();
+        console.log('👤 Current user role:', userData?.role);
+
+        // Ensure user has admin role
+        if (userData?.role !== 'admin') {
+          console.log('🔄 Updating user role to admin...');
+          try {
+            await setDoc(userDocRef, {
+              role: 'admin',
+              email: credentials.email,
+              name: 'John Lloyd Callao',
+              isActive: true,
+              isVerified: true,
+              updatedAt: new Date(),
+              lastLoginAt: new Date()
+            }, { merge: true });
+            console.log('✅ Updated user role to admin');
+          } catch (updateError) {
+            console.error('❌ Error updating user role:', updateError);
+            throw new Error('Failed to update user permissions. Please try again.');
+          }
+        } else {
+          // Update last login time
+          try {
+            await setDoc(userDocRef, {
+              lastLoginAt: new Date(),
+              updatedAt: new Date()
+            }, { merge: true });
+            console.log('✅ Updated last login time');
+          } catch (updateError) {
+            console.warn('⚠️ Could not update last login time:', updateError);
+            // Don't throw error for this non-critical operation
+          }
         }
       }
 
       // Check admin document
       const adminDocRef = doc(db, 'admins', user.uid);
-      const adminDoc = await getDoc(adminDocRef);
+      let adminDoc;
+
+      try {
+        adminDoc = await getDoc(adminDocRef);
+        console.log('👑 Admin document fetch result:', adminDoc.exists());
+      } catch (adminFetchError) {
+        console.error('❌ Error fetching admin document:', adminFetchError);
+        throw new Error('Failed to access admin database. Please try again.');
+      }
 
       if (!adminDoc.exists()) {
         console.log('👑 Creating admin document...');
-        const adminData = {
-          userRef: `users/${user.uid}`,
-          employeeId: 'ADMIN-001',
-          fullName: 'John Lloyd Callao',
-          department: 'technical',
-          accessLevel: 'super_admin',
-          permissions: [
-            'manage_vendors',
-            'handle_disputes',
-            'view_analytics',
-            'driver_verification',
-            'system_config',
-            'manage_admins',
-            'manage_customers'
-          ],
-          assignedRegions: ['US', 'CA'],
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
+        try {
+          const adminData = {
+            userRef: `users/${user.uid}`,
+            employeeId: 'ADMIN-001',
+            fullName: 'John Lloyd Callao',
+            department: 'technical',
+            accessLevel: 'super_admin',
+            permissions: [
+              'manage_vendors',
+              'handle_disputes',
+              'view_analytics',
+              'driver_verification',
+              'system_config',
+              'manage_admins',
+              'manage_customers'
+            ],
+            assignedRegions: ['US', 'CA'],
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
 
-        await setDoc(adminDocRef, adminData);
-        console.log('✅ Created admin document');
+          await setDoc(adminDocRef, adminData);
+          console.log('✅ Created admin document successfully');
+        } catch (createAdminError) {
+          console.error('❌ Error creating admin document:', createAdminError);
+          throw new Error('Failed to create admin profile. Please try again.');
+        }
+      } else {
+        console.log('👑 Admin document already exists');
+        // Update last access time
+        try {
+          await setDoc(adminDocRef, {
+            updatedAt: new Date()
+          }, { merge: true });
+          console.log('✅ Updated admin last access time');
+        } catch (updateAdminError) {
+          console.warn('⚠️ Could not update admin last access time:', updateAdminError);
+          // Don't throw error for this non-critical operation
+        }
       }
 
       console.log('🎉 Admin login successful! Redirecting to admin panel...');
+
+      // Small delay to ensure all Firestore operations complete
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Force a page refresh to update auth context
       window.location.href = '/admin';

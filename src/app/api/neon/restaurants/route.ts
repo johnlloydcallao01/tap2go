@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     console.error('Restaurant content POST error:', error);
     
     // Handle unique constraint violations
-    if (error.message?.includes('duplicate key')) {
+    if (error instanceof Error && error.message?.includes('duplicate key')) {
       return NextResponse.json(
         { 
           success: false, 

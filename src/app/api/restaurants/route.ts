@@ -1,10 +1,10 @@
 /**
  * Restaurants API Route - Hybrid Database Approach
- * Uses Prisma for standard operations and Direct SQL for performance-critical queries
+ * Uses Firestore for restaurant operations and Prisma for CMS content
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { RestaurantOperations } from '@/lib/database/operations';
+import { getRestaurants, searchRestaurants, createRestaurant } from '@/lib/firestore';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,46 +12,34 @@ export async function GET(request: NextRequest) {
     
     // Parse query parameters
     const query = searchParams.get('q');
-    const latitude = searchParams.get('lat') ? parseFloat(searchParams.get('lat')!) : undefined;
-    const longitude = searchParams.get('lng') ? parseFloat(searchParams.get('lng')!) : undefined;
-    const radius = searchParams.get('radius') ? parseFloat(searchParams.get('radius')!) : 10;
     const cuisineTypes = searchParams.get('cuisine')?.split(',');
-    const minRating = searchParams.get('minRating') ? parseFloat(searchParams.get('minRating')!) : undefined;
-    const maxDeliveryFee = searchParams.get('maxDeliveryFee') ? parseFloat(searchParams.get('maxDeliveryFee')!) : undefined;
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
-    const popular = searchParams.get('popular') === 'true';
 
     let restaurants;
 
-    if (popular) {
-      // Use direct SQL for performance-critical popular restaurants query
-      restaurants = await RestaurantOperations.getPopularRestaurants(limit, offset);
-    } else if (query || latitude || longitude || cuisineTypes || minRating || maxDeliveryFee) {
-      // Use direct SQL for complex search with filters
-      restaurants = await RestaurantOperations.searchRestaurants({
-        query,
-        latitude,
-        longitude,
-        radius,
-        cuisineTypes,
-        minRating,
-        maxDeliveryFee,
-        limit,
-        offset
-      });
+    if (query || cuisineTypes) {
+      // Use Firestore search for filtering
+      restaurants = await searchRestaurants(
+        query || '',
+        cuisineTypes && cuisineTypes.length > 0 ? cuisineTypes[0] : undefined
+      );
     } else {
-      // Use Prisma for simple listing (fallback)
-      restaurants = await RestaurantOperations.getPopularRestaurants(limit, offset);
+      // Use Firestore for standard restaurant listing
+      restaurants = await getRestaurants(limit);
     }
+
+    // Handle different return types from search vs getRestaurants
+    const restaurantList = Array.isArray(restaurants) ? restaurants : restaurants?.restaurants || [];
+    const hasMore = Array.isArray(restaurants) ? restaurants.length === limit : restaurants?.hasMore || false;
 
     return NextResponse.json({
       success: true,
-      data: restaurants,
+      data: restaurantList,
       pagination: {
         limit,
         offset,
-        hasMore: restaurants.length === limit
+        hasMore
       },
       timestamp: new Date().toISOString()
     });
@@ -87,35 +75,51 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create restaurant using Prisma (for transaction safety)
-    const restaurant = await RestaurantOperations.createRestaurant({
-      vendorId: body.vendorId,
+    // Create restaurant using Firestore
+    const restaurantId = await createRestaurant({
+      ownerId: body.vendorId,
       name: body.name,
-      slug: body.slug,
       description: body.description,
-      cuisineType: body.cuisineType,
+      cuisine: body.cuisineType,
       address: body.address,
-      coordinates: body.coordinates,
-      operatingHours: body.operatingHours,
-      deliverySettings: body.deliverySettings || {
-        deliveryRadius: 5.0,
-        minimumOrderValue: 0,
-        deliveryFee: 0,
-        estimatedDeliveryTime: "30-45 min"
-      }
+      phone: body.phone || '',
+      email: body.email || '',
+      image: body.image || '',
+      coverImage: body.coverImage || '',
+      openingHours: body.operatingHours || {
+        monday: { open: '09:00', close: '22:00', isClosed: false },
+        tuesday: { open: '09:00', close: '22:00', isClosed: false },
+        wednesday: { open: '09:00', close: '22:00', isClosed: false },
+        thursday: { open: '09:00', close: '22:00', isClosed: false },
+        friday: { open: '09:00', close: '22:00', isClosed: false },
+        saturday: { open: '09:00', close: '22:00', isClosed: false },
+        sunday: { open: '09:00', close: '22:00', isClosed: false }
+      },
+      deliveryFee: body.deliverySettings?.deliveryFee || 0,
+      minimumOrder: body.deliverySettings?.minimumOrderValue || 0,
+      deliveryTime: body.deliverySettings?.estimatedDeliveryTime || "30-45 min",
+      rating: 0,
+      reviewCount: 0,
+      isOpen: true,
+      featured: false,
+      status: 'pending',
+      commissionRate: 0.15,
+      totalOrders: 0,
+      totalRevenue: 0,
+      averagePreparationTime: 30
     });
 
     return NextResponse.json({
       success: true,
       message: 'Restaurant created successfully',
-      data: restaurant
+      data: { id: restaurantId }
     }, { status: 201 });
 
   } catch (error) {
     console.error('Restaurant POST error:', error);
     
     // Handle unique constraint violations
-    if (error.message?.includes('Unique constraint')) {
+    if (error instanceof Error && error.message?.includes('Unique constraint')) {
       return NextResponse.json(
         { 
           success: false, 

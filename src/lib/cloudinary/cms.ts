@@ -53,53 +53,53 @@ export const CMS_UPLOAD_PRESETS = {
 export const CMS_IMAGE_CONFIGS = {
   // Blog post images
   blog: {
-    hero: { width: 1200, height: 630, crop: 'fill', quality: 'auto', format: 'webp' },
-    featured: { width: 800, height: 450, crop: 'fill', quality: 'auto', format: 'webp' },
-    thumbnail: { width: 400, height: 250, crop: 'fill', quality: 'auto', format: 'webp' },
-    inline: { width: 800, height: 450, crop: 'fit', quality: 'auto', format: 'webp' },
-    social: { width: 1200, height: 630, crop: 'fill', quality: 'auto', format: 'jpg' }
+    hero: { width: 1200, height: 630, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    featured: { width: 800, height: 450, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    thumbnail: { width: 400, height: 250, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    inline: { width: 800, height: 450, crop: 'fit' as const, quality: 'auto' as const, format: 'webp' as const },
+    social: { width: 1200, height: 630, crop: 'fill' as const, quality: 'auto' as const, format: 'jpg' as const }
   },
-  
+
   // Restaurant content images
   restaurant: {
-    hero: { width: 1920, height: 1080, crop: 'fill', quality: 'auto', format: 'webp' },
-    card: { width: 400, height: 300, crop: 'fill', quality: 'auto', format: 'webp' },
-    gallery: { width: 800, height: 600, crop: 'fill', quality: 'auto', format: 'webp' },
-    galleryThumb: { width: 200, height: 150, crop: 'fill', quality: 'auto', format: 'webp' },
-    award: { width: 300, height: 300, crop: 'fit', quality: 'auto', format: 'webp' },
-    certification: { width: 400, height: 300, crop: 'fit', quality: 'auto', format: 'webp' }
+    hero: { width: 1920, height: 1080, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    card: { width: 400, height: 300, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    gallery: { width: 800, height: 600, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    galleryThumb: { width: 200, height: 150, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    award: { width: 300, height: 300, crop: 'fit' as const, quality: 'auto' as const, format: 'webp' as const },
+    certification: { width: 400, height: 300, crop: 'fit' as const, quality: 'auto' as const, format: 'webp' as const }
   },
-  
+
   // Menu content images
   menu: {
-    category: { width: 600, height: 400, crop: 'fill', quality: 'auto', format: 'webp' },
-    categoryThumb: { width: 200, height: 150, crop: 'fill', quality: 'auto', format: 'webp' },
-    item: { width: 600, height: 400, crop: 'fill', quality: 'auto', format: 'webp' },
-    itemThumb: { width: 150, height: 150, crop: 'fill', quality: 'auto', format: 'webp' },
-    itemDetail: { width: 800, height: 600, crop: 'fit', quality: 'auto', format: 'webp' },
-    ingredient: { width: 100, height: 100, crop: 'fill', quality: 'auto', format: 'webp' }
+    category: { width: 600, height: 400, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    categoryThumb: { width: 200, height: 150, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    item: { width: 600, height: 400, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    itemThumb: { width: 150, height: 150, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    itemDetail: { width: 800, height: 600, crop: 'fit' as const, quality: 'auto' as const, format: 'webp' as const },
+    ingredient: { width: 100, height: 100, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const }
   },
-  
+
   // Promotional content images
   promotion: {
-    banner: { width: 1200, height: 400, crop: 'fill', quality: 'auto', format: 'webp' },
-    card: { width: 300, height: 200, crop: 'fill', quality: 'auto', format: 'webp' },
-    hero: { width: 1920, height: 600, crop: 'fill', quality: 'auto', format: 'webp' },
-    mobile: { width: 800, height: 400, crop: 'fill', quality: 'auto', format: 'webp' }
+    banner: { width: 1200, height: 400, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    card: { width: 300, height: 200, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    hero: { width: 1920, height: 600, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    mobile: { width: 800, height: 400, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const }
   },
-  
+
   // Homepage banners
   homepage: {
-    banner: { width: 1920, height: 800, crop: 'fill', quality: 'auto', format: 'webp' },
-    bannerMobile: { width: 800, height: 600, crop: 'fill', quality: 'auto', format: 'webp' },
-    feature: { width: 600, height: 400, crop: 'fill', quality: 'auto', format: 'webp' }
+    banner: { width: 1920, height: 800, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    bannerMobile: { width: 800, height: 600, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const },
+    feature: { width: 600, height: 400, crop: 'fill' as const, quality: 'auto' as const, format: 'webp' as const }
   },
-  
+
   // SEO and social media
   seo: {
-    ogImage: { width: 1200, height: 630, crop: 'fill', quality: 'auto', format: 'jpg' },
-    twitterCard: { width: 1200, height: 600, crop: 'fill', quality: 'auto', format: 'jpg' },
-    favicon: { width: 32, height: 32, crop: 'fill', quality: 'auto', format: 'png' }
+    ogImage: { width: 1200, height: 630, crop: 'fill' as const, quality: 'auto' as const, format: 'jpg' as const },
+    twitterCard: { width: 1200, height: 600, crop: 'fill' as const, quality: 'auto' as const, format: 'jpg' as const },
+    favicon: { width: 32, height: 32, crop: 'fill' as const, quality: 'auto' as const, format: 'png' as const }
   }
 };
 
@@ -107,7 +107,7 @@ export const CMS_IMAGE_CONFIGS = {
  * CMS Image Optimizer Class
  * Provides optimized image URLs for different CMS content types
  */
-export class CMSImageOptimizer {
+class CMSImageOptimizer {
   /**
    * Get optimized blog post images
    */
@@ -186,10 +186,9 @@ export class CMSImageOptimizer {
   /**
    * Generate responsive image set for any content type
    */
-  static generateResponsiveImageSet(publicId: string, baseConfig: any) {
+  static generateResponsiveImageSet(publicId: string, baseConfig: Record<string, unknown>) {
     const breakpoints = [320, 640, 768, 1024, 1280, 1920];
-    const baseWidth = baseConfig.width || 800;
-    const aspectRatio = baseConfig.height ? baseConfig.height / baseConfig.width : 0.6;
+    const aspectRatio = (baseConfig.height as number) ? (baseConfig.height as number) / (baseConfig.width as number) : 0.6;
 
     const srcSet = breakpoints.map(width => {
       const height = Math.round(width * aspectRatio);
@@ -213,18 +212,21 @@ export class CMSImageOptimizer {
    * Get optimized image for specific context and size
    */
   static getOptimizedImage(
-    publicId: string, 
-    context: keyof typeof CMS_IMAGE_CONFIGS, 
+    publicId: string,
+    context: keyof typeof CMS_IMAGE_CONFIGS,
     size: string,
-    customOptions?: any
+    customOptions?: Record<string, unknown>
   ): string {
     const config = CMS_IMAGE_CONFIGS[context];
-    if (!config || !config[size]) {
+    if (!config || !(size in config)) {
       console.warn(`Invalid context or size: ${context}.${size}`);
-      return getOptimizedImageUrl(publicId, { width: 400, height: 300, crop: 'fill' });
+      return getOptimizedImageUrl(publicId, { width: 400, height: 300, crop: 'fill' as const });
     }
 
-    const options = customOptions ? { ...config[size], ...customOptions } : config[size];
+    const sizeConfig = (config as Record<string, unknown>)[size] as Record<string, unknown>;
+    const options = customOptions && typeof sizeConfig === 'object' && sizeConfig !== null
+      ? { ...sizeConfig, ...customOptions }
+      : sizeConfig;
     return getOptimizedImageUrl(publicId, options);
   }
 
@@ -277,7 +279,7 @@ export class CMSImageOptimizer {
    * Generate image alt text suggestions based on context
    */
   static generateAltText(context: string, itemName?: string, description?: string): string {
-    const contextMap = {
+    const contextMap: Record<string, string> = {
       'blog': `Blog post image${itemName ? ` for ${itemName}` : ''}`,
       'restaurant': `${itemName || 'Restaurant'} photo`,
       'menu': `${itemName || 'Menu item'} image`,
@@ -300,12 +302,12 @@ export class CMSImageOptimizer {
  * CMS Upload Helper
  * Provides utilities for uploading images through CMS
  */
-export class CMSUploadHelper {
+class CMSUploadHelper {
   /**
    * Get upload preset for content type
    */
   static getUploadPreset(contentType: string): string {
-    const presetMap = {
+    const presetMap: Record<string, string> = {
       'blog': CMS_UPLOAD_PRESETS.BLOG_POST_UPLOAD,
       'restaurant': CMS_UPLOAD_PRESETS.RESTAURANT_GALLERY_UPLOAD,
       'menu': CMS_UPLOAD_PRESETS.MENU_CONTENT_UPLOAD,
@@ -321,7 +323,7 @@ export class CMSUploadHelper {
    * Get folder for content type
    */
   static getFolder(contentType: string, subType?: string): string {
-    const folderMap = {
+    const folderMap: Record<string, string> = {
       'blog': subType === 'featured' ? CMS_FOLDERS.BLOG_FEATURED : CMS_FOLDERS.BLOG_POSTS,
       'restaurant': subType === 'hero' ? CMS_FOLDERS.RESTAURANT_HEROES : CMS_FOLDERS.RESTAURANT_GALLERIES,
       'menu': subType === 'category' ? CMS_FOLDERS.MENU_CATEGORIES : CMS_FOLDERS.MENU_ITEMS_DETAILED,
