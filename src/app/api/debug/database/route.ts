@@ -79,7 +79,12 @@ export async function GET() {
           isVercel: process.env.VERCEL === '1',
           nodeEnv: process.env.NODE_ENV,
           hasDbUrl: !!process.env.DATABASE_URL,
-          dbUrlPrefix: process.env.DATABASE_URL?.substring(0, 30) + '...'
+          dbUrlPrefix: process.env.DATABASE_URL?.substring(0, 30) + '...',
+          hasPostgresUrl: !!process.env.POSTGRES_URL,
+          pgHost: process.env.PGHOST,
+          pgDatabase: process.env.PGDATABASE,
+          pgUser: process.env.PGUSER,
+          connectionType: process.env.DATABASE_URL?.includes('pooler') ? 'pooled' : 'direct'
         },
         tableStructure: tableInfo,
         allPosts: allPosts,

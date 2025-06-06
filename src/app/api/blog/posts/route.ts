@@ -217,7 +217,9 @@ export async function POST(request: NextRequest) {
     console.log('💾 Attempting database insert...');
 
     // Insert using direct SQL for maximum performance and reliability
-    // Use PostgreSQL NOW() for both created_at and published_at to avoid constraint violations
+    // Use PostgreSQL NOW() for timestamps to avoid constraint violations
+    const status = body.status || 'draft';
+
     const insertResult = await db.sql(`
       INSERT INTO blog_posts (
         title, slug, content, excerpt, status,
@@ -225,8 +227,8 @@ export async function POST(request: NextRequest) {
         categories, tags, is_featured, is_sticky,
         reading_time, published_at, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-              CASE WHEN $5 = 'published' THEN NOW() ELSE NULL END,
+      VALUES ($1, $2, $3, $4, $5::VARCHAR(20), $6, $7, $8, $9, $10, $11, $12, $13,
+              CASE WHEN $5::VARCHAR(20) = 'published' THEN NOW() ELSE NULL END,
               NOW(), NOW())
       RETURNING id, title, slug, content, excerpt, status,
                 featured_image_url, author_name, created_at, updated_at, published_at
@@ -235,15 +237,15 @@ export async function POST(request: NextRequest) {
       slug,
       body.content,
       body.excerpt || '',
-      body.status || 'draft',
+      status,
       body.author_name || 'Admin',
       body.author_bio || '',
       body.featured_image_url || '',
       JSON.stringify(body.categories || []),
       JSON.stringify(body.tags || []),
-      body.is_featured || false,
-      body.is_sticky || false,
-      body.reading_time || 5
+      Boolean(body.is_featured),
+      Boolean(body.is_sticky),
+      parseInt(String(body.reading_time || 5))
     ]);
 
     const post = insertResult[0];
@@ -329,15 +331,15 @@ export async function PUT(request: NextRequest) {
         title = $2,
         content = $3,
         excerpt = $4,
-        status = $5,
+        status = $5::VARCHAR(20),
         author_name = $6,
         featured_image_url = $7,
         categories = $8,
         tags = $9,
         is_featured = $10,
         published_at = CASE
-          WHEN $5 = 'published' AND published_at IS NULL THEN NOW()
-          WHEN $5 != 'published' THEN NULL
+          WHEN $5::VARCHAR(20) = 'published' AND published_at IS NULL THEN NOW()
+          WHEN $5::VARCHAR(20) != 'published' THEN NULL
           ELSE published_at
         END,
         updated_at = NOW()
