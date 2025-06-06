@@ -216,19 +216,39 @@ export async function POST(request: NextRequest) {
 
   } catch (error: unknown) {
     console.error('❌ Error creating blog post:', error);
-    console.error('Error details:', {
+
+    // Enhanced error logging for production debugging
+    const errorDetails = {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace'
-    });
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      environment: {
+        isVercel: process.env.VERCEL === '1',
+        nodeEnv: process.env.NODE_ENV,
+        hasDbUrl: !!process.env.DATABASE_URL,
+        dbUrlPrefix: process.env.DATABASE_URL?.substring(0, 20) + '...',
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    console.error('Error details:', errorDetails);
+
+    // Return user-friendly error message
+    let userMessage = 'Failed to create blog post';
+    if (error instanceof Error) {
+      if (error.message.includes('connect') || error.message.includes('timeout')) {
+        userMessage = 'Database connection failed. Please try again.';
+      } else if (error.message.includes('duplicate') || error.message.includes('unique')) {
+        userMessage = 'A post with this title already exists.';
+      } else {
+        userMessage = error.message;
+      }
+    }
 
     return NextResponse.json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to create blog post',
-      environment: {
-        isVercel: process.env.VERCEL === '1',
-        nodeEnv: process.env.NODE_ENV
-      }
+      message: userMessage,
+      errorDetails: process.env.NODE_ENV === 'development' ? errorDetails : undefined
     }, { status: 500 });
   }
 }

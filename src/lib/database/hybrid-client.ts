@@ -53,18 +53,39 @@ export class CustomDatabaseClient {
    * Uses appropriate client based on environment
    */
   private async executeNeonSql<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> {
-    if (isServerless && this.neonClient) {
-      // Use Client for serverless environments
-      const result = await this.neonClient.query(query, params);
-      return result.rows as T[];
+    if (isServerless) {
+      // For serverless environments, use the neon() function directly
+      // This is the recommended approach for Vercel and other serverless platforms
+      if (!this.neonSql) {
+        throw new Error('Neon SQL client not initialized');
+      }
+
+      if (params.length === 0) {
+        // Use template literal for queries without parameters
+        const result = await this.neonSql`${query}`;
+        return result as T[];
+      } else {
+        // For parameterized queries in serverless, create a temporary client
+        const tempClient = new Client({
+          connectionString: process.env.DATABASE_URL!,
+          ssl: process.env.DATABASE_SSL === 'true',
+        });
+
+        try {
+          await tempClient.connect();
+          const result = await tempClient.query(query, params);
+          return result.rows as T[];
+        } finally {
+          await tempClient.end();
+        }
+      }
     } else if (this.neonSql) {
-      // Use direct SQL for template literals (no parameters)
+      // For local development, use direct SQL
       if (params.length === 0) {
         const result = await this.neonSql`${query}`;
         return result as T[];
       } else {
-        // For queries with parameters, we need to use a different approach
-        // Create a temporary client for this query
+        // Create a temporary client for parameterized queries
         const tempClient = new Client({
           connectionString: process.env.DATABASE_URL!,
           ssl: process.env.DATABASE_SSL === 'true',
@@ -93,7 +114,14 @@ export class CustomDatabaseClient {
         throw new Error('DATABASE_URL environment variable is required');
       }
 
-      // Initialize Direct Neon SQL client
+      console.log('🔧 Initializing database client...', {
+        isServerless,
+        isVercel,
+        nodeEnv: process.env.NODE_ENV,
+        hasDbUrl: !!connectionString
+      });
+
+      // Initialize Direct Neon SQL client (works in all environments)
       this.neonSql = neon(connectionString);
 
       // Initialize Neon connection pool (only for non-serverless environments)
@@ -107,13 +135,11 @@ export class CustomDatabaseClient {
         });
         console.log('✅ Connection pool initialized for local development');
       } else {
-        // For serverless, use a single client connection
+        // For serverless, we'll use the neon() function directly
+        // No persistent client connection needed
         this.neonPool = null;
-        this.neonClient = new Client({
-          connectionString,
-          ssl: process.env.DATABASE_SSL === 'true',
-        });
-        console.log('✅ Direct client mode configured for serverless environment');
+        this.neonClient = null;
+        console.log('✅ Serverless mode configured - using neon() function directly');
       }
 
       this.isInitialized = true;
@@ -134,21 +160,38 @@ export class CustomDatabaseClient {
     }
 
     try {
+      console.log('🔍 Executing SQL query...', {
+        isServerless,
+        hasPool: !!this.neonPool,
+        hasNeonSql: !!this.neonSql,
+        paramCount: params.length,
+        queryPreview: query.substring(0, 100) + (query.length > 100 ? '...' : '')
+      });
+
       if (this.neonPool && !isServerless) {
         // Use connection pool for local development
         const client = await this.neonPool.connect();
         try {
           const result = await client.query(query, params);
+          console.log('✅ Query executed successfully via pool');
           return result.rows as T[];
         } finally {
           client.release();
         }
       } else {
         // Use direct SQL for serverless environments
-        return await this.executeNeonSql<T>(query, params);
+        const result = await this.executeNeonSql<T>(query, params);
+        console.log('✅ Query executed successfully via serverless client');
+        return result;
       }
     } catch (error) {
-      console.error('SQL Query Error:', error);
+      console.error('❌ SQL Query Error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: query.substring(0, 200),
+        params: params.length,
+        isServerless,
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       throw error;
     }
   }
