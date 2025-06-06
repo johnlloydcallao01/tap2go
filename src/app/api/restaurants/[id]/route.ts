@@ -8,10 +8,10 @@ import { getRestaurantById, updateRestaurant } from '@/lib/firestore';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const restaurantId = params.id;
+    const { id: restaurantId } = await params;
 
     if (!restaurantId) {
       return NextResponse.json(
@@ -51,10 +51,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const restaurantId = params.id;
+    const { id: restaurantId } = await params;
     const body = await request.json();
 
     if (!restaurantId) {
@@ -89,10 +89,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const restaurantId = params.id;
+    const { id: restaurantId } = await params;
 
     if (!restaurantId) {
       return NextResponse.json(

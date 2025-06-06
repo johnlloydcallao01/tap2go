@@ -139,7 +139,15 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚀 Starting blog post creation...');
+    console.log('Environment:', {
+      isVercel: process.env.VERCEL === '1',
+      nodeEnv: process.env.NODE_ENV,
+      hasDbUrl: !!process.env.DATABASE_URL
+    });
+
     const body = await request.json();
+    console.log('📝 Request body received:', { title: body.title, hasContent: !!body.content });
 
     // Validate required fields
     if (!body.title || !body.content) {
@@ -154,6 +162,9 @@ export async function POST(request: NextRequest) {
       .toLowerCase()
       .replace(/\s+/g, '-')
       .replace(/[^\w-]/g, '');
+
+    console.log('🔗 Generated slug:', slug);
+    console.log('💾 Attempting database insert...');
 
     // Insert using direct SQL for maximum performance and reliability
     const insertResult = await db.sql(`
@@ -184,6 +195,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     const post = insertResult[0];
+    console.log('✅ Blog post created successfully:', post.id);
 
     return NextResponse.json({
       success: true,
@@ -203,11 +215,20 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error('Error creating blog post:', error);
+    console.error('❌ Error creating blog post:', error);
+    console.error('Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    });
 
     return NextResponse.json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to create blog post'
+      message: error instanceof Error ? error.message : 'Failed to create blog post',
+      environment: {
+        isVercel: process.env.VERCEL === '1',
+        nodeEnv: process.env.NODE_ENV
+      }
     }, { status: 500 });
   }
 }

@@ -8,20 +8,29 @@
  * - Optimized for serverless environments
  */
 
-import { neon, neonConfig, Pool } from '@neondatabase/serverless';
+import { neon, neonConfig, Pool, Client } from '@neondatabase/serverless';
 
 // Configure Neon for optimal performance
 neonConfig.fetchConnectionCache = true;
 
-// Configure WebSocket for Node.js environments
-if (typeof window === 'undefined') {
+// Detect environment
+const isVercel = process.env.VERCEL === '1';
+const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || isVercel;
+
+// Configure WebSocket for Node.js environments (but not in serverless)
+if (typeof window === 'undefined' && !isServerless) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ws = require('ws');
     neonConfig.webSocketConstructor = ws;
+    console.log('✅ WebSocket configured for local development');
   } catch (error) {
     console.warn('WebSocket library not found. Install with: npm install ws');
   }
+} else if (isServerless) {
+  // For serverless environments, disable WebSocket and use HTTP-only
+  neonConfig.webSocketConstructor = undefined;
+  console.log('✅ HTTP-only mode configured for serverless environment');
 }
 
 /**
@@ -30,12 +39,47 @@ if (typeof window === 'undefined') {
  */
 export class CustomDatabaseClient {
   private neonSql: ReturnType<typeof neon> | null;
-  private neonPool!: Pool;
+  private neonPool: Pool | null = null;
+  private neonClient: Client | null = null;
   private isInitialized: boolean = false;
 
   constructor() {
     this.neonSql = null;
     this.initializeClients();
+  }
+
+  /**
+   * Helper function to execute Neon SQL with parameters
+   * Uses appropriate client based on environment
+   */
+  private async executeNeonSql<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> {
+    if (isServerless && this.neonClient) {
+      // Use Client for serverless environments
+      const result = await this.neonClient.query(query, params);
+      return result.rows as T[];
+    } else if (this.neonSql) {
+      // Use direct SQL for template literals (no parameters)
+      if (params.length === 0) {
+        const result = await this.neonSql`${query}`;
+        return result as T[];
+      } else {
+        // For queries with parameters, we need to use a different approach
+        // Create a temporary client for this query
+        const tempClient = new Client({
+          connectionString: process.env.DATABASE_URL!,
+          ssl: process.env.DATABASE_SSL === 'true',
+        });
+        await tempClient.connect();
+        try {
+          const result = await tempClient.query(query, params);
+          return result.rows as T[];
+        } finally {
+          await tempClient.end();
+        }
+      }
+    } else {
+      throw new Error('No Neon client available');
+    }
   }
 
   /**
@@ -52,13 +96,25 @@ export class CustomDatabaseClient {
       // Initialize Direct Neon SQL client
       this.neonSql = neon(connectionString);
 
-      // Initialize Neon connection pool
-      this.neonPool = new Pool({
-        connectionString,
-        ssl: process.env.DATABASE_SSL === 'true',
-        min: parseInt(process.env.DATABASE_POOL_MIN || '2'),
-        max: parseInt(process.env.DATABASE_POOL_MAX || '10'),
-      });
+      // Initialize Neon connection pool (only for non-serverless environments)
+      if (!isServerless) {
+        this.neonPool = new Pool({
+          connectionString,
+          ssl: process.env.DATABASE_SSL === 'true',
+          min: parseInt(process.env.DATABASE_POOL_MIN || '2'),
+          max: parseInt(process.env.DATABASE_POOL_MAX || '10'),
+          connectionTimeoutMillis: parseInt(process.env.DATABASE_CONNECTION_TIMEOUT || '60000'),
+        });
+        console.log('✅ Connection pool initialized for local development');
+      } else {
+        // For serverless, use a single client connection
+        this.neonPool = null;
+        this.neonClient = new Client({
+          connectionString,
+          ssl: process.env.DATABASE_SSL === 'true',
+        });
+        console.log('✅ Direct client mode configured for serverless environment');
+      }
 
       this.isInitialized = true;
       console.log('✅ Custom Database Client initialized successfully');
@@ -77,15 +133,23 @@ export class CustomDatabaseClient {
       throw new Error('Database client not initialized');
     }
 
-    const client = await this.neonPool.connect();
     try {
-      const result = await client.query(query, params);
-      return result.rows as T[];
+      if (this.neonPool && !isServerless) {
+        // Use connection pool for local development
+        const client = await this.neonPool.connect();
+        try {
+          const result = await client.query(query, params);
+          return result.rows as T[];
+        } finally {
+          client.release();
+        }
+      } else {
+        // Use direct SQL for serverless environments
+        return await this.executeNeonSql<T>(query, params);
+      }
     } catch (error) {
       console.error('SQL Query Error:', error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
@@ -105,17 +169,29 @@ export class CustomDatabaseClient {
       throw new Error('Database client not initialized');
     }
 
-    const client = await this.neonPool.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await callback(client);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    if (this.neonPool && !isServerless) {
+      // Use connection pool for local development
+      const client = await this.neonPool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    } else {
+      // For serverless, execute without explicit transactions (Neon handles this)
+      const mockClient = {
+        query: async (sql: string, params?: unknown[]) => {
+          const result = await this.executeNeonSql(sql, params || []);
+          return { rows: result };
+        }
+      };
+      return await callback(mockClient);
     }
   }
 
@@ -328,10 +404,17 @@ export class CustomDatabaseClient {
    * Close database connections
    */
   async close(): Promise<void> {
-    if (this.neonPool) {
+    if (this.neonPool && !isServerless) {
       await this.neonPool.end();
+      console.log('Database pool connections closed');
     }
-    console.log('Database connections closed');
+    if (this.neonClient && isServerless) {
+      await this.neonClient.end();
+      console.log('Database client connection closed');
+    }
+    if (!this.neonPool && !this.neonClient) {
+      console.log('No persistent connections to close');
+    }
   }
 }
 
