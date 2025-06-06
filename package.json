@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "postinstall": "prisma generate",
     "setup-db": "node scripts/setup-database.js",
     "setup-users-admins": "node scripts/setup-users-admins.js",
     "setup-vendors": "node scripts/setup-vendors.js",
