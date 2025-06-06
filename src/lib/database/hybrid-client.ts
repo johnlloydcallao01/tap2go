@@ -55,93 +55,7 @@ export class CustomDatabaseClient {
     this.initializeClients();
   }
 
-  /**
-   * Helper function to execute Neon SQL with parameters
-   * Fixed for Vercel production environment - uses direct neon() function
-   */
-  private async executeNeonSql<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> {
-    if (!this.neonSql) {
-      throw new Error('Neon SQL client not initialized');
-    }
 
-    console.log('🔍 executeNeonSql called:', {
-      isServerless,
-      isVercel,
-      hasParams: params.length > 0,
-      queryPreview: query.substring(0, 100) + '...'
-    });
-
-    if (isVercel || isServerless) {
-      // For Vercel, always use the neon() function directly
-      // This avoids the parameterized query issues
-      console.log('🔍 Using Vercel-optimized neon() function execution');
-      try {
-        if (params.length === 0) {
-          // No parameters - use template literal
-          const result = await this.neonSql`${query}`;
-          return result as T[];
-        } else {
-          // With parameters - manually substitute them into the query
-          // This is safe because we control the input and use proper escaping
-          let processedQuery = query;
-
-          // Replace $1, $2, etc. with actual values
-          for (let i = 0; i < params.length; i++) {
-            const paramPlaceholder = `$${i + 1}`;
-            let paramValue = params[i];
-
-            // Properly escape the parameter based on its type
-            if (paramValue === null || paramValue === undefined) {
-              paramValue = 'NULL';
-            } else if (typeof paramValue === 'string') {
-              // Escape single quotes and wrap in quotes
-              paramValue = `'${paramValue.replace(/'/g, "''")}'`;
-            } else if (typeof paramValue === 'number') {
-              paramValue = paramValue.toString();
-            } else if (typeof paramValue === 'boolean') {
-              paramValue = paramValue ? 'TRUE' : 'FALSE';
-            } else {
-              // For objects/arrays, stringify and escape
-              paramValue = `'${JSON.stringify(paramValue).replace(/'/g, "''")}'`;
-            }
-
-            processedQuery = processedQuery.replace(paramPlaceholder, paramValue as string);
-          }
-
-          console.log('🔍 Processed query:', processedQuery.substring(0, 200) + '...');
-
-          // Execute the processed query
-          const result = await this.neonSql`${processedQuery}`;
-          return result as T[];
-        }
-      } catch (error) {
-        console.error('❌ Vercel neon() execution failed:', error);
-        console.error('❌ Query was:', query);
-        console.error('❌ Params were:', params);
-        throw error;
-      }
-    } else {
-      // Local development execution
-      console.log('🔍 Using local development execution');
-      if (params.length === 0) {
-        const result = await this.neonSql`${query}`;
-        return result as T[];
-      } else {
-        // Create a temporary client for parameterized queries
-        const tempClient = new Client({
-          connectionString: process.env.DATABASE_URL!,
-          ssl: process.env.DATABASE_SSL === 'true',
-        });
-        await tempClient.connect();
-        try {
-          const result = await tempClient.query(query, params);
-          return result.rows as T[];
-        } finally {
-          await tempClient.end();
-        }
-      }
-    }
-  }
 
   /**
    * Initialize Direct Neon client with Vercel production optimizations
@@ -206,7 +120,7 @@ export class CustomDatabaseClient {
 
   /**
    * Execute raw SQL query for performance-critical operations
-   * Uses Neon's query method for parameterized queries
+   * Uses proper Neon serverless approach for production
    */
   async sql<T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> {
     if (!this.isInitialized) {
@@ -233,10 +147,54 @@ export class CustomDatabaseClient {
           client.release();
         }
       } else {
-        // Use direct SQL for serverless environments
-        const result = await this.executeNeonSql<T>(query, params);
-        console.log('✅ Query executed successfully via serverless client');
-        return result;
+        // Use Neon serverless driver for production
+        if (!this.neonSql) {
+          throw new Error('Neon SQL client not initialized for serverless environment');
+        }
+
+        console.log('🔍 Using Neon serverless driver');
+
+        if (params.length === 0) {
+          // No parameters - use template literal directly
+          const result = await this.neonSql`${query}`;
+          console.log('✅ Query executed successfully via Neon serverless (no params)');
+          return result as T[];
+        } else {
+          // For parameterized queries in serverless, we need to use a different approach
+          // According to Neon docs, we should use template literals with interpolation
+          console.log('⚠️ Parameterized query in serverless - converting to template literal');
+
+          // Build the query with proper parameter substitution
+          let finalQuery = query;
+          for (let i = 0; i < params.length; i++) {
+            const placeholder = `$${i + 1}`;
+            const value = params[i];
+
+            // Properly format the value based on its type
+            let formattedValue: string;
+            if (value === null || value === undefined) {
+              formattedValue = 'NULL';
+            } else if (typeof value === 'string') {
+              // Escape single quotes and wrap in quotes
+              formattedValue = `'${value.replace(/'/g, "''")}'`;
+            } else if (typeof value === 'number') {
+              formattedValue = value.toString();
+            } else if (typeof value === 'boolean') {
+              formattedValue = value ? 'TRUE' : 'FALSE';
+            } else {
+              // For objects/arrays, stringify and escape
+              formattedValue = `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+            }
+
+            finalQuery = finalQuery.replace(placeholder, formattedValue);
+          }
+
+          console.log('🔍 Final query:', finalQuery.substring(0, 200) + '...');
+
+          const result = await this.neonSql`${finalQuery}`;
+          console.log('✅ Query executed successfully via Neon serverless (with params)');
+          return result as T[];
+        }
       }
     } catch (error) {
       console.error('❌ SQL Query Error:', {
@@ -284,7 +242,7 @@ export class CustomDatabaseClient {
       // For serverless, execute without explicit transactions (Neon handles this)
       const mockClient = {
         query: async (sql: string, params?: unknown[]) => {
-          const result = await this.executeNeonSql(sql, params || []);
+          const result = await this.sql(sql, params || []);
           return { rows: result };
         }
       };
