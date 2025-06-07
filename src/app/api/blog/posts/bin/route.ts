@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
-
-const sql = neon(process.env.DATABASE_URL!);
+import { supabaseAdmin } from '@/lib/supabase/client';
 
 // GET /api/blog/posts/bin - Get all soft deleted posts
 export async function GET() {
   try {
     console.log('🗑️ Fetching posts from bin...');
 
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available');
+    }
+
     // Get soft deleted posts (deleted_at IS NOT NULL)
-    const posts = await sql`
-      SELECT 
+    const { data: posts, error } = await supabaseAdmin
+      .from('blog_posts')
+      .select(`
         id,
         title,
         slug,
@@ -21,23 +24,26 @@ export async function GET() {
         created_at,
         updated_at,
         deleted_at
-      FROM blog_posts 
-      WHERE deleted_at IS NOT NULL
-      ORDER BY deleted_at DESC
-    `;
+      `)
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false });
 
-    console.log(`✅ Found ${posts.length} posts in bin`);
+    if (error) {
+      throw error;
+    }
+
+    console.log(`✅ Found ${posts?.length || 0} posts in bin`);
 
     return NextResponse.json({
       success: true,
-      posts: posts,
+      posts: posts || [],
       stats: {
-        totalInBin: posts.length,
-        deletedToday: posts.filter(post => {
+        totalInBin: posts?.length || 0,
+        deletedToday: posts?.filter(post => {
           const deletedDate = new Date(post.deleted_at);
           const today = new Date();
           return deletedDate.toDateString() === today.toDateString();
-        }).length
+        }).length || 0
       }
     });
 

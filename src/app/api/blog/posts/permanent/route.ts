@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
-
-const sql = neon(process.env.DATABASE_URL!);
+import { supabaseAdmin } from '@/lib/supabase/client';
 
 // DELETE /api/blog/posts/permanent?id=123 - Permanently delete a post from database
 export async function DELETE(request: NextRequest) {
@@ -18,52 +16,58 @@ export async function DELETE(request: NextRequest) {
 
     console.log(`🗑️ Permanently deleting post ID: ${postId}`);
 
-    // First check if the post exists and is already soft deleted
-    const existingPost = await sql`
-      SELECT id, title, deleted_at 
-      FROM blog_posts 
-      WHERE id = ${postId}
-    `;
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available');
+    }
 
-    if (existingPost.length === 0) {
+    // First check if the post exists and is already soft deleted
+    const { data: existingPost, error: checkError } = await supabaseAdmin
+      .from('blog_posts')
+      .select('id, title, deleted_at')
+      .eq('id', postId)
+      .single();
+
+    if (checkError || !existingPost) {
       return NextResponse.json(
         { success: false, message: 'Post not found' },
         { status: 404 }
       );
     }
 
-    if (!existingPost[0].deleted_at) {
+    if (!existingPost.deleted_at) {
       return NextResponse.json(
-        { 
-          success: false, 
-          message: 'Post must be in bin before permanent deletion. Move to bin first.' 
+        {
+          success: false,
+          message: 'Post must be in bin before permanent deletion. Move to bin first.'
         },
         { status: 400 }
       );
     }
 
     // Permanently delete the post from database (hard delete)
-    const result = await sql`
-      DELETE FROM blog_posts
-      WHERE id = ${postId} AND deleted_at IS NOT NULL
-      RETURNING id, title
-    `;
+    const { data: result, error: deleteError } = await supabaseAdmin
+      .from('blog_posts')
+      .delete()
+      .eq('id', postId)
+      .not('deleted_at', 'is', null)
+      .select('id, title')
+      .single();
 
-    if (result.length === 0) {
+    if (deleteError || !result) {
       return NextResponse.json(
         { success: false, message: 'Failed to delete post or post not in bin' },
         { status: 400 }
       );
     }
 
-    console.log(`✅ Post "${existingPost[0].title}" permanently deleted from database`);
+    console.log(`✅ Post "${existingPost.title}" permanently deleted from database`);
 
     return NextResponse.json({
       success: true,
       message: 'Post permanently deleted from database',
       deletedPost: {
         id: postId,
-        title: existingPost[0].title
+        title: existingPost.title
       }
     });
 
