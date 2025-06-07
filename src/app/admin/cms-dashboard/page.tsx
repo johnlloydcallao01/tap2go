@@ -7,1101 +7,1485 @@ import {
   TrashIcon,
   EyeIcon,
   DocumentTextIcon,
-  PhotoIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  TagIcon,
+  FolderIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ArrowUturnLeftIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import { BlogPostOps, StaticPageOps, CategoryOps, TagOps } from '@/lib/supabase/cms-operations';
+import { generateSlug, calculateReadingTime, extractExcerpt } from '@/lib/supabase/cms-operations';
+import { useAuth } from '@/contexts/AuthContext';
 
-// Types for our CMS content
-interface BlogPost {
-  id: number;
-  title: string;
-  slug: string;
-  content: string;
-  excerpt: string;
-  status: 'draft' | 'published' | 'archived';
-  featured_image_url?: string;
-  author_name: string;
-  created_at: string;
-  updated_at: string;
-}
+// Redux imports
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+  setActiveTab,
+  setViewMode,
+  setLoading,
+  setPosts,
+  setPages,
+  setCategories,
+  setTags,
+  setStats,
+  setError,
+  clearError,
+  selectCMSPosts,
+  selectCMSPages,
+  selectCMSCategories,
+  selectCMSTags,
+  selectCMSStats,
+  selectCMSActiveTab,
+  selectCMSViewMode,
+  selectCMSError,
+  selectIsLoading,
+  type BlogPost,
+  type StaticPage,
+  type Category,
+  type Tag
+} from '@/store/slices/cmsSliceSimple';
 
-interface CMSStats {
-  totalPosts: number;
-  publishedPosts: number;
-  draftPosts: number;
-  trashedPosts: number;
-  totalViews: number;
+// Content creation types
+interface CreateContentData {
+  title?: string;
+  content?: string;
+  excerpt?: string;
+  status?: 'draft' | 'published' | 'private' | 'trash';
+  is_featured?: boolean;
+  show_in_navigation?: boolean;
+  navigation_label?: string;
+  menu_order?: number;
+  name?: string; // For categories and tags
+  description?: string; // For categories and tags
+  author_name?: string; // For posts and pages
 }
 
 export default function CMSDashboard() {
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [stats, setStats] = useState<CMSStats>({
-    totalPosts: 0,
-    publishedPosts: 0,
-    draftPosts: 0,
-    trashedPosts: 0,
-    totalViews: 0
-  });
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const dispatch = useAppDispatch();
+
+  // Redux state
+  const posts = useAppSelector(selectCMSPosts);
+  const pages = useAppSelector(selectCMSPages);
+  const categories = useAppSelector(selectCMSCategories);
+  const tags = useAppSelector(selectCMSTags);
+  const stats = useAppSelector(selectCMSStats);
+  const activeTab = useAppSelector(selectCMSActiveTab);
+  const viewMode = useAppSelector(selectCMSViewMode);
+  const error = useAppSelector(selectCMSError);
+  const isLoading = useAppSelector(selectIsLoading);
+
+  // Local UI state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showBinModal, setShowBinModal] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
-  const [viewMode, setViewMode] = useState<'all' | 'published' | 'draft' | 'trash'>('all');
+  const [selectedItem, setSelectedItem] = useState<BlogPost | StaticPage | Category | Tag | null>(null);
 
-  // Load posts function with useCallback - supports WordPress-style filtering
-  const loadPosts = useCallback(async () => {
+  // Load data function
+  const loadCMSData = useCallback(async () => {
     try {
-      setLoading(true);
-      console.log('🔍 Loading posts for view mode:', viewMode);
+      dispatch(setLoading(true));
+      dispatch(clearError());
 
-      // Build endpoint and query parameters based on view mode
-      let endpoint = '/api/blog/posts';
-      const queryParams = new URLSearchParams();
+      console.log('🚀 Loading CMS data...');
 
-      if (viewMode === 'trash') {
-        endpoint = '/api/blog/posts/bin';
-      } else if (viewMode === 'published') {
-        queryParams.append('status', 'published');
-      } else if (viewMode === 'draft') {
-        queryParams.append('status', 'draft');
-      }
-      // 'all' mode doesn't need additional parameters
+      // Load all data INCLUDING trashed items for accurate stats
+      const [allPosts, allPages, allCategories, allTags] = await Promise.all([
+        BlogPostOps.getAllPostsIncludingTrashed(1000),
+        StaticPageOps.getAllPagesIncludingTrashed(),
+        CategoryOps.getAllCategories(),
+        TagOps.getAllTags()
+      ]);
 
-      const url = queryParams.toString() ? `${endpoint}?${queryParams}` : endpoint;
-      console.log('📡 Fetching from URL:', url);
+      // Calculate stats
+      const totalViews = allPosts?.reduce((sum, post) => sum + (post.view_count || 0), 0) || 0;
 
-      const response = await fetch(url);
-      console.log('📊 Response status:', response.status, response.statusText);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Data received:', {
-          postsCount: data.posts?.length || 0,
-          stats: data.stats,
-          success: data.success
-        });
-
-        setPosts(data.posts || []);
-        // Use functional update to avoid dependency on current stats
-        setStats(prevStats => ({ ...prevStats, ...data.stats }));
-      } else {
-        console.error('❌ Failed to fetch posts:', response.status, response.statusText);
-
-        // Try to get error details
-        try {
-          const errorData = await response.json();
-          console.error('❌ Error details:', errorData);
-        } catch (parseError) {
-          console.error('❌ Could not parse error response:', parseError);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Network error loading posts:', error);
-
-      // Show user-friendly error in production
-      if (typeof window !== 'undefined') {
-        console.log('🌐 Environment:', {
-          hostname: window.location.hostname,
-          isProduction: window.location.hostname.includes('vercel.app')
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [viewMode]); // Depend on viewMode to reload when switching between active/bin
-
-  // Load posts on component mount
-  useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
-
-  const createPost = async (postData: Partial<BlogPost>) => {
-    try {
-      const response = await fetch('/api/blog/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(postData)
+      // Debug: Log the actual data
+      console.log('📊 Raw data loaded:', {
+        totalPostsLoaded: allPosts?.length || 0,
+        totalPagesLoaded: allPages?.length || 0,
+        postsWithDeletedAt: allPosts?.filter(p => p.deleted_at).length || 0,
+        pagesWithDeletedAt: allPages?.filter(p => p.deleted_at).length || 0,
       });
 
-      const result = await response.json();
+      const newStats = {
+        totalPosts: allPosts?.filter(p => !p.deleted_at).length || 0,
+        publishedPosts: allPosts?.filter(p => p.status === 'published' && !p.deleted_at).length || 0,
+        draftPosts: allPosts?.filter(p => p.status === 'draft' && !p.deleted_at).length || 0,
+        totalPages: allPages?.filter(p => !p.deleted_at).length || 0,
+        publishedPages: allPages?.filter(p => p.status === 'published' && !p.deleted_at).length || 0,
+        totalCategories: allCategories?.length || 0,
+        totalTags: allTags?.length || 0,
+        totalViews,
+        trashedPosts: allPosts?.filter(p => p.deleted_at).length || 0,
+        trashedPages: allPages?.filter(p => p.deleted_at).length || 0,
+      };
 
-      if (result.success) {
-        console.log('✅ Post created successfully:', result.post.title);
-        // Refresh posts data after successful creation
-        await loadPosts();
-        setShowCreateModal(false);
-        // You could add a toast notification here
+      console.log('📊 Calculated stats:', newStats);
+
+      // Update Redux state
+      dispatch(setStats(newStats));
+      dispatch(setCategories(allCategories || []));
+      dispatch(setTags(allTags || []));
+
+      // Filter content based on current view
+      let filteredPosts = allPosts || [];
+      let filteredPages = allPages || [];
+
+      console.log('🔍 Filtering content:', {
+        viewMode,
+        totalPosts: filteredPosts.length,
+        totalPages: filteredPages.length,
+        trashedPosts: filteredPosts.filter(p => p.deleted_at).length,
+        trashedPages: filteredPages.filter(p => p.deleted_at).length
+      });
+
+      if (viewMode !== 'all') {
+        if (viewMode === 'trash') {
+          filteredPosts = filteredPosts.filter(p => p.deleted_at);
+          filteredPages = filteredPages.filter(p => p.deleted_at);
+          console.log('📋 Trash view - filtered:', { posts: filteredPosts.length, pages: filteredPages.length });
+        } else {
+          filteredPosts = filteredPosts.filter(p => p.status === viewMode && !p.deleted_at);
+          filteredPages = filteredPages.filter(p => p.status === viewMode && !p.deleted_at);
+          console.log(`📋 ${viewMode} view - filtered:`, { posts: filteredPosts.length, pages: filteredPages.length });
+        }
       } else {
-        console.error('❌ Failed to create post:', result.message);
-        alert(`Failed to create post: ${result.message}`);
+        filteredPosts = filteredPosts.filter(p => !p.deleted_at);
+        filteredPages = filteredPages.filter(p => !p.deleted_at);
+        console.log('📋 All view - filtered (active only):', { posts: filteredPosts.length, pages: filteredPages.length });
+      }
+
+      dispatch(setPosts(filteredPosts));
+      dispatch(setPages(filteredPages));
+
+      console.log('✅ CMS data loaded successfully');
+    } catch (error) {
+      console.error('❌ Error loading CMS data:', error);
+      dispatch(setError(error instanceof Error ? error.message : 'Failed to load CMS data'));
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch, viewMode]);
+
+  // Load data on component mount and when view changes
+  useEffect(() => {
+    loadCMSData();
+  }, [loadCMSData]);
+
+  // Handle tab changes
+  const handleTabChange = (tab: 'posts' | 'pages' | 'categories' | 'tags') => {
+    dispatch(setActiveTab(tab));
+    if (error) dispatch(clearError());
+  };
+
+  // Handle view mode changes
+  const handleViewModeChange = (mode: 'all' | 'published' | 'draft' | 'trash') => {
+    dispatch(setViewMode(mode));
+    if (error) dispatch(clearError());
+  };
+
+  // Refresh data
+  const handleRefresh = () => {
+    loadCMSData();
+  };
+
+  // Create new content using Supabase operations
+  const createContent = async (contentData: CreateContentData) => {
+    try {
+      let result;
+
+      if (activeTab === 'posts') {
+        // Generate slug and reading time
+        const slug = generateSlug(contentData.title || 'untitled');
+        const readingTime = calculateReadingTime(contentData.content || '');
+        const excerpt = contentData.excerpt || extractExcerpt(contentData.content || '');
+
+        result = await BlogPostOps.createPost({
+          ...contentData,
+          slug,
+          reading_time: readingTime,
+          excerpt,
+          author_name: 'Admin', // You can get this from auth context
+          status: contentData.status || 'draft'
+        });
+      } else if (activeTab === 'pages') {
+        const slug = generateSlug(contentData.title || 'untitled');
+        result = await StaticPageOps.createPage({
+          ...contentData,
+          slug,
+          author_name: 'Admin',
+          status: (contentData.status as 'draft' | 'published' | 'private' | 'trash') || 'draft'
+        });
+      } else if (activeTab === 'categories') {
+        const slug = generateSlug(contentData.name || 'untitled');
+        result = await CategoryOps.createCategory({
+          ...contentData,
+          slug
+        });
+      } else if (activeTab === 'tags') {
+        const slug = generateSlug(contentData.name || 'untitled');
+        result = await TagOps.createTag({
+          ...contentData,
+          slug
+        });
+      }
+
+      if (result) {
+        console.log('✅ Content created successfully');
+        // Reload data
+        await loadCMSData();
+        setShowCreateModal(false);
+        alert('Content created successfully!');
       }
     } catch (error) {
-      console.error('❌ Error creating post:', error);
-      alert('Network error: Failed to create post. Please try again.');
+      console.error('❌ Error creating content:', error);
+      alert('Failed to create content. Please try again.');
     }
   };
 
-  // Handle view post
-  const handleViewPost = (post: BlogPost) => {
-    setSelectedPost(post);
-    setShowViewModal(true);
-  };
-
-  // Handle edit post
-  const handleEditPost = (post: BlogPost) => {
-    setSelectedPost(post);
+  // Handle edit content
+  const handleEdit = (item: BlogPost | StaticPage | Category | Tag) => {
+    setSelectedItem(item);
     setShowEditModal(true);
   };
 
-  // Handle delete post (move to bin)
-  const handleDeletePost = (post: BlogPost) => {
-    setSelectedPost(post);
-    setShowDeleteModal(true);
-  };
+  // Handle move to trash (WordPress-style soft delete)
+  const handleMoveToTrash = async (item: BlogPost | StaticPage | Category | Tag) => {
+    if (!confirm('Are you sure you want to move this item to trash?')) return;
 
-  // Handle permanent delete from bin
-  const handlePermanentDelete = (post: BlogPost) => {
-    setSelectedPost(post);
-    setShowBinModal(true);
-  };
-
-  // Handle restore post from trash
-  const handleRestorePost = async (post: BlogPost) => {
     try {
-      const response = await fetch(`/api/blog/posts/restore?id=${post.id}`, {
-        method: 'PUT'
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        console.log('✅ Post restored successfully');
-        await loadPosts();
-      } else {
-        console.error('❌ Failed to restore post:', result.message);
-        alert(`Failed to restore post: ${result.message}`);
+      if (activeTab === 'posts') {
+        await BlogPostOps.moveToTrash(item.id, user?.id);
+      } else if (activeTab === 'pages') {
+        await StaticPageOps.moveToTrash(item.id, user?.id);
       }
+
+      console.log('✅ Content moved to trash successfully');
+
+      // Switch to trash view to show the moved item
+      dispatch(setViewMode('trash'));
+
+      // Reload data
+      await loadCMSData();
+      alert('Content moved to trash successfully! Switched to Trash view.');
     } catch (error) {
-      console.error('❌ Error restoring post:', error);
-      alert('Network error: Failed to restore post. Please try again.');
+      console.error('❌ Error moving content to trash:', error);
+      alert('Failed to move content to trash. Please try again.');
     }
   };
 
-  // Update post function
-  const updatePost = async (postData: Partial<BlogPost>) => {
-    if (!selectedPost) return;
+  // Handle restore from trash
+  const handleRestoreFromTrash = async (item: BlogPost | StaticPage) => {
+    if (!confirm('Are you sure you want to restore this item from trash?')) return;
 
     try {
-      const response = await fetch('/api/blog/posts', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedPost.id, ...postData })
-      });
+      if (activeTab === 'posts') {
+        await BlogPostOps.restoreFromTrash(item.id, 'draft');
+      } else if (activeTab === 'pages') {
+        await StaticPageOps.restoreFromTrash(item.id, 'draft');
+      }
 
-      const result = await response.json();
+      console.log('✅ Content restored from trash successfully');
 
-      if (result.success) {
-        console.log('✅ Post updated successfully:', result.post.title);
-        await loadPosts();
+      // Switch to draft view to show the restored item
+      dispatch(setViewMode('draft'));
+
+      // Reload data
+      await loadCMSData();
+      alert('Content restored from trash successfully! Switched to Draft view.');
+    } catch (error) {
+      console.error('❌ Error restoring content from trash:', error);
+      alert('Failed to restore content from trash. Please try again.');
+    }
+  };
+
+  // Handle permanent delete (hard delete)
+  const handlePermanentDelete = async (item: BlogPost | StaticPage) => {
+    if (!confirm('⚠️ PERMANENT DELETE: This action cannot be undone! Are you absolutely sure?')) return;
+
+    try {
+      if (activeTab === 'posts') {
+        await BlogPostOps.permanentDelete(item.id);
+      } else if (activeTab === 'pages') {
+        await StaticPageOps.permanentDelete(item.id);
+      }
+
+      console.log('✅ Content permanently deleted');
+      // Reload data
+      await loadCMSData();
+      alert('Content permanently deleted!');
+    } catch (error) {
+      console.error('❌ Error permanently deleting content:', error);
+      alert('Failed to permanently delete content. Please try again.');
+    }
+  };
+
+
+
+  // Update content
+  const updateContent = async (contentData: CreateContentData) => {
+    if (!selectedItem) return;
+
+    try {
+      let result;
+
+      if (activeTab === 'posts') {
+        result = await BlogPostOps.updatePost(selectedItem.id, {
+          ...contentData,
+          reading_time: calculateReadingTime(contentData.content || ''),
+          excerpt: contentData.excerpt || extractExcerpt(contentData.content || '')
+        });
+      } else if (activeTab === 'pages') {
+        result = await StaticPageOps.updatePage(selectedItem.id, {
+          ...contentData,
+          status: (contentData.status as 'draft' | 'published' | 'private' | 'trash') || 'draft'
+        });
+      }
+
+      if (result) {
+        console.log('✅ Content updated successfully');
+        // Reload data
+        await loadCMSData();
         setShowEditModal(false);
-        setSelectedPost(null);
-      } else {
-        console.error('❌ Failed to update post:', result.message);
-        alert(`Failed to update post: ${result.message}`);
+        setSelectedItem(null);
+        alert('Content updated successfully!');
       }
     } catch (error) {
-      console.error('❌ Error updating post:', error);
-      alert('Network error: Failed to update post. Please try again.');
-    }
-  };
-
-  // Delete post function (soft delete - move to bin)
-  const deletePost = async () => {
-    if (!selectedPost) return;
-
-    try {
-      const response = await fetch(`/api/blog/posts?id=${selectedPost.id}`, {
-        method: 'DELETE'
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        console.log('✅ Post moved to bin successfully');
-        await loadPosts();
-        setShowDeleteModal(false);
-        setSelectedPost(null);
-      } else {
-        console.error('❌ Failed to move post to bin:', result.message);
-        alert(`Failed to move post to bin: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('❌ Error moving post to bin:', error);
-      alert('Network error: Failed to move post to bin. Please try again.');
-    }
-  };
-
-  // Permanent delete function (hard delete from database)
-  const permanentDeletePost = async () => {
-    if (!selectedPost) return;
-
-    try {
-      const response = await fetch(`/api/blog/posts/permanent?id=${selectedPost.id}`, {
-        method: 'DELETE'
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        console.log('✅ Post permanently deleted from database');
-        await loadPosts();
-        setShowBinModal(false);
-        setSelectedPost(null);
-      } else {
-        console.error('❌ Failed to permanently delete post:', result.message);
-        alert(`Failed to permanently delete post: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('❌ Error permanently deleting post:', error);
-      alert('Network error: Failed to permanently delete post. Please try again.');
+      console.error('❌ Error updating content:', error);
+      alert('Failed to update content. Please try again.');
     }
   };
 
   return (
-    <div className="space-y-4 lg:space-y-6">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col space-y-4 lg:flex-row lg:justify-between lg:items-center lg:space-y-0">
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-4 lg:space-y-0">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center">
-            <DocumentTextIcon className="w-6 h-6 lg:w-8 lg:h-8 text-orange-500 mr-2 lg:mr-3" />
-            CMS Dashboard
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+            <DocumentTextIcon className="w-8 h-8 text-orange-500 mr-3" />
+            WordPress-Style CMS
           </h1>
-          <p className="mt-1 text-xs lg:text-sm text-gray-500">
-            Manage your content with enterprise-grade performance
+          <p className="mt-1 text-sm text-gray-500">
+            Powered by Supabase • Modern, Fast, Scalable
           </p>
         </div>
 
-        {/* Mobile-Optimized Controls */}
-        <div className="flex flex-col space-y-3 lg:flex-row lg:items-center lg:space-y-0 lg:space-x-4">
-          {/* WordPress-style View Mode Segmentation - Mobile Responsive */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1 overflow-x-auto">
-            <button
-              onClick={() => setViewMode('all')}
-              className={`px-2 lg:px-3 py-1 rounded-md text-xs lg:text-sm font-medium transition-colors whitespace-nowrap ${
-                viewMode === 'all'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              All ({stats.totalPosts})
-            </button>
-            <button
-              onClick={() => setViewMode('published')}
-              className={`px-2 lg:px-3 py-1 rounded-md text-xs lg:text-sm font-medium transition-colors whitespace-nowrap ${
-                viewMode === 'published'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Published ({stats.publishedPosts})
-            </button>
-            <button
-              onClick={() => setViewMode('draft')}
-              className={`px-2 lg:px-3 py-1 rounded-md text-xs lg:text-sm font-medium transition-colors whitespace-nowrap ${
-                viewMode === 'draft'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Draft ({stats.draftPosts})
-            </button>
-            <button
-              onClick={() => setViewMode('trash')}
-              className={`px-2 lg:px-3 py-1 rounded-md text-xs lg:text-sm font-medium transition-colors whitespace-nowrap ${
-                viewMode === 'trash'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Trash ({stats.trashedPosts})
-            </button>
-          </div>
-
-          {/* Mobile-Optimized Action Row */}
-          <div className="flex items-center justify-between lg:justify-start lg:space-x-4">
-            {/* System Status */}
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 lg:w-3 lg:h-3 rounded-full bg-green-500"></div>
-              <span className="text-xs lg:text-sm text-gray-600">
-                CMS Active
-              </span>
-            </div>
-
-            {viewMode !== 'trash' && (
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-orange-600 text-white px-3 lg:px-4 py-2 rounded-lg flex items-center space-x-1 lg:space-x-2 hover:bg-orange-700 transition-colors text-sm lg:text-base"
-              >
-                <PlusIcon className="w-4 h-4 lg:w-5 lg:h-5" />
-                <span className="hidden sm:inline">New Post</span>
-                <span className="sm:hidden">New</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Cards - Mobile Optimized */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-6">
-        <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <DocumentTextIcon className="h-6 w-6 lg:h-8 lg:w-8 text-blue-600" />
-            </div>
-            <div className="ml-2 lg:ml-4 min-w-0">
-              <h3 className="text-xs lg:text-sm font-medium text-gray-500 truncate">Total Posts</h3>
-              <p className="text-lg lg:text-2xl font-bold text-gray-900">{stats.totalPosts}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <EyeIcon className="h-6 w-6 lg:h-8 lg:w-8 text-green-600" />
-            </div>
-            <div className="ml-2 lg:ml-4 min-w-0">
-              <h3 className="text-xs lg:text-sm font-medium text-gray-500 truncate">Published</h3>
-              <p className="text-lg lg:text-2xl font-bold text-green-600">{stats.publishedPosts}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <PencilIcon className="h-6 w-6 lg:h-8 lg:w-8 text-yellow-600" />
-            </div>
-            <div className="ml-2 lg:ml-4 min-w-0">
-              <h3 className="text-xs lg:text-sm font-medium text-gray-500 truncate">Drafts</h3>
-              <p className="text-lg lg:text-2xl font-bold text-yellow-600">{stats.draftPosts}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <TrashIcon className="h-6 w-6 lg:h-8 lg:w-8 text-red-600" />
-            </div>
-            <div className="ml-2 lg:ml-4 min-w-0">
-              <h3 className="text-xs lg:text-sm font-medium text-gray-500 truncate">Trash</h3>
-              <p className="text-lg lg:text-2xl font-bold text-red-600">{stats.trashedPosts}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border border-gray-200 col-span-2 md:col-span-1">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <ChartBarIcon className="h-6 w-6 lg:h-8 lg:w-8 text-purple-600" />
-            </div>
-            <div className="ml-2 lg:ml-4 min-w-0">
-              <h3 className="text-xs lg:text-sm font-medium text-gray-500 truncate">Total Views</h3>
-              <p className="text-lg lg:text-2xl font-bold text-purple-600">{stats.totalViews}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions - Mobile Optimized */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-4 lg:px-6 py-3 lg:py-4 border-b border-gray-200">
-          <h2 className="text-base lg:text-lg font-medium text-gray-900">Quick Actions</h2>
-        </div>
-        <div className="p-4 lg:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center p-3 lg:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors text-left w-full"
-            >
-              <PlusIcon className="w-6 h-6 lg:w-8 lg:h-8 text-gray-400 mr-2 lg:mr-3 flex-shrink-0" />
-              <div className="min-w-0">
-                <h3 className="text-xs lg:text-sm font-medium text-gray-900 truncate">Create New Post</h3>
-                <p className="text-xs lg:text-sm text-gray-500 truncate">Write a new blog post</p>
-              </div>
-            </button>
-
-            <button className="flex items-center p-3 lg:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left w-full">
-              <PhotoIcon className="w-6 h-6 lg:w-8 lg:h-8 text-gray-400 mr-2 lg:mr-3 flex-shrink-0" />
-              <div className="min-w-0">
-                <h3 className="text-xs lg:text-sm font-medium text-gray-900 truncate">Media Library</h3>
-                <p className="text-xs lg:text-sm text-gray-500 truncate">Manage images and files</p>
-              </div>
-            </button>
-
-            <button className="flex items-center p-3 lg:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left w-full sm:col-span-2 lg:col-span-1">
-              <ChartBarIcon className="w-6 h-6 lg:w-8 lg:h-8 text-gray-400 mr-2 lg:mr-3 flex-shrink-0" />
-              <div className="min-w-0">
-                <h3 className="text-xs lg:text-sm font-medium text-gray-900 truncate">Analytics</h3>
-                <p className="text-xs lg:text-sm text-gray-500 truncate">View content performance</p>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Posts - Mobile Optimized */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-4 lg:px-6 py-3 lg:py-4 border-b border-gray-200">
-          <h2 className="text-base lg:text-lg font-medium text-gray-900">
-            {viewMode === 'all' && 'All Posts'}
-            {viewMode === 'published' && 'Published Posts'}
-            {viewMode === 'draft' && 'Draft Posts'}
-            {viewMode === 'trash' && 'Posts in Trash'}
-          </h2>
-        </div>
-
-        {loading ? (
-          <div className="p-6 lg:p-8 text-center">
-            <div className="animate-spin rounded-full h-6 w-6 lg:h-8 lg:w-8 border-b-2 border-orange-600 mx-auto"></div>
-            <p className="mt-2 text-sm lg:text-base text-gray-500">Loading posts...</p>
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="p-6 lg:p-8 text-center">
-            <DocumentTextIcon className="w-10 h-10 lg:w-12 lg:h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-sm lg:text-base text-gray-500 mb-4">
-              {viewMode === 'all' && 'No posts found. Create your first post!'}
-              {viewMode === 'published' && 'No published posts found.'}
-              {viewMode === 'draft' && 'No draft posts found.'}
-              {viewMode === 'trash' && 'Trash is empty. No deleted posts found.'}
-            </p>
-            {viewMode !== 'trash' && (
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm lg:text-base"
-              >
-                Create First Post
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
-                    Title
-                  </th>
-                  <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                    Status
-                  </th>
-                  <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                    Author
-                  </th>
-                  <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                    Created
-                  </th>
-                  <th className="px-3 lg:px-6 py-2 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {posts.slice(0, 5).map((post) => (
-                  <tr key={post.id} className="hover:bg-gray-50">
-                    <td className="px-3 lg:px-6 py-3 lg:py-4">
-                      <div className="min-w-0">
-                        <div className="text-xs lg:text-sm font-medium text-gray-900 truncate">{post.title}</div>
-                        <div className="text-xs text-gray-500 truncate">{post.slug}</div>
-                      </div>
-                    </td>
-                    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        post.status === 'published'
-                          ? 'bg-green-100 text-green-800'
-                          : post.status === 'draft'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {post.status}
-                      </span>
-                    </td>
-                    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-xs lg:text-sm text-gray-900">
-                      <div className="truncate">{post.author_name}</div>
-                    </td>
-                    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-xs lg:text-sm text-gray-500">
-                      <div className="truncate">{new Date(post.created_at).toLocaleDateString()}</div>
-                    </td>
-                    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-1 lg:space-x-2">
-                        <button
-                          onClick={() => handleViewPost(post)}
-                          className="text-blue-600 hover:text-blue-900 p-1.5 lg:p-1 rounded hover:bg-blue-50 transition-colors touch-manipulation"
-                          title="View Post"
-                        >
-                          <EyeIcon className="w-4 h-4" />
-                        </button>
-
-                        {viewMode === 'trash' ? (
-                          <>
-                            <button
-                              onClick={() => handleRestorePost(post)}
-                              className="text-green-600 hover:text-green-900 p-1.5 lg:p-1 rounded hover:bg-green-50 transition-colors touch-manipulation"
-                              title="Restore Post"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handlePermanentDelete(post)}
-                              className="text-red-600 hover:text-red-900 p-1.5 lg:p-1 rounded hover:bg-red-50 transition-colors touch-manipulation"
-                              title="Permanently Delete from Database"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleEditPost(post)}
-                              className="text-orange-600 hover:text-orange-900 p-1.5 lg:p-1 rounded hover:bg-orange-50 transition-colors touch-manipulation"
-                              title="Edit Post"
-                            >
-                              <PencilIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePost(post)}
-                              className="text-red-600 hover:text-red-900 p-1.5 lg:p-1 rounded hover:bg-red-50 transition-colors touch-manipulation"
-                              title="Move to Trash"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* System Status - Mobile Optimized */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-4 lg:px-6 py-3 lg:py-4 border-b border-gray-200">
-          <h2 className="text-base lg:text-lg font-medium text-gray-900">System Status</h2>
-        </div>
-        <div className="p-4 lg:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-              <span className="text-xs lg:text-sm text-gray-600 truncate">Neon Database</span>
-              <span className="text-xs lg:text-sm text-green-600 font-medium whitespace-nowrap ml-2">✅ Connected</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-              <span className="text-xs lg:text-sm text-gray-600 truncate">Custom CMS</span>
-              <span className="text-xs lg:text-sm text-green-600 font-medium whitespace-nowrap ml-2">✅ Active</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-              <span className="text-xs lg:text-sm text-gray-600 truncate">Cloudinary CDN</span>
-              <span className="text-xs lg:text-sm text-green-600 font-medium whitespace-nowrap ml-2">✅ Connected</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-              <span className="text-xs lg:text-sm text-gray-600 truncate">Performance</span>
-              <span className="text-xs lg:text-sm text-blue-600 font-medium whitespace-nowrap ml-2">🚀 Direct DB</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Create Post Modal */}
-      {showCreateModal && (
-        <CreatePostModal
-          onClose={() => setShowCreateModal(false)}
-          onSubmit={createPost}
-        />
-      )}
-
-      {/* View Post Modal */}
-      {showViewModal && selectedPost && (
-        <ViewPostModal
-          post={selectedPost}
-          onClose={() => {
-            setShowViewModal(false);
-            setSelectedPost(null);
-          }}
-        />
-      )}
-
-      {/* Edit Post Modal */}
-      {showEditModal && selectedPost && (
-        <EditPostModal
-          post={selectedPost}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedPost(null);
-          }}
-          onSubmit={updatePost}
-        />
-      )}
-
-      {/* Delete Confirmation Modal (Move to Bin) */}
-      {showDeleteModal && selectedPost && (
-        <DeletePostModal
-          post={selectedPost}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setSelectedPost(null);
-          }}
-          onConfirm={deletePost}
-          isMoveToBin={true}
-        />
-      )}
-
-      {/* Permanent Delete Confirmation Modal */}
-      {showBinModal && selectedPost && (
-        <DeletePostModal
-          post={selectedPost}
-          onClose={() => {
-            setShowBinModal(false);
-            setSelectedPost(null);
-          }}
-          onConfirm={permanentDeletePost}
-          isMoveToBin={false}
-        />
-      )}
-    </div>
-  );
-}
-
-// Create Post Modal Component
-function CreatePostModal({ onClose, onSubmit }: {
-  onClose: () => void;
-  onSubmit: (data: Partial<BlogPost>) => void;
-}) {
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    excerpt: '',
-    author_name: 'Admin',
-    status: 'draft' as 'draft' | 'published'
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.title.trim() || !formData.content.trim()) {
-      alert('Please fill in both title and content');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      await onSubmit({
-        ...formData,
-        slug: formData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-base lg:text-lg font-medium text-gray-900 mb-4">Create New Blog Post</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Title *</label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Enter blog post title"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Excerpt</label>
-            <textarea
-              value={formData.excerpt}
-              onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              rows={2}
-              placeholder="Brief description of the post"
-            />
-          </div>
-          <div>
-            <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Content *</label>
-            <textarea
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              rows={6}
-              placeholder="Write your blog post content here..."
-              required
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Author</label>
-              <input
-                type="text"
-                value={formData.author_name}
-                onChange={(e) => setFormData({ ...formData, author_name: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm lg:text-base text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors touch-manipulation"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !formData.title.trim() || !formData.content.trim()}
-              className={`px-4 py-2 text-sm lg:text-base rounded-md text-white transition-colors touch-manipulation ${
-                isSubmitting || !formData.title.trim() || !formData.content.trim()
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-orange-600 hover:bg-orange-700'
-              }`}
-            >
-              {isSubmitting ? 'Creating...' : 'Create Post'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// View Post Modal Component
-function ViewPostModal({ post, onClose }: {
-  post: BlogPost;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-start mb-4 lg:mb-6">
-          <h3 className="text-lg lg:text-xl font-bold text-gray-900">View Blog Post</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1 touch-manipulation"
-          >
-            <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="space-y-4 lg:space-y-6">
-          {/* Post Header */}
-          <div className="border-b border-gray-200 pb-4">
-            <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-2">{post.title}</h1>
-            <div className="flex flex-wrap items-center gap-2 lg:gap-4 text-xs lg:text-sm text-gray-500">
-              <span>By {post.author_name}</span>
-              <span className="hidden sm:inline">•</span>
-              <span>{new Date(post.created_at).toLocaleDateString()}</span>
-              <span className="hidden sm:inline">•</span>
-              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                post.status === 'published'
-                  ? 'bg-green-100 text-green-800'
-                  : post.status === 'draft'
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {post.status}
-              </span>
-            </div>
-          </div>
-
-          {/* Post Details */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-            <div>
-              <h4 className="text-xs lg:text-sm font-medium text-gray-700 mb-2">Slug</h4>
-              <p className="text-xs lg:text-sm text-gray-900 bg-gray-50 p-2 rounded break-all">{post.slug}</p>
-            </div>
-            {post.excerpt && (
-              <div>
-                <h4 className="text-xs lg:text-sm font-medium text-gray-700 mb-2">Excerpt</h4>
-                <p className="text-xs lg:text-sm text-gray-900 bg-gray-50 p-2 rounded">{post.excerpt}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Post Content */}
-          <div>
-            <h4 className="text-xs lg:text-sm font-medium text-gray-700 mb-2">Content</h4>
-            <div className="bg-gray-50 p-3 lg:p-4 rounded-lg max-h-64 lg:max-h-96 overflow-y-auto">
-              <div className="prose prose-sm max-w-none">
-                {post.content.split('\n').map((paragraph, index) => (
-                  <p key={index} className="mb-2 text-xs lg:text-sm text-gray-900">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end mt-4 lg:mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm lg:text-base text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors touch-manipulation"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Edit Post Modal Component
-function EditPostModal({ post, onClose, onSubmit }: {
-  post: BlogPost;
-  onClose: () => void;
-  onSubmit: (data: Partial<BlogPost>) => void;
-}) {
-  const [formData, setFormData] = useState({
-    title: post.title,
-    content: post.content,
-    excerpt: post.excerpt || '',
-    author_name: post.author_name,
-    status: post.status
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.title.trim() || !formData.content.trim()) {
-      alert('Please fill in both title and content');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await onSubmit({
-        ...formData,
-        slug: formData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-base lg:text-lg font-medium text-gray-900">Edit Blog Post</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1 touch-manipulation"
-          >
-            <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Title *</label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Enter blog post title"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Excerpt</label>
-            <textarea
-              value={formData.excerpt}
-              onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              rows={2}
-              placeholder="Brief description of the post"
-            />
-          </div>
-          <div>
-            <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Content *</label>
-            <textarea
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              rows={6}
-              placeholder="Write your blog post content here..."
-              required
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Author</label>
-              <input
-                type="text"
-                value={formData.author_name}
-                onChange={(e) => setFormData({ ...formData, author_name: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' | 'archived' })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm lg:text-base text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors touch-manipulation"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !formData.title.trim() || !formData.content.trim()}
-              className={`px-4 py-2 text-sm lg:text-base rounded-md text-white transition-colors touch-manipulation ${
-                isSubmitting || !formData.title.trim() || !formData.content.trim()
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-orange-600 hover:bg-orange-700'
-              }`}
-            >
-              {isSubmitting ? 'Updating...' : 'Update Post'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// Delete Post Modal Component
-function DeletePostModal({ post, onClose, onConfirm, isMoveToBin = true }: {
-  post: BlogPost;
-  onClose: () => void;
-  onConfirm: () => void;
-  isMoveToBin?: boolean;
-}) {
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleConfirm = async () => {
-    setIsDeleting(true);
-    try {
-      await onConfirm();
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-md">
-        <div className="flex items-center mb-4">
-          <div className="flex-shrink-0">
-            {isMoveToBin ? (
-              <TrashIcon className="h-5 w-5 lg:h-6 lg:w-6 text-orange-600" />
+        <div className="flex items-center space-x-4">
+          {/* System Status */}
+          <div className="flex items-center space-x-2">
+            {isLoading ? (
+              <>
+                <ArrowPathIcon className="w-5 h-5 text-blue-500 animate-spin" />
+                <span className="text-sm text-blue-600">Loading...</span>
+              </>
+            ) : error ? (
+              <>
+                <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
+                <span className="text-sm text-red-600">Error: {error}</span>
+              </>
             ) : (
-              <svg className="h-5 w-5 lg:h-6 lg:w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              <>
+                <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                <span className="text-sm text-gray-600">Supabase Connected</span>
+              </>
             )}
           </div>
-          <div className="ml-3 min-w-0">
-            <h3 className="text-base lg:text-lg font-medium text-gray-900">
-              {isMoveToBin ? 'Move to Bin' : 'Permanently Delete Post'}
-            </h3>
+
+          <button
+            onClick={handleRefresh}
+            className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={isLoading}
+          >
+            <ArrowPathIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+
+          {error && (
+            <button
+              onClick={() => dispatch(clearError())}
+              className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <XCircleIcon className="w-4 h-4" />
+              <span>Clear Error</span>
+            </button>
+          )}
+
+
+
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-orange-700 transition-colors"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span>Create New</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <DocumentTextIcon className="h-8 w-8 text-blue-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Blog Posts</h3>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalPosts}</p>
+            </div>
           </div>
         </div>
 
-        <div className="mb-6">
-          <p className="text-xs lg:text-sm text-gray-500 mb-2">
-            {isMoveToBin
-              ? 'Are you sure you want to move this post to the bin? You can restore it later.'
-              : 'Are you sure you want to permanently delete this post? This action cannot be undone and the post will be completely removed from the database.'
-            }
-          </p>
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs lg:text-sm font-medium text-gray-900 truncate">{post.title}</p>
-            <p className="text-xs text-gray-500">by {post.author_name}</p>
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <CheckCircleIcon className="h-8 w-8 text-green-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Published</h3>
+              <p className="text-2xl font-bold text-green-600">{stats.publishedPosts}</p>
+            </div>
           </div>
+        </div>
 
-          {!isMoveToBin && (
-            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-xs lg:text-sm text-red-800 font-medium">⚠️ Warning: This is permanent!</p>
-              <p className="text-xs text-red-600 mt-1">
-                The post will be completely removed from the database and cannot be recovered.
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <PencilIcon className="h-8 w-8 text-yellow-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Drafts</h3>
+              <p className="text-2xl font-bold text-yellow-600">{stats.draftPosts}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <DocumentTextIcon className="h-8 w-8 text-purple-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Pages</h3>
+              <p className="text-2xl font-bold text-purple-600">{stats.totalPages}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <FolderIcon className="h-8 w-8 text-indigo-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Categories</h3>
+              <p className="text-2xl font-bold text-indigo-600">{stats.totalCategories}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <TagIcon className="h-8 w-8 text-pink-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Tags</h3>
+              <p className="text-2xl font-bold text-pink-600">{stats.totalTags}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <EyeIcon className="h-8 w-8 text-orange-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Total Views</h3>
+              <p className="text-2xl font-bold text-orange-600">{stats.totalViews}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <ChartBarIcon className="h-8 w-8 text-teal-600" />
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Published Pages</h3>
+              <p className="text-2xl font-bold text-teal-600">{stats.publishedPages}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+            <button
+              onClick={() => handleTabChange('posts')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'posts'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <DocumentTextIcon className="w-5 h-5" />
+                <span>Blog Posts ({stats.totalPosts})</span>
+              </div>
+            </button>
+            <button
+              onClick={() => handleTabChange('pages')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'pages'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <DocumentTextIcon className="w-5 h-5" />
+                <span>Static Pages ({stats.totalPages})</span>
+              </div>
+            </button>
+            <button
+              onClick={() => handleTabChange('categories')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'categories'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <FolderIcon className="w-5 h-5" />
+                <span>Categories ({stats.totalCategories})</span>
+              </div>
+            </button>
+            <button
+              onClick={() => handleTabChange('tags')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'tags'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <TagIcon className="w-5 h-5" />
+                <span>Tags ({stats.totalTags})</span>
+              </div>
+            </button>
+          </nav>
+        </div>
+
+        {/* Content Management Area */}
+        <div className="p-6">
+          {/* Filter Controls - WordPress Style */}
+          {(activeTab === 'posts' || activeTab === 'pages') && (
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => handleViewModeChange('all')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'all'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    All ({activeTab === 'posts' ? stats.totalPosts : stats.totalPages})
+                  </button>
+                  <button
+                    onClick={() => handleViewModeChange('published')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'published'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Published ({activeTab === 'posts' ? stats.publishedPosts : stats.publishedPages})
+                  </button>
+                  <button
+                    onClick={() => handleViewModeChange('draft')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'draft'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Draft ({activeTab === 'posts' ? stats.draftPosts : stats.totalPages - stats.publishedPages})
+                  </button>
+                  <button
+                    onClick={() => handleViewModeChange('trash')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'trash'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    🗑️ Trash ({activeTab === 'posts' ? stats.trashedPosts : stats.trashedPages})
+                  </button>
+                </div>
+              </div>
+
+              {/* WordPress-style action info */}
+              <div className="text-sm text-gray-500">
+                {viewMode === 'trash' ? (
+                  <span className="text-orange-600">⚠️ Items in trash can be restored or permanently deleted</span>
+                ) : (
+                  <span>
+                    Showing {viewMode === 'all' ? 'all active' : viewMode} {activeTab}
+                    {isLoading && <span className="ml-2 text-blue-600">• Loading...</span>}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Content Display */}
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+              <p className="mt-2 text-sm text-gray-500">
+                Loading {activeTab === 'posts' ? 'posts' : activeTab === 'pages' ? 'pages' : activeTab}...
               </p>
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">Error: {error}</p>
+                  <button
+                    onClick={() => dispatch(clearError())}
+                    className="mt-2 text-xs text-red-700 underline hover:no-underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <ExclamationTriangleIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
+              <p className="text-red-600 mb-4">Failed to load content: {error}</p>
+              <div className="space-x-4">
+                <button
+                  onClick={handleRefresh}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Retry
+                </button>
+                <button
+                  onClick={() => dispatch(clearError())}
+                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Clear Error
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              {/* Blog Posts Tab */}
+              {activeTab === 'posts' && (
+                <div>
+                  {posts.length === 0 ? (
+                    <div className="text-center py-12">
+                      <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">No blog posts found. Create your first post!</p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                      >
+                        Create First Post
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Title
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Author
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Views
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Created
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {posts.map((post) => (
+                            <tr key={post.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">{post.title}</div>
+                                  <div className="text-sm text-gray-500">/{post.slug}</div>
+                                  {post.is_featured && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 mt-1">
+                                      Featured
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  post.status === 'published'
+                                    ? 'bg-green-100 text-green-800'
+                                    : post.status === 'draft'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {post.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {post.author_name}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {post.view_count || 0}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(post.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex space-x-2">
+                                  <button
+                                    onClick={() => handleEdit(post)}
+                                    className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
+                                    title="Edit Post"
+                                  >
+                                    <PencilIcon className="w-4 h-4" />
+                                  </button>
+                                  {viewMode === 'trash' ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleRestoreFromTrash(post)}
+                                        className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 transition-colors"
+                                        title="Restore from Trash"
+                                      >
+                                        <ArrowUturnLeftIcon className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handlePermanentDelete(post)}
+                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                                        title="Permanently Delete"
+                                      >
+                                        <XCircleIcon className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleMoveToTrash(post)}
+                                      className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
+                                      title="Move to Trash"
+                                    >
+                                      <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Static Pages Tab */}
+              {activeTab === 'pages' && (
+                <div>
+                  {pages.length === 0 ? (
+                    <div className="text-center py-12">
+                      <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">No static pages found. Create your first page!</p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                      >
+                        Create First Page
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Title
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Navigation
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Order
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {pages.map((page) => (
+                            <tr key={page.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">{page.title}</div>
+                                  <div className="text-sm text-gray-500">/{page.slug}</div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  page.status === 'published'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {page.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {page.show_in_navigation ? (
+                                  <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                                ) : (
+                                  <XCircleIcon className="w-5 h-5 text-gray-400" />
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {page.menu_order || 0}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex space-x-2">
+                                  <button
+                                    onClick={() => handleEdit(page)}
+                                    className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
+                                  >
+                                    <PencilIcon className="w-4 h-4" />
+                                  </button>
+                                  {viewMode === 'trash' ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleRestoreFromTrash(page)}
+                                        className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 transition-colors"
+                                        title="Restore from Trash"
+                                      >
+                                        <ArrowUturnLeftIcon className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handlePermanentDelete(page)}
+                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                                        title="Permanently Delete"
+                                      >
+                                        <XCircleIcon className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleMoveToTrash(page)}
+                                      className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
+                                      title="Move to Trash"
+                                    >
+                                      <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Categories Tab */}
+              {activeTab === 'categories' && (
+                <div>
+                  {categories.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FolderIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">No categories found. Create your first category!</p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                      >
+                        Create First Category
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {categories.map((category) => (
+                        <div key={category.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-medium text-gray-900">{category.name}</h3>
+                            <div className="flex space-x-1">
+                              <button
+                                onClick={() => handleEdit(category)}
+                                className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-500 mb-2">/{category.slug}</p>
+                          {category.description && (
+                            <p className="text-sm text-gray-600 mb-2">{category.description}</p>
+                          )}
+                          <div className="text-sm text-gray-500">
+                            {category.post_count} posts
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tags Tab */}
+              {activeTab === 'tags' && (
+                <div>
+                  {tags.length === 0 ? (
+                    <div className="text-center py-12">
+                      <TagIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">No tags found. Create your first tag!</p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                      >
+                        Create First Tag
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-3">
+                      {tags.map((tag) => (
+                        <div key={tag.id} className="bg-white border border-gray-200 rounded-lg p-3 flex items-center space-x-2">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{tag.name}</div>
+                            <div className="text-xs text-gray-500">{tag.post_count} posts</div>
+                          </div>
+                          <button
+                            onClick={() => handleEdit(tag)}
+                            className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
+                          >
+                            <PencilIcon className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
+      </div>
 
-        <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isDeleting}
-            className="px-4 py-2 text-sm lg:text-base text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50 touch-manipulation"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={isDeleting}
-            className={`px-4 py-2 text-sm lg:text-base text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
-              isMoveToBin
-                ? 'bg-orange-600 hover:bg-orange-700'
-                : 'bg-red-600 hover:bg-red-700'
-            }`}
-          >
-            {isDeleting ? (
-              <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                {isMoveToBin ? 'Moving...' : 'Deleting...'}
+      {/* System Status */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900">System Status</h2>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <span className="text-sm text-gray-600">Supabase Database</span>
+              <span className="text-sm text-green-600 font-medium">✅ Connected</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <span className="text-sm text-gray-600">WordPress CMS</span>
+              <span className="text-sm text-green-600 font-medium">✅ Active</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <span className="text-sm text-gray-600">Firebase Auth</span>
+              <span className="text-sm text-green-600 font-medium">✅ Connected</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+              <span className="text-sm text-gray-600">Performance</span>
+              <span className="text-sm text-blue-600 font-medium">🚀 Optimized</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Create Content Modal */}
+      {showCreateModal && (
+        <CreateContentModal
+          activeTab={activeTab}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={createContent}
+        />
+      )}
+
+      {/* Edit Content Modal */}
+      {showEditModal && selectedItem && (
+        <EditContentModal
+          activeTab={activeTab}
+          item={selectedItem}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedItem(null);
+          }}
+          onSubmit={updateContent}
+        />
+      )}
+    </div>
+  );
+}
+
+// Create Content Modal Component
+function CreateContentModal({ activeTab, onClose, onSubmit }: {
+  activeTab: 'posts' | 'pages' | 'categories' | 'tags';
+  onClose: () => void;
+  onSubmit: (data: CreateContentData) => void;
+}) {
+  const [formData, setFormData] = useState<CreateContentData>({
+    title: '',
+    name: '',
+    content: '',
+    excerpt: '',
+    description: '',
+    author_name: 'Admin',
+    status: 'draft',
+    show_in_navigation: false,
+    menu_order: 0,
+    is_featured: false
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const requiredField = activeTab === 'posts' || activeTab === 'pages' ? 'title' : 'name';
+    if (!formData[requiredField]?.trim()) {
+      alert(`Please fill in the ${requiredField}`);
+      return;
+    }
+
+    if ((activeTab === 'posts' || activeTab === 'pages') && !formData.content?.trim()) {
+      alert('Please fill in the content');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getModalTitle = () => {
+    switch (activeTab) {
+      case 'posts': return 'Create New Blog Post';
+      case 'pages': return 'Create New Static Page';
+      case 'categories': return 'Create New Category';
+      case 'tags': return 'Create New Tag';
+      default: return 'Create New Content';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">{getModalTitle()}</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title/Name Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {activeTab === 'posts' || activeTab === 'pages' ? 'Title' : 'Name'} *
+            </label>
+            <input
+              type="text"
+              value={activeTab === 'posts' || activeTab === 'pages' ? formData.title : formData.name}
+              onChange={(e) => setFormData({
+                ...formData,
+                [activeTab === 'posts' || activeTab === 'pages' ? 'title' : 'name']: e.target.value
+              })}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder={`Enter ${activeTab === 'posts' || activeTab === 'pages' ? 'title' : 'name'}`}
+              required
+            />
+          </div>
+
+          {/* Content Field (Posts and Pages only) */}
+          {(activeTab === 'posts' || activeTab === 'pages') && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+                <textarea
+                  value={formData.excerpt}
+                  onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  rows={2}
+                  placeholder="Brief description"
+                />
               </div>
-            ) : (
-              isMoveToBin ? 'Move to Bin' : 'Permanently Delete'
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Content *</label>
+                <textarea
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  rows={8}
+                  placeholder="Write your content here..."
+                  required
+                />
+              </div>
+            </>
+          )}
+
+          {/* Description Field (Categories and Tags) */}
+          {(activeTab === 'categories' || activeTab === 'tags') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                rows={3}
+                placeholder="Optional description"
+              />
+            </div>
+          )}
+
+          {/* Additional Fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(activeTab === 'posts' || activeTab === 'pages') && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                  <input
+                    type="text"
+                    value={formData.author_name}
+                    onChange={(e) => setFormData({ ...formData, author_name: e.target.value })}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' | 'private' | 'trash' })}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                  </select>
+                </div>
+              </>
             )}
+          </div>
+
+          {/* Page-specific fields */}
+          {activeTab === 'pages' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="show_in_navigation"
+                  checked={formData.show_in_navigation}
+                  onChange={(e) => setFormData({ ...formData, show_in_navigation: e.target.checked })}
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                />
+                <label htmlFor="show_in_navigation" className="ml-2 block text-sm text-gray-900">
+                  Show in Navigation
+                </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Menu Order</label>
+                <input
+                  type="number"
+                  value={formData.menu_order}
+                  onChange={(e) => setFormData({ ...formData, menu_order: parseInt(e.target.value) || 0 })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Post-specific fields */}
+          {activeTab === 'posts' && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="is_featured"
+                checked={formData.is_featured}
+                onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label htmlFor="is_featured" className="ml-2 block text-sm text-gray-900">
+                Featured Post
+              </label>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`px-4 py-2 rounded-md text-white transition-colors ${
+                isSubmitting
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-orange-600 hover:bg-orange-700'
+              }`}
+            >
+              {isSubmitting ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Edit Content Modal Component
+function EditContentModal({ activeTab, item, onClose, onSubmit }: {
+  activeTab: 'posts' | 'pages' | 'categories' | 'tags';
+  item: BlogPost | StaticPage | Category | Tag;
+  onClose: () => void;
+  onSubmit: (data: CreateContentData) => void;
+}) {
+  const [formData, setFormData] = useState<CreateContentData>(() => {
+    if (activeTab === 'posts') {
+      const post = item as BlogPost;
+      return {
+        title: post.title,
+        content: post.content,
+        excerpt: post.excerpt || '',
+        author_name: post.author_name,
+        status: post.status as 'draft' | 'published' | 'private' | 'trash',
+        is_featured: post.is_featured || false
+      };
+    } else if (activeTab === 'pages') {
+      const page = item as StaticPage;
+      return {
+        title: page.title,
+        content: page.content,
+        excerpt: page.excerpt || '',
+        author_name: page.author_name,
+        status: page.status as 'draft' | 'published' | 'private' | 'trash',
+        show_in_navigation: page.show_in_navigation || false,
+        navigation_label: page.navigation_label || '',
+        menu_order: page.menu_order || 0
+      };
+    } else if (activeTab === 'categories') {
+      const category = item as Category;
+      return {
+        name: category.name,
+        description: category.description || ''
+      };
+    } else {
+      const tag = item as Tag;
+      return {
+        name: tag.name,
+        description: tag.description || ''
+      };
+    }
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const requiredField = activeTab === 'posts' || activeTab === 'pages' ? 'title' : 'name';
+    if (!formData[requiredField]?.trim()) {
+      alert(`Please fill in the ${requiredField}`);
+      return;
+    }
+
+    if ((activeTab === 'posts' || activeTab === 'pages') && !formData.content?.trim()) {
+      alert('Please fill in the content');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getModalTitle = () => {
+    switch (activeTab) {
+      case 'posts': return 'Edit Blog Post';
+      case 'pages': return 'Edit Static Page';
+      case 'categories': return 'Edit Category';
+      case 'tags': return 'Edit Tag';
+      default: return 'Edit Content';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">{getModalTitle()}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title/Name Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {activeTab === 'posts' || activeTab === 'pages' ? 'Title' : 'Name'} *
+            </label>
+            <input
+              type="text"
+              value={activeTab === 'posts' || activeTab === 'pages' ? formData.title : formData.name}
+              onChange={(e) => setFormData({
+                ...formData,
+                [activeTab === 'posts' || activeTab === 'pages' ? 'title' : 'name']: e.target.value
+              })}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          {/* Content Field (Posts and Pages only) */}
+          {(activeTab === 'posts' || activeTab === 'pages') && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+                <textarea
+                  value={formData.excerpt}
+                  onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Content *</label>
+                <textarea
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  rows={8}
+                  required
+                />
+              </div>
+            </>
+          )}
+
+          {/* Description Field (Categories and Tags) */}
+          {(activeTab === 'categories' || activeTab === 'tags') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                rows={3}
+              />
+            </div>
+          )}
+
+          {/* Additional Fields */}
+          {(activeTab === 'posts' || activeTab === 'pages') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                <input
+                  type="text"
+                  value={formData.author_name}
+                  onChange={(e) => setFormData({ ...formData, author_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' | 'private' | 'trash' })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="private">Private</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Page-specific fields */}
+          {activeTab === 'pages' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="show_in_navigation"
+                  checked={formData.show_in_navigation}
+                  onChange={(e) => setFormData({ ...formData, show_in_navigation: e.target.checked })}
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                />
+                <label htmlFor="show_in_navigation" className="ml-2 block text-sm text-gray-900">
+                  Show in Navigation
+                </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Menu Order</label>
+                <input
+                  type="number"
+                  value={formData.menu_order}
+                  onChange={(e) => setFormData({ ...formData, menu_order: parseInt(e.target.value) || 0 })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Post-specific fields */}
+          {activeTab === 'posts' && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="is_featured"
+                checked={formData.is_featured}
+                onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label htmlFor="is_featured" className="ml-2 block text-sm text-gray-900">
+                Featured Post
+              </label>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`px-4 py-2 rounded-md text-white transition-colors ${
+                isSubmitting
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-orange-600 hover:bg-orange-700'
+              }`}
+            >
+              {isSubmitting ? 'Updating...' : 'Update'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

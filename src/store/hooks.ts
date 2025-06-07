@@ -129,6 +129,23 @@ export const useAnalyticsState = () => {
   }));
 };
 
+// CMS state hook
+export const useCMSState = () => {
+  return useAppSelector((state) => ({
+    posts: state.cms.posts,
+    pages: state.cms.pages,
+    categories: state.cms.categories,
+    tags: state.cms.tags,
+    stats: state.cms.stats,
+    loading: state.cms.loading,
+    activeTab: state.cms.activeTab,
+    viewMode: state.cms.viewMode,
+    error: state.cms.error,
+    lastUpdated: state.cms.lastUpdated,
+    isLoading: state.cms.loading.global || state.cms.loading.posts || state.cms.loading.pages,
+  }));
+};
+
 /**
  * Role-based hooks for different user types
  */

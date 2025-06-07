@@ -34,6 +34,9 @@ import adminSlice from './slices/adminSlice';
 import vendorSlice from './slices/vendorSlice';
 import driverPanelSlice from './slices/driverPanelSlice';
 
+// CMS slice
+import cmsReducer from './slices/cmsSliceSimple';
+
 // API slice for RTK Query
 import { apiSlice } from './api/apiSlice';
 
@@ -65,7 +68,10 @@ const rootReducer = combineReducers({
   admin: adminSlice.reducer,
   vendor: vendorSlice.reducer,
   driverPanel: driverPanelSlice.reducer,
-  
+
+  // CMS
+  cms: cmsReducer,
+
   // API
   api: apiSlice.reducer,
 });

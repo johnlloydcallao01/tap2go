@@ -24,7 +24,14 @@
     "neon:test": "node -e \"require('./src/lib/neon/client.ts').neonClient.testConnection().then(r => console.log('Connected:', r))\"",
     "neon:info": "node -e \"require('./src/lib/neon/client.ts').neonClient.getDatabaseInfo().then(r => console.log(JSON.stringify(r, null, 2)))\"",
     "db:test": "curl http://localhost:3000/api/database/test",
-    "db:hybrid-test": "node -e \"const { db } = require('./src/lib/database/hybrid-client.ts'); db.sql('SELECT NOW()').then(r => console.log('Hybrid DB:', r))\""
+    "db:hybrid-test": "node -e \"const { db } = require('./src/lib/database/hybrid-client.ts'); db.sql('SELECT NOW()').then(r => console.log('Hybrid DB:', r))\"",
+    "supabase:create-tables": "node scripts/create-tables-now.js",
+    "supabase:setup": "node scripts/automated-supabase-setup.js",
+    "supabase:setup-manual": "node scripts/setup-supabase-schema.js",
+    "supabase:test": "node scripts/test-supabase-connection.js",
+    "supabase:verify": "node scripts/verify-cms-setup.js",
+    "supabase:test-cms": "node scripts/test-cms-operations.js",
+    "cms:dashboard": "echo 'CMS Dashboard available at: http://localhost:3000/admin/cms-dashboard' && npm run dev"
   },
   "dependencies": {
     "@cloudinary/react": "^1.14.3",
@@ -35,6 +42,7 @@
     "@neondatabase/serverless": "^1.0.0",
     "@opensearch-project/opensearch": "^3.5.1",
     "@reduxjs/toolkit": "^2.5.0",
+    "@supabase/supabase-js": "^2.50.0",
     "@types/ws": "^8.18.1",
     "axios": "^1.9.0",
     "cloudinary": "^2.6.1",
