@@ -10,6 +10,9 @@ import {
   updateProfile as updateFirebaseProfile,
   onIdTokenChanged,
   getIdToken,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { User, AuthContextType } from '@/types';
@@ -138,7 +141,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Handle user data loading
   const handleUserLoad = useCallback(async (firebaseUser: FirebaseUser): Promise<User | null> => {
     try {
-      const userData = await getUser(firebaseUser.uid);
+      let userData = await getUser(firebaseUser.uid);
+
+      // If user doesn't exist, create them (happens with social auth)
+      if (!userData) {
+        const providerData = firebaseUser.providerData[0];
+
+        await createUser(firebaseUser.uid, {
+          email: firebaseUser.email || '',
+          role: 'customer', // Default role for social auth users
+          isActive: true,
+          isVerified: firebaseUser.emailVerified,
+        });
+
+        // Fetch the newly created user
+        userData = await getUser(firebaseUser.uid);
+      }
+
       if (userData) {
         const userObj: User = {
           id: firebaseUser.uid,
@@ -273,6 +292,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   // Enhanced sign out with proper cleanup
+  // Google Sign-In
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      // Optional: Add scopes for additional permissions
+      provider.addScope('profile');
+      provider.addScope('email');
+
+      // Use popup for better UX (can also use signInWithRedirect)
+      await signInWithPopup(auth, provider);
+      // Auth state change will be handled by onAuthStateChanged listener
+    } catch (error) {
+      setLoading(false);
+      throw error;
+    }
+  };
+
   const signOut = useCallback(async () => {
     try {
       setLoading(true);
@@ -312,6 +349,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     loading,
     signIn,
     signUp,
+    signInWithGoogle,
     signOut,
     updateProfile,
     authError,

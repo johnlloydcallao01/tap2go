@@ -6,7 +6,19 @@ import { BellIcon as BellSolidIcon } from '@heroicons/react/24/solid';
 import { MessagePayload } from 'firebase/messaging';
 import { useFCM, useNotifications } from '@/hooks/useFCM';
 
-export default function NotificationBell() {
+interface NotificationBellProps {
+  className?: string;
+  iconSize?: string;
+  textColor?: string;
+  hoverColor?: string;
+}
+
+export default function NotificationBell({
+  className = '',
+  iconSize = 'h-6 w-6',
+  textColor = 'text-gray-600',
+  hoverColor = 'hover:text-gray-900'
+}: NotificationBellProps) {
   // const { user } = useAuth(); // Commented out as not currently used
   const { token, permission, generateToken, setupForegroundListener } = useFCM();
   const { notifications, addNotification, removeNotification, clearNotifications } = useNotifications();
@@ -71,12 +83,12 @@ export default function NotificationBell() {
       {/* Notification Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded-full"
+        className={`relative p-2 ${textColor} ${hoverColor} focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded-full ${className}`}
       >
         {hasNewNotifications || notifications.length > 0 ? (
-          <BellSolidIcon className="h-6 w-6 text-orange-500" />
+          <BellSolidIcon className={`${iconSize} text-orange-500`} />
         ) : (
-          <BellIcon className="h-6 w-6" />
+          <BellIcon className={iconSize} />
         )}
         
         {/* Notification Count Badge */}

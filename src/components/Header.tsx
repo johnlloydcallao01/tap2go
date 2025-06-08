@@ -6,6 +6,7 @@ import { useSSRSafeAuthState } from '@/hooks/useSSRSafeAuth';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import HeaderSearch from '@/components/search/HeaderSearch';
+import NotificationBell from '@/components/NotificationBell';
 import {
   ShoppingCartIcon,
   UserIcon,
@@ -33,7 +34,7 @@ export default function Header() {
     <header className="sticky top-0 z-50" style={{ background: 'linear-gradient(to right, #f3a823, #ef7b06)' }}>
       {/* Mobile/Tablet Header */}
       <div className="md:hidden">
-        {/* Top Row - Location, Wishlist, Cart */}
+        {/* Top Row - Location, Wishlist, Notifications */}
         <div className="flex items-center justify-between px-4 py-3">
           {/* Location */}
           <div className="flex items-center space-x-2 text-white">
@@ -51,15 +52,13 @@ export default function Header() {
               <HeartIcon className="h-7 w-7 text-white" />
             </Link>
 
-            {/* Cart */}
-            <Link href="/cart" className="relative p-2">
-              <ShoppingCartIcon className="h-7 w-7 text-white" />
-              {cartItemsCount > 0 && (
-                <span className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium" style={{ backgroundColor: '#ef7b06' }}>
-                  {cartItemsCount}
-                </span>
-              )}
-            </Link>
+            {/* Notifications */}
+            <NotificationBell
+              iconSize="h-7 w-7"
+              textColor="text-white"
+              hoverColor="hover:text-orange-200"
+              className="p-0"
+            />
           </div>
         </div>
 

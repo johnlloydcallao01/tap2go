@@ -11,6 +11,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Tap2Go - Food Delivery",
   description: "Professional multivendor food delivery platform",
+  other: {
+    "theme-color": "#f3a823",
+    "msapplication-navbutton-color": "#f3a823",
+    "apple-mobile-web-app-status-bar-style": "default",
+  },
 };
 
 export default function RootLayout({
