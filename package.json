@@ -37,6 +37,7 @@
     "@reduxjs/toolkit": "^2.5.0",
     "@supabase/supabase-js": "^2.50.0",
     "@types/ws": "^8.18.1",
+    "@upstash/redis": "^1.35.0",
     "axios": "^1.9.0",
     "cloudinary": "^2.6.1",
     "crypto-js": "^4.2.0",
