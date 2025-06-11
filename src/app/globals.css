@@ -23,6 +23,22 @@ body {
   font-family: 'Inter', sans-serif;
 }
 
+/* Fix placeholder text contrast globally */
+::placeholder {
+  color: #6b7280 !important; /* text-gray-500 - better contrast than default */
+  opacity: 1 !important;
+}
+
+/* Fix input text contrast */
+input, textarea, select {
+  color: #111827 !important; /* text-gray-900 - high contrast */
+}
+
+/* Fix disabled input contrast */
+input:disabled, textarea:disabled, select:disabled {
+  color: #6b7280 !important; /* text-gray-500 - readable but clearly disabled */
+}
+
 /* Custom component styles */
 .btn-primary {
   background-color: #f3a823;
@@ -67,6 +83,11 @@ body {
   border-radius: 0.5rem;
   outline: none;
   transition: all 0.2s;
+  color: #111827; /* text-gray-900 for better contrast */
+}
+
+.input-field::placeholder {
+  color: #6b7280; /* text-gray-500 for better contrast */
 }
 
 .input-field:focus {

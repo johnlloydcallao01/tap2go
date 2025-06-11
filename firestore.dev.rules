@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // DEVELOPMENT RULES - LESS RESTRICTIVE FOR TESTING
+    // ⚠️ DO NOT USE IN PRODUCTION ⚠️
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // ===== USERS COLLECTION =====
+    match /users/{userId} {
+      // Allow read/write for authenticated users on their own documents
+      allow read, write: if isAuthenticated() && isOwner(userId);
+      
+      // Allow creation for any authenticated user (for signup)
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // ===== RESTAURANTS COLLECTION =====
+    match /restaurants/{restaurantId} {
+      // Public read access for restaurants (food delivery app needs this)
+      allow read: if true;
+      
+      // Authenticated users can create/update restaurants
+      allow write: if isAuthenticated();
+    }
+
+    // ===== MENU ITEMS COLLECTION =====
+    match /menuItems/{itemId} {
+      // Public read access
+      allow read: if true;
+      
+      // Authenticated users can write
+      allow write: if isAuthenticated();
+    }
+
+    // ===== ORDERS COLLECTION =====
+    match /orders/{orderId} {
+      // Users can read/write their own orders
+      allow read, write: if isAuthenticated() && 
+                            (resource.data.customerId == request.auth.uid ||
+                             request.resource.data.customerId == request.auth.uid);
+    }
+
+    // ===== REVIEWS COLLECTION =====
+    match /reviews/{reviewId} {
+      // Public read access
+      allow read: if true;
+      
+      // Authenticated users can write reviews
+      allow write: if isAuthenticated();
+    }
+
+    // ===== CATEGORIES COLLECTION =====
+    match /categories/{categoryId} {
+      // Public read access
+      allow read: if true;
+      
+      // Authenticated users can write
+      allow write: if isAuthenticated();
+    }
+
+    // ===== FCM TOKENS COLLECTION =====
+    match /fcmTokens/{tokenId} {
+      // Users can manage their own tokens
+      allow read, write: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // ===== NOTIFICATIONS COLLECTION =====
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow write: if isAuthenticated();
+    }
+
+    // ===== ADMIN COLLECTIONS (Still Restricted) =====
+    match /admins/{adminId} {
+      // Only allow if user document exists and has admin role
+      allow read, write: if isAuthenticated() && 
+                            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ===== FALLBACK - Allow authenticated users =====
+    match /{document=**} {
+      // Fallback rule for development - allow authenticated users
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

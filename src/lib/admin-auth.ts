@@ -73,6 +73,109 @@ export const verifyAdminAuth = async (request: NextRequest): Promise<AuthResult>
   }
 };
 
+// Vendor authentication - for vendor panel access
+export const verifyVendorAuth = async (request: NextRequest): Promise<AuthResult> => {
+  try {
+    // Check if Firebase Admin is initialized
+    if (!adminAuth) {
+      return {
+        success: false,
+        message: 'Firebase Admin not initialized'
+      };
+    }
+
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return {
+        success: false,
+        message: 'Missing or invalid authorization header'
+      };
+    }
+
+    // Extract the token
+    const token = authHeader.split('Bearer ')[1];
+
+    // Verify the token with Firebase Admin
+    const decodedToken = await adminAuth.verifyIdToken(token);
+
+    // Check if user has vendor or admin role (admin can access vendor panel)
+    if (decodedToken.role !== 'vendor' && decodedToken.role !== 'admin') {
+      return {
+        success: false,
+        message: 'Vendor access required'
+      };
+    }
+
+    return {
+      success: true,
+      user: {
+        uid: decodedToken.uid,
+        email: decodedToken.email || '',
+        role: decodedToken.role
+      }
+    };
+
+  } catch (error) {
+    console.error('Vendor auth error:', error);
+    return {
+      success: false,
+      message: 'Invalid or expired token'
+    };
+  }
+};
+
+// Driver authentication
+export const verifyDriverAuth = async (authHeader: string) => {
+  try {
+    // Check if Firebase Admin is initialized
+    if (!adminAuth) {
+      return {
+        success: false,
+        message: 'Firebase Admin not initialized'
+      };
+    }
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return {
+        success: false,
+        message: 'No valid authorization header'
+      };
+    }
+
+    // Extract the token
+    const token = authHeader.split('Bearer ')[1];
+
+    // Verify the token with Firebase Admin
+    const decodedToken = await adminAuth.verifyIdToken(token);
+
+    // Check if user has driver or admin role (admin can access driver panel)
+    if (decodedToken.role !== 'driver' && decodedToken.role !== 'admin') {
+      return {
+        success: false,
+        message: 'Driver access required'
+      };
+    }
+
+    return {
+      success: true,
+      user: {
+        uid: decodedToken.uid,
+        email: decodedToken.email || '',
+        role: decodedToken.role
+      }
+    };
+
+  } catch (error) {
+    console.error('Driver auth error:', error);
+    return {
+      success: false,
+      message: 'Invalid or expired token'
+    };
+  }
+};
+
 // Pages Router version - for /pages/api routes (legacy)
 export const verifyAdminAuthPages = async (
   req: NextApiRequest,

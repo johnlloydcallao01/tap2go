@@ -5,6 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import LoadingProvider from "@/components/loading/LoadingProvider";
 import ReduxProvider from "@/store/ReduxProvider";
+import ChatWidget from "@/components/chatbot/ChatWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -31,6 +32,13 @@ export default function RootLayout({
             <LoadingProvider variant="facebook" showInitialLoad={true}>
               <CartProvider>
                 {children}
+                {/* Global Chatbot Widget */}
+                <ChatWidget
+                  showWelcomeMessage={true}
+                  autoOpen={false}
+                  theme="orange"
+                  position="bottom-left"
+                />
               </CartProvider>
             </LoadingProvider>
           </AuthProvider>

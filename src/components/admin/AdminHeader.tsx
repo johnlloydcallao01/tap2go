@@ -5,7 +5,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   BellIcon,
   UserIcon,
-  ChevronDownIcon,
   MagnifyingGlassIcon,
   Cog6ToothIcon,
   Bars3Icon
@@ -18,7 +17,7 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ onMenuClick, sidebarCollapsed = false }: AdminHeaderProps) {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleSignOut = async () => {
@@ -78,16 +77,9 @@ export default function AdminHeader({ onMenuClick, sidebarCollapsed = false }: A
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center space-x-2 lg:space-x-3 p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors"
               >
-                <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-                  <UserIcon className="h-5 w-5 text-white" />
-                </div>
-                <div className="hidden sm:block text-left">
-                  <p className="text-sm font-medium text-gray-900">{user?.name || user?.email}</p>
-                  <p className="text-xs text-gray-500">Super Admin</p>
-                </div>
-                <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                <UserIcon className="h-5 w-5 text-white" />
               </button>
 
               {showUserMenu && (

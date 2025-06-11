@@ -12,7 +12,9 @@ service cloud.firestore {
     }
 
     function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      // Safe role check - return null if user doc doesn't exist
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) ?
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : null;
     }
 
     function isAdmin() {
@@ -27,8 +29,13 @@ service cloud.firestore {
       return isAuthenticated() && getUserRole() == 'customer';
     }
 
+    function isDriver() {
+      return isAuthenticated() && getUserRole() == 'driver';
+    }
+
     function isActiveUser() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
     }
 
     // ===== USERS COLLECTION =====
@@ -126,7 +133,43 @@ service cloud.firestore {
     }
 
     // ===== DRIVERS COLLECTION =====
-    // Not implemented yet
+    match /drivers/{driverId} {
+      // Drivers can read their own document, admins can read all
+      allow read: if isOwner(driverId) || isAdmin();
+
+      // Only drivers can create their own document
+      allow create: if isDriver() && isOwner(driverId) && isActiveUser() &&
+                       request.resource.data.uid == driverId;
+
+      // Drivers can update their own document (except status), admins can update any
+      allow update: if (isDriver() && isOwner(driverId) && isActiveUser() &&
+                       !('status' in request.resource.data.diff(resource.data).affectedKeys())) ||
+                       isAdmin();
+
+      // Only admins can delete driver documents
+      allow delete: if isAdmin();
+
+      // Driver Documents subcollection
+      match /driverDocuments/{documentId} {
+        allow read: if isOwner(driverId) || isAdmin();
+        allow create: if isDriver() && isOwner(driverId) && isActiveUser();
+        allow update: if isAdmin(); // Only admins can approve/reject documents
+        allow delete: if isOwner(driverId) || isAdmin();
+      }
+
+      // Driver Analytics subcollection
+      match /driverAnalytics/{analyticsId} {
+        allow read: if isOwner(driverId) || isAdmin();
+        allow write: if isAdmin(); // Only system/admins can write analytics
+      }
+
+      // Driver Earnings subcollection
+      match /driverEarnings/{earningsId} {
+        allow read: if isOwner(driverId) || isAdmin();
+        allow create: if isAdmin(); // Only admins can create earnings records
+        allow update: if isAdmin(); // Only admins can update earnings
+      }
+    }
 
     // ===== CUSTOMERS COLLECTION =====
     match /customers/{customerId} {
@@ -186,7 +229,50 @@ service cloud.firestore {
     }
 
     // ===== ORDERS COLLECTION =====
-    // Not implemented yet
+    match /orders/{orderId} {
+      // Customers can read their own orders, vendors can read orders for their restaurants,
+      // drivers can read orders assigned to them, admins can read all
+      allow read: if isOwner(resource.data.customerId) ||
+                     (isVendor() && resource.data.restaurantOwnerId == request.auth.uid) ||
+                     (isDriver() && resource.data.driverId == request.auth.uid) ||
+                     isAdmin();
+
+      // Only customers can create orders
+      allow create: if isCustomer() && isActiveUser() &&
+                       request.resource.data.customerId == request.auth.uid;
+
+      // Customers can update their orders (limited fields), vendors can update order status,
+      // drivers can update delivery status, admins can update any
+      allow update: if (isCustomer() && isOwner(resource.data.customerId) && isActiveUser() &&
+                       request.resource.data.status in ['pending', 'cancelled']) ||
+                       (isVendor() && resource.data.restaurantOwnerId == request.auth.uid && isActiveUser() &&
+                       request.resource.data.status in ['confirmed', 'preparing', 'ready']) ||
+                       (isDriver() && resource.data.driverId == request.auth.uid &&
+                       request.resource.data.status in ['picked_up', 'delivered']) ||
+                       isAdmin();
+
+      // Only admins can delete orders
+      allow delete: if isAdmin();
+
+      // Order Items subcollection
+      match /orderItems/{itemId} {
+        allow read: if isOwner(resource.data.customerId) ||
+                       (isVendor() && resource.data.restaurantOwnerId == request.auth.uid) ||
+                       (isDriver() && resource.data.driverId == request.auth.uid) ||
+                       isAdmin();
+        allow write: if isCustomer() && isOwner(resource.data.customerId) && isActiveUser();
+      }
+
+      // Order Tracking subcollection
+      match /orderTracking/{trackingId} {
+        allow read: if isOwner(resource.data.customerId) ||
+                       (isVendor() && resource.data.restaurantOwnerId == request.auth.uid) ||
+                       (isDriver() && resource.data.driverId == request.auth.uid) ||
+                       isAdmin();
+        allow write: if isAdmin() ||
+                        (isDriver() && resource.data.driverId == request.auth.uid);
+      }
+    }
 
     // ===== CATEGORIES COLLECTION =====
     match /categories/{categoryId} {
@@ -196,14 +282,106 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ===== SYSTEM COLLECTION =====
+    // ===== REVIEWS COLLECTION =====
+    match /reviews/{reviewId} {
+      // Everyone can read reviews (public access for food delivery app)
+      allow read: if true;
 
-    // System documentation - admins can read/write, others can read
-    match /_system/{docId} {
-      allow read: if true; // Allow developers to read documentation
+      // Only customers who have ordered from the restaurant can create reviews
+      allow create: if isCustomer() && isActiveUser() &&
+                       request.resource.data.customerId == request.auth.uid &&
+                       exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
+                       get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.customerId == request.auth.uid;
+
+      // Customers can update their own reviews, admins can update any
+      allow update: if (isCustomer() && isOwner(resource.data.customerId) && isActiveUser()) ||
+                       isAdmin();
+
+      // Only admins can delete reviews
+      allow delete: if isAdmin();
+    }
+
+    // ===== FCM TOKENS COLLECTION =====
+    match /fcmTokens/{tokenId} {
+      // Users can manage their own FCM tokens
+      allow read, write: if isAuthenticated() &&
+                            (resource.data.userId == request.auth.uid ||
+                             request.resource.data.userId == request.auth.uid);
+      // Admins can read all tokens for system management
+      allow read: if isAdmin();
+    }
+
+    // ===== NOTIFICATIONS COLLECTION =====
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // Users can update their own notifications (mark as read)
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // Only admins can create and delete notifications
+      allow create, delete: if isAdmin();
+    }
+
+    // ===== MENU ITEMS COLLECTION (Standalone) =====
+    match /menuItems/{itemId} {
+      // Everyone can read menu items (public access for food delivery app)
+      allow read: if true;
+      // Only restaurant owners can create/update their menu items
+      allow create: if isVendor() && isActiveUser() &&
+                       request.resource.data.restaurantOwnerId == request.auth.uid;
+      allow update: if isVendor() && isActiveUser() &&
+                       resource.data.restaurantOwnerId == request.auth.uid;
+      // Only admins and restaurant owners can delete menu items
+      allow delete: if isAdmin() ||
+                       (isVendor() && isActiveUser() && resource.data.restaurantOwnerId == request.auth.uid);
+    }
+
+    // ===== ANALYTICS COLLECTION =====
+    match /analytics/{analyticsId} {
+      // Only admins can read analytics
+      allow read: if isAdmin();
+      // Only system/admins can write analytics
       allow write: if isAdmin();
     }
 
+    // ===== PLATFORM CONFIG COLLECTION =====
+    match /platformConfig/{configId} {
+      // Everyone can read platform configuration (app settings, etc.)
+      allow read: if true;
+      // Only admins can write platform configuration
+      allow write: if isAdmin();
+    }
+
+    // ===== DISPUTES COLLECTION =====
+    match /disputes/{disputeId} {
+      // Users can read disputes they're involved in, admins can read all
+      allow read: if isAuthenticated() &&
+                     (resource.data.customerId == request.auth.uid ||
+                      resource.data.vendorId == request.auth.uid ||
+                      resource.data.driverId == request.auth.uid) ||
+                     isAdmin();
+      // Only customers can create disputes
+      allow create: if isCustomer() && isActiveUser() &&
+                       request.resource.data.customerId == request.auth.uid;
+      // Only admins can update disputes (resolve, etc.)
+      allow update: if isAdmin();
+      // Only admins can delete disputes
+      allow delete: if isAdmin();
+    }
+
+    // ===== SYSTEM CONFIG COLLECTION =====
+    match /systemConfig/{configId} {
+      // Only admins can read system configuration
+      allow read: if isAdmin();
+      // Only admins can write system configuration
+      allow write: if isAdmin();
+    }
+
+    // ===== SYSTEM COLLECTION =====
+    match /_system/{docId} {
+      // System documentation - admins can read/write, others can read
+      allow read: if true; // Allow developers to read documentation
+      allow write: if isAdmin();
+    }
 
   }
 }

@@ -10,7 +10,8 @@ export function Input({ className = '', ...props }: InputProps) {
       className={`
         w-full px-3 py-2 border border-gray-300 rounded-lg
         focus:outline-none focus:ring-2 focus:ring-[#f3a823] focus:border-transparent
-        disabled:bg-gray-100 disabled:cursor-not-allowed
+        disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-600
+        text-gray-900 placeholder:text-gray-500
         transition-colors duration-200
         ${className}
       `}

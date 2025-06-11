@@ -66,6 +66,18 @@ ENABLE_STRAPI_INTEGRATION=false
 ENABLE_CONTENT_CACHING=true
 ```
 
+### Resend Email Service Configuration
+```bash
+# Resend API Configuration
+RESEND_API_KEY=re_your_api_key_here
+NEXT_PUBLIC_RESEND_FROM_EMAIL=noreply@yourdomain.com
+
+# Email Configuration
+ENABLE_EMAIL_NOTIFICATIONS=true
+EMAIL_FROM_NAME=Tap2Go
+EMAIL_REPLY_TO=support@yourdomain.com
+```
+
 ### Elasticsearch Configuration
 ```bash
 # Bonsai Elasticsearch (Search)

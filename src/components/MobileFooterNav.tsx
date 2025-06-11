@@ -25,11 +25,13 @@ export default function MobileFooterNav() {
   const { user, shouldWaitForAuth } = useSSRSafeAuthState();
   const { cart } = useCart();
 
-  // Don't show footer nav on admin, vendor dashboard, or auth pages
+  // Don't show footer nav on admin, vendor, driver dashboard, or auth pages
   if (!pathname ||
       pathname.startsWith('/admin') ||
       pathname.startsWith('/vendor/') ||
       pathname === '/vendor' ||
+      pathname.startsWith('/driver/') ||
+      pathname === '/driver' ||
       pathname.startsWith('/auth') ||
       pathname.startsWith('/test-')) {
     return null;

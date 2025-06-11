@@ -36,8 +36,6 @@ import {
   AdjustmentsHorizontalIcon,
   KeyIcon,
   UserCircleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon as ChevronRightIconSolid,
 } from '@heroicons/react/24/outline';
 
 // Type definitions for navigation structure
@@ -194,28 +192,29 @@ export default function AdminSidebar({
       } ${isCollapsed ? 'w-16' : 'w-64'}`}>
         {/* Fixed Header */}
         <div className="flex items-center justify-between px-4 min-h-16 border-b border-gray-200 bg-white relative z-10">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">T</span>
-            </div>
-            {!isCollapsed && (
-              <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
-            )}
-          </div>
-
-          {/* Desktop collapse toggle */}
-          {onToggleCollapse && (
+          {/* Clickable Logo + Text Area */}
+          {onToggleCollapse ? (
             <button
               onClick={onToggleCollapse}
-              className="hidden lg:block p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              className="flex items-center space-x-2 hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors duration-200 flex-1"
               title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              {isCollapsed ? (
-                <ChevronRightIconSolid className="h-5 w-5" />
-              ) : (
-                <ChevronLeftIcon className="h-5 w-5" />
+              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">T</span>
+              </div>
+              {!isCollapsed && (
+                <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
               )}
             </button>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">T</span>
+              </div>
+              {!isCollapsed && (
+                <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
+              )}
+            </div>
           )}
 
           {/* Close button for mobile */}

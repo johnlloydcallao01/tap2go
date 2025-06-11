@@ -34,27 +34,37 @@ export default function Header() {
     <header className="sticky top-0 z-50" style={{ background: 'linear-gradient(to right, #f3a823, #ef7b06)' }}>
       {/* Mobile/Tablet Header */}
       <div className="md:hidden">
-        {/* Top Row - Location, Wishlist, Notifications */}
+        {/* Top Row - Logo, Location, Wishlist, Notifications */}
         <div className="flex items-center justify-between px-4 py-3">
-          {/* Location */}
-          <div className="flex items-center space-x-2 text-white">
-            <MapPinIcon className="h-6 w-6" />
-            <div>
-              <div className="text-lg font-semibold">Ayala Blvd</div>
-              <div className="text-sm opacity-90">{currentLocation}</div>
+          {/* Left Side - Logo and Location */}
+          <div className="flex items-center space-x-3 text-white">
+            {/* Logo */}
+            <Link href="/" className="flex items-center">
+              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                <span className="font-bold text-lg" style={{ color: '#f3a823' }}>T</span>
+              </div>
+            </Link>
+
+            {/* Location */}
+            <div className="flex items-center space-x-2">
+              <MapPinIcon className="h-6 w-6" />
+              <div>
+                <div className="text-base font-semibold">Ayala Blvd</div>
+                <div className="text-sm opacity-90">{currentLocation}</div>
+              </div>
             </div>
           </div>
 
           {/* Right Icons */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center">
             {/* Wishlist */}
             <Link href="/wishlist" className="p-2">
-              <HeartIcon className="h-7 w-7 text-white" />
+              <HeartIcon className="h-6 w-6 text-white" />
             </Link>
 
             {/* Notifications */}
             <NotificationBell
-              iconSize="h-7 w-7"
+              iconSize="h-6 w-6"
               textColor="text-white"
               hoverColor="hover:text-orange-200"
               className="p-0"
@@ -118,21 +128,24 @@ export default function Header() {
                       <Link href="/driver/dashboard" className="text-white hover:text-orange-200 transition-colors">
                         Dashboard
                       </Link>
+                      <Link href="/driver/orders" className="text-white hover:text-orange-200 transition-colors">
+                        Deliveries
+                      </Link>
+                      <Link href="/driver/earnings" className="text-white hover:text-orange-200 transition-colors">
+                        Earnings
+                      </Link>
+                    </>
+                  )}
+                  {user?.role === 'driver' && (
+                    <>
+                      <Link href="/driver/dashboard" className="text-white hover:text-orange-200 transition-colors">
+                        Dashboard
+                      </Link>
                       <Link href="/driver/deliveries" className="text-white hover:text-orange-200 transition-colors">
                         Deliveries
                       </Link>
                     </>
                   )}
-                  {user?.role === 'admin' && (
-                    <Link href="/admin" className="text-white hover:text-orange-200 transition-colors">
-                      Admin Panel
-                    </Link>
-                  )}
-
-                  {/* Temporary Test Link - Remove after testing */}
-                  <Link href="/test/cloudinary" className="text-white hover:text-orange-200 transition-colors text-sm bg-white/20 px-2 py-1 rounded">
-                    🧪 Test Cloudinary
-                  </Link>
 
                   {/* Wishlist */}
                   <Link href="/wishlist" className="relative">
@@ -150,11 +163,10 @@ export default function Header() {
                   </Link>
 
                   <div className="relative group">
-                    <button className="flex items-center space-x-1 text-white hover:text-orange-200 transition-colors">
+                    <button className="p-2 text-white hover:text-orange-200 hover:bg-white/10 rounded-full transition-all duration-200">
                       <UserIcon className="h-6 w-6" />
-                      <span>{user?.email}</span>
                     </button>
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                       <Link href="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                         Profile
                       </Link>

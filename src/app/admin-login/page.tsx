@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
@@ -23,7 +23,7 @@ export default function AdminLogin() {
 
   // Pre-filled with your admin credentials
   const [credentials, setCredentials] = useState({
-    email: 'johnlloydcallao@gmail.com',
+    email: 'admin-1749452680368@tap2go.com',
     password: '123456'
   });
 
@@ -51,37 +51,17 @@ export default function AdminLogin() {
 
       let userCredential;
       try {
-        // First, try to sign in with existing credentials
+        // Try to sign in with existing credentials
         userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
         console.log(`✅ Login successful with existing user: ${credentials.email}`);
       } catch (authError: unknown) {
         const errorCode = authError && typeof authError === 'object' && 'code' in authError ? authError.code : 'unknown';
         console.log(`❌ Firebase Auth failed with code:`, errorCode);
-        console.log(`❌ Full error:`, authError);
 
-        // Handle different error cases
-        if (errorCode === 'auth/user-not-found' || errorCode === 'auth/invalid-credential') {
-          console.log('👤 User not found or invalid credentials, attempting to create admin user...');
-          try {
-            userCredential = await createUserWithEmailAndPassword(auth, credentials.email, credentials.password);
-            console.log('✅ Admin user created successfully in Firebase Auth');
-          } catch (createError: unknown) {
-            const createErrorCode = createError && typeof createError === 'object' && 'code' in createError ? createError.code : 'unknown';
-            console.log(`❌ User creation failed with code:`, createErrorCode);
-            console.log(`❌ Full creation error:`, createError);
-
-            if (createErrorCode === 'auth/email-already-in-use') {
-              // Email exists but password is wrong - this is a real authentication failure
-              throw new Error('Email already exists but password is incorrect. Please check your password.');
-            } else if (createErrorCode === 'auth/weak-password') {
-              throw new Error('Password is too weak. Please use a stronger password.');
-            } else if (createErrorCode === 'auth/invalid-email') {
-              throw new Error('Invalid email address format.');
-            } else {
-              throw new Error(`Failed to create admin user: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
-            }
-          }
-        } else if (errorCode === 'auth/wrong-password') {
+        // Handle specific error cases with clear messages
+        if (errorCode === 'auth/user-not-found') {
+          throw new Error('Admin account not found. Please contact system administrator.');
+        } else if (errorCode === 'auth/wrong-password' || errorCode === 'auth/invalid-credential') {
           throw new Error('Incorrect password. Please check your password and try again.');
         } else if (errorCode === 'auth/too-many-requests') {
           throw new Error('Too many failed login attempts. Please try again later or reset your password.');

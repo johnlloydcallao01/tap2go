@@ -25,15 +25,25 @@
     "supabase:test": "node scripts/test-supabase-connection.js",
     "supabase:verify": "node scripts/verify-cms-setup.js",
     "supabase:test-cms": "node scripts/test-cms-operations.js",
-    "cms:dashboard": "echo 'CMS Dashboard available at: http://localhost:3000/admin/cms-dashboard' && npm run dev"
+    "cms:dashboard": "echo 'CMS Dashboard available at: http://localhost:3000/admin/cms-dashboard' && npm run dev",
+    "email:setup": "node scripts/setup-resend-email.js",
+    "email:test": "node scripts/setup-resend-email.js",
+    "email:dev-test": "node scripts/test-email-development.js",
+    "ai:test": "node scripts/test-google-ai.js",
+    "ai:demo": "echo 'AI Demo available at: http://localhost:3000/ai-demo' && npm run dev",
+    "chatbot:test": "node scripts/test-chatbot.js",
+    "chatbot:start": "echo 'Chatbot is now active on all pages! Start dev server and look for the chat widget.' && npm run dev"
   },
   "dependencies": {
     "@cloudinary/react": "^1.14.3",
     "@cloudinary/url-gen": "^1.21.0",
     "@elastic/elasticsearch": "^9.0.2",
+    "@google/generative-ai": "^0.24.1",
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
     "@opensearch-project/opensearch": "^3.5.1",
+    "@react-email/components": "^0.0.25",
+    "@react-email/render": "^1.1.2",
     "@reduxjs/toolkit": "^2.5.0",
     "@supabase/supabase-js": "^2.50.0",
     "@types/ws": "^8.18.1",
@@ -56,6 +66,7 @@
     "react-redux": "^9.2.0",
     "redux-persist": "^6.0.0",
     "reselect": "^5.1.1",
+    "resend": "^4.5.2",
     "ws": "^8.18.2"
   },
   "devDependencies": {
