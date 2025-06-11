@@ -111,6 +111,14 @@ export default function CustomerSidebar({
     }
   };
 
+  // Handle navigation link clicks - only close sidebar on mobile
+  const handleNavClick = () => {
+    // Only close sidebar on mobile (when screen is small)
+    if (window.innerWidth < 1024) { // lg breakpoint
+      onClose();
+    }
+  };
+
   return (
     <>
       {/* Mobile overlay */}
@@ -213,7 +221,7 @@ export default function CustomerSidebar({
                           <Link
                             key={item.href}
                             href={item.href}
-                            onClick={onClose}
+                            onClick={handleNavClick}
                             className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors ${
                               isActive
                                 ? 'bg-orange-100 text-orange-700 border-r-2 border-orange-500'

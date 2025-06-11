@@ -165,14 +165,20 @@ export default function AdminSidebar({
     return pathname === href || (href === '/admin/dashboard' && pathname === '/admin');
   };
 
-
-
   const handleCollapsedCategoryClick = (category: NavigationCategory) => {
     if (onExpandAndNavigate && category.items.length > 0) {
       // Get the first item in the category
       const firstItem = category.items[0];
       // Expand sidebar and navigate to first item
       onExpandAndNavigate(firstItem.href, category.name);
+    }
+  };
+
+  // Handle navigation link clicks - only close sidebar on mobile
+  const handleNavClick = () => {
+    // Only close sidebar on mobile (when screen is small)
+    if (window.innerWidth < 1024) { // lg breakpoint
+      onClose();
     }
   };
 
@@ -278,7 +284,7 @@ export default function AdminSidebar({
                           <Link
                             key={item.name}
                             href={item.href}
-                            onClick={onClose}
+                            onClick={handleNavClick}
                             className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors ${
                               isActive
                                 ? 'bg-orange-100 text-orange-700 border-r-2 border-orange-500'

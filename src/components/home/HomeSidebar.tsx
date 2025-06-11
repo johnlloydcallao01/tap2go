@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   HomeIcon,
@@ -38,7 +39,7 @@ const navigationCategories: NavigationCategory[] = [
     name: 'Browse',
     icon: HomeIcon,
     items: [
-      { name: 'Home', href: '/', icon: HomeIcon },
+      { name: 'Home', href: '/home', icon: HomeIcon },
       { name: 'Stores', href: '/restaurants', icon: BuildingStorefrontIcon },
     ]
   },
@@ -95,8 +96,6 @@ interface HomeSidebarProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onExpandAndNavigate?: (href: string, categoryName: string) => void;
-  onNavigation?: (view: 'home' | 'stores' | 'account', href?: string) => void;
-  activeView?: 'home' | 'stores' | 'account';
 }
 
 export default function HomeSidebar({
@@ -104,38 +103,20 @@ export default function HomeSidebar({
   onClose,
   isCollapsed = false,
   onToggleCollapse,
-  onExpandAndNavigate,
-  onNavigation,
-  activeView = 'home'
+  onExpandAndNavigate
 }: HomeSidebarProps) {
   const pathname = usePathname();
 
   const isItemActive = (href: string) => {
-    if (href === '/' || href === '/home') {
-      return activeView === 'home';
-    }
-    if (href === '/restaurants') {
-      return activeView === 'stores';
-    }
-    // For account routes, check exact pathname match
-    if (href.startsWith('/account/')) {
-      return pathname === href || (href === '/account/dashboard' && pathname === '/account');
-    }
-    return pathname === href;
+    return pathname === href || (href === '/home' && pathname === '/');
   };
 
-  const handleItemClick = (href: string) => {
-    if (onNavigation) {
-      if (href === '/' || href === '/home') {
-        onNavigation('home');
-      } else if (href === '/restaurants') {
-        onNavigation('stores');
-      } else if (href.startsWith('/account/')) {
-        // For account routes, use SPA navigation
-        onNavigation('account', href);
-      }
+  // Handle navigation link clicks - only close sidebar on mobile
+  const handleNavClick = () => {
+    // Only close sidebar on mobile (when screen is small)
+    if (window.innerWidth < 1024) { // lg breakpoint
+      onClose();
     }
-    onClose();
   };
 
   const handleCollapsedCategoryClick = (category: NavigationCategory) => {
@@ -246,10 +227,11 @@ export default function HomeSidebar({
                       {category.items.map((item) => {
                         const isActive = isItemActive(item.href);
                         return (
-                          <button
+                          <Link
                             key={item.href}
-                            onClick={() => handleItemClick(item.href)}
-                            className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors w-full text-left ${
+                            href={item.href}
+                            onClick={handleNavClick}
+                            className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors ${
                               isActive
                                 ? 'bg-orange-100 text-orange-700 border-r-2 border-orange-500'
                                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -261,7 +243,7 @@ export default function HomeSidebar({
                               }`}
                             />
                             <span className="text-sm font-normal">{item.name}</span>
-                          </button>
+                          </Link>
                         );
                       })}
                     </div>
