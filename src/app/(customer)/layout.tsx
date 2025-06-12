@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import HomeSidebar from '@/components/home/HomeSidebar';
 import HomeHeader from '@/components/home/HomeHeader';
 import MobileFooterNav from '@/components/MobileFooterNav';
@@ -10,6 +11,7 @@ interface CustomerLayoutProps {
 }
 
 export default function CustomerLayout({ children }: CustomerLayoutProps) {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -17,6 +19,9 @@ export default function CustomerLayout({ children }: CustomerLayoutProps) {
   const handleExpandAndNavigate = (href: string, categoryName: string) => {
     // First expand the sidebar
     setSidebarCollapsed(false);
+
+    // Then navigate to the specified page
+    router.push(href);
 
     // Close mobile sidebar if open
     setSidebarOpen(false);
