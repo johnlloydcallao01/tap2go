@@ -1,8 +1,8 @@
 # Layout Architecture & Routing Principles
 
-## 🎯 Core Philosophy: YouTube-Style Unified Layouts
+## 🎯 Core Philosophy: Professional Unified Layouts
 
-This document establishes the **mandatory architectural principles** for our application's layout and routing system. These principles ensure professional user experience with natural sidebar scroll position preservation, similar to platforms like YouTube and Facebook.
+This document establishes the **mandatory architectural principles** for our application's layout and routing system. These principles ensure professional user experience with natural sidebar scroll position preservation, similar to modern web platforms and applications.
 
 ## 🚨 Critical Rule: NO Layout Boundary Crossing
 
@@ -89,7 +89,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
 ## 🎯 Professional Navigation Behavior
 
-### Desktop Behavior (Like YouTube)
+### Desktop Behavior (Professional Standards)
 1. User scrolls down in sidebar
 2. User clicks any navigation item
 3. **Sidebar stays open** ✅
@@ -212,7 +212,7 @@ A properly implemented layout should achieve:
 1. **Instant Navigation** - No loading delays between routes
 2. **Preserved Scroll Position** - Sidebar scroll stays exactly where user left it
 3. **No Visual Glitches** - No sidebar flickering or repositioning
-4. **Professional Feel** - Matches YouTube/Facebook navigation experience
+4. **Professional Feel** - Matches modern platform navigation experience
 5. **Mobile Optimization** - Sidebar closes appropriately on mobile
 
 ## 🚨 Enforcement
@@ -234,13 +234,13 @@ See the current customer panel implementation in:
 
 ## 🎬 Real-World Examples
 
-### YouTube Navigation Behavior
-1. User scrolls down YouTube sidebar to "Watch Later"
-2. User clicks on a video → Video changes, sidebar stays exactly where it was
+### Professional Platform Navigation Behavior
+1. User scrolls down sidebar to a specific section
+2. User clicks on a navigation item → Content changes, sidebar stays exactly where it was
 3. User clicks "Home" → Content changes, sidebar scroll position preserved
-4. User clicks "Subscriptions" → Content changes, sidebar still at "Watch Later"
+4. User clicks another section → Content changes, sidebar still at previous scroll position
 
-### Facebook Navigation Behavior
+### Modern Web Application Behavior
 1. User scrolls down Facebook left sidebar to "Marketplace"
 2. User clicks on "Groups" → Content changes, sidebar stays at "Marketplace"
 3. User clicks on "Events" → Content changes, sidebar position preserved
@@ -292,6 +292,6 @@ test('sidebar scroll position preserved across navigation', () => {
 
 ---
 
-**Remember**: We build applications that feel as professional as YouTube and Facebook. Sidebar scroll position preservation is not optional—it's a fundamental requirement for modern web applications.
+**Remember**: We build applications that feel as professional as modern web platforms. Sidebar scroll position preservation is not optional—it's a fundamental requirement for modern web applications.
 
 **Culture**: Every navigation should feel instant and natural. If a user notices the sidebar "jumping" or "resetting", we have failed to meet professional standards.

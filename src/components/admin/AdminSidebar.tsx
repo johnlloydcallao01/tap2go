@@ -148,7 +148,6 @@ interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
   onExpandAndNavigate?: (href: string, categoryName: string) => void;
 }
 
@@ -156,7 +155,6 @@ export default function AdminSidebar({
   isOpen,
   onClose,
   isCollapsed = false,
-  onToggleCollapse,
   onExpandAndNavigate
 }: AdminSidebarProps) {
   const pathname = usePathname();
@@ -193,50 +191,21 @@ export default function AdminSidebar({
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 ${
+      <div className={`fixed bottom-0 left-0 z-50 bg-gray-50 shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
-      } ${isCollapsed ? 'w-16' : 'w-64'}`}>
-        {/* Fixed Header */}
-        <div className="flex items-center justify-between px-4 min-h-16 border-b border-gray-200 bg-white relative z-10">
-          {/* Clickable Logo + Text Area */}
-          {onToggleCollapse ? (
-            <button
-              onClick={onToggleCollapse}
-              className="flex items-center space-x-2 hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors duration-200 flex-1"
-              title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">T</span>
-              </div>
-              {!isCollapsed && (
-                <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
-              )}
-            </button>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">T</span>
-              </div>
-              {!isCollapsed && (
-                <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
-              )}
-            </div>
-          )}
-
-          {/* Close button for mobile */}
+      } ${isCollapsed ? 'w-16' : 'w-64'}`} style={{ top: '67px' }}>
+        {/* Mobile close button */}
+        <div className="lg:hidden flex justify-end p-2 border-b border-gray-200 bg-gray-50">
           <button
             onClick={onClose}
-            className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+            className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
         {/* Scrollable Navigation Container */}
-        <div
-          className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400"
-          style={{ height: 'calc(100vh - 4rem)' }}
-        >
+        <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400">
           {/* Navigation */}
           <nav className={`py-3 ${isCollapsed ? 'px-2' : 'px-4'}`}>
             <div className="space-y-1">

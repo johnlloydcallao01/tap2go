@@ -7,16 +7,20 @@ import {
   MagnifyingGlassIcon,
   Cog6ToothIcon,
   Bars3Icon,
-  BuildingStorefrontIcon
+  BuildingStorefrontIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  UserIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
 interface VendorHeaderProps {
   onMenuClick: () => void;
   sidebarCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export default function VendorHeader({ onMenuClick, sidebarCollapsed = false }: VendorHeaderProps) {
+export default function VendorHeader({ onMenuClick, sidebarCollapsed = false, onToggleCollapse }: VendorHeaderProps) {
   const { signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -29,11 +33,36 @@ export default function VendorHeader({ onMenuClick, sidebarCollapsed = false }: 
   };
 
   return (
-    <header className={`bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40 transition-all duration-300 ${
-      sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'
-    }`}>
-      <div className="px-4 lg:px-6">
-        <div className="flex items-center justify-between min-h-16">
+    <header className="bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40">
+      <div className="flex min-h-16">
+        {/* FIRST DIVISION: Logo + Tap2Go Vendor + Chevron (fixed width) */}
+        <div className="flex items-center justify-between px-4 lg:px-6 w-64">
+          {/* Logo and Tap2Go Vendor */}
+          <Link href="/vendor/dashboard" className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+              <BuildingStorefrontIcon className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-xl font-bold text-gray-900">Tap2Go Vendor</span>
+          </Link>
+
+          {/* Desktop Sidebar Collapse/Expand Button */}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="hidden lg:flex p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? (
+                <ChevronRightIcon className="h-5 w-5" />
+              ) : (
+                <ChevronLeftIcon className="h-5 w-5" />
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* SECOND DIVISION: Search + Right Icons */}
+        <div className="flex-1 flex items-center justify-between px-4">
           {/* Left side - Mobile menu button and Search */}
           <div className="flex items-center flex-1">
             {/* Mobile menu button */}
@@ -45,15 +74,13 @@ export default function VendorHeader({ onMenuClick, sidebarCollapsed = false }: 
             </button>
 
             {/* Search Bar */}
-            <div className="hidden sm:block flex-1 max-w-lg">
+            <div className="flex-1 max-w-lg">
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                </div>
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
                   type="text"
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
                   placeholder="Search orders, menu items..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                 />
               </div>
             </div>
@@ -81,7 +108,7 @@ export default function VendorHeader({ onMenuClick, sidebarCollapsed = false }: 
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors"
               >
-                <BuildingStorefrontIcon className="h-5 w-5 text-white" />
+                <UserIcon className="h-5 w-5 text-white" />
               </button>
 
               {showUserMenu && (

@@ -27,9 +27,7 @@ export default function CustomerLayout({ children }: CustomerLayoutProps) {
     }, 300);
   };
 
-  const handleToggleCollapse = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
-  };
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -37,6 +35,7 @@ export default function CustomerLayout({ children }: CustomerLayoutProps) {
       <HomeHeader
         onMenuClick={() => setSidebarOpen(true)}
         sidebarCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       {/* Sidebar - Fixed on left, starts below header */}
@@ -44,7 +43,6 @@ export default function CustomerLayout({ children }: CustomerLayoutProps) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onToggleCollapse={handleToggleCollapse}
         onExpandAndNavigate={handleExpandAndNavigate}
       />
 
@@ -52,7 +50,7 @@ export default function CustomerLayout({ children }: CustomerLayoutProps) {
       <main className={`transition-all duration-300 ${
         sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
       } pt-14 lg:pt-16`}>
-        <div className="px-3 pt-8 pb-5 lg:p-6">
+        <div className="px-3 pt-8 pb-5 lg:p-4">
           {children}
         </div>
       </main>

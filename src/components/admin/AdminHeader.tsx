@@ -7,16 +7,19 @@ import {
   UserIcon,
   MagnifyingGlassIcon,
   Cog6ToothIcon,
-  Bars3Icon
+  Bars3Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
 interface AdminHeaderProps {
   onMenuClick: () => void;
   sidebarCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export default function AdminHeader({ onMenuClick, sidebarCollapsed = false }: AdminHeaderProps) {
+export default function AdminHeader({ onMenuClick, sidebarCollapsed = false, onToggleCollapse }: AdminHeaderProps) {
   const { signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -29,11 +32,36 @@ export default function AdminHeader({ onMenuClick, sidebarCollapsed = false }: A
   };
 
   return (
-    <header className={`bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40 transition-all duration-300 ${
-      sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'
-    }`}>
-      <div className="px-4 lg:px-6">
-        <div className="flex items-center justify-between min-h-16">
+    <header className="bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40">
+      <div className="flex min-h-16">
+        {/* FIRST DIVISION: Logo + Tap2Go Admin + Chevron (fixed width) */}
+        <div className="flex items-center justify-between px-4 lg:px-6 w-64">
+          {/* Logo and Tap2Go Admin */}
+          <Link href="/admin/dashboard" className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">T</span>
+            </div>
+            <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
+          </Link>
+
+          {/* Desktop Sidebar Collapse/Expand Button */}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="hidden lg:flex p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? (
+                <ChevronRightIcon className="h-5 w-5" />
+              ) : (
+                <ChevronLeftIcon className="h-5 w-5" />
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* SECOND DIVISION: Search + Right Icons */}
+        <div className="flex-1 flex items-center justify-between px-4">
           {/* Left side - Mobile menu button and Search */}
           <div className="flex items-center flex-1">
             {/* Mobile menu button */}

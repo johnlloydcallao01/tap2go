@@ -11,6 +11,8 @@ import {
   HeartIcon,
   MapPinIcon,
   ShoppingCartIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import HeaderSearch from '@/components/search/HeaderSearch';
@@ -19,9 +21,10 @@ import NotificationBell from '@/components/NotificationBell';
 interface HomeHeaderProps {
   onMenuClick: () => void;
   sidebarCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export default function HomeHeader({ onMenuClick, sidebarCollapsed = false }: HomeHeaderProps) {
+export default function HomeHeader({ onMenuClick, sidebarCollapsed = false, onToggleCollapse }: HomeHeaderProps) {
   const { signOut } = useAuth();
   const { canShowUserContent, canShowGuestContent, shouldWaitForAuth } = useSSRSafeAuthState();
   const { cart } = useCart();
@@ -39,9 +42,7 @@ export default function HomeHeader({ onMenuClick, sidebarCollapsed = false }: Ho
   const cartItemsCount = cart?.items.reduce((total, item) => total + item.quantity, 0) || 0;
 
   return (
-    <header className={`bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40 transition-all duration-300 ${
-      sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'
-    }`}>
+    <header className="bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40">
       {/* Mobile/Tablet Header (767px and below) */}
       <div className="md:hidden" style={{ background: 'linear-gradient(to right, #f3a823, #ef7b06)' }}>
         {/* Top Row - Logo, Location, Wishlist, Notifications */}
@@ -93,8 +94,35 @@ export default function HomeHeader({ onMenuClick, sidebarCollapsed = false }: Ho
 
       {/* Desktop Header (768px and above) */}
       <div className="hidden md:block">
-        <div className="px-4 lg:px-6">
-          <div className="flex items-center justify-between min-h-16">
+        <div className="flex min-h-16">
+          {/* FIRST DIVISION: Logo + Tap2Go + Chevron (fixed width) */}
+          <div className="flex items-center justify-between px-4 lg:px-6 w-64">
+            {/* Logo and Tap2Go */}
+            <Link href="/" className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">T</span>
+              </div>
+              <span className="text-xl font-bold text-gray-900">Tap2Go</span>
+            </Link>
+
+            {/* Desktop Sidebar Collapse/Expand Button */}
+            {onToggleCollapse && (
+              <button
+                onClick={onToggleCollapse}
+                className="hidden lg:flex p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRightIcon className="h-5 w-5" />
+                ) : (
+                  <ChevronLeftIcon className="h-5 w-5" />
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* SECOND DIVISION: Search + Right Icons */}
+          <div className="flex-1 flex items-center justify-between px-4">
             {/* Left side - Mobile menu button and Search */}
             <div className="flex items-center flex-1">
               {/* Mobile menu button */}

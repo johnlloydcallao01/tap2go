@@ -35,9 +35,7 @@ export default function DriverLayout({
     }, 300);
   };
 
-  const handleToggleCollapse = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
-  };
+
 
   // FAST LOADING: Handle redirects without blocking render
   useEffect(() => {
@@ -87,6 +85,7 @@ export default function DriverLayout({
       <DriverHeader
         onMenuClick={() => setSidebarOpen(true)}
         sidebarCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       {/* Sidebar - Fixed on left, starts below header */}
@@ -94,7 +93,6 @@ export default function DriverLayout({
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onToggleCollapse={handleToggleCollapse}
         onExpandAndNavigate={handleExpandAndNavigate}
       />
 
@@ -102,7 +100,7 @@ export default function DriverLayout({
       <main className={`transition-all duration-300 ${
         sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
       } pt-14 lg:pt-16`}>
-        <div className="px-3 pt-8 pb-5 lg:p-6">
+        <div className="px-3 pt-8 pb-5 lg:p-4">
           {children}
         </div>
       </main>

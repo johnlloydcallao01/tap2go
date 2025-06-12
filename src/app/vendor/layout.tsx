@@ -34,15 +34,23 @@ export default function VendorLayout({ children }: VendorLayoutProps) {
     }
   }, [user, loading, isInitialized, router]);
 
-  // Handle sidebar collapse toggle
-  const handleToggleCollapse = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
-  };
 
-  // Handle expand and navigate (for collapsed sidebar)
-  const handleExpandAndNavigate = (href: string) => {
+
+  // Handle expand sidebar and navigate to specific page
+  const handleExpandAndNavigate = (href: string, categoryName: string) => {
+    // First expand the sidebar
     setSidebarCollapsed(false);
+
+    // Then navigate to the specified page
     router.push(href);
+
+    // Close mobile sidebar if open
+    setSidebarOpen(false);
+
+    // Optional: Add a small delay to show the expansion animation
+    setTimeout(() => {
+      console.log(`Expanded sidebar and navigated to ${href} from ${categoryName} category`);
+    }, 300);
   };
 
   // Show loading state while checking authentication
@@ -75,6 +83,7 @@ export default function VendorLayout({ children }: VendorLayoutProps) {
       <VendorHeader
         onMenuClick={() => setSidebarOpen(true)}
         sidebarCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       {/* Sidebar - Fixed on left, starts below header */}
@@ -82,7 +91,6 @@ export default function VendorLayout({ children }: VendorLayoutProps) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}
-        onToggleCollapse={handleToggleCollapse}
         onExpandAndNavigate={handleExpandAndNavigate}
       />
 
@@ -90,7 +98,7 @@ export default function VendorLayout({ children }: VendorLayoutProps) {
       <main className={`transition-all duration-300 ${
         sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
       } pt-14 lg:pt-16`}>
-        <div className="px-3 pt-8 pb-5 lg:p-6">
+        <div className="px-3 pt-8 pb-5 lg:p-4">
           {children}
         </div>
       </main>
