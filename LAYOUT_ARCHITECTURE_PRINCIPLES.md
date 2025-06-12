@@ -2,7 +2,7 @@
 
 ## 🎯 Core Philosophy: Professional Unified Layouts
 
-This document establishes the **mandatory architectural principles** for our application's layout and routing system. These principles ensure professional user experience with natural sidebar scroll position preservation, similar to modern web platforms and applications.
+This document establishes the **mandatory architectural principles** for our application's layout and routing system. These principles ensure professional user experience with natural sidebar scroll position preservation, similar to modern web platforms and applications
 
 ## 🚨 Critical Rule: NO Layout Boundary Crossing
 
