@@ -68,10 +68,10 @@ export default function ChatWindow({
   };
 
   return (
-    <div className={`fixed ${windowPositionClasses[position]} z-50 max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:top-0`}>
+    <div className={`fixed ${windowPositionClasses[position]} z-50 max-md:inset-0`}>
       <div
-        className={`bg-white rounded-lg shadow-2xl border border-gray-200 transition-all duration-300 max-md:rounded-none max-md:h-full max-md:w-full ${
-          isMinimized ? 'w-80 h-16 max-md:w-full max-md:h-16' : 'w-96 h-[600px] max-md:w-full max-md:h-full'
+        className={`chat-widget bg-white rounded-lg shadow-2xl border border-gray-200 transition-all duration-300 max-md:rounded-none max-md:h-screen max-md:w-full max-md:flex max-md:flex-col ${
+          isMinimized ? 'w-80 h-16 max-md:w-full max-md:h-16' : 'w-96 h-[600px] max-md:w-full max-md:h-screen'
         }`}
       >
         {/* Header - Facebook Messenger Style */}
@@ -115,7 +115,7 @@ export default function ChatWindow({
 
 
             {/* Messages Area - Messenger Style */}
-            <div className="flex-1 overflow-y-auto p-4 h-[440px] max-md:h-[calc(100vh-140px)] bg-white">
+            <div className="flex-1 overflow-y-auto p-4 h-[440px] max-md:flex-1 max-md:h-auto bg-white">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">

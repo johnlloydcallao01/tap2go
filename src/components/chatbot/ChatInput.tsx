@@ -72,9 +72,9 @@ export default function ChatInput({
   const canSend = message.trim().length > 0 && !disabled;
 
   return (
-    <div className="bg-white border-t border-gray-200">
+    <div className="bg-white border-t border-gray-200 max-md:flex-shrink-0">
       {/* Input Area - Facebook Messenger Style */}
-      <div className="px-4 py-3">
+      <div className="px-4 py-3 max-md:px-3 max-md:py-2">
         <form onSubmit={handleSubmit} className="flex items-end space-x-2">
           {/* Additional Action Buttons */}
           <div className="flex items-center space-x-1">

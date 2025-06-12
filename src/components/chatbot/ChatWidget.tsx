@@ -223,10 +223,18 @@ export default function ChatWidget({
         @media (max-width: 767px) {
           .chat-widget {
             width: 100vw !important;
-            height: 100vh !important;
+            height: 100vh !important; /* Fallback for older browsers */
+            height: 100dvh !important; /* Use dynamic viewport height for mobile */
             max-width: none !important;
-            max-height: none !important;
+            max-height: 100vh !important; /* Fallback */
+            max-height: 100dvh !important; /* Dynamic viewport height */
             border-radius: 0 !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            overflow: hidden !important;
           }
         }
 
