@@ -73,7 +73,6 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/google.maps": "^3.58.1",
-    "@types/ioredis": "^5.0.0",
     "@types/node": "^20.17.57",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -84,5 +83,10 @@
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "md-to-react-email": {
+      "react": "$react"
+    }
   }
 }
