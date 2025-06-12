@@ -22,6 +22,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   db: {
     schema: 'public',
   },
+  realtime: {
+    // Disable realtime to avoid webpack warnings and reduce bundle size
+    // since we're using Firebase for real-time features
+    params: {
+      eventsPerSecond: -1, // Disable realtime events
+    },
+  },
   global: {
     headers: {
       'X-Client-Info': 'tap2go-cms',
@@ -40,6 +47,13 @@ export const supabaseAdmin = supabaseServiceKey ? createClient(
     },
     db: {
       schema: 'public',
+    },
+    realtime: {
+      // Disable realtime to avoid webpack warnings and reduce bundle size
+      // since we're using Firebase for real-time features
+      params: {
+        eventsPerSecond: -1, // Disable realtime events
+      },
     },
     global: {
       headers: {
