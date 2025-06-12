@@ -53,11 +53,15 @@ export default function MobileFooterNav() {
   };
 
   const isActive = (href: string) => {
-    if (href === '/') {
-      return pathname === '/' || (pathname.startsWith('/restaurant/') && !pathname.startsWith('/restaurants'));
+    if (href === '/home') {
+      // Consider home active when on home page, root page, or viewing a specific restaurant
+      return pathname === '/home' || pathname === '/' || (pathname.startsWith('/restaurant/') && !pathname.startsWith('/restaurants'));
     }
     if (href === '/restaurants') {
       return pathname === '/restaurants';
+    }
+    if (href === '/search') {
+      return pathname === '/search';
     }
     if (href === '/profile') {
       return pathname === '/account' || pathname === '/profile' || pathname === '/orders' || (!user && pathname === '/auth/signin');
@@ -75,18 +79,22 @@ export default function MobileFooterNav() {
       <div className="grid grid-cols-5 h-14 relative">
         {/* Home */}
         <Link
-          href="/"
+          href="/home"
           className={`flex flex-col items-center justify-center space-y-0.5 transition-colors ${
-            isActive('/') ? 'text-gray-500 hover:text-gray-700' : 'text-gray-500 hover:text-gray-700'
+            isActive('/home') ? 'text-gray-500 hover:text-gray-700' : 'text-gray-500 hover:text-gray-700'
           }`}
-          style={isActive('/') ? { color: '#f3a823' } : {}}
         >
-          {isActive('/') ? (
-            <HomeIconSolid className="h-5 w-5" />
+          {isActive('/home') ? (
+            <HomeIconSolid className="h-5 w-5" style={{ color: '#f3a823' }} />
           ) : (
             <HomeIcon className="h-5 w-5" />
           )}
-          <span className="text-[10px] font-medium">Home</span>
+          <span
+            className="text-[10px] font-medium"
+            style={isActive('/home') ? { color: '#f3a823' } : {}}
+          >
+            Home
+          </span>
         </Link>
 
         {/* Stores */}
@@ -95,14 +103,18 @@ export default function MobileFooterNav() {
           className={`flex flex-col items-center justify-center space-y-0.5 transition-colors ${
             isActive('/restaurants') ? 'text-gray-500 hover:text-gray-700' : 'text-gray-500 hover:text-gray-700'
           }`}
-          style={isActive('/restaurants') ? { color: '#f3a823' } : {}}
         >
           {isActive('/restaurants') ? (
-            <BuildingStorefrontIconSolid className="h-5 w-5" />
+            <BuildingStorefrontIconSolid className="h-5 w-5" style={{ color: '#f3a823' }} />
           ) : (
             <BuildingStorefrontIcon className="h-5 w-5" />
           )}
-          <span className="text-[10px] font-medium">Stores</span>
+          <span
+            className="text-[10px] font-medium"
+            style={isActive('/restaurants') ? { color: '#f3a823' } : {}}
+          >
+            Stores
+          </span>
         </Link>
 
         {/* Add to Cart - Elevated */}
@@ -141,14 +153,18 @@ export default function MobileFooterNav() {
           className={`flex flex-col items-center justify-center space-y-0.5 transition-colors ${
             isActive('/search') ? 'text-gray-500 hover:text-gray-700' : 'text-gray-500 hover:text-gray-700'
           }`}
-          style={isActive('/search') ? { color: '#f3a823' } : {}}
         >
           {isActive('/search') ? (
-            <MagnifyingGlassIconSolid className="h-5 w-5" />
+            <MagnifyingGlassIconSolid className="h-5 w-5" style={{ color: '#f3a823' }} />
           ) : (
             <MagnifyingGlassIcon className="h-5 w-5" />
           )}
-          <span className="text-[10px] font-medium">Search</span>
+          <span
+            className="text-[10px] font-medium"
+            style={isActive('/search') ? { color: '#f3a823' } : {}}
+          >
+            Search
+          </span>
         </Link>
 
         {/* Account */}
@@ -157,14 +173,18 @@ export default function MobileFooterNav() {
           className={`flex flex-col items-center justify-center space-y-0.5 transition-colors ${
             isActive('/profile') ? 'text-gray-500 hover:text-gray-700' : 'text-gray-500 hover:text-gray-700'
           }`}
-          style={isActive('/profile') ? { color: '#f3a823' } : {}}
         >
           {isActive('/profile') ? (
-            <UserIconSolid className="h-5 w-5" />
+            <UserIconSolid className="h-5 w-5" style={{ color: '#f3a823' }} />
           ) : (
             <UserIcon className="h-5 w-5" />
           )}
-          <span className="text-[10px] font-medium">Account</span>
+          <span
+            className="text-[10px] font-medium"
+            style={isActive('/profile') ? { color: '#f3a823' } : {}}
+          >
+            Account
+          </span>
         </Link>
       </div>
     </nav>

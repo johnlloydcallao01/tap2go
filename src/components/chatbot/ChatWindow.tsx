@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { XMarkIcon, MinusIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { useChatbot } from '@/hooks/useChatbot';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
@@ -74,37 +74,37 @@ export default function ChatWindow({
           isMinimized ? 'w-80 h-16 max-md:w-full max-md:h-16' : 'w-96 h-[600px] max-md:w-full max-md:h-full'
         }`}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-t-lg">
+        {/* Header - Facebook Messenger Style */}
+        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 rounded-t-lg">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-white bg-opacity-20 flex items-center justify-center">
-              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+            {/* Avatar with online indicator */}
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center">
+                <span className="text-white text-sm font-bold">T2G</span>
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
             </div>
             <div>
-              <h3 className="font-semibold text-sm">Tap2Go Assistant</h3>
-              <p className="text-xs text-orange-100">
-                Online • AI-powered
-              </p>
+              <h3 className="font-semibold text-gray-900 text-sm">Tap2Go Assistant</h3>
+              <p className="text-xs text-green-600 font-medium">Active now</p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            {/* Minimize Button */}
+          <div className="flex items-center space-x-1">
+            {/* Action buttons - Messenger style */}
             <button
               onClick={onMinimize}
-              className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors duration-200"
-              title={isMinimized ? 'Expand' : 'Minimize'}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              title={isMinimized ? "Expand chat" : "Minimize chat"}
             >
-              <MinusIcon className="w-4 h-4" />
+              <MinusIcon className="w-5 h-5 text-gray-600" />
             </button>
-
-            {/* Close Button */}
             <button
               onClick={onClose}
-              className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors duration-200"
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               title="Close chat"
             >
-              <XMarkIcon className="w-4 h-4" />
+              <XMarkIcon className="w-5 h-5 text-gray-600" />
             </button>
           </div>
         </div>
@@ -114,8 +114,8 @@ export default function ChatWindow({
           <>
 
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 h-[440px] max-md:h-[calc(100vh-140px)] bg-gray-50">
+            {/* Messages Area - Messenger Style */}
+            <div className="flex-1 overflow-y-auto p-4 h-[440px] max-md:h-[calc(100vh-140px)] bg-white">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
@@ -138,12 +138,14 @@ export default function ChatWindow({
                 </div>
               ) : (
                 <>
-                  {/* Welcome Message */}
+                  {/* Welcome Message - Messenger Style */}
                   {Array.isArray(messages) && messages.length === 1 && (
-                    <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                      <p className="text-orange-800 text-sm">
-                        👋 Welcome to Tap2Go! I&apos;m here to help you with orders, restaurant info, delivery questions, and more.
-                      </p>
+                    <div className="mb-4 flex justify-center">
+                      <div className="bg-gray-100 px-3 py-1 rounded-full">
+                        <p className="text-gray-600 text-xs text-center">
+                          👋 Welcome to Tap2Go! I&apos;m here to help you with orders, restaurant info, delivery questions, and more.
+                        </p>
+                      </div>
                     </div>
                   )}
 
@@ -155,7 +157,26 @@ export default function ChatWindow({
                     />
                   ))}
 
+                  {/* Typing Indicator - Messenger Style (appears in message area) */}
+                  {isTyping && (
+                    <div className="flex justify-start mb-2">
+                      <div className="flex items-end space-x-2 max-w-[85%]">
+                        {/* Avatar */}
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center flex-shrink-0 mb-1">
+                          <span className="text-white text-xs font-bold">T2G</span>
+                        </div>
 
+                        {/* Typing bubble */}
+                        <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3 py-2">
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Scroll anchor */}
                   <div ref={messagesEndRef} />
@@ -167,7 +188,6 @@ export default function ChatWindow({
             <ChatInput
               onSendMessage={handleSendMessage}
               disabled={loading}
-              isTyping={isTyping}
               placeholder="Ask me anything about Tap2Go..."
             />
           </>

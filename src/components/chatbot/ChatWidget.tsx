@@ -54,10 +54,10 @@ export default function ChatWidget({
 
   const colors = themeColors[theme];
 
-  // Position classes
+  // Position classes - Added 20px more space (bottom-12 -> bottom-20, bottom-16 -> bottom-20)
   const positionClasses = {
-    'bottom-right': 'bottom-12 right-4 max-md:bottom-16',
-    'bottom-left': 'bottom-12 left-4 max-md:bottom-16',
+    'bottom-right': 'bottom-20 right-4 max-md:bottom-20',
+    'bottom-left': 'bottom-20 left-4 max-md:bottom-20',
   };
 
 
@@ -219,7 +219,7 @@ export default function ChatWidget({
           outline-offset: 2px;
         }
 
-        /* Mobile responsiveness */
+        /* Mobile responsiveness - Full screen like Messenger */
         @media (max-width: 767px) {
           .chat-widget {
             width: 100vw !important;
@@ -228,6 +228,32 @@ export default function ChatWidget({
             max-height: none !important;
             border-radius: 0 !important;
           }
+        }
+
+        /* Messenger-like smooth scrolling */
+        .chat-messages {
+          scroll-behavior: smooth;
+        }
+
+        /* Enhanced message bubble animations */
+        .message-bubble {
+          animation: messageSlideIn 0.3s ease-out;
+        }
+
+        @keyframes messageSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* Input focus effects */
+        .chat-input-container:focus-within {
+          box-shadow: 0 0 0 2px rgba(243, 168, 35, 0.2);
         }
       `}</style>
     </>

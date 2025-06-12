@@ -1,20 +1,18 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, MicrophoneIcon } from '@heroicons/react/24/outline';
+import { PaperAirplaneIcon, MicrophoneIcon, FaceSmileIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
-  isTyping?: boolean;
 }
 
-export default function ChatInput({ 
-  onSendMessage, 
-  disabled = false, 
-  placeholder = "Type your message...",
-  isTyping = false 
+export default function ChatInput({
+  onSendMessage,
+  disabled = false,
+  placeholder = "Type your message..."
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -38,7 +36,7 @@ export default function ChatInput({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (message.trim() && !disabled && !isTyping) {
+    if (message.trim() && !disabled) {
       onSendMessage(message.trim());
       setMessage('');
       
@@ -71,84 +69,99 @@ export default function ChatInput({
     }
   };
 
-  const canSend = message.trim().length > 0 && !disabled && !isTyping;
+  const canSend = message.trim().length > 0 && !disabled;
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4 max-md:p-3">
-      {/* Typing Indicator */}
-      {isTyping && (
-        <div className="mb-3 flex items-center text-gray-500">
-          <div className="flex space-x-1">
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+    <div className="bg-white border-t border-gray-200">
+      {/* Input Area - Facebook Messenger Style */}
+      <div className="px-4 py-3">
+        <form onSubmit={handleSubmit} className="flex items-end space-x-2">
+          {/* Additional Action Buttons */}
+          <div className="flex items-center space-x-1">
+            <button
+              type="button"
+              disabled={disabled}
+              className={`p-2 rounded-full transition-colors duration-200 ${
+                disabled ? 'opacity-50 cursor-not-allowed' : 'text-orange-500 hover:bg-orange-50'
+              }`}
+              title="Add photo"
+            >
+              <PhotoIcon className="w-5 h-5" />
+            </button>
           </div>
-          <span className="ml-2 text-sm">Tap2Go Assistant is typing...</span>
-        </div>
-      )}
 
-      {/* Input Form */}
-      <form onSubmit={handleSubmit} className="flex items-end space-x-3 max-md:space-x-2">
-        {/* Voice Input Button */}
-        <button
-          type="button"
-          onClick={handleVoiceInput}
-          disabled={disabled}
-          className={`flex-shrink-0 p-2 rounded-full transition-colors duration-200 ${
-            isRecording
-              ? 'bg-red-500 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-          title={isRecording ? 'Stop recording' : 'Voice input'}
-        >
-          <MicrophoneIcon className="w-5 h-5" />
-        </button>
+          {/* Message Input Container - Messenger Style */}
+          <div className="flex-1 relative">
+            <div className="chat-input-container flex items-end bg-gray-100 rounded-2xl px-3 py-2 min-h-[40px] transition-all duration-200 focus-within:bg-gray-50">
+              <textarea
+                ref={textareaRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={disabled ? 'Chat is disabled' : placeholder}
+                disabled={disabled}
+                rows={1}
+                className="flex-1 bg-transparent resize-none outline-none text-gray-900 placeholder:text-gray-500 text-sm leading-5"
+                style={{
+                  minHeight: '20px',
+                  maxHeight: '100px',
+                }}
+              />
 
-        {/* Text Input */}
-        <div className="flex-1 relative">
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={disabled ? 'Chat is disabled' : placeholder}
-            disabled={disabled}
-            rows={1}
-            className={`w-full px-4 py-3 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors duration-200 text-gray-900 placeholder:text-gray-500 ${
-              disabled ? 'bg-gray-100 cursor-not-allowed text-gray-600' : 'bg-white'
-            }`}
-            style={{ 
-              minHeight: '48px',
-              maxHeight: '120px',
-            }}
-          />
-          
-          {/* Character Count */}
-          {message.length > 800 && (
-            <div className="absolute -top-6 right-2 text-xs text-gray-600 font-medium">
-              {message.length}/1000
+              {/* Emoji Button */}
+              <button
+                type="button"
+                disabled={disabled}
+                className={`ml-2 p-1 rounded-full transition-colors duration-200 ${
+                  disabled ? 'opacity-50 cursor-not-allowed' : 'text-gray-500 hover:text-orange-500'
+                }`}
+                title="Add emoji"
+              >
+                <FaceSmileIcon className="w-5 h-5" />
+              </button>
             </div>
+
+            {/* Character Count */}
+            {message.length > 800 && (
+              <div className="absolute -top-6 right-2 text-xs text-gray-500 bg-white px-1 rounded">
+                {message.length}/1000
+              </div>
+            )}
+          </div>
+
+          {/* Send Button or Voice Button */}
+          {message.trim() ? (
+            <button
+              type="submit"
+              disabled={!canSend}
+              className={`flex-shrink-0 p-2 rounded-full transition-all duration-200 ${
+                canSend
+                  ? 'bg-orange-500 text-white hover:bg-orange-600 transform hover:scale-105'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+              title="Send message"
+            >
+              <PaperAirplaneIcon className="w-5 h-5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleVoiceInput}
+              disabled={disabled}
+              className={`flex-shrink-0 p-2 rounded-full transition-colors duration-200 ${
+                isRecording
+                  ? 'bg-red-500 text-white animate-pulse'
+                  : disabled
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-orange-500 text-white hover:bg-orange-600'
+              }`}
+              title={isRecording ? 'Stop recording' : 'Voice message'}
+            >
+              <MicrophoneIcon className="w-5 h-5" />
+            </button>
           )}
-        </div>
-
-        {/* Send Button */}
-        <button
-          type="submit"
-          disabled={!canSend}
-          className={`flex-shrink-0 p-3 rounded-full transition-all duration-200 ${
-            canSend
-              ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg hover:shadow-xl transform hover:scale-105'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-          }`}
-          title="Send message"
-        >
-          <PaperAirplaneIcon className="w-5 h-5" />
-        </button>
-      </form>
-
-
-
-
+        </form>
+      </div>
     </div>
   );
 }
