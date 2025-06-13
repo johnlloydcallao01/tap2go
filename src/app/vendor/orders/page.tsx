@@ -24,6 +24,7 @@ const mockOrders: Order[] = [
         id: 'item1',
         menuItem: {
           id: '1',
+          slug: 'margherita-pizza',
           restaurantId: 'rest1',
           name: 'Margherita Pizza',
           description: 'Classic pizza with fresh mozzarella',
@@ -86,6 +87,7 @@ const mockOrders: Order[] = [
         id: 'item2',
         menuItem: {
           id: '2',
+          slug: 'pepperoni-pizza',
           restaurantId: 'rest1',
           name: 'Pepperoni Pizza',
           description: 'Traditional pepperoni pizza',

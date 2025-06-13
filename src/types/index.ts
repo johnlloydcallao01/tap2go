@@ -107,20 +107,68 @@ export interface DayHours {
 
 export interface MenuItem {
   id: string;
+  slug: string; // SEO-friendly URL slug (e.g., "margherita-pizza")
   restaurantId: string;
   name: string;
   description: string;
+  detailedDescription?: string;
   price: number;
   image: string;
+  images?: string[]; // Multiple images for gallery
   category: string;
   isVegetarian: boolean;
   isVegan: boolean;
   isGlutenFree: boolean;
   isSpicy: boolean;
+  isKeto?: boolean;
+  isHalal?: boolean;
+  spiceLevel?: 1 | 2 | 3 | 4 | 5; // 1 = mild, 5 = very spicy
   ingredients: string[];
   allergens: string[];
   available: boolean;
   preparationTime: number;
+  servingSize?: string;
+  cookingMethod?: string;
+  chefNotes?: string;
+  isPopular?: boolean;
+  isChefSpecial?: boolean;
+  isMostOrdered?: boolean;
+  nutritionInfo?: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber?: number;
+    sugar?: number;
+    sodium?: number;
+  };
+  sizeOptions?: {
+    id: string;
+    name: string;
+    price: number;
+    description?: string;
+  }[];
+  customizations?: {
+    id: string;
+    name: string;
+    type: 'single' | 'multiple';
+    required: boolean;
+    options: {
+      id: string;
+      name: string;
+      price: number;
+      description?: string;
+    }[];
+  }[];
+  addOns?: {
+    id: string;
+    name: string;
+    price: number;
+    description?: string;
+    category?: string;
+  }[];
+  rating?: number;
+  reviewCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -268,10 +316,16 @@ export interface PaymentMethod {
 export interface Review {
   id: string;
   customerId: string;
+  customerName: string;
+  customerAvatar?: string;
   restaurantId: string;
+  menuItemId?: string; // For item-specific reviews
   orderId: string;
   rating: number;
   comment: string;
+  images?: string[]; // Customer photos of the food
+  isVerifiedPurchase: boolean;
+  helpfulCount?: number;
   createdAt: Date;
 }
 

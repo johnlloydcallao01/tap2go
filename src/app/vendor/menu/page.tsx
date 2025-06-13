@@ -19,6 +19,7 @@ import { MenuItem } from '@/types';
 const mockMenuItems: MenuItem[] = [
   {
     id: '1',
+    slug: 'margherita-pizza',
     restaurantId: 'rest1',
     name: 'Margherita Pizza',
     description: 'Classic pizza with fresh mozzarella, tomato sauce, and basil',
@@ -38,6 +39,7 @@ const mockMenuItems: MenuItem[] = [
   },
   {
     id: '2',
+    slug: 'pepperoni-pizza',
     restaurantId: 'rest1',
     name: 'Pepperoni Pizza',
     description: 'Traditional pepperoni pizza with mozzarella and tomato sauce',
@@ -57,6 +59,7 @@ const mockMenuItems: MenuItem[] = [
   },
   {
     id: '3',
+    slug: 'caesar-salad',
     restaurantId: 'rest1',
     name: 'Caesar Salad',
     description: 'Fresh romaine lettuce with Caesar dressing, croutons, and parmesan',

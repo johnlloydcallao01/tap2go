@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { MenuItem as MenuItemType } from '@/types';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { PlusIcon, MinusIcon } from '@heroicons/react/24/outline';
+import { PlusIcon } from '@heroicons/react/24/outline';
 import {
   FireIcon,
   ExclamationTriangleIcon
@@ -16,39 +17,30 @@ interface MenuItemProps {
 }
 
 export default function MenuItem({ item }: MenuItemProps) {
+  const [imageError, setImageError] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const [quantity, setQuantity] = useState(1);
-  const [specialInstructions, setSpecialInstructions] = useState('');
-  const [showDetails, setShowDetails] = useState(false);
-  const [imageError, setImageError] = useState(false);
 
-  const handleAddToCart = () => {
+  const handleQuickAdd = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation when clicking the add button
+    e.stopPropagation();
+
     if (!user) {
-      // Redirect to login or show login modal
       window.location.href = '/auth/signin';
       return;
     }
 
-    addToCart(item, quantity, specialInstructions || undefined);
-    setQuantity(1);
-    setSpecialInstructions('');
+    if (!item.available) return;
 
-    // Show success message (you can implement a toast notification here)
-    alert('Item added to cart!');
-  };
-
-  const incrementQuantity = () => {
-    setQuantity(prev => prev + 1);
-  };
-
-  const decrementQuantity = () => {
-    setQuantity(prev => Math.max(1, prev - 1));
+    addToCart(item, 1);
+    // You can add a toast notification here
+    alert('Added to cart!');
   };
 
   return (
-    <div className="card">
-      <div className="flex">
+    <Link href={`/restaurant/${item.restaurantId}/item/${item.slug}`} className="block group">
+      <div className="card hover:shadow-lg transition-shadow duration-200 cursor-pointer relative">
+        <div className="flex">
         {/* Item Image */}
         <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0">
           {imageError ? (
@@ -123,81 +115,45 @@ export default function MenuItem({ item }: MenuItemProps) {
             Prep time: {item.preparationTime} min
           </div>
 
-          {/* Add to Cart Section */}
-          {item.available ? (
-            <div className="space-y-3">
-              {/* Quantity Selector */}
-              <div className="flex items-center space-x-3">
-                <span className="text-sm font-medium text-gray-700">Quantity:</span>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={decrementQuantity}
-                    className="p-1 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                  <span className="w-8 text-center font-medium">{quantity}</span>
-                  <button
-                    onClick={incrementQuantity}
-                    className="p-1 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Special Instructions */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Special Instructions (optional)
-                </label>
-                <textarea
-                  value={specialInstructions}
-                  onChange={(e) => setSpecialInstructions(e.target.value)}
-                  placeholder="e.g., No onions, extra spicy..."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  rows={2}
-                />
-              </div>
-
-              {/* Add to Cart Button */}
-              <button
-                onClick={handleAddToCart}
-                className="w-full btn-primary text-sm"
-              >
-                Add to Cart - ${(item.price * quantity).toFixed(2)}
-              </button>
-            </div>
-          ) : (
-            <div className="text-center py-2">
-              <span className="text-gray-500 text-sm">Currently unavailable</span>
-            </div>
-          )}
-
-          {/* Toggle Details */}
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-orange-500 text-sm mt-2 hover:text-orange-600 transition-colors"
-          >
-            {showDetails ? 'Hide details' : 'Show details'}
-          </button>
-
-          {/* Detailed Information */}
-          {showDetails && (
-            <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-              {item.ingredients.length > 0 && (
-                <div>
-                  <span className="text-sm font-medium text-gray-700">Ingredients: </span>
-                  <span className="text-sm text-gray-600">{item.ingredients.join(', ')}</span>
-                </div>
+          {/* Professional Card Footer - Like UberEats/FoodPanda */}
+          <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center space-x-2">
+              {/* Popular Badge */}
+              {item.isPopular && (
+                <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-1 rounded-full">
+                  Popular
+                </span>
               )}
-              <div className="text-xs text-gray-500">
-                Category: {item.category}
-              </div>
+              {/* Availability Status */}
+              {!item.available && (
+                <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
+                  Unavailable
+                </span>
+              )}
             </div>
-          )}
+
+            {/* Click to view indicator */}
+            <div className="text-xs text-gray-400 flex items-center">
+              <span>Tap to view</span>
+              <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </div>
         </div>
+        </div>
+
+        {/* Quick Add Button - Appears on Hover (Like UberEats/FoodPanda) */}
+        {item.available && (
+          <button
+            onClick={handleQuickAdd}
+            className="absolute bottom-4 right-4 bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+            title="Quick add to cart"
+          >
+            <PlusIcon className="h-5 w-5" />
+          </button>
+        )}
       </div>
-    </div>
+    </Link>
   );
 }

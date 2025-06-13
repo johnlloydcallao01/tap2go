@@ -26,6 +26,7 @@ export default function ReduxIntegrationDemo() {
   const handleAddToCart = () => {
     const mockMenuItem = {
       id: 'demo-item-1',
+      slug: 'demo-burger',
       name: 'Demo Burger',
       description: 'A delicious demo burger',
       price: 12.99,
