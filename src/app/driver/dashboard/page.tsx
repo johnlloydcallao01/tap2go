@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import {
   TruckIcon,
   CurrencyDollarIcon,
@@ -37,7 +36,6 @@ interface DeliveryOrder {
 }
 
 export default function DriverDashboard() {
-  const { user } = useAuth();
   const [analytics, setAnalytics] = useState<DriverAnalytics | null>(null);
   const [currentDeliveries, setCurrentDeliveries] = useState<DeliveryOrder[]>([]);
   const [availableOrders, setAvailableOrders] = useState<DeliveryOrder[]>([]);
@@ -142,7 +140,7 @@ export default function DriverDashboard() {
           <div>
             <h1 className="text-2xl font-bold">Driver Dashboard</h1>
             <p className="text-blue-100 mt-1">
-              Welcome back, {user?.name || user?.email?.split('@')[0]}! 🚚
+              Welcome back, Driver! 🚚
             </p>
           </div>
           <div className="flex items-center space-x-4">

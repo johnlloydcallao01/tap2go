@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
 import {
   ClockIcon,
   CheckCircleIcon,
@@ -142,24 +140,12 @@ const mockOrders: Order[] = [
 ];
 
 export default function VendorOrders() {
-  const { user } = useAuth();
-  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | OrderStatus>('all');
 
   useEffect(() => {
-    if (!user) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    if (user.role !== 'vendor') {
-      router.push('/');
-      return;
-    }
-
-    // Load orders
+    // Load orders - removed authentication restrictions for demo
     const loadOrders = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -172,7 +158,7 @@ export default function VendorOrders() {
     };
 
     loadOrders();
-  }, [user, router]);
+  }, []);
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
@@ -223,17 +209,7 @@ export default function VendorOrders() {
     ? orders
     : orders.filter(order => order.status === filter);
 
-  if (!user || user.role !== 'vendor') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You need to be a vendor to access this page.</p>
-          <Link href="/" className="btn-primary">Go Home</Link>
-        </div>
-      </div>
-    );
-  }
+  // Removed access restrictions for demo purposes
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
 import {
   PlusIcon,
   PencilIcon,
@@ -15,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { MenuItem } from '@/types';
 
-// Mock menu items for vendor
+// Professional dummy menu items for visual demonstration
 const mockMenuItems: MenuItem[] = [
   {
     id: '1',
@@ -24,7 +22,7 @@ const mockMenuItems: MenuItem[] = [
     name: 'Margherita Pizza',
     description: 'Classic pizza with fresh mozzarella, tomato sauce, and basil',
     price: 16.99,
-    image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=300&h=200&fit=crop',
+    image: '/api/placeholder/300/200',
     category: 'Pizza',
     isVegetarian: true,
     isVegan: false,
@@ -44,7 +42,7 @@ const mockMenuItems: MenuItem[] = [
     name: 'Pepperoni Pizza',
     description: 'Traditional pepperoni pizza with mozzarella and tomato sauce',
     price: 18.99,
-    image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=300&h=200&fit=crop',
+    image: '/api/placeholder/300/200',
     category: 'Pizza',
     isVegetarian: false,
     isVegan: false,
@@ -59,12 +57,52 @@ const mockMenuItems: MenuItem[] = [
   },
   {
     id: '3',
+    slug: 'hawaiian-pizza',
+    restaurantId: 'rest1',
+    name: 'Hawaiian Pizza',
+    description: 'Sweet and savory pizza with ham, pineapple, and mozzarella',
+    price: 19.99,
+    image: '/api/placeholder/300/200',
+    category: 'Pizza',
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: false,
+    isSpicy: false,
+    ingredients: ['Ham', 'Pineapple', 'Mozzarella', 'Tomato Sauce'],
+    allergens: ['Gluten', 'Dairy'],
+    available: true,
+    preparationTime: 18,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '4',
+    slug: 'meat-lovers-pizza',
+    restaurantId: 'rest1',
+    name: 'Meat Lovers Pizza',
+    description: 'Loaded with pepperoni, sausage, bacon, and ham',
+    price: 22.99,
+    image: '/api/placeholder/300/200',
+    category: 'Pizza',
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: false,
+    isSpicy: false,
+    ingredients: ['Pepperoni', 'Italian Sausage', 'Bacon', 'Ham', 'Mozzarella'],
+    allergens: ['Gluten', 'Dairy'],
+    available: true,
+    preparationTime: 20,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '5',
     slug: 'caesar-salad',
     restaurantId: 'rest1',
     name: 'Caesar Salad',
     description: 'Fresh romaine lettuce with Caesar dressing, croutons, and parmesan',
     price: 12.99,
-    image: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=300&h=200&fit=crop',
+    image: '/api/placeholder/300/200',
     category: 'Salads',
     isVegetarian: true,
     isVegan: false,
@@ -72,33 +110,161 @@ const mockMenuItems: MenuItem[] = [
     isSpicy: false,
     ingredients: ['Romaine Lettuce', 'Caesar Dressing', 'Croutons', 'Parmesan'],
     allergens: ['Gluten', 'Dairy'],
-    available: false,
+    available: true,
     preparationTime: 10,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '6',
+    slug: 'greek-salad',
+    restaurantId: 'rest1',
+    name: 'Greek Salad',
+    description: 'Mixed greens with feta cheese, olives, tomatoes, and Greek dressing',
+    price: 13.99,
+    image: '/api/placeholder/300/200',
+    category: 'Salads',
+    isVegetarian: true,
+    isVegan: false,
+    isGlutenFree: true,
+    isSpicy: false,
+    ingredients: ['Mixed Greens', 'Feta Cheese', 'Kalamata Olives', 'Tomatoes', 'Red Onion'],
+    allergens: ['Dairy'],
+    available: true,
+    preparationTime: 8,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '7',
+    slug: 'chicken-wings',
+    restaurantId: 'rest1',
+    name: 'Buffalo Chicken Wings',
+    description: 'Crispy chicken wings tossed in spicy buffalo sauce',
+    price: 13.99,
+    image: '/api/placeholder/300/200',
+    category: 'Appetizers',
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: true,
+    isSpicy: true,
+    ingredients: ['Chicken Wings', 'Buffalo Sauce', 'Celery', 'Blue Cheese Dip'],
+    allergens: ['Dairy'],
+    available: true,
+    preparationTime: 12,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '8',
+    slug: 'mozzarella-sticks',
+    restaurantId: 'rest1',
+    name: 'Mozzarella Sticks',
+    description: 'Golden fried mozzarella sticks served with marinara sauce',
+    price: 9.99,
+    image: '/api/placeholder/300/200',
+    category: 'Appetizers',
+    isVegetarian: true,
+    isVegan: false,
+    isGlutenFree: false,
+    isSpicy: false,
+    ingredients: ['Mozzarella Cheese', 'Breadcrumbs', 'Marinara Sauce'],
+    allergens: ['Gluten', 'Dairy'],
+    available: true,
+    preparationTime: 8,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '9',
+    slug: 'chicken-alfredo',
+    restaurantId: 'rest1',
+    name: 'Chicken Alfredo Pasta',
+    description: 'Grilled chicken breast over fettuccine with creamy alfredo sauce',
+    price: 17.99,
+    image: '/api/placeholder/300/200',
+    category: 'Main Courses',
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: false,
+    isSpicy: false,
+    ingredients: ['Grilled Chicken', 'Fettuccine', 'Alfredo Sauce', 'Parmesan'],
+    allergens: ['Gluten', 'Dairy'],
+    available: true,
+    preparationTime: 18,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '10',
+    slug: 'beef-burger',
+    restaurantId: 'rest1',
+    name: 'Classic Beef Burger',
+    description: 'Juicy beef patty with lettuce, tomato, onion, and special sauce',
+    price: 14.99,
+    image: '/api/placeholder/300/200',
+    category: 'Main Courses',
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: false,
+    isSpicy: false,
+    ingredients: ['Beef Patty', 'Lettuce', 'Tomato', 'Onion', 'Special Sauce', 'Brioche Bun'],
+    allergens: ['Gluten', 'Dairy'],
+    available: true,
+    preparationTime: 15,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '11',
+    slug: 'chocolate-cake',
+    restaurantId: 'rest1',
+    name: 'Chocolate Fudge Cake',
+    description: 'Rich chocolate cake with fudge frosting and chocolate chips',
+    price: 7.99,
+    image: '/api/placeholder/300/200',
+    category: 'Desserts',
+    isVegetarian: true,
+    isVegan: false,
+    isGlutenFree: false,
+    isSpicy: false,
+    ingredients: ['Chocolate Cake', 'Fudge Frosting', 'Chocolate Chips'],
+    allergens: ['Gluten', 'Dairy', 'Eggs'],
+    available: true,
+    preparationTime: 5,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: '12',
+    slug: 'tiramisu',
+    restaurantId: 'rest1',
+    name: 'Classic Tiramisu',
+    description: 'Traditional Italian dessert with coffee-soaked ladyfingers and mascarpone',
+    price: 8.99,
+    image: '/api/placeholder/300/200',
+    category: 'Desserts',
+    isVegetarian: true,
+    isVegan: false,
+    isGlutenFree: false,
+    isSpicy: false,
+    ingredients: ['Ladyfingers', 'Mascarpone', 'Coffee', 'Cocoa Powder'],
+    allergens: ['Gluten', 'Dairy', 'Eggs'],
+    available: false,
+    preparationTime: 5,
     createdAt: new Date(),
     updatedAt: new Date()
   }
 ];
 
 export default function VendorMenu() {
-  const { user } = useAuth();
-  const router = useRouter();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [imageErrors, setImageErrors] = useState<{[key: string]: boolean}>({});
 
   useEffect(() => {
-    if (!user) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    if (user.role !== 'vendor') {
-      router.push('/');
-      return;
-    }
-
-    // Load menu items
+    // Load menu items - removed authentication restrictions for demo purposes
     const loadMenuItems = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -111,7 +277,7 @@ export default function VendorMenu() {
     };
 
     loadMenuItems();
-  }, [user, router]);
+  }, []);
 
   const toggleItemAvailability = async (itemId: string) => {
     try {
@@ -140,44 +306,98 @@ export default function VendorMenu() {
     ? menuItems
     : menuItems.filter(item => item.category === selectedCategory);
 
-  if (!user || user.role !== 'vendor') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You need to be a vendor to access this page.</p>
-          <Link href="/" className="btn-primary">Go Home</Link>
-        </div>
-      </div>
-    );
-  }
+  // Removed access restrictions for demo purposes - showing professional dummy content
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="container-custom py-6">
+      <div className="bg-white shadow-sm rounded-lg">
+        <div className="p-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Menu Management</h1>
               <p className="text-gray-600">Manage your restaurant&apos;s menu items and categories</p>
             </div>
-            <div className="flex space-x-4">
+            <div className="flex space-x-3">
               <Link href="/vendor/dashboard" className="btn-secondary">
                 Back to Dashboard
               </Link>
-              <Link href="/vendor/menu/add" className="btn-primary">
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Add New Item
+              <Link href="/vendor/menu/categories" className="btn-secondary">
+                Manage Categories
               </Link>
+              <button className="btn-primary flex items-center">
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Add New Item
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container-custom py-8">
-        {/* Category Filter */}
-        <div className="mb-8">
+      {/* Menu Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg p-6 shadow-sm">
+          <div className="flex items-center">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <PhotoIcon className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Items</p>
+              <p className="text-2xl font-bold text-gray-900">{menuItems.length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-6 shadow-sm">
+          <div className="flex items-center">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <EyeIcon className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Available</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {menuItems.filter(item => item.available).length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-6 shadow-sm">
+          <div className="flex items-center">
+            <div className="p-2 bg-orange-100 rounded-lg">
+              <PhotoIcon className="h-6 w-6 text-orange-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Categories</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {new Set(menuItems.map(item => item.category)).size}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-6 shadow-sm">
+          <div className="flex items-center">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <EyeSlashIcon className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Unavailable</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {menuItems.filter(item => !item.available).length}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Category Filter */}
+      <div className="bg-white shadow-sm rounded-lg">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Filter by Category</h2>
+            <span className="text-sm text-gray-500">{filteredItems.length} items</span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
               <button
@@ -185,8 +405,8 @@ export default function VendorMenu() {
                 onClick={() => setSelectedCategory(category)}
                 className={`px-4 py-2 rounded-full font-medium transition-colors capitalize ${
                   selectedCategory === category
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    ? 'bg-orange-100 text-orange-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {category === 'all' ? 'All Items' : category}
@@ -200,42 +420,49 @@ export default function VendorMenu() {
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Menu Items */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, index) => (
-              <div key={index} className="card animate-pulse">
-                <div className="h-48 bg-gray-300"></div>
-                <div className="p-4 space-y-3">
-                  <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-                  <div className="h-3 bg-gray-300 rounded w-full"></div>
-                  <div className="h-3 bg-gray-300 rounded w-2/3"></div>
+      {/* Menu Items */}
+      <div className="bg-white shadow-sm rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Menu Items</h2>
+          <p className="text-gray-600 mt-1">Manage your restaurant&apos;s menu items</p>
+        </div>
+        <div className="p-6">
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg animate-pulse">
+                  <div className="h-48 bg-gray-300 rounded-t-lg"></div>
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-300 rounded w-full"></div>
+                    <div className="h-3 bg-gray-300 rounded w-2/3"></div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-24 h-24 mx-auto mb-6 bg-gray-200 rounded-full flex items-center justify-center">
-              <PhotoIcon className="w-12 h-12 text-gray-400" />
+              ))}
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">No menu items found</h2>
-            <p className="text-gray-600 mb-8">
-              {selectedCategory === 'all'
-                ? 'Start building your menu by adding your first item.'
-                : `No items found in the ${selectedCategory} category.`
-              }
-            </p>
-            <Link href="/vendor/menu/add" className="btn-primary">
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Add Your First Item
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <div key={item.id} className={`card overflow-hidden ${!item.available ? 'opacity-75' : ''}`}>
+          ) : filteredItems.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-24 h-24 mx-auto mb-6 bg-gray-200 rounded-full flex items-center justify-center">
+                <PhotoIcon className="w-12 h-12 text-gray-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">No menu items found</h2>
+              <p className="text-gray-600 mb-8">
+                {selectedCategory === 'all'
+                  ? 'Start building your menu by adding your first item.'
+                  : `No items found in the ${selectedCategory} category.`
+                }
+              </p>
+              <button className="btn-primary flex items-center mx-auto">
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add Your First Item
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredItems.map((item) => (
+                <div key={item.id} className={`border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow ${!item.available ? 'opacity-75' : ''}`}>
                 {/* Item Image */}
                 <div className="relative h-48">
                   {imageErrors[item.id] ? (
@@ -339,9 +566,10 @@ export default function VendorMenu() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
