@@ -310,8 +310,8 @@ async function main() {
     console.log('\n❌ Failed to create tables automatically.');
     console.log('\n📝 MANUAL SOLUTION:');
     console.log('Go to your Supabase Dashboard → SQL Editor');
-    console.log('Copy and paste the SQL from: supabase-cms-schema.sql');
-    console.log('Then run: supabase-cms-policies.sql');
+    console.log('Copy and paste the SQL from: database/supabase/schema/supabase-cms-schema.sql');
+    console.log('Then run: database/supabase/policies/supabase-cms-policies.sql');
     process.exit(1);
   }
 

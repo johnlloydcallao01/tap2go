@@ -42,6 +42,14 @@ const nextConfig: NextConfig = {
 
     return config;
   },
+  turbopack: {
+    // Turbopack configuration to complement webpack setup
+    rules: {
+      // Add any custom loader rules here if needed
+      // For now, this ensures Turbopack is configured alongside webpack
+    },
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+  },
 };
 
 export default nextConfig;

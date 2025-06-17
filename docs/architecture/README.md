@@ -4,6 +4,17 @@ This folder contains all system architecture and design documentation for the Ta
 
 ## 📋 Available Guides
 
+### [Caching Blueprint](./CACHING_BLUEPRINT.md)
+**Enterprise-grade multi-layer caching architecture**
+- Browser/Client caching strategies (0-5ms)
+- CDN caching for global delivery (10-50ms)
+- Application-level caching with Next.js (5-20ms)
+- Distributed Redis caching (20-100ms)
+- Database-level caching optimization (100-500ms)
+- Intelligent cache invalidation and warming
+- Performance monitoring and cost optimization
+- Security, compliance, and scalability strategies
+
 ### [Redux Implementation](./REDUX_IMPLEMENTATION.md)
 **State management architecture and implementation**
 - Redux Toolkit configuration

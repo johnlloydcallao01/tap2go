@@ -346,9 +346,9 @@ async function createSchema() {
     if (!executorReady) {
       console.log('\n📝 Manual Setup Required:');
       console.log('Please run the SQL files in your Supabase SQL Editor:');
-      console.log('1. supabase-cms-schema.sql');
-      console.log('2. supabase-cms-policies.sql');
-      console.log('3. supabase-sample-data.sql');
+      console.log('1. database/supabase/schema/supabase-cms-schema.sql');
+      console.log('2. database/supabase/policies/supabase-cms-policies.sql');
+      console.log('3. database/supabase/sample-data/supabase-sample-data.sql');
       return;
     }
 
