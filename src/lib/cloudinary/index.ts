@@ -4,6 +4,7 @@ export * from './transform';
 
 // Export upload functions (these will only work on server-side)
 export {
+  uploadToCloudinary,
   uploadRestaurantImage,
   uploadMenuItemImage,
   uploadUserAvatar,

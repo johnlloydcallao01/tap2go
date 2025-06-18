@@ -30,6 +30,7 @@ export interface CloudinaryTransformation {
 export interface UploadOptions {
   folder?: string;
   public_id?: string;
+  upload_preset?: string;
   transformation?: CloudinaryTransformation;
   resource_type?: 'image' | 'video' | 'raw' | 'auto';
   tags?: string[];
@@ -66,15 +67,7 @@ export const validateFile = (file: File, type: 'image' | 'video' | 'document'): 
   return null;
 };
 
-// Convert File to base64 for upload
-export const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
-  });
-};
+
 
 // Get Cloudinary instance (server-side only)
 const getCloudinaryInstance = async () => {
@@ -105,23 +98,34 @@ export const uploadToCloudinary = async (
   try {
     const cloudinary = await getCloudinaryInstance();
 
-    // Convert file to base64 if it's a File object
-    const fileData = typeof file === 'string' ? file : await fileToBase64(file);
+    let fileData: string;
+
+    if (typeof file === 'string') {
+      fileData = file;
+    } else {
+      // Convert File to buffer and then to base64 data URL
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64 = buffer.toString('base64');
+      fileData = `data:${file.type};base64,${base64}`;
+    }
 
     const uploadOptions = {
-      folder: options.folder || FOLDERS.TEMP,
-      resource_type: options.resource_type || 'auto',
-      quality: 'auto',
-      format: 'auto',
+      upload_preset: 'tap2go-uploads',
+      folder: options.folder || 'main-uploads',
+      resource_type: 'auto' as const,
       ...options,
     };
 
+    console.log('🔄 Uploading to Cloudinary with options:', uploadOptions);
     const result = await cloudinary.uploader.upload(fileData, uploadOptions);
+    console.log('✅ Cloudinary upload successful:', result.public_id);
 
     return result as CloudinaryUploadResult;
   } catch (error) {
-    console.error('Cloudinary upload error:', error);
-    throw new Error('Failed to upload file to Cloudinary');
+    console.error('❌ Cloudinary upload error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Cloudinary upload failed: ${errorMessage}`);
   }
 };
 
@@ -209,7 +213,7 @@ export const uploadDocument = async (
   return uploadToCloudinary(file, {
     folder: FOLDERS.DOCUMENTS,
     public_id: `doc_${userId}_${documentType}_${Date.now()}`,
-    resource_type: 'auto',
+    resource_type: 'auto' as const,
     tags: ['document', documentType],
     context: {
       user_id: userId,
@@ -233,7 +237,7 @@ export const uploadVideo = async (
   return uploadToCloudinary(file, {
     folder: FOLDERS.VIDEOS,
     public_id: `video_${restaurantId}_${videoType}_${Date.now()}`,
-    resource_type: 'video',
+    resource_type: 'video' as const,
     tags: ['video', videoType],
     context: {
       restaurant_id: restaurantId,
