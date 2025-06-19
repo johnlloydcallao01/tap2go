@@ -40,7 +40,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 1. **Run the Supabase schema script**:
    ```bash
-   # The schema is already created in supabase-db-scripts/media-library.sql
+   # The schema is already created in scripts/database/media-library.sql
    # Apply it to your Supabase project via the SQL editor
    ```
 

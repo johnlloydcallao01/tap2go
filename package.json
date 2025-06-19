@@ -7,32 +7,32 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup-db": "node scripts/setup-database.js",
-    "setup-users-admins": "node scripts/setup-users-admins.js",
-    "setup-vendors": "node scripts/setup-vendors.js",
-    "setup-restaurants": "node scripts/setup-restaurants.js",
-    "setup-customers": "node scripts/setup-customers.js",
+
     "update-system-docs": "node scripts/update-system-docs.js",
     "add-restaurants": "node scripts/add-sample-restaurants.js",
     "clear-db": "node scripts/clear-database.js --confirm",
     "deploy-rules": "firebase deploy --only firestore:rules",
-    "blog:test": "node scripts/test-professional-blog.js",
-    "blog:test-simple": "node scripts/test-blog-operations.js",
+
     "db:test": "curl http://localhost:3000/api/database/test",
-    "supabase:create-tables": "node scripts/create-tables-now.js",
-    "supabase:setup": "node scripts/automated-supabase-setup.js",
-    "supabase:setup-manual": "node scripts/setup-supabase-schema.js",
-    "supabase:test": "node scripts/test-supabase-connection.js",
-    "supabase:verify": "node scripts/verify-cms-setup.js",
-    "supabase:test-cms": "node scripts/test-cms-operations.js",
+
     "cms:dashboard": "echo 'CMS Dashboard available at: http://localhost:3000/admin/cms-dashboard' && npm run dev",
     "email:setup": "node scripts/setup-resend-email.js",
     "email:test": "node scripts/setup-resend-email.js",
-    "email:dev-test": "node scripts/test-email-development.js",
-    "ai:test": "node scripts/test-google-ai.js",
+
+    "email:simple-test": "node src/tests/scripts/email/test-email-simple.js",
+
     "ai:demo": "echo 'AI Demo available at: http://localhost:3000/ai-demo' && npm run dev",
-    "chatbot:test": "node scripts/test-chatbot.js",
-    "chatbot:start": "echo 'Chatbot is now active on all pages! Start dev server and look for the chat widget.' && npm run dev"
+
+    "chatbot:start": "echo 'Chatbot is now active on all pages! Start dev server and look for the chat widget.' && npm run dev",
+    "test:dashboard": "echo 'Test Dashboard available at: http://localhost:3000/tests/dashboard' && npm run dev",
+    "test:auth": "echo 'Testing authentication at: http://localhost:3000/tests/pages/auth/test-auth' && npm run dev",
+    "test:notifications": "echo 'Testing notifications at: http://localhost:3000/tests/pages/notifications/test-all-notifications' && npm run dev",
+    "test:business": "echo 'Testing business logic at: http://localhost:3000/tests/pages/business/test-customer' && npm run dev",
+    "test:all": "echo 'All tests available at: http://localhost:3000/tests/dashboard' && npm run dev",
+    "test:enable": "echo 'ENABLE_TEST_ROUTES=true' >> .env.local && echo 'Test routes enabled for development'",
+    "test:disable": "sed -i '/ENABLE_TEST_ROUTES=true/d' .env.local && echo 'Test routes disabled'",
+    "test:verify-images": "node src/tests/scripts/database/verify-restaurant-images.js",
+    "test:bonsai": "node src/tests/scripts/integrations/test-bonsai.js"
   },
   "dependencies": {
     "@cloudinary/react": "^1.14.3",

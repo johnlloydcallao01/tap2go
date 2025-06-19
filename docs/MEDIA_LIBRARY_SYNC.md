@@ -68,7 +68,7 @@ When you delete records directly from the `media_files` database:
    - Handles failed deletion retries
    - Manages cleanup statistics
 
-3. **Database Triggers** (`supabase-db-scripts/cloudinary-sync-triggers.sql`)
+3. **Database Triggers** (`scripts/database/cloudinary-sync-triggers.sql`)
    - Automatically queue Cloudinary deletions
    - Trigger on direct database deletions
 
@@ -121,7 +121,7 @@ node scripts/setup-cloudinary-sync.js
 
 Or manually run the SQL in Supabase SQL Editor:
 ```sql
--- Copy and paste contents of supabase-db-scripts/cloudinary-sync-triggers.sql
+-- Copy and paste contents of scripts/database/cloudinary-sync-triggers.sql
 ```
 
 ### 2. Verify Setup

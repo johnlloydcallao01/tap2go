@@ -12,11 +12,22 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    files: ["src/app/test*/**/*", "src/app/test/**/*", "src/lib/database/**/*", "src/pages/**/*", "src/app/system-docs/**/*", "src/contexts/**/*", "src/types/**/*"],
+    files: [
+      "src/app/test*/**/*",
+      "src/app/test/**/*",
+      "src/tests/**/*",
+      "src/lib/database/**/*",
+      "src/pages/**/*",
+      "src/app/system-docs/**/*",
+      "src/contexts/**/*",
+      "src/types/**/*",
+      "scripts/test-*.js"
+    ],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
       "react/no-unescaped-entities": "off",
+      "@typescript-eslint/no-require-imports": "off", // Allow require() in test scripts
     },
   },
   {
