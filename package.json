@@ -1,93 +1,34 @@
 {
-  "name": "tap2go",
+  "name": "tap2go-monorepo",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-
-    "update-system-docs": "node scripts/update-system-docs.js",
-    "add-restaurants": "node scripts/add-sample-restaurants.js",
-    "clear-db": "node scripts/clear-database.js --confirm",
-    "deploy-rules": "firebase deploy --only firestore:rules",
-
-    "db:test": "curl http://localhost:3000/api/database/test",
-
-    "cms:dashboard": "echo 'CMS Dashboard available at: http://localhost:3000/admin/cms-dashboard' && npm run dev",
-    "email:setup": "node scripts/setup-resend-email.js",
-    "email:test": "node scripts/setup-resend-email.js",
-
-    "email:simple-test": "node src/tests/scripts/email/test-email-simple.js",
-
-    "ai:demo": "echo 'AI Demo available at: http://localhost:3000/ai-demo' && npm run dev",
-
-    "chatbot:start": "echo 'Chatbot is now active on all pages! Start dev server and look for the chat widget.' && npm run dev",
-    "test:dashboard": "echo 'Test Dashboard available at: http://localhost:3000/tests/dashboard' && npm run dev",
-    "test:auth": "echo 'Testing authentication at: http://localhost:3000/tests/pages/auth/test-auth' && npm run dev",
-    "test:notifications": "echo 'Testing notifications at: http://localhost:3000/tests/pages/notifications/test-all-notifications' && npm run dev",
-    "test:business": "echo 'Testing business logic at: http://localhost:3000/tests/pages/business/test-customer' && npm run dev",
-    "test:all": "echo 'All tests available at: http://localhost:3000/tests/dashboard' && npm run dev",
-    "test:enable": "echo 'ENABLE_TEST_ROUTES=true' >> .env.local && echo 'Test routes enabled for development'",
-    "test:disable": "sed -i '/ENABLE_TEST_ROUTES=true/d' .env.local && echo 'Test routes disabled'",
-    "test:verify-images": "node src/tests/scripts/database/verify-restaurant-images.js",
-    "test:bonsai": "node src/tests/scripts/integrations/test-bonsai.js"
-  },
-  "dependencies": {
-    "@cloudinary/react": "^1.14.3",
-    "@cloudinary/url-gen": "^1.21.0",
-    "@elastic/elasticsearch": "^9.0.2",
-    "@google/generative-ai": "^0.24.1",
-    "@headlessui/react": "^2.2.4",
-    "@heroicons/react": "^2.2.0",
-    "@opensearch-project/opensearch": "^3.5.1",
-    "@react-email/components": "^0.0.25",
-    "@react-email/render": "^1.1.2",
-    "@reduxjs/toolkit": "^2.5.0",
-    "@supabase/supabase-js": "^2.50.0",
-    "@types/ws": "^8.18.1",
-    "@upstash/redis": "^1.35.0",
-    "axios": "^1.9.0",
-    "cloudinary": "^2.6.1",
-    "crypto-js": "^4.2.0",
-    "dotenv": "^16.5.0",
-    "echarts": "^5.6.0",
-    "echarts-for-react": "^3.0.2",
-    "firebase": "^11.8.1",
-    "firebase-admin": "^13.4.0",
-    "form-data": "^4.0.3",
-    "ioredis": "^5.4.1",
-    "lucide-react": "^0.511.0",
-    "next": "15.3.2",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-dropzone": "^14.3.8",
-    "react-icons": "^5.5.0",
-    "react-redux": "^9.2.0",
-    "redux-persist": "^6.0.0",
-    "reselect": "^5.1.1",
-    "resend": "^4.5.2",
-    "ws": "^8.18.2"
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean",
+    "type-check": "turbo run type-check",
+    "web:dev": "turbo run dev --filter=web",
+    "web:build": "turbo run build --filter=web",
+    "mobile:dev": "turbo run dev --filter=mobile",
+    "mobile:build": "turbo run build --filter=mobile",
+    "mobile:ios": "turbo run ios --filter=mobile",
+    "mobile:android": "turbo run android --filter=mobile"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@types/google.maps": "^3.58.1",
-    "@types/node": "^20.17.57",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@typescript-eslint/eslint-plugin": "^8.33.1",
-    "@typescript-eslint/parser": "^8.33.1",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.2",
-    "tailwindcss": "^4",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "@turbo/gen": "^2.0.0",
+    "turbo": "^2.0.0"
   },
-  "overrides": {
-    "md-to-react-email": {
-      "react": "$react"
-    }
+  "packageManager": "pnpm@8.15.6",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.4",
+    "redux-persist": "^6.0.0"
   }
 }
