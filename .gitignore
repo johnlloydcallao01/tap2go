@@ -2,6 +2,7 @@
 
 # Dependencies
 node_modules/
+**/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -33,6 +34,10 @@ lib/
 
 # Turborepo
 .turbo/
+**/.turbo/
+*.turbo-build.log
+*.turbo-type-check.log
+*.turbo-lint.log
 
 # TypeScript
 *.tsbuildinfo
