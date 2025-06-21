@@ -4,7 +4,7 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-interface Notification {
+export interface Notification {
   id: string;
   type: 'order' | 'payment' | 'system' | 'promotion';
   title: string;
@@ -14,7 +14,7 @@ interface Notification {
   data?: Record<string, unknown>;
 }
 
-interface NotificationsState {
+export interface NotificationsState {
   notifications: Notification[];
   unreadCount: number;
   loading: boolean;

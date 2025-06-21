@@ -133,9 +133,12 @@ export const dbUtils = {
     }
 
     const querySnapshot = await getDocs(queryRef);
-    return querySnapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    })) as T[];
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        ...(data as Record<string, any>),
+        id: doc.id
+      } as T;
+    });
   },
 };

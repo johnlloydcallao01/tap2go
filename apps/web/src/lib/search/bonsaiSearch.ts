@@ -442,7 +442,7 @@ const getFallbackSuggestions = async (query: string): Promise<string[]> => {
     });
 
     const suggestions = response.body.hits.hits.map((hit) => (hit._source as { name: string }).name);
-    return [...new Set(suggestions)]; // Remove duplicates
+    return [...new Set(suggestions)] as string[]; // Remove duplicates
   } catch (error) {
     console.error('Fallback suggestion error:', error);
     return [];

@@ -6,7 +6,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
 // Order interfaces
-interface Order {
+export interface Order {
   id: string;
   customerId: string;
   vendorId: string;
@@ -65,7 +65,7 @@ interface Order {
   updatedAt: string;
 }
 
-interface OrderFilters {
+export interface OrderFilters {
   status?: string[];
   dateRange?: {
     start: string;
@@ -78,7 +78,7 @@ interface OrderFilters {
   maxAmount?: number;
 }
 
-interface OrdersState {
+export interface OrdersState {
   // Orders data
   orders: Order[];
   currentOrder: Order | null;

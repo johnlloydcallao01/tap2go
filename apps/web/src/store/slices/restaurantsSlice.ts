@@ -5,7 +5,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Restaurant, MenuItem } from '@/types';
 
-interface RestaurantsState {
+export interface RestaurantsState {
   restaurants: Restaurant[];
   currentRestaurant: Restaurant | null;
   menu: MenuItem[];

@@ -5,7 +5,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { User, Order } from '@/types';
 
-interface DriverProfile extends User {
+export interface DriverProfile extends User {
   role: 'driver';
   vehicle: {
     type: 'motorcycle' | 'bicycle' | 'car';
@@ -17,7 +17,7 @@ interface DriverProfile extends User {
   status: 'pending' | 'approved' | 'active' | 'suspended';
 }
 
-interface DriverPanelState {
+export interface DriverPanelState {
   profile: DriverProfile | null;
   currentDelivery: Order | null;
   earnings: {

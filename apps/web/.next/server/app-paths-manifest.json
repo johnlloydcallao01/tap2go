@@ -1,7 +1,4 @@
 {
-  "/page": "app/page.js",
-  "/driver/page": "app/driver/page.js",
   "/(customer)/home/page": "app/(customer)/home/page.js",
-  "/driver/dashboard/page": "app/driver/dashboard/page.js",
-  "/admin/page": "app/admin/page.js"
+  "/page": "app/page.js"
 }

@@ -5,7 +5,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { Address } from '@/types';
 
-interface CustomerPreferences {
+export interface CustomerPreferences {
   dietaryRestrictions: string[];
   favoriteRestaurants: string[];
   defaultPaymentMethod?: string;
@@ -16,7 +16,7 @@ interface CustomerPreferences {
   };
 }
 
-interface Customer {
+export interface Customer {
   id: string;
   name: string;
   email: string;
@@ -27,7 +27,7 @@ interface Customer {
   loyaltyPoints: number;
 }
 
-interface CustomersState {
+export interface CustomersState {
   customers: Customer[];
   loading: boolean;
   error: string | null;

@@ -4,7 +4,7 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
-interface Driver {
+export interface Driver {
   id: string;
   name: string;
   email: string;
@@ -32,7 +32,7 @@ interface Driver {
   };
 }
 
-interface DriversState {
+export interface DriversState {
   drivers: Driver[];
   availableDrivers: Driver[];
   currentDriver: Driver | null;

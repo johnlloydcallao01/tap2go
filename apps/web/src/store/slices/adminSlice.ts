@@ -5,7 +5,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import type { User, VendorProfile } from '@/types';
 
-interface AdminState {
+export interface AdminState {
   dashboardStats: {
     totalUsers: number;
     totalVendors: number;

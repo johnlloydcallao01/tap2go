@@ -4,14 +4,14 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-interface OrderUpdate {
+export interface OrderUpdate {
   orderId: string;
   status: string;
   timestamp: number;
   message?: string;
 }
 
-interface RealTimeState {
+export interface RealTimeState {
   connections: Record<string, boolean>;
   orderUpdates: Record<string, OrderUpdate>;
   driverLocations: Record<string, { lat: number; lng: number; timestamp: number }>;

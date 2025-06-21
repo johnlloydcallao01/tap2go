@@ -91,8 +91,8 @@ const persistedReducer = persistReducer(persistConfig, rootReducer);
 // Store configuration
 export const store = configureStore({
   reducer: persistedReducer,
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware({
+  middleware: (getDefaultMiddleware) => {
+    const middleware = getDefaultMiddleware({
       serializableCheck: process.env.NODE_ENV === 'development' ? false : {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
         // In production, we can be more specific about what to ignore
@@ -101,13 +101,16 @@ export const store = configureStore({
       },
       // Enable immutability checks in development
       immutableCheck: process.env.NODE_ENV === 'development',
-    })
-    .concat(serializationMiddleware)
-    .concat(apiSlice.middleware)
-    .concat(analyticsMiddleware)
-    .concat(realTimeMiddleware)
-    .concat(errorMiddleware),
-  
+    });
+
+    return middleware
+      .concat(serializationMiddleware)
+      .concat(apiSlice.middleware)
+      .concat(analyticsMiddleware)
+      .concat(realTimeMiddleware)
+      .concat(errorMiddleware);
+  },
+
   // Enable Redux DevTools in development
   devTools: process.env.NODE_ENV === 'development',
 });
@@ -121,6 +124,21 @@ export type AppDispatch = typeof store.dispatch;
 
 // Typed hooks (will be created in hooks file)
 export type AppStore = typeof store;
+
+// Export all state types for proper TypeScript inference
+export type { AuthState } from './slices/authSlice';
+export type { UIState, Notification, Modal } from './slices/uiSlice';
+export type { CartState } from './slices/cartSlice';
+export type { OrdersState, Order, OrderFilters } from './slices/ordersSlice';
+export type { RestaurantsState } from './slices/restaurantsSlice';
+export type { DriversState, Driver } from './slices/driversSlice';
+export type { CustomersState, Customer, CustomerPreferences } from './slices/customersSlice';
+export type { RealTimeState, OrderUpdate } from './slices/realTimeSlice';
+export type { AnalyticsState, AnalyticsMetrics, AnalyticsReport } from './slices/analyticsSlice';
+export type { NotificationsState, Notification as NotificationItem } from './slices/notificationsSlice';
+export type { AdminState } from './slices/adminSlice';
+export type { VendorState } from './slices/vendorSlice';
+export type { DriverPanelState, DriverProfile } from './slices/driverPanelSlice';
 
 // Store setup listener for RTK Query
 import { setupListeners } from '@reduxjs/toolkit/query';

@@ -8,7 +8,7 @@ import { User } from '@/types';
 import { serializeUser } from '../utils/serialization';
 
 // Auth state interface
-interface AuthState {
+export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;

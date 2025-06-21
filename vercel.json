@@ -1,15 +1,19 @@
 {
+  "version": 2,
   "functions": {
-    "src/app/api/**/*.ts": {
-      "maxDuration": 30
+    "apps/web/src/app/api/**/*.ts": {
+      "maxDuration": 30,
+      "runtime": "nodejs18.x"
     }
   },
   "env": {
-    "VERCEL": "1"
+    "VERCEL": "1",
+    "NODE_VERSION": "18"
   },
   "build": {
     "env": {
-      "VERCEL": "1"
+      "VERCEL": "1",
+      "NEXT_TELEMETRY_DISABLED": "1"
     }
   },
   "headers": [

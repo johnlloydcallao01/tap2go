@@ -429,7 +429,7 @@ export default function AccessKeysPage() {
                     <div className="flex items-center space-x-2">
                       {getStatusBadge(key.status)}
                       {isExpiringSoon(key.expiresAt) && (
-                        <ExclamationTriangleIcon className="h-4 w-4 text-yellow-500" title="Expires soon" />
+                        <ExclamationTriangleIcon className="h-4 w-4 text-yellow-500" />
                       )}
                     </div>
                   </td>

@@ -336,7 +336,7 @@ export default function AdminReviews() {
                         <p className="text-xs text-gray-500">{review.customerEmail}</p>
                       </div>
                       {review.isVerified && (
-                        <CheckCircleIcon className="h-4 w-4 text-green-500" title="Verified Purchase" />
+                        <CheckCircleIcon className="h-4 w-4 text-green-500" />
                       )}
                     </div>
 

@@ -4,7 +4,7 @@
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-interface AnalyticsMetrics {
+export interface AnalyticsMetrics {
   totalRevenue: number;
   totalOrders: number;
   averageOrderValue: number;
@@ -12,7 +12,7 @@ interface AnalyticsMetrics {
   [key: string]: number | string | boolean;
 }
 
-interface AnalyticsReport {
+export interface AnalyticsReport {
   id: string;
   title: string;
   type: 'revenue' | 'orders' | 'customers' | 'performance';
@@ -20,7 +20,7 @@ interface AnalyticsReport {
   generatedAt: string;
 }
 
-interface AnalyticsState {
+export interface AnalyticsState {
   metrics: AnalyticsMetrics;
   reports: AnalyticsReport[];
   loading: boolean;

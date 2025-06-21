@@ -9,7 +9,7 @@
     "dev": "tsc --watch",
     "lint": "eslint src/",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "if exist dist rmdir /s /q dist"
   },
   "dependencies": {
     "react": "^19.0.0",

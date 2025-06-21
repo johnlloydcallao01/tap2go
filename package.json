@@ -11,21 +11,34 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "clean": "turbo run clean",
-    "type-check": "turbo run type-check",
+    "type-check": "pnpm run type-check:packages && pnpm run type-check:apps",
+    "type-check:apps": "pnpm run type-check:web && pnpm run type-check:mobile",
+    "type-check:web": "cd apps/web && npx tsc --noEmit",
+    "type-check:mobile": "cd apps/mobile && npx tsc --noEmit",
+    "type-check:packages": "tsc --build",
+    "type-check:turbo": "turbo run type-check",
     "web:dev": "turbo run dev --filter=web",
     "web:build": "turbo run build --filter=web",
+    "web:start": "cd apps/web && npm start",
+    "web:deploy": "cd apps/web && npm run build",
     "mobile:dev": "turbo run dev --filter=mobile",
     "mobile:build": "turbo run build --filter=mobile",
     "mobile:ios": "turbo run ios --filter=mobile",
-    "mobile:android": "turbo run android --filter=mobile"
+    "mobile:android": "turbo run android --filter=mobile",
+    "vercel-build": "cd apps/web && npm run build",
+    "start": "cd apps/web && npm start"
   },
   "devDependencies": {
     "@turbo/gen": "^2.0.0",
-    "turbo": "^2.0.0"
+    "turbo": "^2.0.0",
+    "next": "15.3.2",
+    "typescript": "^5.8.3"
   },
   "packageManager": "pnpm@8.15.6",
   "engines": {
-    "node": ">=18"
+    "node": "18.x || 20.x || 22.x",
+    "npm": ">=8.0.0",
+    "pnpm": ">=8.0.0"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

@@ -7,7 +7,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Cart, CartItem, MenuItem, Address, PaymentMethod } from '@/types';
 
 // Cart state interface
-interface CartState {
+export interface CartState {
   cart: Cart | null;
   loading: boolean;
   error: string | null;

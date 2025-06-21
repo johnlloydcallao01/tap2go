@@ -6,7 +6,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 // UI state interfaces
-interface Notification {
+export interface Notification {
   id: string;
   type: 'success' | 'error' | 'warning' | 'info';
   title: string;
@@ -20,14 +20,14 @@ interface Notification {
   createdAt: number;
 }
 
-interface Modal {
+export interface Modal {
   id: string;
   type: string;
   props?: Record<string, unknown>;
   isOpen: boolean;
 }
 
-interface UIState {
+export interface UIState {
   // Theme
   theme: 'light' | 'dark' | 'system';
   

@@ -5,7 +5,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Restaurant, MenuItem, Order, VendorAnalytics } from '@/types';
 
-interface VendorState {
+export interface VendorState {
   restaurant: Restaurant | null;
   menu: MenuItem[];
   orders: Order[];

@@ -159,7 +159,7 @@ export function formatAddress(address: MapAddress): string {
     address.state,
     address.country
   ].filter(Boolean);
-  
+
   return parts.join(', ');
 }
 
