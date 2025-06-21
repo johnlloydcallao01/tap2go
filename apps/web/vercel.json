@@ -3,12 +3,11 @@
   "framework": "nextjs",
   "functions": {
     "src/app/api/**/*.ts": {
-      "maxDuration": 30,
-      "runtime": "nodejs18.x"
+      "maxDuration": 30
     }
   },
   "env": {
-    "NODE_VERSION": "18",
+    "NODE_VERSION": "20",
     "NEXT_TELEMETRY_DISABLED": "1"
   },
   "build": {
