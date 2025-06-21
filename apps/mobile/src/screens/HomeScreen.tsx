@@ -153,159 +153,525 @@ export default function HomeScreen({ navigation }: any) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          showsVerticalScrollIndicator={false}
         >
-
-        {/* Map Section */}
-        <MapSection
-          showMap={showMap}
-          onToggleMap={() => setShowMap(!showMap)}
-          selectedLocation={selectedLocation}
-          onLocationSelect={handleLocationSelect}
-        />
-
-        {/* Test Footer Navigation */}
-        <ResponsiveContainer>
-          <ResponsiveCard style={{ backgroundColor: '#f3f4f6', marginBottom: 16 }}>
-            <ResponsiveText variant="subtitle" style={{ marginBottom: 12, color: '#374151' }}>
-              Test Footer Navigation
-            </ResponsiveText>
-            <ResponsiveText style={{ color: '#6b7280', marginBottom: 16 }}>
-              Cart Items: {cartItemCount}
-            </ResponsiveText>
-            <TouchableOpacity
-              onPress={addTestItem}
-              style={{
-                backgroundColor: '#f97316',
-                paddingHorizontal: isTablet ? 32 : 24,
-                paddingVertical: isTablet ? 16 : 12,
-                borderRadius: isTablet ? 12 : 8,
-                alignItems: 'center',
-                marginBottom: 12,
-              }}
-            >
-              <ResponsiveText style={{ color: 'white', fontWeight: '600' }}>
-                Add Item to Cart
-              </ResponsiveText>
-            </TouchableOpacity>
-            <ResponsiveText style={{ color: '#6b7280', fontSize: 14, textAlign: 'center' }}>
-              Add items to see the cart badge update in the footer navigation!
-            </ResponsiveText>
-          </ResponsiveCard>
-        </ResponsiveContainer>
-
-        {/* Categories */}
-        {categories.length > 0 && (
-          <CategoryFilter
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-          />
-        )}
-
-        {/* Restaurants Section */}
-        <ResponsiveContainer>
-          <ResponsiveCard>
-            <ResponsiveText variant="title" style={{ marginBottom: 24 }}>
-              {searchQuery || selectedCategory ? 'Search Results' : 'Restaurants'}
-            </ResponsiveText>
-
-            {loading ? (
-              <View style={{ alignItems: 'center', paddingVertical: 64 }}>
-                <ActivityIndicator size="large" color="#f97316" />
-                <ResponsiveText style={{ color: '#6b7280', marginTop: 16 }}>
-                  Loading restaurants...
-                </ResponsiveText>
-              </View>
-            ) : filteredRestaurants.length > 0 ? (
-              isTablet ? (
-                <ResponsiveGrid spacing={16} minItemWidth={300}>
-                  {filteredRestaurants.map((restaurant) => (
-                    <RestaurantCard key={restaurant.id} restaurant={restaurant} />
-                  ))}
-                </ResponsiveGrid>
-              ) : (
-                <View style={{ gap: 16 }}>
-                  {filteredRestaurants.map((restaurant) => (
-                    <RestaurantCard key={restaurant.id} restaurant={restaurant} />
-                  ))}
-                </View>
-              )
-            ) : (
-              <View style={{ alignItems: 'center', paddingVertical: 64 }}>
-                <View style={{
-                  width: isTablet ? 96 : 80,
-                  height: isTablet ? 96 : 80,
-                  backgroundColor: '#e5e7eb',
-                  borderRadius: isTablet ? 48 : 40,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: 24,
+          {/* Hero Banner Section */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 24 }}>
+            <View style={{
+              backgroundColor: '#f3a823',
+              borderRadius: 16,
+              padding: 20,
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              <View style={{ zIndex: 2 }}>
+                <ResponsiveText style={{
+                  color: 'white',
+                  fontSize: isTablet ? 28 : 24,
+                  fontWeight: 'bold',
+                  marginBottom: 8,
                 }}>
-                  <Ionicons
-                    name="restaurant-outline"
-                    size={isTablet ? 56 : 48}
-                    color="#9CA3AF"
-                  />
-                </View>
-                <ResponsiveText variant="subtitle" style={{ marginBottom: 8, textAlign: 'center' }}>
-                  No restaurants available yet
+                  Order food to your door
                 </ResponsiveText>
                 <ResponsiveText style={{
-                  color: '#6b7280',
-                  textAlign: 'center',
-                  marginBottom: 24,
-                  paddingHorizontal: 16,
+                  color: 'rgba(255,255,255,0.9)',
+                  fontSize: isTablet ? 18 : 16,
+                  marginBottom: 20,
                 }}>
-                  {searchQuery || selectedCategory
-                    ? 'No restaurants found matching your criteria. Try adjusting your search or filters.'
-                    : "We're working on adding amazing restaurants to your area. Check back soon!"
-                  }
+                  Get delivery from your favorite restaurants
                 </ResponsiveText>
-                {(searchQuery || selectedCategory) && (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: 'white',
+                    paddingHorizontal: 24,
+                    paddingVertical: 12,
+                    borderRadius: 25,
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  <ResponsiveText style={{
+                    color: '#f3a823',
+                    fontWeight: '600',
+                    fontSize: 16,
+                  }}>
+                    Find Food
+                  </ResponsiveText>
+                </TouchableOpacity>
+              </View>
+              {/* Decorative circles */}
+              <View style={{
+                position: 'absolute',
+                right: -30,
+                top: -30,
+                width: 120,
+                height: 120,
+                borderRadius: 60,
+                backgroundColor: 'rgba(255,255,255,0.1)',
+              }} />
+              <View style={{
+                position: 'absolute',
+                right: 20,
+                bottom: -20,
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: 'rgba(255,255,255,0.1)',
+              }} />
+            </View>
+          </View>
+
+          {/* Categories Carousel */}
+          <View style={{ paddingBottom: 24 }}>
+            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <ResponsiveText style={{
+                fontSize: isTablet ? 24 : 20,
+                fontWeight: 'bold',
+                color: '#111827',
+              }}>
+                What are you craving?
+              </ResponsiveText>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+            >
+              {[
+                { name: 'Pizza', icon: '🍕', color: '#FF6B6B' },
+                { name: 'Burgers', icon: '🍔', color: '#4ECDC4' },
+                { name: 'Sushi', icon: '🍣', color: '#45B7D1' },
+                { name: 'Desserts', icon: '🍰', color: '#F7DC6F' },
+                { name: 'Coffee', icon: '☕', color: '#8D6E63' },
+                { name: 'Healthy', icon: '🥗', color: '#81C784' },
+                { name: 'Asian', icon: '🍜', color: '#FFB74D' },
+                { name: 'Mexican', icon: '🌮', color: '#FF8A65' },
+              ].map((category, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={{
+                    alignItems: 'center',
+                    marginRight: 16,
+                    width: 80,
+                  }}
+                  onPress={() => setSelectedCategory(category.name)}
+                >
+                  <View style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
+                    backgroundColor: category.color,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 8,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}>
+                    <ResponsiveText style={{ fontSize: 24 }}>
+                      {category.icon}
+                    </ResponsiveText>
+                  </View>
+                  <ResponsiveText style={{
+                    fontSize: 12,
+                    fontWeight: '500',
+                    color: '#374151',
+                    textAlign: 'center',
+                  }}>
+                    {category.name}
+                  </ResponsiveText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Featured Restaurants Section */}
+          <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 16,
+            }}>
+              <ResponsiveText style={{
+                fontSize: isTablet ? 24 : 20,
+                fontWeight: 'bold',
+                color: '#111827',
+              }}>
+                Featured restaurants
+              </ResponsiveText>
+              <TouchableOpacity>
+                <ResponsiveText style={{
+                  color: '#f3a823',
+                  fontWeight: '600',
+                  fontSize: 14,
+                }}>
+                  See all
+                </ResponsiveText>
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
+              <View style={{ gap: 16 }}>
+                {[1, 2, 3].map((item) => (
+                  <View key={item} style={{
+                    backgroundColor: 'white',
+                    borderRadius: 12,
+                    padding: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 8,
+                    elevation: 3,
+                  }}>
+                    <View style={{
+                      flexDirection: 'row',
+                      gap: 12,
+                    }}>
+                      <View style={{
+                        width: 80,
+                        height: 80,
+                        backgroundColor: '#f3f4f6',
+                        borderRadius: 8,
+                      }} />
+                      <View style={{ flex: 1, gap: 8 }}>
+                        <View style={{
+                          height: 16,
+                          backgroundColor: '#f3f4f6',
+                          borderRadius: 4,
+                          width: '70%',
+                        }} />
+                        <View style={{
+                          height: 12,
+                          backgroundColor: '#f3f4f6',
+                          borderRadius: 4,
+                          width: '90%',
+                        }} />
+                        <View style={{
+                          height: 12,
+                          backgroundColor: '#f3f4f6',
+                          borderRadius: 4,
+                          width: '60%',
+                        }} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={{ gap: 16 }}>
+                {/* Demo Restaurant Cards */}
+                {[
+                  {
+                    id: '1',
+                    name: 'McDonald\'s',
+                    cuisine: 'Fast Food • Burgers',
+                    rating: 4.5,
+                    deliveryTime: '15-25 min',
+                    deliveryFee: 'Free delivery',
+                    image: '🍔',
+                    promo: '20% off',
+                  },
+                  {
+                    id: '2',
+                    name: 'Jollibee',
+                    cuisine: 'Fast Food • Filipino',
+                    rating: 4.7,
+                    deliveryTime: '20-30 min',
+                    deliveryFee: '₱29 delivery',
+                    image: '🍗',
+                    promo: null,
+                  },
+                  {
+                    id: '3',
+                    name: 'Starbucks',
+                    cuisine: 'Coffee • Beverages',
+                    rating: 4.6,
+                    deliveryTime: '10-20 min',
+                    deliveryFee: 'Free delivery',
+                    image: '☕',
+                    promo: 'Buy 1 Get 1',
+                  },
+                ].map((restaurant) => (
                   <TouchableOpacity
-                    onPress={() => {
-                      setSearchQuery('');
-                      setSelectedCategory('');
-                    }}
+                    key={restaurant.id}
                     style={{
-                      backgroundColor: '#f97316',
-                      paddingHorizontal: isTablet ? 32 : 24,
-                      paddingVertical: isTablet ? 16 : 12,
-                      borderRadius: isTablet ? 12 : 8,
+                      backgroundColor: 'white',
+                      borderRadius: 12,
+                      padding: 16,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 8,
+                      elevation: 3,
+                    }}
+                    onPress={() => {
+                      // Navigate to restaurant details
+                      console.log('Navigate to restaurant:', restaurant.name);
                     }}
                   >
-                    <ResponsiveText style={{ color: 'white', fontWeight: '600' }}>
-                      Clear Filters
-                    </ResponsiveText>
+                    <View style={{
+                      flexDirection: 'row',
+                      gap: 12,
+                    }}>
+                      {/* Restaurant Image */}
+                      <View style={{
+                        width: 80,
+                        height: 80,
+                        backgroundColor: '#f3f4f6',
+                        borderRadius: 8,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                      }}>
+                        <ResponsiveText style={{ fontSize: 32 }}>
+                          {restaurant.image}
+                        </ResponsiveText>
+                        {restaurant.promo && (
+                          <View style={{
+                            position: 'absolute',
+                            top: -4,
+                            right: -4,
+                            backgroundColor: '#f3a823',
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 8,
+                          }}>
+                            <ResponsiveText style={{
+                              color: 'white',
+                              fontSize: 10,
+                              fontWeight: 'bold',
+                            }}>
+                              {restaurant.promo}
+                            </ResponsiveText>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Restaurant Info */}
+                      <View style={{ flex: 1, justifyContent: 'space-between' }}>
+                        <View>
+                          <ResponsiveText style={{
+                            fontSize: 16,
+                            fontWeight: 'bold',
+                            color: '#111827',
+                            marginBottom: 4,
+                          }}>
+                            {restaurant.name}
+                          </ResponsiveText>
+                          <ResponsiveText style={{
+                            fontSize: 14,
+                            color: '#6b7280',
+                            marginBottom: 8,
+                          }}>
+                            {restaurant.cuisine}
+                          </ResponsiveText>
+                        </View>
+
+                        <View style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}>
+                          <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}>
+                            <ResponsiveText style={{ fontSize: 12 }}>⭐</ResponsiveText>
+                            <ResponsiveText style={{
+                              fontSize: 12,
+                              fontWeight: '600',
+                              color: '#111827',
+                            }}>
+                              {restaurant.rating}
+                            </ResponsiveText>
+                            <ResponsiveText style={{
+                              fontSize: 12,
+                              color: '#6b7280',
+                            }}>
+                              • {restaurant.deliveryTime}
+                            </ResponsiveText>
+                          </View>
+                          <ResponsiveText style={{
+                            fontSize: 12,
+                            color: restaurant.deliveryFee === 'Free delivery' ? '#10b981' : '#6b7280',
+                            fontWeight: '500',
+                          }}>
+                            {restaurant.deliveryFee}
+                          </ResponsiveText>
+                        </View>
+                      </View>
+                    </View>
                   </TouchableOpacity>
-                )}
+                ))}
               </View>
             )}
-          </ResponsiveCard>
-        </ResponsiveContainer>
+          </View>
 
-        {/* Footer */}
-        <ResponsiveContainer>
-          <ResponsiveCard style={{ backgroundColor: '#111827' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-              <View style={{
-                width: isTablet ? 40 : 32,
-                height: isTablet ? 40 : 32,
-                backgroundColor: '#f3a823',
-                borderRadius: isTablet ? 12 : 8,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: 12,
-              }}>
-                <ResponsiveText style={{ color: 'white', fontWeight: 'bold' }}>T</ResponsiveText>
-              </View>
-              <ResponsiveText variant="title" style={{ color: 'white' }}>Tap2Go</ResponsiveText>
-            </View>
-            <ResponsiveText style={{ color: '#9ca3af' }}>
-              Your favorite food delivery platform. Fast, reliable, and delicious.
+          {/* Quick Actions */}
+          <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+            <ResponsiveText style={{
+              fontSize: isTablet ? 24 : 20,
+              fontWeight: 'bold',
+              color: '#111827',
+              marginBottom: 16,
+            }}>
+              More ways to save
             </ResponsiveText>
-          </ResponsiveCard>
-        </ResponsiveContainer>
+            <View style={{
+              flexDirection: 'row',
+              gap: 12,
+            }}>
+              <TouchableOpacity style={{
+                flex: 1,
+                backgroundColor: 'white',
+                borderRadius: 12,
+                padding: 16,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 3,
+              }}>
+                <View style={{
+                  width: 48,
+                  height: 48,
+                  backgroundColor: '#fef3c7',
+                  borderRadius: 24,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 8,
+                }}>
+                  <ResponsiveText style={{ fontSize: 20 }}>🎯</ResponsiveText>
+                </View>
+                <ResponsiveText style={{
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: '#111827',
+                  textAlign: 'center',
+                }}>
+                  Deals
+                </ResponsiveText>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={{
+                flex: 1,
+                backgroundColor: 'white',
+                borderRadius: 12,
+                padding: 16,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 3,
+              }}>
+                <View style={{
+                  width: 48,
+                  height: 48,
+                  backgroundColor: '#dbeafe',
+                  borderRadius: 24,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 8,
+                }}>
+                  <ResponsiveText style={{ fontSize: 20 }}>🚚</ResponsiveText>
+                </View>
+                <ResponsiveText style={{
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: '#111827',
+                  textAlign: 'center',
+                }}>
+                  Pickup
+                </ResponsiveText>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={{
+                flex: 1,
+                backgroundColor: 'white',
+                borderRadius: 12,
+                padding: 16,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 3,
+              }}>
+                <View style={{
+                  width: 48,
+                  height: 48,
+                  backgroundColor: '#f3e8ff',
+                  borderRadius: 24,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 8,
+                }}>
+                  <ResponsiveText style={{ fontSize: 20 }}>⚡</ResponsiveText>
+                </View>
+                <ResponsiveText style={{
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: '#111827',
+                  textAlign: 'center',
+                }}>
+                  Express
+                </ResponsiveText>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Test Cart Functionality */}
+          <View style={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+            <View style={{
+              backgroundColor: 'white',
+              borderRadius: 12,
+              padding: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 3,
+            }}>
+              <ResponsiveText style={{
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: '#111827',
+                marginBottom: 8,
+              }}>
+                Test Cart Feature
+              </ResponsiveText>
+              <ResponsiveText style={{
+                fontSize: 14,
+                color: '#6b7280',
+                marginBottom: 16,
+              }}>
+                Cart Items: {cartItemCount}
+              </ResponsiveText>
+              <TouchableOpacity
+                onPress={addTestItem}
+                style={{
+                  backgroundColor: '#f3a823',
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  alignItems: 'center',
+                }}
+              >
+                <ResponsiveText style={{
+                  color: 'white',
+                  fontWeight: '600',
+                  fontSize: 16,
+                }}>
+                  Add Test Item to Cart
+                </ResponsiveText>
+              </TouchableOpacity>
+            </View>
+          </View>
+
         </ScrollView>
       </View>
 
