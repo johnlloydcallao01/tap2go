@@ -4,14 +4,13 @@ const nextConfig: NextConfig = {
   // Fix React 19 + Next.js 15 compatibility issues
   experimental: {
     reactCompiler: false,
-    serverComponentsExternalPackages: ['styled-jsx'],
   },
+  // Move serverComponentsExternalPackages to the correct location
+  serverExternalPackages: ['styled-jsx'],
   // Disable styled-jsx to prevent build errors
   compiler: {
     styledComponents: false,
   },
-  // Force static generation for error pages
-  generateStaticParams: true,
   images: {
     remotePatterns: [
       {
