@@ -35,6 +35,9 @@ lib/
 # Turborepo
 .turbo/
 **/.turbo/
+**/turbo-build.log
+**/turbo-type-check.log
+**/turbo-lint.log
 *.turbo-build.log
 *.turbo-type-check.log
 *.turbo-lint.log
