@@ -1,3 +1,5 @@
+import React from 'react';
+
 export interface User {
   id: string;
   email: string;
@@ -374,3 +376,23 @@ export interface CartContextType {
   clearCart: () => void;
   getCartTotal: () => number;
 }
+
+// Component types for navigation and UI components
+export type IconComponent = React.ComponentType<{
+  className?: string;
+}>;
+
+export type NavigationItem = {
+  name: string;
+  href: string;
+  icon: IconComponent;
+};
+
+export type NavigationCategory = {
+  name: string;
+  icon: IconComponent;
+  items: NavigationItem[];
+};
+
+// Type assertion helper for any icon component
+export const asIconComponent = (icon: any): IconComponent => icon as IconComponent;
