@@ -26,7 +26,7 @@ import {
   CalendarDaysIcon,
   UserGroupIcon
 } from '@heroicons/react/24/outline';
-import { NavigationCategory, asIconComponent } from '@/types/components';
+import { NavigationCategory, asIconComponent } from '#types/components';
 
 // Professional vendor menu categorization structure
 const navigationCategories: NavigationCategory[] = [

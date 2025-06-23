@@ -37,7 +37,7 @@ import {
   KeyIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import { NavigationCategory, asIconComponent } from '@/types/components';
+import { NavigationCategory, asIconComponent } from '#types/components';
 
 // Professional menu categorization structure with category icons
 const navigationCategories: NavigationCategory[] = [

@@ -2,6 +2,27 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "imports": {
+    "#src/*": [
+      "./src/*.ts",
+      "./src/*.tsx",
+      "./src/*.d.ts",
+      "./src/*/index.ts",
+      "./src/*/index.tsx",
+      "./src/*"
+    ],
+    "#types/*": [
+      "./src/types/*.ts",
+      "./src/types/*.tsx",
+      "./src/types/*.d.ts",
+      "./src/types/*/index.ts",
+      "./src/types/*/index.tsx",
+      "./src/types/*"
+    ],
+    "#types/components": [
+      "./src/types/components.ts"
+    ]
+  },
   "scripts": {
     "dev": "npx next dev --turbopack",
     "build": "npx next build",

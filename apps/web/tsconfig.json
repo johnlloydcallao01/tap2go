@@ -26,12 +26,6 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@/types/*": [
-        "./src/types/*"
-      ],
-      "@/types/components": [
-        "./src/types/components.ts"
       ]
     },
     "baseUrl": ".",
