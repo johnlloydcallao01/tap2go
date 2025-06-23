@@ -370,3 +370,7 @@ export interface CartContextType {
   clearCart: () => void;
   getCartTotal: () => number;
 }
+
+// Re-export component types for better module resolution
+export * from './components';
+export { default as ComponentTypes } from './components';

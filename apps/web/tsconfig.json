@@ -26,18 +26,30 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@/types/*": [
+        "./src/types/*"
+      ],
+      "@/types/components": [
+        "./src/types/components.ts"
       ]
     },
     "baseUrl": ".",
     "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ]
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "src/types/**/*.d.ts"
+    "src/types/**/*.d.ts",
+    "src/types/**/*.ts",
+    "src/types/modules.d.ts"
   ],
   "exclude": [
     "node_modules"

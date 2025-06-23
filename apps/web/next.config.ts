@@ -138,6 +138,17 @@ const nextConfig: NextConfig = {
       },
     ];
 
+    // Enhanced module resolution for better TypeScript path mapping support
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, 'src'),
+      '@/types': require('path').resolve(__dirname, 'src/types'),
+      '@/types/components': require('path').resolve(__dirname, 'src/types/components.ts'),
+    };
+
+    // Ensure proper module resolution for TypeScript files
+    config.resolve.extensions = ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'];
+
     return config;
   },
   turbopack: {
