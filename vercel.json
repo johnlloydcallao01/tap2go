@@ -1,8 +1,6 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "buildCommand": "cd ../.. && pnpm run vercel-build",
-  "installCommand": "cd ../.. && pnpm install",
 
   "env": {
     "VERCEL": "1",
