@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering to avoid SSR issues
+export const dynamic = 'force-dynamic';
+
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { Cart, CartItem, MenuItem, CartContextType } from '@/types';
 

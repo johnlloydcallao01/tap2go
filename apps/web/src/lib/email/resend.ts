@@ -84,6 +84,7 @@ export async function sendEmail(emailData: EmailData): Promise<EmailResult> {
     }
 
     // Render React template to HTML
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const html = await render(emailData.template as any);
 
     // Prepare email payload

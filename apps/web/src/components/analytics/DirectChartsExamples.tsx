@@ -5,6 +5,7 @@
 
 'use client';
 
+
 import React, { useState, useCallback } from 'react';
 import { DirectChart, RealTimeDirectChart } from './DirectECharts';
 import { TAP2GO_COLORS } from './BaseChart';

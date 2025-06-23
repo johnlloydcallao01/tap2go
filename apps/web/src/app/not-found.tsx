@@ -1,3 +1,5 @@
+
+import React from 'react';
 import Link from 'next/link';
 import { HomeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
@@ -30,7 +32,7 @@ export default function NotFound() {
           Page Not Found
         </h1>
         <p className="text-gray-600 mb-8">
-          Sorry, we couldn't find the page you're looking for. 
+          Sorry, we couldn&apos;t find the page you&apos;re looking for.
           It might have been moved, deleted, or you entered the wrong URL.
         </p>
 
@@ -40,7 +42,7 @@ export default function NotFound() {
             href="/"
             className="inline-flex items-center justify-center w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
           >
-            {React.createElement(HomeIcon as any, { className: "w-5 h-5 mr-2" })}
+            <HomeIcon className="w-5 h-5 mr-2" />
             Go Home
           </Link>
           
@@ -48,7 +50,7 @@ export default function NotFound() {
             onClick={() => window.history.back()}
             className="inline-flex items-center justify-center w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
           >
-            {React.createElement(ArrowLeftIcon as any, { className: "w-5 h-5 mr-2" })}
+            <ArrowLeftIcon className="w-5 h-5 mr-2" />
             Go Back
           </button>
         </div>

@@ -1,3 +1,8 @@
+'use client';
+
+// Force dynamic rendering to avoid SSR issues
+export const dynamic = 'force-dynamic';
+
 /**
  * Redux Demo Page - Test Redux integration
  */

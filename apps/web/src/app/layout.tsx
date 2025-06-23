@@ -1,3 +1,5 @@
+
+import React from 'react';
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -18,6 +20,10 @@ export const metadata: Metadata = {
     "apple-mobile-web-app-status-bar-style": "default",
   },
 };
+
+// Force dynamic rendering for all pages to prevent React 19 serialization issues
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 
 export default function RootLayout({
   children,

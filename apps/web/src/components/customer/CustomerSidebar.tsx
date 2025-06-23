@@ -22,6 +22,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 // Type utility for React 19 compatibility with Heroicons
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type IconComponent = any;
 
 interface NavigationItem {

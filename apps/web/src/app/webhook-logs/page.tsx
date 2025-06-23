@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
+
+// Force dynamic rendering to avoid SSR issues
+export const dynamic = 'force-dynamic';
 
 export default function WebhookLogsPage() {
   const [logs, setLogs] = useState<string>('Click "Refresh Logs" to see Firebase Function logs...');

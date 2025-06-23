@@ -128,6 +128,7 @@ const nextConfig: NextConfig = {
     // Allow production builds to complete even with TypeScript errors
     ignoreBuildErrors: true,
   },
+  // Consolidated webpack configuration
   webpack: (config, { isServer }) => {
     // Suppress specific webpack warnings from Supabase realtime
     config.ignoreWarnings = [

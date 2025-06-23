@@ -5,6 +5,7 @@
 
 'use client';
 
+
 import React, { useRef, useEffect, useState } from 'react';
 import { ChartConfig, ECharts } from './types';
 import { TAP2GO_COLORS } from './BaseChart';

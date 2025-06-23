@@ -1,6 +1,8 @@
 'use client';
 
-import { Fragment, useEffect } from 'react';
+import React from 'react';
+
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -86,7 +88,7 @@ export default function ImageViewModal({
                           className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Previous"
                         >
-                          {React.createElement(ChevronLeftIcon as any, { className: "h-5 w-5" })}
+                          <ChevronLeftIcon className="h-5 w-5" />
                         </button>
                         <button
                           onClick={onNext}
@@ -94,7 +96,7 @@ export default function ImageViewModal({
                           className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Next"
                         >
-                          {React.createElement(ChevronRightIcon as any, { className: "h-5 w-5" })}
+                          <ChevronRightIcon className="h-5 w-5" />
                         </button>
                       </div>
                     )}
@@ -106,7 +108,7 @@ export default function ImageViewModal({
                       onClick={onClose}
                     >
                       <span className="sr-only">Close</span>
-                      {React.createElement(XMarkIcon as any, { className: "h-5 w-5" })}
+                      <XMarkIcon className="h-5 w-5" />
                     </button>
                   </div>
                 </div>

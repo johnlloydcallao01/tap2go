@@ -1,5 +1,7 @@
 'use client';
 
+import React from 'react';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BellIcon } from '@heroicons/react/24/outline';
@@ -71,9 +73,9 @@ export default function NotificationBell({
         className={`relative p-2 ${textColor} ${hoverColor} focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded-full ${className}`}
       >
         {hasNewNotifications || notifications.length > 0 ? (
-          React.createElement(BellSolidIcon as any, { className: `${iconSize} text-orange-500` })
+          <BellSolidIcon className={`${iconSize} text-orange-500`} />
         ) : (
-          React.createElement(BellIcon as any, { className: iconSize })
+          <BellIcon className={iconSize} />
         )}
 
         {/* Notification Count Badge */}

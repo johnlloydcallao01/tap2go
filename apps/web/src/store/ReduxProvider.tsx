@@ -34,6 +34,7 @@ export default function ReduxProvider({ children }: ReduxProviderProps) {
         }
         persistor={persistor}
       >
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {children as any}
       </PersistGate>
     </Provider>

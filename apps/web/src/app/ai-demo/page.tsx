@@ -1,3 +1,8 @@
+'use client';
+
+// Force dynamic rendering to avoid SSR issues
+export const dynamic = 'force-dynamic';
+
 import React from 'react';
 import AIDemo from '@/components/ai/AIDemo';
 
@@ -11,7 +16,5 @@ export default function AIDemoPage() {
   );
 }
 
-export const metadata = {
-  title: 'AI Demo - Google AI Studio Integration',
-  description: 'Test and demo Google AI Studio (Gemini) integration features',
-};
+// Note: metadata export removed because this is now a client component
+// Metadata should be handled in layout.tsx or a parent server component

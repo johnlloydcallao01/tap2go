@@ -59,6 +59,7 @@ export const BaseEmailTemplate: React.FC<BaseEmailTemplateProps> = ({
 
           {/* Main Content */}
           <Section style={content}>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {children as any}
           </Section>
 

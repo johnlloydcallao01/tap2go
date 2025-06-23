@@ -36,7 +36,6 @@ export default function ReferralsContent() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [] = useState<'email' | 'sms' | 'social' | null>(null);
 
   useEffect(() => {
     // Simulate loading referral data

@@ -5,6 +5,9 @@
 
 'use client';
 
+// Force dynamic rendering to avoid SSR issues
+export const dynamic = 'force-dynamic';
+
 import React, { useState } from 'react';
 import { ChartBarIcon, CurrencyDollarIcon, TruckIcon, UserIcon, BuildingStorefrontIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
 

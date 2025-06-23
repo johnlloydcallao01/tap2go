@@ -5,6 +5,7 @@
 
 'use client';
 
+
 import React from 'react';
 import BaseChart, { TAP2GO_COLORS } from '../BaseChart';
 import { RevenueAnalytics } from '../types';
