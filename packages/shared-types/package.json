@@ -11,7 +11,13 @@
     "type-check": "npx tsc --noEmit",
     "clean": "rm -rf dist"
   },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "@types/react": "^19.1.0"
+  },
   "devDependencies": {
+    "react": "^19.0.0",
+    "@types/react": "^19.1.0",
     "typescript": "^5.8.3"
   }
 }
