@@ -362,6 +362,9 @@ importers:
 
   packages/database:
     dependencies:
+      firebase:
+        specifier: ^11.8.1
+        version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
       firebase-admin:
         specifier: ^13.4.0
         version: 13.4.0
@@ -372,6 +375,9 @@ importers:
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
+      '@types/node':
+        specifier: ^20.17.57
+        version: 20.19.1
       typescript:
         specifier: ^5.8.3
         version: 5.8.3

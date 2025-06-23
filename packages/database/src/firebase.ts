@@ -19,7 +19,13 @@ import {
   serverTimestamp,
   deleteDoc,
   writeBatch,
-  increment
+  increment,
+  QueryDocumentSnapshot,
+  DocumentData,
+  Firestore,
+  WhereFilterOp,
+  Query,
+  CollectionReference
 } from 'firebase/firestore';
 
 // Collection names
@@ -44,7 +50,7 @@ export const dbUtils = {
    * Creates a new document in a collection
    */
   async create<T>(
-    db: any,
+    db: Firestore,
     collectionName: string,
     data: Omit<T, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<string> {
@@ -62,7 +68,7 @@ export const dbUtils = {
    * Gets a document by ID
    */
   async getById<T>(
-    db: any,
+    db: Firestore,
     collectionName: string,
     id: string
   ): Promise<T | null> {
@@ -79,7 +85,7 @@ export const dbUtils = {
    * Updates a document
    */
   async update<T>(
-    db: any,
+    db: Firestore,
     collectionName: string,
     id: string,
     updates: Partial<T>
@@ -95,7 +101,7 @@ export const dbUtils = {
    * Deletes a document
    */
   async delete(
-    db: any,
+    db: Firestore,
     collectionName: string,
     id: string
   ): Promise<void> {
@@ -107,16 +113,16 @@ export const dbUtils = {
    * Gets all documents from a collection with optional filtering
    */
   async getAll<T>(
-    db: any,
+    db: Firestore,
     collectionName: string,
     options?: {
-      where?: { field: string; operator: any; value: any }[];
+      where?: { field: string; operator: WhereFilterOp; value: unknown }[];
       orderBy?: { field: string; direction: 'asc' | 'desc' };
       limit?: number;
     }
   ): Promise<T[]> {
     let q = collection(db, collectionName);
-    let queryRef: any = q;
+    let queryRef: Query<DocumentData> | CollectionReference<DocumentData> = q;
 
     if (options?.where) {
       for (const condition of options.where) {
@@ -133,10 +139,10 @@ export const dbUtils = {
     }
 
     const querySnapshot = await getDocs(queryRef);
-    return querySnapshot.docs.map(doc => {
+    return querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
       const data = doc.data();
       return {
-        ...(data as Record<string, any>),
+        ...(data as Record<string, unknown>),
         id: doc.id
       } as T;
     });

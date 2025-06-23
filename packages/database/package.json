@@ -12,11 +12,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "firebase": "^11.8.1",
     "firebase-admin": "^13.4.0",
     "shared-types": "workspace:*",
     "firebase-config": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^20.17.57",
     "typescript": "^5.8.3"
   }
 }
