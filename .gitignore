@@ -202,6 +202,10 @@ apps/web/src/types/react-fixes.d.ts
 .npmrc
 **/pnpm-debug.log*
 
+# Prevent npm lockfile conflicts with pnpm
+package-lock.json
+**/package-lock.json
+
 # Xcode
 *.pbxuser
 !default.pbxuser
