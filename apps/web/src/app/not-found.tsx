@@ -40,7 +40,7 @@ export default function NotFound() {
             href="/"
             className="inline-flex items-center justify-center w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
           >
-            <HomeIcon className="w-5 h-5 mr-2" />
+            {React.createElement(HomeIcon as any, { className: "w-5 h-5 mr-2" })}
             Go Home
           </Link>
           
@@ -48,7 +48,7 @@ export default function NotFound() {
             onClick={() => window.history.back()}
             className="inline-flex items-center justify-center w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
           >
-            <ArrowLeftIcon className="w-5 h-5 mr-2" />
+            {React.createElement(ArrowLeftIcon as any, { className: "w-5 h-5 mr-2" })}
             Go Back
           </button>
         </div>

@@ -21,7 +21,7 @@ export default function Error({
         {/* Error Illustration */}
         <div className="mb-8">
           <div className="w-24 h-24 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
-            <ExclamationTriangleIcon className="w-12 h-12 text-red-500" />
+            {React.createElement(ExclamationTriangleIcon as any, { className: "w-12 h-12 text-red-500" })}
           </div>
         </div>
 
@@ -54,7 +54,7 @@ export default function Error({
             onClick={reset}
             className="inline-flex items-center justify-center w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
           >
-            <ArrowPathIcon className="w-5 h-5 mr-2" />
+            {React.createElement(ArrowPathIcon as any, { className: "w-5 h-5 mr-2" })}
             Try Again
           </button>
           

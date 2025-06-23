@@ -37,109 +37,97 @@ import {
   KeyIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
-
-// Type definitions for navigation structure
-interface NavigationItem {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-interface NavigationCategory {
-  name: string;
-  icon: React.ComponentType<{ className?: string }>;
-  items: NavigationItem[];
-}
+import { NavigationItem, NavigationCategory, asIconComponent } from '@/types/components';
 
 // Professional menu categorization structure with category icons
 const navigationCategories: NavigationCategory[] = [
   {
     name: 'Overview',
-    icon: HomeIcon,
+    icon: asIconComponent(HomeIcon),
     items: [
-      { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
+      { name: 'Dashboard', href: '/admin/dashboard', icon: asIconComponent(HomeIcon) },
     ]
   },
   {
     name: 'User Management',
-    icon: UsersIcon,
+    icon: asIconComponent(UsersIcon),
     items: [
-      { name: 'All Users', href: '/admin/users', icon: UsersIcon },
-      { name: 'Customers', href: '/admin/customers', icon: UserGroupIcon },
-      { name: 'Vendors', href: '/admin/vendors', icon: BuildingStorefrontIcon },
-      { name: 'Drivers', href: '/admin/drivers', icon: TruckIcon },
+      { name: 'All Users', href: '/admin/users', icon: asIconComponent(UsersIcon) },
+      { name: 'Customers', href: '/admin/customers', icon: asIconComponent(UserGroupIcon) },
+      { name: 'Vendors', href: '/admin/vendors', icon: asIconComponent(BuildingStorefrontIcon) },
+      { name: 'Drivers', href: '/admin/drivers', icon: asIconComponent(TruckIcon) },
     ]
   },
   {
     name: 'Operations',
-    icon: ShoppingBagIcon,
+    icon: asIconComponent(ShoppingBagIcon),
     items: [
-      { name: 'Orders', href: '/admin/orders', icon: ShoppingBagIcon },
-      { name: 'Disputes', href: '/admin/disputes', icon: ExclamationTriangleIcon },
-      { name: 'Notifications', href: '/admin/notifications', icon: BellIcon },
-      { name: 'Reviews', href: '/admin/reviews', icon: StarIcon },
-      { name: 'Support Chat', href: '/admin/support', icon: ChatBubbleLeftRightIcon },
+      { name: 'Orders', href: '/admin/orders', icon: asIconComponent(ShoppingBagIcon) },
+      { name: 'Disputes', href: '/admin/disputes', icon: asIconComponent(ExclamationTriangleIcon) },
+      { name: 'Notifications', href: '/admin/notifications', icon: asIconComponent(BellIcon) },
+      { name: 'Reviews', href: '/admin/reviews', icon: asIconComponent(StarIcon) },
+      { name: 'Support Chat', href: '/admin/support', icon: asIconComponent(ChatBubbleLeftRightIcon) },
     ]
   },
   {
     name: 'Content Management',
-    icon: PencilSquareIcon,
+    icon: asIconComponent(PencilSquareIcon),
     items: [
-      { name: 'CMS Dashboard', href: '/admin/cms-dashboard', icon: PencilSquareIcon },
-      { name: 'Media Library', href: '/admin/cms/media', icon: PhotoIcon },
-      { name: 'Promotions', href: '/admin/cms/promotions', icon: MegaphoneIcon },
-      { name: 'Banners', href: '/admin/cms/banners', icon: TagIcon },
+      { name: 'CMS Dashboard', href: '/admin/cms-dashboard', icon: asIconComponent(PencilSquareIcon) },
+      { name: 'Media Library', href: '/admin/cms/media', icon: asIconComponent(PhotoIcon) },
+      { name: 'Promotions', href: '/admin/cms/promotions', icon: asIconComponent(MegaphoneIcon) },
+      { name: 'Banners', href: '/admin/cms/banners', icon: asIconComponent(TagIcon) },
     ]
   },
   {
     name: 'Marketing',
-    icon: MegaphoneIcon,
+    icon: asIconComponent(MegaphoneIcon),
     items: [
-      { name: 'Campaigns', href: '/admin/marketing/campaigns', icon: MegaphoneIcon },
-      { name: 'Coupons', href: '/admin/marketing/coupons', icon: GiftIcon },
-      { name: 'Loyalty Program', href: '/admin/marketing/loyalty', icon: StarIcon },
-      { name: 'Push Notifications', href: '/admin/marketing/push', icon: BellIcon },
+      { name: 'Campaigns', href: '/admin/marketing/campaigns', icon: asIconComponent(MegaphoneIcon) },
+      { name: 'Coupons', href: '/admin/marketing/coupons', icon: asIconComponent(GiftIcon) },
+      { name: 'Loyalty Program', href: '/admin/marketing/loyalty', icon: asIconComponent(StarIcon) },
+      { name: 'Push Notifications', href: '/admin/marketing/push', icon: asIconComponent(BellIcon) },
     ]
   },
   {
     name: 'Analytics & Reports',
-    icon: ChartBarIcon,
+    icon: asIconComponent(ChartBarIcon),
     items: [
-      { name: 'Overview Analytics', href: '/admin/analytics', icon: ChartBarIcon },
-      { name: 'Sales Reports', href: '/admin/reports/sales', icon: DocumentChartBarIcon },
-      { name: 'User Reports', href: '/admin/reports/users', icon: ChartPieIcon },
-      { name: 'Performance', href: '/admin/reports/performance', icon: PresentationChartLineIcon },
-      { name: 'Custom Reports', href: '/admin/reports/custom', icon: DocumentTextIcon },
+      { name: 'Overview Analytics', href: '/admin/analytics', icon: asIconComponent(ChartBarIcon) },
+      { name: 'Sales Reports', href: '/admin/reports/sales', icon: asIconComponent(DocumentChartBarIcon) },
+      { name: 'User Reports', href: '/admin/reports/users', icon: asIconComponent(ChartPieIcon) },
+      { name: 'Performance', href: '/admin/reports/performance', icon: asIconComponent(PresentationChartLineIcon) },
+      { name: 'Custom Reports', href: '/admin/reports/custom', icon: asIconComponent(DocumentTextIcon) },
     ]
   },
   {
     name: 'Financial',
-    icon: CurrencyDollarIcon,
+    icon: asIconComponent(CurrencyDollarIcon),
     items: [
-      { name: 'Payouts', href: '/admin/payouts', icon: CurrencyDollarIcon },
-      { name: 'Transactions', href: '/admin/financial/transactions', icon: CreditCardIcon },
-      { name: 'Revenue', href: '/admin/financial/revenue', icon: BanknotesIcon },
-      { name: 'Commissions', href: '/admin/financial/commissions', icon: ChartPieIcon },
+      { name: 'Payouts', href: '/admin/payouts', icon: asIconComponent(CurrencyDollarIcon) },
+      { name: 'Transactions', href: '/admin/financial/transactions', icon: asIconComponent(CreditCardIcon) },
+      { name: 'Revenue', href: '/admin/financial/revenue', icon: asIconComponent(BanknotesIcon) },
+      { name: 'Commissions', href: '/admin/financial/commissions', icon: asIconComponent(ChartPieIcon) },
     ]
   },
   {
     name: 'Logistics',
-    icon: TruckIcon,
+    icon: asIconComponent(TruckIcon),
     items: [
-      { name: 'Delivery Zones', href: '/admin/logistics/zones', icon: MapPinIcon },
-      { name: 'Delivery Times', href: '/admin/logistics/times', icon: ClockIcon },
-      { name: 'Fleet Management', href: '/admin/logistics/fleet', icon: TruckIcon },
+      { name: 'Delivery Zones', href: '/admin/logistics/zones', icon: asIconComponent(MapPinIcon) },
+      { name: 'Delivery Times', href: '/admin/logistics/times', icon: asIconComponent(ClockIcon) },
+      { name: 'Fleet Management', href: '/admin/logistics/fleet', icon: asIconComponent(TruckIcon) },
     ]
   },
   {
     name: 'System',
-    icon: CogIcon,
+    icon: asIconComponent(CogIcon),
     items: [
-      { name: 'General Settings', href: '/admin/settings', icon: CogIcon },
-      { name: 'API Configuration', href: '/admin/settings/api', icon: AdjustmentsHorizontalIcon },
-      { name: 'Security', href: '/admin/settings/security', icon: ShieldCheckIcon },
-      { name: 'Admin Accounts', href: '/admin/settings/admins', icon: UserCircleIcon },
-      { name: 'Access Keys', href: '/admin/settings/keys', icon: KeyIcon },
+      { name: 'General Settings', href: '/admin/settings', icon: asIconComponent(CogIcon) },
+      { name: 'API Configuration', href: '/admin/settings/api', icon: asIconComponent(AdjustmentsHorizontalIcon) },
+      { name: 'Security', href: '/admin/settings/security', icon: asIconComponent(ShieldCheckIcon) },
+      { name: 'Admin Accounts', href: '/admin/settings/admins', icon: asIconComponent(UserCircleIcon) },
+      { name: 'Access Keys', href: '/admin/settings/keys', icon: asIconComponent(KeyIcon) },
     ]
   }
 ];

@@ -7,9 +7,9 @@ import { MediaUsageService } from '@/lib/services/mediaUsageService';
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function GET(
@@ -17,7 +17,8 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
-    const mediaFileId = parseInt(params.id);
+    const { id } = await params;
+    const mediaFileId = parseInt(id);
     
     if (isNaN(mediaFileId)) {
       return NextResponse.json(

@@ -86,7 +86,7 @@ export default function ImageViewModal({
                           className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Previous"
                         >
-                          <ChevronLeftIcon className="h-5 w-5" />
+                          {React.createElement(ChevronLeftIcon as any, { className: "h-5 w-5" })}
                         </button>
                         <button
                           onClick={onNext}
@@ -94,7 +94,7 @@ export default function ImageViewModal({
                           className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Next"
                         >
-                          <ChevronRightIcon className="h-5 w-5" />
+                          {React.createElement(ChevronRightIcon as any, { className: "h-5 w-5" })}
                         </button>
                       </div>
                     )}
@@ -106,7 +106,7 @@ export default function ImageViewModal({
                       onClick={onClose}
                     >
                       <span className="sr-only">Close</span>
-                      <XMarkIcon className="h-5 w-5" />
+                      {React.createElement(XMarkIcon as any, { className: "h-5 w-5" })}
                     </button>
                   </div>
                 </div>

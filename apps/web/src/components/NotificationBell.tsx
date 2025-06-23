@@ -71,9 +71,9 @@ export default function NotificationBell({
         className={`relative p-2 ${textColor} ${hoverColor} focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded-full ${className}`}
       >
         {hasNewNotifications || notifications.length > 0 ? (
-          <BellSolidIcon className={`${iconSize} text-orange-500`} />
+          React.createElement(BellSolidIcon as any, { className: `${iconSize} text-orange-500` })
         ) : (
-          <BellIcon className={iconSize} />
+          React.createElement(BellIcon as any, { className: iconSize })
         )}
 
         {/* Notification Count Badge */}

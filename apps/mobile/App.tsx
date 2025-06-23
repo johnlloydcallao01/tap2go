@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { CartProvider } from './src/contexts/CartContext';
-import './global.css';
+import './global.css'; // NativeWind v2.0.11 - Enterprise styling enabled
 
 export default function App() {
   return (
@@ -12,7 +12,7 @@ export default function App() {
       <CartProvider>
         <NavigationContainer>
           <AppNavigator />
-          <StatusBar style="light" backgroundColor="#f3a823" />
+          <StatusBar style="light" />
         </NavigationContainer>
       </CartProvider>
     </SafeAreaProvider>

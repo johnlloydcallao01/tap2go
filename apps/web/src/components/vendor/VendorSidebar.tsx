@@ -26,84 +26,72 @@ import {
   CalendarDaysIcon,
   UserGroupIcon
 } from '@heroicons/react/24/outline';
-
-// Type definitions for navigation structure
-interface NavigationItem {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-interface NavigationCategory {
-  name: string;
-  icon: React.ComponentType<{ className?: string }>;
-  items: NavigationItem[];
-}
+import { NavigationItem, NavigationCategory, asIconComponent } from '@/types/components';
 
 // Professional vendor menu categorization structure
 const navigationCategories: NavigationCategory[] = [
   {
     name: 'Overview',
-    icon: HomeIcon,
+    icon: asIconComponent(HomeIcon),
     items: [
-      { name: 'Dashboard', href: '/vendor/dashboard', icon: HomeIcon },
-      { name: 'Analytics', href: '/vendor/analytics', icon: ChartBarIcon },
+      { name: 'Dashboard', href: '/vendor/dashboard', icon: asIconComponent(HomeIcon) },
+      { name: 'Analytics', href: '/vendor/analytics', icon: asIconComponent(ChartBarIcon) },
     ]
   },
   {
     name: 'Restaurant Management',
-    icon: BuildingStorefrontIcon,
+    icon: asIconComponent(BuildingStorefrontIcon),
     items: [
-      { name: 'Restaurant Profile', href: '/vendor/restaurant', icon: BuildingStorefrontIcon },
-      { name: 'Operating Hours', href: '/vendor/restaurant/hours', icon: ClockIcon },
-      { name: 'Delivery Settings', href: '/vendor/restaurant/delivery', icon: TruckIcon },
-      { name: 'Business Documents', href: '/vendor/restaurant/documents', icon: DocumentTextIcon },
+      { name: 'Restaurant Profile', href: '/vendor/restaurant', icon: asIconComponent(BuildingStorefrontIcon) },
+      { name: 'Operating Hours', href: '/vendor/restaurant/hours', icon: asIconComponent(ClockIcon) },
+      { name: 'Delivery Settings', href: '/vendor/restaurant/delivery', icon: asIconComponent(TruckIcon) },
+      { name: 'Business Documents', href: '/vendor/restaurant/documents', icon: asIconComponent(DocumentTextIcon) },
     ]
   },
   {
     name: 'Menu Management',
-    icon: ClipboardDocumentListIcon,
+    icon: asIconComponent(ClipboardDocumentListIcon),
     items: [
-      { name: 'Menu Items', href: '/vendor/menu', icon: ClipboardDocumentListIcon },
-      { name: 'Categories', href: '/vendor/menu/categories', icon: FolderIcon },
-      { name: 'Modifiers', href: '/vendor/menu/modifiers', icon: AdjustmentsHorizontalIcon },
-      { name: 'Pricing', href: '/vendor/menu/pricing', icon: TagIcon },
+      { name: 'Menu Items', href: '/vendor/menu', icon: asIconComponent(ClipboardDocumentListIcon) },
+      { name: 'Categories', href: '/vendor/menu/categories', icon: asIconComponent(FolderIcon) },
+      { name: 'Modifiers', href: '/vendor/menu/modifiers', icon: asIconComponent(AdjustmentsHorizontalIcon) },
+      { name: 'Pricing', href: '/vendor/menu/pricing', icon: asIconComponent(TagIcon) },
     ]
   },
   {
     name: 'Order Management',
-    icon: ClipboardDocumentListIcon,
+    icon: asIconComponent(ClipboardDocumentListIcon),
     items: [
-      { name: 'Active Orders', href: '/vendor/orders', icon: ClipboardDocumentListIcon },
-      { name: 'Order History', href: '/vendor/orders/history', icon: CalendarDaysIcon },
-      { name: 'Order Analytics', href: '/vendor/orders/analytics', icon: ChartPieIcon },
+      { name: 'Active Orders', href: '/vendor/orders', icon: asIconComponent(ClipboardDocumentListIcon) },
+      { name: 'Order History', href: '/vendor/orders/history', icon: asIconComponent(CalendarDaysIcon) },
+      { name: 'Order Analytics', href: '/vendor/orders/analytics', icon: asIconComponent(ChartPieIcon) },
     ]
   },
   {
     name: 'Financial',
-    icon: CurrencyDollarIcon,
+    icon: asIconComponent(CurrencyDollarIcon),
     items: [
-      { name: 'Earnings', href: '/vendor/earnings', icon: CurrencyDollarIcon },
-      { name: 'Payouts', href: '/vendor/payouts', icon: BanknotesIcon },
-      { name: 'Commission Reports', href: '/vendor/reports/commission', icon: DocumentTextIcon },
-      { name: 'Bank Details', href: '/vendor/settings/banking', icon: CreditCardIcon },
+      { name: 'Earnings', href: '/vendor/earnings', icon: asIconComponent(CurrencyDollarIcon) },
+      { name: 'Payouts', href: '/vendor/payouts', icon: asIconComponent(BanknotesIcon) },
+      { name: 'Commission Reports', href: '/vendor/reports/commission', icon: asIconComponent(DocumentTextIcon) },
+      { name: 'Bank Details', href: '/vendor/settings/banking', icon: asIconComponent(CreditCardIcon) },
     ]
   },
   {
     name: 'Marketing',
-    icon: MegaphoneIcon,
+    icon: asIconComponent(MegaphoneIcon),
     items: [
-      { name: 'Promotions', href: '/vendor/promotions', icon: MegaphoneIcon },
-      { name: 'Reviews', href: '/vendor/reviews', icon: StarIcon },
-      { name: 'Customer Insights', href: '/vendor/customers', icon: UserGroupIcon },
+      { name: 'Promotions', href: '/vendor/promotions', icon: asIconComponent(MegaphoneIcon) },
+      { name: 'Reviews', href: '/vendor/reviews', icon: asIconComponent(StarIcon) },
+      { name: 'Customer Insights', href: '/vendor/customers', icon: asIconComponent(UserGroupIcon) },
     ]
   },
   {
     name: 'Settings',
-    icon: Cog6ToothIcon,
+    icon: asIconComponent(Cog6ToothIcon),
     items: [
-      { name: 'Account Settings', href: '/vendor/settings', icon: Cog6ToothIcon },
-      { name: 'Notifications', href: '/vendor/settings/notifications', icon: Bars3BottomLeftIcon },
+      { name: 'Account Settings', href: '/vendor/settings', icon: asIconComponent(Cog6ToothIcon) },
+      { name: 'Notifications', href: '/vendor/settings/notifications', icon: asIconComponent(Bars3BottomLeftIcon) },
     ]
   }
 ];

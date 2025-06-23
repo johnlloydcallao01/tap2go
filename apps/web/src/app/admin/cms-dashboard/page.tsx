@@ -1,3 +1,4 @@
+import React from 'react';
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -365,7 +366,7 @@ export default function CMSDashboard() {
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-4 lg:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <DocumentTextIcon className="w-8 h-8 text-orange-500 mr-3" />
+            {React.createElement(DocumentTextIcon as any, { className: "w-8 h-8 text-orange-500 mr-3" })}
             WordPress-Style CMS
           </h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -378,17 +379,17 @@ export default function CMSDashboard() {
           <div className="flex items-center space-x-2">
             {isLoading ? (
               <>
-                <ArrowPathIcon className="w-5 h-5 text-blue-500 animate-spin" />
+                {React.createElement(ArrowPathIcon as any, { className: "w-5 h-5 text-blue-500 animate-spin" })}
                 <span className="text-sm text-blue-600">Loading...</span>
               </>
             ) : error ? (
               <>
-                <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
+                {React.createElement(ExclamationTriangleIcon as any, { className: "w-5 h-5 text-red-500" })}
                 <span className="text-sm text-red-600">Error: {error}</span>
               </>
             ) : (
               <>
-                <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                {React.createElement(CheckCircleIcon as any, { className: "w-5 h-5 text-green-500" })}
                 <span className="text-sm text-gray-600">Supabase Connected</span>
               </>
             )}
@@ -408,7 +409,7 @@ export default function CMSDashboard() {
               onClick={() => dispatch(clearError())}
               className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
             >
-              <XCircleIcon className="w-4 h-4" />
+              {React.createElement(XCircleIcon as any, { className: "w-4 h-4" })}
               <span>Clear Error</span>
             </button>
           )}
@@ -419,7 +420,7 @@ export default function CMSDashboard() {
             onClick={() => setShowCreateModal(true)}
             className="bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-orange-700 transition-colors"
           >
-            <PlusIcon className="w-5 h-5" />
+            {React.createElement(PlusIcon as any, { className: "w-5 h-5" })}
             <span>Create New</span>
           </button>
         </div>
@@ -429,7 +430,7 @@ export default function CMSDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <DocumentTextIcon className="h-8 w-8 text-blue-600" />
+            {React.createElement(DocumentTextIcon as any, { className: "h-8 w-8 text-blue-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Blog Posts</h3>
               <p className="text-2xl font-bold text-gray-900">{stats.totalPosts}</p>
@@ -439,7 +440,7 @@ export default function CMSDashboard() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <CheckCircleIcon className="h-8 w-8 text-green-600" />
+            {React.createElement(CheckCircleIcon as any, { className: "h-8 w-8 text-green-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Published</h3>
               <p className="text-2xl font-bold text-green-600">{stats.publishedPosts}</p>
@@ -449,7 +450,7 @@ export default function CMSDashboard() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <PencilIcon className="h-8 w-8 text-yellow-600" />
+            {React.createElement(PencilIcon as any, { className: "h-8 w-8 text-yellow-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Drafts</h3>
               <p className="text-2xl font-bold text-yellow-600">{stats.draftPosts}</p>
@@ -459,7 +460,7 @@ export default function CMSDashboard() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <DocumentTextIcon className="h-8 w-8 text-purple-600" />
+            {React.createElement(DocumentTextIcon as any, { className: "h-8 w-8 text-purple-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Pages</h3>
               <p className="text-2xl font-bold text-purple-600">{stats.totalPages}</p>
@@ -469,7 +470,7 @@ export default function CMSDashboard() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <FolderIcon className="h-8 w-8 text-indigo-600" />
+            {React.createElement(FolderIcon as any, { className: "h-8 w-8 text-indigo-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Categories</h3>
               <p className="text-2xl font-bold text-indigo-600">{stats.totalCategories}</p>
@@ -479,7 +480,7 @@ export default function CMSDashboard() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <TagIcon className="h-8 w-8 text-pink-600" />
+            {React.createElement(TagIcon as any, { className: "h-8 w-8 text-pink-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Tags</h3>
               <p className="text-2xl font-bold text-pink-600">{stats.totalTags}</p>
@@ -489,7 +490,7 @@ export default function CMSDashboard() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <EyeIcon className="h-8 w-8 text-orange-600" />
+            {React.createElement(EyeIcon as any, { className: "h-8 w-8 text-orange-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Total Views</h3>
               <p className="text-2xl font-bold text-orange-600">{stats.totalViews}</p>
@@ -499,7 +500,7 @@ export default function CMSDashboard() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <ChartBarIcon className="h-8 w-8 text-teal-600" />
+            {React.createElement(ChartBarIcon as any, { className: "h-8 w-8 text-teal-600" })}
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Published Pages</h3>
               <p className="text-2xl font-bold text-teal-600">{stats.publishedPages}</p>
@@ -521,7 +522,7 @@ export default function CMSDashboard() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <DocumentTextIcon className="w-5 h-5" />
+                {React.createElement(DocumentTextIcon as any, { className: "w-5 h-5" })}
                 <span>Blog Posts ({stats.totalPosts})</span>
               </div>
             </button>
@@ -534,7 +535,7 @@ export default function CMSDashboard() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <DocumentTextIcon className="w-5 h-5" />
+                {React.createElement(DocumentTextIcon as any, { className: "w-5 h-5" })}
                 <span>Static Pages ({stats.totalPages})</span>
               </div>
             </button>
@@ -547,7 +548,7 @@ export default function CMSDashboard() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <FolderIcon className="w-5 h-5" />
+                {React.createElement(FolderIcon as any, { className: "w-5 h-5" })}
                 <span>Categories ({stats.totalCategories})</span>
               </div>
             </button>
@@ -560,7 +561,7 @@ export default function CMSDashboard() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <TagIcon className="w-5 h-5" />
+                {React.createElement(TagIcon as any, { className: "w-5 h-5" })}
                 <span>Tags ({stats.totalTags})</span>
               </div>
             </button>
@@ -652,7 +653,7 @@ export default function CMSDashboard() {
             </div>
           ) : error ? (
             <div className="text-center py-12">
-              <ExclamationTriangleIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
+              {React.createElement(ExclamationTriangleIcon as any, { className: "w-12 h-12 text-red-400 mx-auto mb-4" })}
               <p className="text-red-600 mb-4">Failed to load content: {error}</p>
               <div className="space-x-4">
                 <button
@@ -676,7 +677,7 @@ export default function CMSDashboard() {
                 <div>
                   {posts.length === 0 ? (
                     <div className="text-center py-12">
-                      <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      {React.createElement(DocumentTextIcon as any, { className: "w-12 h-12 text-gray-400 mx-auto mb-4" })}
                       <p className="text-gray-500 mb-4">No blog posts found. Create your first post!</p>
                       <button
                         onClick={() => setShowCreateModal(true)}
@@ -751,7 +752,7 @@ export default function CMSDashboard() {
                                     className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
                                     title="Edit Post"
                                   >
-                                    <PencilIcon className="w-4 h-4" />
+                                    {React.createElement(PencilIcon as any, { className: "w-4 h-4" })}
                                   </button>
                                   {viewMode === 'trash' ? (
                                     <>
@@ -760,14 +761,14 @@ export default function CMSDashboard() {
                                         className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 transition-colors"
                                         title="Restore from Trash"
                                       >
-                                        <ArrowUturnLeftIcon className="w-4 h-4" />
+                                        {React.createElement(ArrowUturnLeftIcon as any, { className: "w-4 h-4" })}
                                       </button>
                                       <button
                                         onClick={() => handlePermanentDelete(post)}
                                         className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
                                         title="Permanently Delete"
                                       >
-                                        <XCircleIcon className="w-4 h-4" />
+                                        {React.createElement(XCircleIcon as any, { className: "w-4 h-4" })}
                                       </button>
                                     </>
                                   ) : (
@@ -776,7 +777,7 @@ export default function CMSDashboard() {
                                       className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
                                       title="Move to Trash"
                                     >
-                                      <TrashIcon className="w-4 h-4" />
+                                      {React.createElement(TrashIcon as any, { className: "w-4 h-4" })}
                                     </button>
                                   )}
                                 </div>
@@ -795,7 +796,7 @@ export default function CMSDashboard() {
                 <div>
                   {pages.length === 0 ? (
                     <div className="text-center py-12">
-                      <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      {React.createElement(DocumentTextIcon as any, { className: "w-12 h-12 text-gray-400 mx-auto mb-4" })}
                       <p className="text-gray-500 mb-4">No static pages found. Create your first page!</p>
                       <button
                         onClick={() => setShowCreateModal(true)}
@@ -846,9 +847,9 @@ export default function CMSDashboard() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 {page.show_in_navigation ? (
-                                  <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                                  React.createElement(CheckCircleIcon as any, { className: "w-5 h-5 text-green-500" })
                                 ) : (
-                                  <XCircleIcon className="w-5 h-5 text-gray-400" />
+                                  React.createElement(XCircleIcon as any, { className: "w-5 h-5 text-gray-400" })
                                 )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -860,7 +861,7 @@ export default function CMSDashboard() {
                                     onClick={() => handleEdit(page)}
                                     className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
                                   >
-                                    <PencilIcon className="w-4 h-4" />
+                                    {React.createElement(PencilIcon as any, { className: "w-4 h-4" })}
                                   </button>
                                   {viewMode === 'trash' ? (
                                     <>
@@ -869,14 +870,14 @@ export default function CMSDashboard() {
                                         className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 transition-colors"
                                         title="Restore from Trash"
                                       >
-                                        <ArrowUturnLeftIcon className="w-4 h-4" />
+                                        {React.createElement(ArrowUturnLeftIcon as any, { className: "w-4 h-4" })}
                                       </button>
                                       <button
                                         onClick={() => handlePermanentDelete(page)}
                                         className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
                                         title="Permanently Delete"
                                       >
-                                        <XCircleIcon className="w-4 h-4" />
+                                        {React.createElement(XCircleIcon as any, { className: "w-4 h-4" })}
                                       </button>
                                     </>
                                   ) : (
@@ -885,7 +886,7 @@ export default function CMSDashboard() {
                                       className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
                                       title="Move to Trash"
                                     >
-                                      <TrashIcon className="w-4 h-4" />
+                                      {React.createElement(TrashIcon as any, { className: "w-4 h-4" })}
                                     </button>
                                   )}
                                 </div>
@@ -904,7 +905,7 @@ export default function CMSDashboard() {
                 <div>
                   {categories.length === 0 ? (
                     <div className="text-center py-12">
-                      <FolderIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      {React.createElement(FolderIcon as any, { className: "w-12 h-12 text-gray-400 mx-auto mb-4" })}
                       <p className="text-gray-500 mb-4">No categories found. Create your first category!</p>
                       <button
                         onClick={() => setShowCreateModal(true)}
@@ -924,7 +925,7 @@ export default function CMSDashboard() {
                                 onClick={() => handleEdit(category)}
                                 className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
                               >
-                                <PencilIcon className="w-4 h-4" />
+                                {React.createElement(PencilIcon as any, { className: "w-4 h-4" })}
                               </button>
                             </div>
                           </div>
@@ -947,7 +948,7 @@ export default function CMSDashboard() {
                 <div>
                   {tags.length === 0 ? (
                     <div className="text-center py-12">
-                      <TagIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      {React.createElement(TagIcon as any, { className: "w-12 h-12 text-gray-400 mx-auto mb-4" })}
                       <p className="text-gray-500 mb-4">No tags found. Create your first tag!</p>
                       <button
                         onClick={() => setShowCreateModal(true)}
@@ -968,7 +969,7 @@ export default function CMSDashboard() {
                             onClick={() => handleEdit(tag)}
                             className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
                           >
-                            <PencilIcon className="w-3 h-3" />
+                            {React.createElement(PencilIcon as any, { className: "w-3 h-3" })}
                           </button>
                         </div>
                       ))}
