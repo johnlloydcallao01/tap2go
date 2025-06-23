@@ -9,6 +9,8 @@ import { sanitizeSearchQuery } from '@/lib/maps/utils';
 import { loadGoogleMaps } from '@/lib/googleMapsLoader';
 import { MagnifyingGlassIcon, XMarkIcon, MapPinIcon, BuildingOfficeIcon, HomeIcon } from '@heroicons/react/24/outline';
 
+/// <reference types="google.maps" />
+
 const FRONTEND_API_KEY = process.env.NEXT_PUBLIC_MAPS_FRONTEND_KEY;
 
 interface LocationSearchProps {

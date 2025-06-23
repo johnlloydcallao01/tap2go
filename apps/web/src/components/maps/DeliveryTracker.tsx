@@ -7,13 +7,16 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Coordinates, DeliveryTracking, TrackingUpdate } from '@/lib/maps/types';
 import { MAP_CONFIG, MARKER_CONFIG, TRACKING_CONFIG } from '@/lib/maps/constants';
 import { coordinatesToLatLng } from '@/lib/maps/utils';
-import { 
-  TruckIcon, 
-  ClockIcon, 
+import {
+  TruckIcon,
+  ClockIcon,
   MapPinIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon 
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import { GoogleMaps } from '@/types/google-maps';
+
+/// <reference types="google.maps" />
 
 // Get frontend API key from environment
 const FRONTEND_API_KEY = process.env.NEXT_PUBLIC_MAPS_FRONTEND_KEY;
@@ -44,10 +47,10 @@ export default function DeliveryTracker({
   autoCenter = true
 }: DeliveryTrackerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<{ [key: string]: google.maps.Marker }>({});
-  const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
-  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
+  const mapInstanceRef = useRef<GoogleMaps.Map | null>(null);
+  const markersRef = useRef<{ [key: string]: GoogleMaps.Marker }>({});
+  const routeRendererRef = useRef<GoogleMaps.DirectionsRenderer | null>(null);
+  const directionsServiceRef = useRef<GoogleMaps.DirectionsService | null>(null);
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,10 +92,10 @@ export default function DeliveryTracker({
     if (!isLoaded || !mapRef.current || mapInstanceRef.current) return;
 
     try {
-      const mapOptions: google.maps.MapOptions = {
+      const mapOptions: GoogleMaps.MapOptions = {
         center: coordinatesToLatLng(restaurantLocation),
         zoom: MAP_CONFIG.ZOOM_LEVELS.NEIGHBORHOOD,
-        styles: JSON.parse(JSON.stringify(MAP_CONFIG.STYLES.DELIVERY)) as google.maps.MapTypeStyle[],
+        styles: JSON.parse(JSON.stringify(MAP_CONFIG.STYLES.DELIVERY)) as GoogleMaps.MapTypeStyle[],
         ...MAP_CONFIG.OPTIONS,
         gestureHandling: 'cooperative'
       };
@@ -190,7 +193,7 @@ export default function DeliveryTracker({
       return;
     }
 
-    const request: google.maps.DirectionsRequest = {
+    const request: GoogleMaps.DirectionsRequest = {
       origin: coordinatesToLatLng(origin),
       destination: coordinatesToLatLng(destination),
       travelMode: google.maps.TravelMode.DRIVING,

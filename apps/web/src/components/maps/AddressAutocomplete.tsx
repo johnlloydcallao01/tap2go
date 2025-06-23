@@ -8,6 +8,9 @@ import { MapAddress, PlaceAutocompletePrediction } from '@/lib/maps/types';
 import { sanitizeSearchQuery } from '@/lib/maps/utils';
 import { loadGoogleMaps } from '@/lib/googleMapsLoader';
 import { MapPinIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { GoogleMaps } from '@/types/google-maps';
+
+/// <reference types="google.maps" />
 
 const FRONTEND_API_KEY = process.env.NEXT_PUBLIC_MAPS_FRONTEND_KEY;
 
@@ -32,9 +35,9 @@ export default function AddressAutocomplete({
   required = false
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
-  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const autocompleteServiceRef = useRef<GoogleMaps.Places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<GoogleMaps.Places.PlacesService | null>(null);
+  const sessionTokenRef = useRef<GoogleMaps.Places.AutocompleteSessionToken | null>(null);
 
   const [inputValue, setInputValue] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -106,7 +109,7 @@ export default function AddressAutocomplete({
     setError(null);
 
     try {
-      const request: google.maps.places.AutocompletionRequest = {
+      const request: GoogleMaps.Places.AutocompletionRequest = {
         input: sanitizeSearchQuery(input),
         types: ['geocode'], // Address types for autocomplete
         componentRestrictions: { country: ['PH'] }, // Philippines only
@@ -158,7 +161,7 @@ export default function AddressAutocomplete({
     setError(null);
 
     try {
-      const request: google.maps.places.PlaceDetailsRequest = {
+      const request: GoogleMaps.Places.PlaceDetailsRequest = {
         placeId,
         fields: ['place_id', 'formatted_address', 'geometry', 'address_components', 'name'],
         sessionToken: sessionTokenRef.current!
@@ -216,7 +219,7 @@ export default function AddressAutocomplete({
 
   // Extract address component by type
   const extractAddressComponent = (
-    components: google.maps.GeocoderAddressComponent[] | undefined,
+    components: GoogleMaps.GeocoderAddressComponent[] | undefined,
     type: string
   ): string => {
     if (!components) return '';

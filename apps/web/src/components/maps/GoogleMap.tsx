@@ -9,6 +9,8 @@ import { Coordinates, MapProps, MapMarker } from '@/lib/maps/types';
 import { MAP_CONFIG, MARKER_CONFIG } from '@/lib/maps/constants';
 import { coordinatesToLatLng, latLngToCoordinates } from '@/lib/maps/utils';
 
+/// <reference types="google.maps" />
+
 // Declare global google object for TypeScript
 declare global {
   interface Window {

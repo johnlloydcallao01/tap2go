@@ -9,6 +9,9 @@ import { MAP_CONFIG } from '@/lib/maps/constants';
 import { isValidAddress, sanitizeSearchQuery } from '@/lib/maps/utils';
 import { loadGoogleMaps } from '@/lib/googleMapsLoader';
 import { MapPinIcon } from '@heroicons/react/24/outline';
+import { GoogleMaps } from '@/types/google-maps';
+
+/// <reference types="google.maps" />
 
 // Get frontend API key from environment
 const FRONTEND_API_KEY = process.env.NEXT_PUBLIC_MAPS_FRONTEND_KEY;
@@ -38,9 +41,9 @@ export default function AddressPicker({
 }: AddressPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
+  const autocompleteRef = useRef<GoogleMaps.Places.Autocomplete | null>(null);
+  const mapInstanceRef = useRef<GoogleMaps.Map | null>(null);
+  const markerRef = useRef<GoogleMaps.Marker | null>(null);
 
   const [inputValue, setInputValue] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -99,10 +102,10 @@ export default function AddressPicker({
     if (!isLoaded || !showMap || !mapRef.current || mapInstanceRef.current) return;
 
     try {
-      const mapOptions: google.maps.MapOptions = {
+      const mapOptions: GoogleMaps.MapOptions = {
         center: { lat: MAP_CONFIG.DEFAULT_CENTER.lat, lng: MAP_CONFIG.DEFAULT_CENTER.lng },
         zoom: MAP_CONFIG.ZOOM_LEVELS.CITY,
-        styles: JSON.parse(JSON.stringify(MAP_CONFIG.STYLES.DELIVERY)) as google.maps.MapTypeStyle[],
+        styles: JSON.parse(JSON.stringify(MAP_CONFIG.STYLES.DELIVERY)) as GoogleMaps.MapTypeStyle[],
         disableDefaultUI: true,
         zoomControl: true,
         gestureHandling: 'cooperative'
@@ -111,7 +114,7 @@ export default function AddressPicker({
       mapInstanceRef.current = new google.maps.Map(mapRef.current, mapOptions);
 
       // Add click listener to map
-      mapInstanceRef.current.addListener('click', (event: google.maps.MapMouseEvent) => {
+      mapInstanceRef.current.addListener('click', (event: GoogleMaps.MapMouseEvent) => {
         if (event.latLng) {
           const coordinates: Coordinates = {
             lat: event.latLng.lat(),
@@ -126,7 +129,7 @@ export default function AddressPicker({
   }, [isLoaded, showMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle place selection from autocomplete
-  const handlePlaceSelect = useCallback((place: google.maps.places.PlaceResult) => {
+  const handlePlaceSelect = useCallback((place: GoogleMaps.Places.PlaceResult) => {
     if (!place.geometry || !place.geometry.location) {
       setError('Invalid place selected');
       return;
@@ -237,7 +240,7 @@ export default function AddressPicker({
     });
 
     // Handle marker drag
-    markerRef.current.addListener('dragend', (event: google.maps.MapMouseEvent) => {
+    markerRef.current.addListener('dragend', (event: GoogleMaps.MapMouseEvent) => {
       if (event.latLng) {
         const newCoordinates: Coordinates = {
           lat: event.latLng.lat(),
@@ -250,7 +253,7 @@ export default function AddressPicker({
 
   // Extract address component by type
   const extractAddressComponent = (
-    components: google.maps.GeocoderAddressComponent[] | undefined,
+    components: GoogleMaps.GeocoderAddressComponent[] | undefined,
     type: string
   ): string => {
     if (!components) return '';

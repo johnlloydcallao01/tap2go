@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { loadGoogleMaps } from '@/lib/googleMapsLoader';
 
+/// <reference types="google.maps" />
+
 // Professional Google Maps Component
 // Based on industry best practices from Google Maps documentation
 // Stable, performant, and professional implementation

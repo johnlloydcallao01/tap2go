@@ -49,7 +49,8 @@
     ".next/types/**/*.ts",
     "src/types/**/*.d.ts",
     "src/types/**/*.ts",
-    "src/types/modules.d.ts"
+    "src/types/modules.d.ts",
+    "src/types/google-maps.d.ts"
   ],
   "exclude": [
     "node_modules"

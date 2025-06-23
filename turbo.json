@@ -59,22 +59,40 @@
     "CI",
     "VERCEL",
     "VERCEL_URL",
-    "VERCEL_ENV"
+    "VERCEL_ENV",
+    "VERCEL_GIT_COMMIT_SHA",
+    "VERCEL_GIT_COMMIT_MESSAGE",
+    "VERCEL_GIT_COMMIT_AUTHOR_NAME",
+    "VERCEL_GIT_PROVIDER",
+    "VERCEL_GIT_REPO_SLUG",
+    "VERCEL_GIT_REPO_OWNER",
+    "VERCEL_GIT_REPO_ID",
+    "VERCEL_GIT_COMMIT_REF"
   ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**", "lib/**", "*.tsbuildinfo"],
+      "env": [
+        "NODE_VERSION",
+        "NODE_ENV",
+        "CI",
+        "VERCEL",
+        "VERCEL_URL",
+        "VERCEL_ENV"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["NODE_VERSION", "NODE_ENV"]
     },
     "type-check": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["NODE_VERSION", "NODE_ENV"]
     },
     "clean": {
       "cache": false

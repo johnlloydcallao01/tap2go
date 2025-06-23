@@ -1,5 +1,7 @@
 // Google Maps Utility Functions for Tap2Go Platform
 
+/// <reference types="google.maps" />
+
 import {
   Coordinates,
   MapAddress,

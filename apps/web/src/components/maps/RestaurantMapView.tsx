@@ -10,6 +10,8 @@ import { coordinatesToLatLng } from '@/lib/maps/utils';
 import { loadGoogleMaps } from '@/lib/googleMapsLoader';
 import { Restaurant } from '@/types';
 
+/// <reference types="google.maps" />
+
 const FRONTEND_API_KEY = process.env.NEXT_PUBLIC_MAPS_FRONTEND_KEY;
 
 interface RestaurantMapViewProps {

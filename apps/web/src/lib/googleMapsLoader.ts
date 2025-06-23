@@ -157,3 +157,6 @@ declare global {
     google: typeof google;
   }
 }
+
+// Ensure Google Maps types are available
+/// <reference types="google.maps" />

@@ -1,6 +1,8 @@
 // Google Maps Backend Service for Tap2Go Platform
 // Handles server-side Google Maps operations using backend API key
 
+/// <reference types="google.maps" />
+
 import {
   Coordinates,
   GeocodeResult,
@@ -8,11 +10,11 @@ import {
   RouteInfo,
   DeliveryCalculation
 } from '@/lib/maps/types';
-import { 
-  calculateDeliveryInfo, 
+import {
+  calculateDeliveryInfo,
   handleGoogleMapsError,
   createMapsError,
-  isValidPhilippinesCoordinates 
+  isValidPhilippinesCoordinates
 } from '@/lib/maps/utils';
 import { GEOCODING_CONFIG, DISTANCE_CONFIG } from '@/lib/maps/constants';
 
