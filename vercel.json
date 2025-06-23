@@ -1,8 +1,10 @@
 {
   "version": 2,
   "framework": "nextjs",
+  "buildCommand": "cd ../.. && pnpm run vercel-build",
+  "installCommand": "cd ../.. && pnpm install",
   "functions": {
-    "apps/web/src/app/api/**/*.ts": {
+    "apps/web/src/app/api/**/route.ts": {
       "maxDuration": 30
     }
   },
