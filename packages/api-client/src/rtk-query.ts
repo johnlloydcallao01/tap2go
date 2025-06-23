@@ -120,11 +120,11 @@ export const apiSlice = createApi({
     }),
 
     // Analytics endpoints
-    getRestaurantAnalytics: builder.query<unknown, { 
-      restaurantId: string; 
-      period: string; 
+    getRestaurantAnalytics: builder.query<unknown, {
+      restaurantId: string;
+      period: string;
     }>({
-      query: ({ restaurantId, period }) => 
+      query: ({ restaurantId, period }: { restaurantId: string; period: string }) =>
         `/analytics/restaurant/${restaurantId}?period=${period}`,
       providesTags: ['Analytics'],
     }),
@@ -136,7 +136,7 @@ export const apiSlice = createApi({
     }),
 
     markNotificationRead: builder.mutation<unknown, string>({
-      query: (id) => ({
+      query: (id: string) => ({
         url: `/notifications/${id}/read`,
         method: 'PUT',
       }),

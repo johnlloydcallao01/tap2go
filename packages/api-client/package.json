@@ -12,11 +12,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.5.0",
     "axios": "^1.9.0",
     "shared-types": "workspace:*",
     "shared-utils": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^20.17.57",
     "typescript": "^5.8.3"
   }
 }
