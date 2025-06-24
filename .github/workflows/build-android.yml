@@ -46,7 +46,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
+
+      # 📦 Setup pnpm
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       # ☕ Setup Java
       - name: ☕ Setup Java JDK
@@ -61,14 +66,14 @@ jobs:
 
       # 📦 Install dependencies
       - name: 📦 Install dependencies
-        working-directory: apps/mobile
         run: |
-          npm install --legacy-peer-deps --force
-          npx expo install --fix
+          pnpm install
 
-      # 🔧 Setup Expo CLI
-      - name: 🔧 Setup Expo CLI
-        run: npm install -g @expo/cli
+      # 🔧 Install Expo CLI
+      - name: 🔧 Install Expo CLI
+        run: pnpm add -g @expo/cli
+
+
 
       # 🏗️ Prebuild Android
       - name: 🏗️ Prebuild Android project
