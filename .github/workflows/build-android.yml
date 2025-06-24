@@ -32,7 +32,7 @@ jobs:
     
     strategy:
       matrix:
-        build-type: [apk, aab]
+        build-type: [apk]
     
     steps:
       # 📥 Checkout code
@@ -63,7 +63,7 @@ jobs:
       - name: 📦 Install dependencies
         working-directory: apps/mobile
         run: |
-          npm install --legacy-peer-deps
+          npm install --legacy-peer-deps --force
           npx expo install --fix
 
       # 🔧 Setup Expo CLI
@@ -80,11 +80,14 @@ jobs:
       - name: 🔑 Setup Android signing
         if: github.ref == 'refs/heads/main'
         working-directory: apps/mobile/android
+        env:
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           echo "MYAPP_UPLOAD_STORE_FILE=my-upload-key.keystore" >> gradle.properties
           echo "MYAPP_UPLOAD_KEY_ALIAS=my-key-alias" >> gradle.properties
-          echo "MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_STORE_PASSWORD }}" >> gradle.properties
-          echo "MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> gradle.properties
+          echo "MYAPP_UPLOAD_STORE_PASSWORD=$ANDROID_STORE_PASSWORD" >> gradle.properties
+          echo "MYAPP_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> gradle.properties
 
       # 🏗️ Build APK
       - name: 🏗️ Build APK (Debug)
