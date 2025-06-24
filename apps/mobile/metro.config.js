@@ -62,6 +62,28 @@ config.resolver.disableHierarchicalLookup = true;
 // 6. PNPM-specific resolver optimizations
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 
+// 6.1. GitHub Actions CI/CD optimizations
+if (process.env.CI) {
+  console.log('🚀 Detected CI environment - applying GitHub Actions optimizations');
+
+  // Disable file watching in CI
+  config.watchFolders = [projectRoot];
+
+  // Increase timeouts for CI builds
+  config.server = {
+    ...config.server,
+    port: 8081,
+  };
+
+  // Optimize for CI memory usage
+  config.transformer.minifierConfig = {
+    keep_fnames: true,
+    mangle: {
+      keep_fnames: true,
+    },
+  };
+}
+
 // 7. Enable symlink resolution for pnpm (experimental but required)
 config.resolver.unstable_enableSymlinks = true;
 

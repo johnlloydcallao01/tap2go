@@ -1,0 +1,147 @@
+name: 🚀 Build Android APK/AAB
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'apk'
+        type: choice
+        options:
+          - apk
+          - aab
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+jobs:
+  build-android:
+    name: 🤖 Build Android
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        build-type: [apk, aab]
+    
+    steps:
+      # 📥 Checkout code
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 🔧 Setup Node.js
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # ☕ Setup Java
+      - name: ☕ Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 🤖 Setup Android SDK
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 📦 Install dependencies
+      - name: 📦 Install dependencies
+        working-directory: apps/mobile
+        run: |
+          npm install --legacy-peer-deps
+          npx expo install --fix
+
+      # 🔧 Setup Expo CLI
+      - name: 🔧 Setup Expo CLI
+        run: npm install -g @expo/cli
+
+      # 🏗️ Prebuild Android
+      - name: 🏗️ Prebuild Android project
+        working-directory: apps/mobile
+        run: |
+          npx expo prebuild --platform android --clean
+          
+      # 🔑 Setup Android signing (for production)
+      - name: 🔑 Setup Android signing
+        if: github.ref == 'refs/heads/main'
+        working-directory: apps/mobile/android
+        run: |
+          echo "MYAPP_UPLOAD_STORE_FILE=my-upload-key.keystore" >> gradle.properties
+          echo "MYAPP_UPLOAD_KEY_ALIAS=my-key-alias" >> gradle.properties
+          echo "MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_STORE_PASSWORD }}" >> gradle.properties
+          echo "MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> gradle.properties
+
+      # 🏗️ Build APK
+      - name: 🏗️ Build APK (Debug)
+        if: matrix.build-type == 'apk' && github.ref != 'refs/heads/main'
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      # 🏗️ Build APK (Release)
+      - name: 🏗️ Build APK (Release)
+        if: matrix.build-type == 'apk' && github.ref == 'refs/heads/main'
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace
+
+      # 📦 Build AAB (Release)
+      - name: 📦 Build AAB (Release)
+        if: matrix.build-type == 'aab'
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --stacktrace
+
+      # 📤 Upload APK (Debug)
+      - name: 📤 Upload APK (Debug)
+        if: matrix.build-type == 'apk' && github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-${{ github.sha }}
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # 📤 Upload APK (Release)
+      - name: 📤 Upload APK (Release)
+        if: matrix.build-type == 'apk' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ github.sha }}
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 90
+
+      # 📤 Upload AAB (Release)
+      - name: 📤 Upload AAB (Release)
+        if: matrix.build-type == 'aab'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-bundle-${{ github.sha }}
+          path: apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 90
+
+      # 📊 Build Summary
+      - name: 📊 Build Summary
+        run: |
+          echo "## 🎉 Build Completed Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: ${{ matrix.build-type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date)" >> $GITHUB_STEP_SUMMARY

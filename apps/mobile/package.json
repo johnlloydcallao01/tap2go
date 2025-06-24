@@ -21,7 +21,12 @@
     "cache:legacy-fix-deps": "node scripts/metro-cache-manager.js fix-deps",
     "clear-cache": "npm run cache:clean && npm start",
     "reset-metro": "npm run cache:reset && npm start",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "build:android:apk": "npx expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "build:android:aab": "npx expo prebuild --platform android && cd android && ./gradlew bundleRelease",
+    "build:android:debug": "npx expo prebuild --platform android && cd android && ./gradlew assembleDebug",
+    "prebuild:android": "npx expo prebuild --platform android --clean",
+    "prebuild:clean": "npx expo prebuild --clear"
   },
   "dependencies": {
     "@babel/runtime": "^7.25.0",
