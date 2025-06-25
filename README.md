@@ -10,7 +10,7 @@ Tap2Go is a full-scale food delivery ecosystem featuring:
 - **Driver Panel** - Delivery management and earnings tracking
 - **Customer App** - Mobile-first ordering experience with real-time tracking
 
-## 🚀 Key Features
+## 🚀 Key Features -
 
 ### 🔐 Enterprise Authentication System
 - Firebase Authentication with role-based access control

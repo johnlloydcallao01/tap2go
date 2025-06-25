@@ -3,9 +3,6 @@
 // Force dynamic rendering to avoid SSR issues
 export const dynamic = 'force-dynamic';
 
-import React, { useEffect } from 'react';
-import { ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-
 export default function Error({
   error,
   reset,
@@ -13,68 +10,77 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    // Log the error to an error reporting service
-    console.error('Application error:', error);
-  }, [error]);
-
+  // Log error for debugging in development
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Error boundary caught:', error);
+  }
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full text-center">
-        {/* Error Illustration */}
-        <div className="mb-8">
-          <div className="w-24 h-24 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
-            <ExclamationTriangleIcon className="w-12 h-12 text-red-500" />
-          </div>
-        </div>
-
-        {/* Content */}
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#f9fafb',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem'
+    }}>
+      <div style={{
+        maxWidth: '28rem',
+        width: '100%',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          fontSize: '6rem',
+          fontWeight: 'bold',
+          color: '#ef4444',
+          marginBottom: '1rem'
+        }}>!</div>
+        
+        <h1 style={{
+          fontSize: '1.5rem',
+          fontWeight: 'bold',
+          color: '#111827',
+          marginBottom: '1rem'
+        }}>
           Something went wrong!
         </h1>
-        <p className="text-gray-600 mb-8">
-          We encountered an unexpected error. Our team has been notified and is working to fix this issue.
+        
+        <p style={{
+          color: '#6b7280',
+          marginBottom: '2rem'
+        }}>
+          We encountered an unexpected error. Please try again.
         </p>
 
-        {/* Error Details (Development only) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
-            <h3 className="text-sm font-semibold text-red-800 mb-2">Error Details:</h3>
-            <p className="text-xs text-red-700 font-mono break-all">
-              {error.message}
-            </p>
-            {error.digest && (
-              <p className="text-xs text-red-600 mt-2">
-                Error ID: {error.digest}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="space-y-4">
-          <button
-            onClick={reset}
-            className="inline-flex items-center justify-center w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
-          >
-            <ArrowPathIcon className="w-5 h-5 mr-2" />
-            Try Again
-          </button>
-          
-          <button
-            onClick={() => window.location.href = '/'}
-            className="inline-flex items-center justify-center w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
-          >
-            Go Home
-          </button>
-        </div>
-
-        {/* Help Text */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-500">
-            If this problem persists, please contact our support team.
-          </p>
-        </div>
+        <button
+          onClick={reset}
+          style={{
+            backgroundColor: '#f3a823',
+            color: 'white',
+            fontWeight: '600',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '0.5rem',
+            border: 'none',
+            cursor: 'pointer',
+            marginRight: '1rem'
+          }}
+        >
+          Try Again
+        </button>
+        
+        <button
+          onClick={() => window.location.href = '/'}
+          style={{
+            backgroundColor: '#e5e7eb',
+            color: '#374151',
+            fontWeight: '600',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '0.5rem',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Go Home
+        </button>
       </div>
     </div>
   );

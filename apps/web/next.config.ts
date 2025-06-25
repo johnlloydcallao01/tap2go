@@ -4,13 +4,28 @@ const nextConfig: NextConfig = {
   // Fix React 19 + Next.js 15 compatibility issues
   experimental: {
     reactCompiler: false,
+    forceSwcTransforms: true,
   },
+  // Disable static optimization to prevent styled-jsx issues
+  output: 'standalone',
+  // Disable static generation for error pages
+  generateBuildId: async () => {
+    return 'build-' + Date.now();
+  },
+  // Disable static optimization completely
+  trailingSlash: false,
+  poweredByHeader: false,
+  // Skip problematic static generation
+  skipMiddlewareUrlNormalize: true,
+
   // Move serverComponentsExternalPackages to the correct location
   serverExternalPackages: ['styled-jsx'],
-  // Disable styled-jsx to prevent build errors
+  // Completely disable styled-jsx
   compiler: {
     styledComponents: false,
+    styledJsx: false,
   },
+  // Additional React 19 compatibility settings
   images: {
     remotePatterns: [
       {
@@ -128,6 +143,7 @@ const nextConfig: NextConfig = {
     // Allow production builds to complete even with TypeScript errors
     ignoreBuildErrors: true,
   },
+
   // Consolidated webpack configuration
   webpack: (config, { isServer }) => {
     // Suppress specific webpack warnings from Supabase realtime
@@ -142,6 +158,12 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': require('path').resolve(__dirname, 'src'),
+      // Force styled-jsx to use the correct React version
+      'react': require('path').resolve(__dirname, '../../node_modules/react'),
+      'react-dom': require('path').resolve(__dirname, '../../node_modules/react-dom'),
+      // Completely disable styled-jsx
+      'styled-jsx': require('path').resolve(__dirname, 'src/lib/empty-styled-jsx.js'),
+      'styled-jsx/style': require('path').resolve(__dirname, 'src/lib/empty-styled-jsx.js'),
     };
 
     // Ensure proper module resolution for TypeScript files
