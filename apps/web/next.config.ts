@@ -2,9 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Fix React 19 + Next.js 15 compatibility issues
+  // Conditionally apply forceSwcTransforms based on build context
   experimental: {
     reactCompiler: false,
-    forceSwcTransforms: true,
+    // Only apply forceSwcTransforms in production builds
+    // Turbopack (dev mode) doesn't support this option
+    ...(process.env.NODE_ENV === 'production' ? { forceSwcTransforms: true } : {}),
   },
   // Disable static optimization to prevent styled-jsx issues
   output: 'standalone',

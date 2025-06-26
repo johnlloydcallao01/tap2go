@@ -1,0 +1,46 @@
+# Exclude ONLY sensitive environment files
+.env.local
+.env.*.local
+
+# Exclude Git files (we want source code but not Git history)
+.git
+
+# Exclude OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Exclude editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Exclude temporary files
+*.tmp
+*.temp
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Exclude problematic node_modules (will be reinstalled fresh)
+node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+functions/node_modules/
+
+# KEEP EVERYTHING ELSE FOR 100% PORTABILITY:
+# ✅ .next/ - Your build outputs
+# ✅ dist/ - Your compiled code
+# ✅ .turbo/ - Your build cache
+# ✅ All source code and configurations
+# ✅ Package files and lock files
+# ✅ Documentation and README files
+
+# This ensures complete project backup with clean dependencies
