@@ -83,11 +83,10 @@ jobs:
 
 
 
-      # 🏗️ Prebuild Android with production config
+      # 🏗️ Prebuild Android
       - name: 🏗️ Prebuild Android project
         working-directory: apps/mobile-customer
         run: |
-          cp metro.config.production.js metro.config.js
           npx expo prebuild --platform android --clean
 
       # 🔑 Setup Android signing (for production)
