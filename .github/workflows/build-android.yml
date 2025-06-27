@@ -77,14 +77,14 @@ jobs:
 
       # 🏗️ Prebuild Android
       - name: 🏗️ Prebuild Android project
-        working-directory: apps/mobile
+        working-directory: apps/mobile-customer
         run: |
           npx expo prebuild --platform android --clean
-          
+
       # 🔑 Setup Android signing (for production)
       - name: 🔑 Setup Android signing
         if: github.ref == 'refs/heads/main'
-        working-directory: apps/mobile/android
+        working-directory: apps/mobile-customer/android
         env:
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -97,7 +97,7 @@ jobs:
       # 🏗️ Build APK
       - name: 🏗️ Build APK (Debug)
         if: matrix.build-type == 'apk' && github.ref != 'refs/heads/main'
-        working-directory: apps/mobile/android
+        working-directory: apps/mobile-customer/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
@@ -105,7 +105,7 @@ jobs:
       # 🏗️ Build APK (Release)
       - name: 🏗️ Build APK (Release)
         if: matrix.build-type == 'apk' && github.ref == 'refs/heads/main'
-        working-directory: apps/mobile/android
+        working-directory: apps/mobile-customer/android
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --stacktrace
@@ -113,7 +113,7 @@ jobs:
       # 📦 Build AAB (Release)
       - name: 📦 Build AAB (Release)
         if: matrix.build-type == 'aab'
-        working-directory: apps/mobile/android
+        working-directory: apps/mobile-customer/android
         run: |
           chmod +x gradlew
           ./gradlew bundleRelease --stacktrace
@@ -124,7 +124,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-${{ github.sha }}
-          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          path: apps/mobile-customer/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
       # 📤 Upload APK (Release)
@@ -133,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release-${{ github.sha }}
-          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          path: apps/mobile-customer/android/app/build/outputs/apk/release/app-release.apk
           retention-days: 90
 
       # 📤 Upload AAB (Release)
@@ -142,7 +142,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-bundle-${{ github.sha }}
-          path: apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
+          path: apps/mobile-customer/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 90
 
       # 📊 Build Summary
