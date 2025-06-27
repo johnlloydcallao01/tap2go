@@ -50,10 +50,14 @@ config.resolver.alias = {
   'react-native-reanimated': path.resolve(projectRoot, 'node_modules/react-native-reanimated'),
   '@react-native-async-storage/async-storage': path.resolve(projectRoot, 'node_modules/@react-native-async-storage/async-storage'),
 
-  // Babel runtime - critical for pnpm (try workspace first, then local)
-  '@babel/runtime': fs.existsSync(path.resolve(monorepoRoot, 'node_modules/@babel/runtime'))
-    ? path.resolve(monorepoRoot, 'node_modules/@babel/runtime')
-    : path.resolve(projectRoot, 'node_modules/@babel/runtime'),
+  // Babel runtime - critical for pnpm (try local first in CI, then workspace)
+  '@babel/runtime': process.env.CI
+    ? (fs.existsSync(path.resolve(projectRoot, 'node_modules/@babel/runtime'))
+        ? path.resolve(projectRoot, 'node_modules/@babel/runtime')
+        : path.resolve(monorepoRoot, 'node_modules/@babel/runtime'))
+    : (fs.existsSync(path.resolve(monorepoRoot, 'node_modules/@babel/runtime'))
+        ? path.resolve(monorepoRoot, 'node_modules/@babel/runtime')
+        : path.resolve(projectRoot, 'node_modules/@babel/runtime')),
 
   // Metro runtime
   '@expo/metro-runtime': path.resolve(projectRoot, 'node_modules/@expo/metro-runtime'),
@@ -69,8 +73,8 @@ config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 if (process.env.CI) {
   console.log('🚀 Detected CI environment - applying GitHub Actions optimizations');
 
-  // Disable file watching in CI
-  config.watchFolders = [projectRoot];
+  // CRITICAL: Keep monorepoRoot in watchFolders for dependency resolution
+  config.watchFolders = [projectRoot, monorepoRoot];
 
   // Increase timeouts for CI builds
   config.server = {

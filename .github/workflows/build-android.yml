@@ -71,6 +71,12 @@ jobs:
           pnpm config set public-hoist-pattern "*expo*" "*react-native*" "*@babel*" "*metro*"
           pnpm install --no-frozen-lockfile
 
+      # 🔧 Ensure @babel/runtime is available locally for Metro
+      - name: 🔧 Ensure @babel/runtime is available locally for Metro
+        run: |
+          cd apps/mobile-customer
+          pnpm add @babel/runtime --save-exact
+
       # 🔧 Install Expo CLI
       - name: 🔧 Install Expo CLI
         run: pnpm add -g @expo/cli
