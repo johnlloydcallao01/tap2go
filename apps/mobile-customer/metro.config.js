@@ -15,9 +15,10 @@ const specificPackages = {
   // Add other packages as needed
 };
 
-// 1. OPTIMIZED: Watch only project root and specific packages (not entire monorepo)
+// 1. OPTIMIZED: Watch project root, workspace root, and specific packages for pnpm monorepo
 config.watchFolders = [
   projectRoot,
+  monorepoRoot,
   ...Object.values(specificPackages)
 ];
 
@@ -49,8 +50,10 @@ config.resolver.alias = {
   'react-native-reanimated': path.resolve(projectRoot, 'node_modules/react-native-reanimated'),
   '@react-native-async-storage/async-storage': path.resolve(projectRoot, 'node_modules/@react-native-async-storage/async-storage'),
 
-  // Babel runtime - critical for pnpm
-  '@babel/runtime': path.resolve(projectRoot, 'node_modules/@babel/runtime'),
+  // Babel runtime - critical for pnpm (try workspace first, then local)
+  '@babel/runtime': fs.existsSync(path.resolve(monorepoRoot, 'node_modules/@babel/runtime'))
+    ? path.resolve(monorepoRoot, 'node_modules/@babel/runtime')
+    : path.resolve(projectRoot, 'node_modules/@babel/runtime'),
 
   // Metro runtime
   '@expo/metro-runtime': path.resolve(projectRoot, 'node_modules/@expo/metro-runtime'),

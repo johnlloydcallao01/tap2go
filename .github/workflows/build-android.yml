@@ -64,10 +64,12 @@ jobs:
       - name: 🤖 Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 📦 Install dependencies
-      - name: 📦 Install dependencies
+      # 📦 Install dependencies with pnpm hoisting
+      - name: 📦 Install dependencies with pnpm hoisting
         run: |
-          pnpm install
+          pnpm config set shamefully-hoist true
+          pnpm config set public-hoist-pattern "*expo*" "*react-native*" "*@babel*" "*metro*"
+          pnpm install --no-frozen-lockfile
 
       # 🔧 Install Expo CLI
       - name: 🔧 Install Expo CLI
