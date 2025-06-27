@@ -33,5 +33,7 @@ allprojects {
   }
 }
 
-apply plugin: "expo-root-project"
-apply plugin: "com.facebook.react.rootproject"
+plugins {
+  id("expo-root-project")
+  id("com.facebook.react.rootproject")
+}
