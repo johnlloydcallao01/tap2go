@@ -28,7 +28,7 @@ importers:
         specifier: 5.8.3
         version: 5.8.3
 
-  apps/mobile:
+  apps/mobile-customer:
     dependencies:
       '@babel/runtime':
         specifier: ^7.25.0
