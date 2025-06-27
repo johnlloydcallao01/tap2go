@@ -44,10 +44,10 @@ importers:
         version: 2.1.2(react-native@0.79.4)
       '@react-native-firebase/app':
         specifier: ^22.2.1
-        version: 22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.12)(react-native@0.79.4)(react@19.0.0)
+        version: 22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
       '@react-native-firebase/auth':
         specifier: ^22.2.1
-        version: 22.2.1(@react-native-firebase/app@22.2.1)(expo@53.0.12)
+        version: 22.2.1(@react-native-firebase/app@22.2.1)(expo@53.0.13)
       '@react-native-firebase/firestore':
         specifier: ^22.2.1
         version: 22.2.1(@react-native-firebase/app@22.2.1)
@@ -61,26 +61,26 @@ importers:
         specifier: ^7.3.6
         version: 7.3.6(@react-navigation/native@7.1.13)(react-native-gesture-handler@2.26.0)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0)
       expo:
-        specifier: ~53.0.12
-        version: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+        specifier: 53.0.13
+        version: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       expo-asset:
         specifier: ^11.1.5
-        version: 11.1.5(expo@53.0.12)(react-native@0.79.4)(react@19.0.0)
+        version: 11.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
       expo-constants:
         specifier: ^17.1.6
-        version: 17.1.6(expo@53.0.12)(react-native@0.79.4)
+        version: 17.1.6(expo@53.0.13)(react-native@0.79.4)
       expo-file-system:
         specifier: ^18.1.10
-        version: 18.1.10(expo@53.0.12)(react-native@0.79.4)
+        version: 18.1.10(expo@53.0.13)(react-native@0.79.4)
       expo-font:
         specifier: ^13.3.1
-        version: 13.3.1(expo@53.0.12)(react@19.0.0)
+        version: 13.3.1(expo@53.0.13)(react@19.0.0)
       expo-linear-gradient:
         specifier: ~14.1.5
-        version: 14.1.5(expo@53.0.12)(react-native@0.79.4)(react@19.0.0)
+        version: 14.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
       expo-router:
-        specifier: ^5.1.0
-        version: 5.1.0(@types/react@19.0.14)(expo-constants@17.1.6)(expo-linking@7.1.5)(expo@53.0.12)(react-native-reanimated@3.17.4)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0)
+        specifier: ~5.1.1
+        version: 5.1.1(@types/react@19.0.14)(expo-constants@17.1.6)(expo-linking@7.1.5)(expo@53.0.13)(react-native-reanimated@3.17.4)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0)
       expo-status-bar:
         specifier: ~2.2.3
         version: 2.2.3(react-native@0.79.4)(react@19.0.0)
@@ -225,7 +225,7 @@ importers:
         version: 3.0.2(echarts@5.6.0)(react@19.0.0)
       firebase:
         specifier: ^11.8.1
-        version: 11.9.1
+        version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
       firebase-admin:
         specifier: ^13.4.0
         version: 13.4.0
@@ -1943,7 +1943,7 @@ packages:
       react: '*'
       react-native: '*'
     dependencies:
-      expo-font: 13.3.1(expo@53.0.12)(react@19.0.0)
+      expo-font: 13.3.1(expo@53.0.13)(react@19.0.0)
       react: 19.0.0
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
     dev: false
@@ -2174,24 +2174,6 @@ packages:
       - '@react-native-async-storage/async-storage'
     dev: false
 
-  /@firebase/auth-compat@0.5.27(@firebase/app-compat@0.4.1)(@firebase/app-types@0.9.3)(@firebase/app@0.13.1):
-    resolution: {integrity: sha512-axZx/MgjNO7uPA8/nMQiuVotGCngUFMppt5w0pxFIoIPD0kac0bsFdSEh5S2ttuEE0Aq1iUB6Flzwn+wvMgXnQ==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      '@firebase/app-compat': 0.x
-    dependencies:
-      '@firebase/app-compat': 0.4.1
-      '@firebase/auth': 1.10.7(@firebase/app@0.13.1)
-      '@firebase/auth-types': 0.13.0(@firebase/app-types@0.9.3)(@firebase/util@1.12.0)
-      '@firebase/component': 0.6.17
-      '@firebase/util': 1.12.0
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - '@firebase/app'
-      - '@firebase/app-types'
-      - '@react-native-async-storage/async-storage'
-    dev: false
-
   /@firebase/auth-compat@0.5.27(@firebase/app-compat@0.4.1)(@firebase/app-types@0.9.3)(@firebase/app@0.13.1)(@react-native-async-storage/async-storage@2.1.2):
     resolution: {integrity: sha512-axZx/MgjNO7uPA8/nMQiuVotGCngUFMppt5w0pxFIoIPD0kac0bsFdSEh5S2ttuEE0Aq1iUB6Flzwn+wvMgXnQ==}
     engines: {node: '>=18.0.0'}
@@ -2232,23 +2214,6 @@ packages:
     dependencies:
       '@firebase/app-types': 0.9.3
       '@firebase/util': 1.12.0
-    dev: false
-
-  /@firebase/auth@1.10.7(@firebase/app@0.13.1):
-    resolution: {integrity: sha512-77o0aBKCfchdL1gkahARdawHyYefh+wRYn7o60tbwW6bfJNq2idbrRb3WSYCT4yBKWL0+9kKdwxBHPZ6DEiB+g==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      '@firebase/app': 0.x
-      '@react-native-async-storage/async-storage': ^1.18.1
-    peerDependenciesMeta:
-      '@react-native-async-storage/async-storage':
-        optional: true
-    dependencies:
-      '@firebase/app': 0.13.1
-      '@firebase/component': 0.6.17
-      '@firebase/logger': 0.4.4
-      '@firebase/util': 1.12.0
-      tslib: 2.8.1
     dev: false
 
   /@firebase/auth@1.10.7(@firebase/app@0.13.1)(@react-native-async-storage/async-storage@2.1.2):
@@ -3950,7 +3915,7 @@ packages:
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
     dev: false
 
-  /@react-native-firebase/app@22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.12)(react-native@0.79.4)(react@19.0.0):
+  /@react-native-firebase/app@22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.13)(react-native@0.79.4)(react@19.0.0):
     resolution: {integrity: sha512-FNekjZgvLLBWLNMGKfKUHR4TTu8OY1YnvlQV9HaNboF5U5+CvTcK8IKycXKdhVP8YfcILTaM3AFraoQsQsy3/w==}
     peerDependencies:
       expo: '>=47.0.0'
@@ -3960,7 +3925,7 @@ packages:
       expo:
         optional: true
     dependencies:
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       firebase: 11.3.1(@react-native-async-storage/async-storage@2.1.2)
       react: 19.0.0
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
@@ -3968,7 +3933,7 @@ packages:
       - '@react-native-async-storage/async-storage'
     dev: false
 
-  /@react-native-firebase/auth@22.2.1(@react-native-firebase/app@22.2.1)(expo@53.0.12):
+  /@react-native-firebase/auth@22.2.1(@react-native-firebase/app@22.2.1)(expo@53.0.13):
     resolution: {integrity: sha512-qy8TvT4MXmrR3d9xv7kAs7hBUVXo0n2u/rkaWK57TI8E4TmSlTwYiFOqabSlk9VjiHCYZtjpcWHeG1xwpzZ5ig==}
     peerDependencies:
       '@react-native-firebase/app': 22.2.1
@@ -3977,8 +3942,8 @@ packages:
       expo:
         optional: true
     dependencies:
-      '@react-native-firebase/app': 22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.12)(react-native@0.79.4)(react@19.0.0)
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      '@react-native-firebase/app': 22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       plist: 3.1.0
     dev: false
 
@@ -3987,7 +3952,7 @@ packages:
     peerDependencies:
       '@react-native-firebase/app': 22.2.1
     dependencies:
-      '@react-native-firebase/app': 22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.12)(react-native@0.79.4)(react@19.0.0)
+      '@react-native-firebase/app': 22.2.1(@react-native-async-storage/async-storage@2.1.2)(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
     dev: false
 
   /@react-native/assets-registry@0.79.4:
@@ -7253,7 +7218,7 @@ packages:
       strip-final-newline: 2.0.0
     dev: true
 
-  /expo-asset@11.1.5(expo@53.0.12)(react-native@0.79.4)(react@19.0.0):
+  /expo-asset@11.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0):
     resolution: {integrity: sha512-GEQDCqC25uDBoXHEnXeBuwpeXvI+3fRGvtzwwt0ZKKzWaN+TgeF8H7c76p3Zi4DfBMFDcduM0CmOvJX+yCCLUQ==}
     peerDependencies:
       expo: '*'
@@ -7261,15 +7226,15 @@ packages:
       react-native: '*'
     dependencies:
       '@expo/image-utils': 0.7.4
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
-      expo-constants: 17.1.6(expo@53.0.12)(react-native@0.79.4)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo-constants: 17.1.6(expo@53.0.13)(react-native@0.79.4)
       react: 19.0.0
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
     transitivePeerDependencies:
       - supports-color
     dev: false
 
-  /expo-constants@17.1.6(expo@53.0.12)(react-native@0.79.4):
+  /expo-constants@17.1.6(expo@53.0.13)(react-native@0.79.4):
     resolution: {integrity: sha512-q5mLvJiLtPcaZ7t2diSOlQ2AyxIO8YMVEJsEfI/ExkGj15JrflNQ7CALEW6IF/uNae/76qI/XcjEuuAyjdaCNw==}
     peerDependencies:
       expo: '*'
@@ -7277,62 +7242,62 @@ packages:
     dependencies:
       '@expo/config': 11.0.10
       '@expo/env': 1.0.5
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
     transitivePeerDependencies:
       - supports-color
     dev: false
 
-  /expo-file-system@18.1.10(expo@53.0.12)(react-native@0.79.4):
+  /expo-file-system@18.1.10(expo@53.0.13)(react-native@0.79.4):
     resolution: {integrity: sha512-SyaWg+HitScLuyEeSG9gMSDT0hIxbM9jiZjSBP9l9zMnwZjmQwsusE6+7qGiddxJzdOhTP4YGUfvEzeeS0YL3Q==}
     peerDependencies:
       expo: '*'
       react-native: '*'
     dependencies:
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
     dev: false
 
-  /expo-font@13.3.1(expo@53.0.12)(react@19.0.0):
+  /expo-font@13.3.1(expo@53.0.13)(react@19.0.0):
     resolution: {integrity: sha512-d+xrHYvSM9WB42wj8vP9OOFWyxed5R1evphfDb6zYBmC1dA9Hf89FpT7TNFtj2Bk3clTnpmVqQTCYbbA2P3CLg==}
     peerDependencies:
       expo: '*'
       react: '*'
     dependencies:
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       fontfaceobserver: 2.3.0
       react: 19.0.0
     dev: false
 
-  /expo-keep-awake@14.1.4(expo@53.0.12)(react@19.0.0):
+  /expo-keep-awake@14.1.4(expo@53.0.13)(react@19.0.0):
     resolution: {integrity: sha512-wU9qOnosy4+U4z/o4h8W9PjPvcFMfZXrlUoKTMBW7F4pLqhkkP/5G4EviPZixv4XWFMjn1ExQ5rV6BX8GwJsWA==}
     peerDependencies:
       expo: '*'
       react: '*'
     dependencies:
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       react: 19.0.0
     dev: false
 
-  /expo-linear-gradient@14.1.5(expo@53.0.12)(react-native@0.79.4)(react@19.0.0):
+  /expo-linear-gradient@14.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0):
     resolution: {integrity: sha512-BSN3MkSGLZoHMduEnAgfhoj3xqcDWaoICgIr4cIYEx1GcHfKMhzA/O4mpZJ/WC27BP1rnAqoKfbclk1eA70ndQ==}
     peerDependencies:
       expo: '*'
       react: '*'
       react-native: '*'
     dependencies:
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
       react: 19.0.0
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
     dev: false
 
-  /expo-linking@7.1.5(expo@53.0.12)(react-native@0.79.4)(react@19.0.0):
+  /expo-linking@7.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0):
     resolution: {integrity: sha512-8g20zOpROW78bF+bLI4a3ZWj4ntLgM0rCewKycPL0jk9WGvBrBtFtwwADJgOiV1EurNp3lcquerXGlWS+SOQyA==}
     peerDependencies:
       react: '*'
       react-native: '*'
     dependencies:
-      expo-constants: 17.1.6(expo@53.0.12)(react-native@0.79.4)
+      expo-constants: 17.1.6(expo@53.0.13)(react-native@0.79.4)
       invariant: 2.2.4
       react: 19.0.0
       react-native: 0.79.4(@babel/core@7.27.4)(@types/react@19.0.14)(react@19.0.0)
@@ -7360,8 +7325,8 @@ packages:
       invariant: 2.2.4
     dev: false
 
-  /expo-router@5.1.0(@types/react@19.0.14)(expo-constants@17.1.6)(expo-linking@7.1.5)(expo@53.0.12)(react-native-reanimated@3.17.4)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0):
-    resolution: {integrity: sha512-mnKpw35W6kKPpZm+ZxQei6HGUx2JO3znzqJZInzqrTZMgfAcHGgvP9AQFjg/Qi/Qy1CxunB9aQnqE9JPbSwbpw==}
+  /expo-router@5.1.1(@types/react@19.0.14)(expo-constants@17.1.6)(expo-linking@7.1.5)(expo@53.0.13)(react-native-reanimated@3.17.4)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0):
+    resolution: {integrity: sha512-KYAp/SwkPVgY+8OI+UPGENZG4j+breoOMXmZ01s99U7X0dpSihKGSNpK6LkEoU31MXMLuUHGYYwD00zm9aqcSg==}
     peerDependencies:
       '@react-navigation/drawer': ^7.3.9
       '@testing-library/jest-native': '*'
@@ -7386,9 +7351,9 @@ packages:
       '@react-navigation/native': 7.1.13(react-native@0.79.4)(react@19.0.0)
       '@react-navigation/native-stack': 7.3.18(@react-navigation/native@7.1.13)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0)
       client-only: 0.0.1
-      expo: 53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
-      expo-constants: 17.1.6(expo@53.0.12)(react-native@0.79.4)
-      expo-linking: 7.1.5(expo@53.0.12)(react-native@0.79.4)(react@19.0.0)
+      expo: 53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
+      expo-constants: 17.1.6(expo@53.0.13)(react-native@0.79.4)
+      expo-linking: 7.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
       invariant: 2.2.4
       react-fast-compare: 3.2.2
       react-native-is-edge-to-edge: 1.1.7(react-native@0.79.4)(react@19.0.0)
@@ -7419,8 +7384,8 @@ packages:
       react-native-is-edge-to-edge: 1.1.7(react-native@0.79.4)(react@19.0.0)
     dev: false
 
-  /expo@53.0.12(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0):
-    resolution: {integrity: sha512-dtmED749hkxDWCcvtD++tb8bAm3Twv8qnUOXzVyXA5owNG0mwDIz0HveJTpWK1UzkY4HcTVRezDf0tflZJ+JXQ==}
+  /expo@53.0.13(@babel/core@7.27.4)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0):
+    resolution: {integrity: sha512-QDdEEbFErUmm2IHR/UPKKIRLN3z5MmN2QLx0aPlOEGOx295buSUE42u6f7TppkgJn0BUX3f7wFaHRo86+G+Trg==}
     hasBin: true
     peerDependencies:
       '@expo/dom-webview': '*'
@@ -7445,11 +7410,11 @@ packages:
       '@expo/metro-runtime': 5.0.4(react-native@0.79.4)
       '@expo/vector-icons': 14.1.0(expo-font@13.3.1)(react-native@0.79.4)(react@19.0.0)
       babel-preset-expo: 13.2.1(@babel/core@7.27.4)
-      expo-asset: 11.1.5(expo@53.0.12)(react-native@0.79.4)(react@19.0.0)
-      expo-constants: 17.1.6(expo@53.0.12)(react-native@0.79.4)
-      expo-file-system: 18.1.10(expo@53.0.12)(react-native@0.79.4)
-      expo-font: 13.3.1(expo@53.0.12)(react@19.0.0)
-      expo-keep-awake: 14.1.4(expo@53.0.12)(react@19.0.0)
+      expo-asset: 11.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
+      expo-constants: 17.1.6(expo@53.0.13)(react-native@0.79.4)
+      expo-file-system: 18.1.10(expo@53.0.13)(react-native@0.79.4)
+      expo-font: 13.3.1(expo@53.0.13)(react@19.0.0)
+      expo-keep-awake: 14.1.4(expo@53.0.13)(react@19.0.0)
       expo-modules-autolinking: 2.1.12
       expo-modules-core: 2.4.0
       react: 19.0.0
@@ -7707,41 +7672,6 @@ packages:
       '@firebase/storage-compat': 0.3.16(@firebase/app-compat@0.2.50)(@firebase/app-types@0.9.3)(@firebase/app@0.11.1)
       '@firebase/util': 1.10.3
       '@firebase/vertexai': 1.0.4(@firebase/app-types@0.9.3)(@firebase/app@0.11.1)
-    transitivePeerDependencies:
-      - '@react-native-async-storage/async-storage'
-    dev: false
-
-  /firebase@11.9.1:
-    resolution: {integrity: sha512-nbQbQxNlkHHRDn4cYwHdAKHwJPeZ0jRXxlNp6PCOb9CQx8Dc6Vjve97R34r1EZJnzOsPYZ3+ssJH7fkovDjvCw==}
-    dependencies:
-      '@firebase/ai': 1.4.0(@firebase/app-types@0.9.3)(@firebase/app@0.13.1)
-      '@firebase/analytics': 0.10.16(@firebase/app@0.13.1)
-      '@firebase/analytics-compat': 0.2.22(@firebase/app-compat@0.4.1)(@firebase/app@0.13.1)
-      '@firebase/app': 0.13.1
-      '@firebase/app-check': 0.10.0(@firebase/app@0.13.1)
-      '@firebase/app-check-compat': 0.3.25(@firebase/app-compat@0.4.1)(@firebase/app@0.13.1)
-      '@firebase/app-compat': 0.4.1
-      '@firebase/app-types': 0.9.3
-      '@firebase/auth': 1.10.7(@firebase/app@0.13.1)
-      '@firebase/auth-compat': 0.5.27(@firebase/app-compat@0.4.1)(@firebase/app-types@0.9.3)(@firebase/app@0.13.1)
-      '@firebase/data-connect': 0.3.9(@firebase/app@0.13.1)
-      '@firebase/database': 1.0.19
-      '@firebase/database-compat': 2.0.10
-      '@firebase/firestore': 4.7.17(@firebase/app@0.13.1)
-      '@firebase/firestore-compat': 0.3.52(@firebase/app-compat@0.4.1)(@firebase/app-types@0.9.3)(@firebase/app@0.13.1)
-      '@firebase/functions': 0.12.8(@firebase/app@0.13.1)
-      '@firebase/functions-compat': 0.3.25(@firebase/app-compat@0.4.1)(@firebase/app@0.13.1)
-      '@firebase/installations': 0.6.17(@firebase/app@0.13.1)
-      '@firebase/installations-compat': 0.2.17(@firebase/app-compat@0.4.1)(@firebase/app-types@0.9.3)(@firebase/app@0.13.1)
-      '@firebase/messaging': 0.12.21(@firebase/app@0.13.1)
-      '@firebase/messaging-compat': 0.2.21(@firebase/app-compat@0.4.1)(@firebase/app@0.13.1)
-      '@firebase/performance': 0.7.6(@firebase/app@0.13.1)
-      '@firebase/performance-compat': 0.2.19(@firebase/app-compat@0.4.1)(@firebase/app@0.13.1)
-      '@firebase/remote-config': 0.6.4(@firebase/app@0.13.1)
-      '@firebase/remote-config-compat': 0.2.17(@firebase/app-compat@0.4.1)(@firebase/app@0.13.1)
-      '@firebase/storage': 0.13.13(@firebase/app@0.13.1)
-      '@firebase/storage-compat': 0.3.23(@firebase/app-compat@0.4.1)(@firebase/app-types@0.9.3)(@firebase/app@0.13.1)
-      '@firebase/util': 1.12.0
     transitivePeerDependencies:
       - '@react-native-async-storage/async-storage'
     dev: false
