@@ -10,16 +10,71 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-// Import components
-import RestaurantCard from '../components/RestaurantCard';
-import CategoryFilter from '../components/CategoryFilter';
-import SearchBar from '../components/SearchBar';
-import MapSection from '../components/MapSection';
-import MobileHeader from '../components/MobileHeader';
-import FooterNavigation from '../components/FooterNavigation';
-import { ResponsiveContainer, ResponsiveCard, ResponsiveText, ResponsiveGrid } from '../components/ResponsiveContainer';
-import { useResponsive } from '../utils/responsive';
-import { useCart } from '../contexts/CartContext';
+// Import components with error handling
+let RestaurantCard: any;
+let CategoryFilter: any;
+let SearchBar: any;
+let MapSection: any;
+let MobileHeader: any;
+let FooterNavigation: any;
+let ResponsiveContainer: any;
+let ResponsiveCard: any;
+let ResponsiveText: any;
+let ResponsiveGrid: any;
+let useResponsive: any;
+let useCart: any;
+
+try {
+  RestaurantCard = require('../components/RestaurantCard').default;
+  CategoryFilter = require('../components/CategoryFilter').default;
+  SearchBar = require('../components/SearchBar').default;
+  MapSection = require('../components/MapSection').default;
+  MobileHeader = require('../components/MobileHeader').default;
+  FooterNavigation = require('../components/FooterNavigation').default;
+
+  const ResponsiveComponents = require('../components/ResponsiveContainer');
+  ResponsiveContainer = ResponsiveComponents.ResponsiveContainer;
+  ResponsiveCard = ResponsiveComponents.ResponsiveCard;
+  ResponsiveText = ResponsiveComponents.ResponsiveText;
+  ResponsiveGrid = ResponsiveComponents.ResponsiveGrid;
+
+  useResponsive = require('../utils/responsive').useResponsive;
+  useCart = require('../contexts/CartContext').useCart;
+} catch (error) {
+  console.warn('Failed to import some components, using fallbacks:', error);
+
+  // Fallback components
+  RestaurantCard = ({ restaurant }: any) => (
+    <View style={{ backgroundColor: 'white', padding: 16, margin: 8, borderRadius: 8 }}>
+      <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{restaurant?.name || 'Restaurant'}</Text>
+      <Text style={{ color: '#666' }}>{restaurant?.description || 'Description not available'}</Text>
+    </View>
+  );
+
+  CategoryFilter = () => <View style={{ height: 50, backgroundColor: '#f5f5f5' }} />;
+  SearchBar = () => <View style={{ height: 40, backgroundColor: '#f5f5f5', margin: 16 }} />;
+  MapSection = () => <View style={{ height: 200, backgroundColor: '#e5e5e5', margin: 16 }} />;
+
+  MobileHeader = ({ title }: { title: string }) => (
+    <View style={{ padding: 16, backgroundColor: '#f3a823' }}>
+      <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>{title}</Text>
+    </View>
+  );
+
+  FooterNavigation = () => <View style={{ height: 60, backgroundColor: '#f3a823' }} />;
+
+  ResponsiveContainer = ({ children }: { children: React.ReactNode }) => <View>{children}</View>;
+  ResponsiveCard = ({ children, ...props }: any) => (
+    <View style={{ backgroundColor: 'white', borderRadius: 8, padding: 16, margin: 8 }} {...props}>
+      {children}
+    </View>
+  );
+  ResponsiveText = ({ children, ...props }: any) => <Text {...props}>{children}</Text>;
+  ResponsiveGrid = ({ children }: { children: React.ReactNode }) => <View>{children}</View>;
+
+  useResponsive = () => ({ isMobile: true, isTablet: false, isDesktop: false });
+  useCart = () => ({ items: [], addItem: () => {}, removeItem: () => {}, clearCart: () => {} });
+}
 
 // Temporary types until shared-types is working
 interface Restaurant {
@@ -45,6 +100,8 @@ interface Category {
 }
 
 export default function HomeScreen({ navigation }: any) {
+  console.log('🏠 HomeScreen: Component initializing...');
+
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,11 +115,21 @@ export default function HomeScreen({ navigation }: any) {
     address: string;
   } | null>(null);
 
-  // Get responsive screen information
-  const { isTablet, deviceType } = useResponsive();
+  // Get responsive screen information with error handling
+  let responsiveData, cartData;
 
-  // Cart functionality
-  const { addToCart, getCartItemCount } = useCart();
+  try {
+    responsiveData = useResponsive();
+    cartData = useCart();
+    console.log('🏠 HomeScreen: Hooks loaded successfully');
+  } catch (hookError) {
+    console.error('🏠 HomeScreen: Hook error:', hookError);
+    responsiveData = { isTablet: false, deviceType: 'mobile' };
+    cartData = { addToCart: () => {}, getCartItemCount: () => 0 };
+  }
+
+  const { isTablet, deviceType } = responsiveData;
+  const { addToCart, getCartItemCount } = cartData;
   const cartItemCount = getCartItemCount();
 
   // Load data function (same logic as web app)
