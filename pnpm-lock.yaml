@@ -31,7 +31,7 @@ importers:
   apps/mobile-customer:
     dependencies:
       '@babel/runtime':
-        specifier: ^7.25.0
+        specifier: ^7.27.6
         version: 7.27.6
       '@expo/metro-runtime':
         specifier: ~5.0.4
