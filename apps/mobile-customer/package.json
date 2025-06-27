@@ -67,6 +67,7 @@
     "@babel/core": "^7.25.2",
     "@expo/cli": "^0.24.15",
     "@types/react": "~19.0.10",
+    "babel-preset-expo": "^13.2.1",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "tailwindcss": "3.3.2",
     "typescript": "~5.8.3"
