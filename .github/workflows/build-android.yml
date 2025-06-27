@@ -100,7 +100,7 @@ jobs:
         working-directory: apps/mobile-customer/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace --warning-mode all
 
       # 🏗️ Build APK (Release)
       - name: 🏗️ Build APK (Release)
@@ -108,7 +108,7 @@ jobs:
         working-directory: apps/mobile-customer/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease --stacktrace --warning-mode all
 
       # 📦 Build AAB (Release)
       - name: 📦 Build AAB (Release)
@@ -116,7 +116,7 @@ jobs:
         working-directory: apps/mobile-customer/android
         run: |
           chmod +x gradlew
-          ./gradlew bundleRelease --stacktrace
+          ./gradlew bundleRelease --stacktrace --warning-mode all
 
       # 📤 Upload APK (Debug)
       - name: 📤 Upload APK (Debug)
