@@ -34,6 +34,17 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "gradleVersion": "8.10.2",
+            "androidGradlePluginVersion": "8.7.2"
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "tap2go-mobile"

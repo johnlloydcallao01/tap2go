@@ -102,6 +102,13 @@ jobs:
           echo "MYAPP_UPLOAD_STORE_PASSWORD=$ANDROID_STORE_PASSWORD" >> gradle.properties
           echo "MYAPP_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> gradle.properties
 
+      # 🔍 Identify deprecated features first
+      - name: 🔍 Identify deprecated features
+        working-directory: apps/mobile-customer/android
+        run: |
+          chmod +x gradlew
+          ./gradlew build --warning-mode all --dry-run || true
+
       # 🏗️ Build APK
       - name: 🏗️ Build APK (Debug)
         if: matrix.build-type == 'apk' && github.ref != 'refs/heads/main'
