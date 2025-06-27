@@ -181,12 +181,6 @@ const nextConfig: NextConfig = {
       // For now, this ensures Turbopack is configured alongside webpack
     },
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-    // Enhanced Turbopack resolveAlias for styled-jsx compatibility
-    resolveAlias: {
-      // Completely disable styled-jsx in Turbopack mode
-      'styled-jsx': require('path').resolve(__dirname, 'src/lib/empty-styled-jsx.js'),
-      'styled-jsx/style': require('path').resolve(__dirname, 'src/lib/empty-styled-jsx.js'),
-    },
   },
 };
 

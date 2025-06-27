@@ -21,24 +21,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// Enhanced path detection for different package manager structures
-const STYLED_JSX_PATHS = [
-  // Current path (npm/direct install)
-  path.join(__dirname, '../node_modules/styled-jsx/index.js'),
-  // pnpm hoisted path
-  path.join(__dirname, '../../../node_modules/styled-jsx/index.js'),
-  // pnpm workspace path
-  path.join(__dirname, '../../node_modules/styled-jsx/index.js')
-];
-
-function findStyledJsxPath() {
-  for (const jsxPath of STYLED_JSX_PATHS) {
-    if (fs.existsSync(jsxPath)) {
-      return jsxPath;
-    }
-  }
-  return null;
-}
+const STYLED_JSX_PATH = path.join(__dirname, '../node_modules/styled-jsx/index.js');
+const BACKUP_PATH = path.join(__dirname, '../node_modules/styled-jsx/index.js.backup');
 
 const EMPTY_STYLED_JSX = `// Professional Enterprise Patch: styled-jsx React 19 Compatibility
 // This file replaces styled-jsx to prevent React 19 compatibility issues
@@ -78,17 +62,13 @@ module.exports.default = StyleRegistry;
 
 function patchStyledJsx() {
   console.log('🔧 Applying styled-jsx React 19 compatibility patch...');
-
+  
   try {
-    // Find styled-jsx using enhanced path detection
-    const STYLED_JSX_PATH = findStyledJsxPath();
-
-    if (!STYLED_JSX_PATH) {
+    // Check if styled-jsx exists
+    if (!fs.existsSync(STYLED_JSX_PATH)) {
       console.log('✅ styled-jsx not found - no patching needed');
       return;
     }
-
-    const BACKUP_PATH = STYLED_JSX_PATH + '.backup';
 
     // Create backup if it doesn't exist
     if (!fs.existsSync(BACKUP_PATH)) {
@@ -101,12 +81,10 @@ function patchStyledJsx() {
     fs.writeFileSync(STYLED_JSX_PATH, EMPTY_STYLED_JSX);
     console.log('✅ styled-jsx patched successfully for React 19 compatibility');
     console.log('📝 Reason: Using Tailwind CSS + NativeWind, styled-jsx not needed');
-    console.log(`📍 Patched location: ${STYLED_JSX_PATH}`);
-
+    
   } catch (error) {
     console.error('❌ Failed to patch styled-jsx:', error.message);
-    // Don't exit with error - graceful degradation
-    console.log('⚠️  Continuing without styled-jsx patch...');
+    process.exit(1);
   }
 }
 

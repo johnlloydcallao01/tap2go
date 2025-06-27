@@ -19,14 +19,14 @@
     "type-check:turbo": "turbo run type-check",
     "web:dev": "turbo run dev --filter=web",
     "web:build": "turbo run build --filter=web",
-    "web:start": "cd apps/web && pnpm start",
-    "web:deploy": "cd apps/web && pnpm run build",
+    "web:start": "cd apps/web && npm start",
+    "web:deploy": "cd apps/web && npm run build",
     "mobile:dev": "turbo run dev --filter=mobile",
     "mobile:build": "turbo run build --filter=mobile",
     "mobile:ios": "turbo run ios --filter=mobile",
     "mobile:android": "turbo run android --filter=mobile",
-    "vercel-build": "cd apps/web && pnpm run build",
-    "start": "cd apps/web && pnpm start"
+    "vercel-build": "cd apps/web && npm run build",
+    "start": "cd apps/web && npm start"
   },
   "devDependencies": {
     "@turbo/gen": "^2.0.0",
