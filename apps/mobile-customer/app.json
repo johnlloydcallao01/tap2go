@@ -26,10 +26,7 @@
       },
       "package": "com.tap2go.mobile",
       "edgeToEdgeEnabled": true,
-      "versionCode": 1,
-      "compileSdkVersion": 34,
-      "targetSdkVersion": 34,
-      "buildToolsVersion": "34.0.0"
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -40,7 +37,10 @@
         {
           "android": {
             "gradleVersion": "8.10.2",
-            "androidGradlePluginVersion": "8.7.2"
+            "androidGradlePluginVersion": "8.7.2",
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
           }
         }
       ]

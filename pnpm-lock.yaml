@@ -58,10 +58,10 @@ importers:
         specifier: ^22.2.1
         version: 22.2.1(@react-native-firebase/app@22.2.1)
       '@react-navigation/bottom-tabs':
-        specifier: ^7.3.17
+        specifier: ^7.3.10
         version: 7.4.2(@react-navigation/native@7.1.14)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0)
       '@react-navigation/native':
-        specifier: ^7.1.13
+        specifier: ^7.1.6
         version: 7.1.14(react-native@0.79.4)(react@19.0.0)
       '@react-navigation/stack':
         specifier: ^7.3.6
