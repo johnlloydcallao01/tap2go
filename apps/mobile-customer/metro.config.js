@@ -50,6 +50,13 @@ config.resolver.alias = {
   'react-native-reanimated': path.resolve(projectRoot, 'node_modules/react-native-reanimated'),
   '@react-native-async-storage/async-storage': path.resolve(projectRoot, 'node_modules/@react-native-async-storage/async-storage'),
 
+  // Critical React Native dependencies - required for EAS Build
+  'invariant': path.resolve(projectRoot, 'node_modules/invariant'),
+  'fbjs': path.resolve(projectRoot, 'node_modules/fbjs'),
+  'nullthrows': fs.existsSync(path.resolve(projectRoot, 'node_modules/nullthrows'))
+    ? path.resolve(projectRoot, 'node_modules/nullthrows')
+    : path.resolve(monorepoRoot, 'node_modules/nullthrows'),
+
   // Babel runtime - critical for pnpm (try local first in CI, then workspace)
   '@babel/runtime': process.env.CI
     ? (fs.existsSync(path.resolve(projectRoot, 'node_modules/@babel/runtime'))
