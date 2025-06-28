@@ -12,7 +12,9 @@
         "gradleCommand": ":app:assembleDebug"
       },
       "env": {
-        "NODE_ENV": "development"
+        "NODE_ENV": "development",
+        "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
+        "EAS_SKIP_AUTO_FINGERPRINT": "1"
       }
     },
     "preview": {
@@ -23,7 +25,11 @@
       },
       "env": {
         "NODE_ENV": "production",
-        "EAS_BUILD": "true"
+        "EAS_BUILD": "true",
+        "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
+        "EAS_SKIP_AUTO_FINGERPRINT": "1",
+        "METRO_CACHE": "0",
+        "METRO_CONFIG": "./metro.config.eas.js"
       }
     },
     "production": {
@@ -33,7 +39,9 @@
       },
       "env": {
         "NODE_ENV": "production",
-        "EAS_BUILD": "true"
+        "EAS_BUILD": "true",
+        "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
+        "METRO_CONFIG": "./metro.config.eas.js"
       }
     }
   },

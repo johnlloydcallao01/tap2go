@@ -46,8 +46,22 @@
       "*expo*",
       "*react-native*",
       "*@babel*",
-      "*metro*"
-    ]
+      "*metro*",
+      "*expo-modules-core*"
+    ],
+    "overrides": {
+      "@react-native-async-storage/async-storage": "2.1.2",
+      "@types/react": "~19.0.10",
+      "babel-preset-expo": "~13.0.0"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "react": "19.x"
+      },
+      "ignoreMissing": [
+        "@react-native-async-storage/async-storage"
+      ]
+    }
   },
   "engines": {
     "node": "18.x || 20.x || 22.x",
@@ -57,6 +71,8 @@
   "dependencies": {
     "@babel/runtime": "^7.27.6",
     "@headlessui/react": "^2.2.4",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "redux-persist": "^6.0.0"
   }
 }

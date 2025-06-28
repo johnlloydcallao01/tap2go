@@ -3,54 +3,18 @@
     "name": "Tap2Go Customer",
     "slug": "tap2go-mobile-customer",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f3a823"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.tap2go.mobile"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#f3a823"
-      },
-      "package": "com.tap2go.mobile",
-      "edgeToEdgeEnabled": true,
-      "versionCode": 1,
-      "config": {
-        "googleMaps": {
-          "apiKey": "GOOGLE_MAPS_API_KEY"
-        }
-      }
-    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "gradleVersion": "8.10.2",
-            "androidGradlePluginVersion": "8.7.2"
-          }
-        }
-      ]
-    ],
     "extra": {
       "eas": {
-        "projectId": "d7681f1c-f3dc-4c48-aa50-1ab34b79ea2e"
+        "projectId": "8e1bc5e3-d3d5-4de0-b1b4-f427a592c0ff"
       }
-    }
+    },
+    "owner": "johnwebsites"
   }
 }

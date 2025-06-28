@@ -1,3 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Peer dependency configuration for React 19 compatibility
+peerDependencyRules:
+  allowedVersions:
+    react: "19.x"
+  ignoreMissing:
+    - "@react-native-async-storage/async-storage"

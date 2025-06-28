@@ -25,6 +25,22 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 
+// Critical Expo modules for EAS Build compatibility
+config.resolver.extraNodeModules = {
+  'expo-modules-core': path.resolve(monorepoRoot, 'node_modules/expo-modules-core'),
+  'expo': path.resolve(monorepoRoot, 'node_modules/expo'),
+  '@expo/metro-runtime': path.resolve(monorepoRoot, 'node_modules/@expo/metro-runtime'),
+};
+
+// Critical dependency aliases for pnpm monorepo
+config.resolver.alias = {
+  'expo-modules-core': path.resolve(monorepoRoot, 'node_modules/expo-modules-core'),
+  'expo': path.resolve(monorepoRoot, 'node_modules/expo'),
+  '@expo/metro-runtime': path.resolve(monorepoRoot, 'node_modules/@expo/metro-runtime'),
+  'react': path.resolve(monorepoRoot, 'node_modules/react'),
+  'react-native': path.resolve(monorepoRoot, 'node_modules/react-native'),
+};
+
 // Disable symlinks for production stability
 config.resolver.unstable_enableSymlinks = false;
 
