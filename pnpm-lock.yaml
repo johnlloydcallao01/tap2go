@@ -111,6 +111,9 @@ importers:
       react-native:
         specifier: 0.79.4
         version: 0.79.4(@babel/core@7.27.7)(@types/react@19.0.14)(react@19.0.0)
+      react-native-dotenv:
+        specifier: ^3.4.11
+        version: 3.4.11(@babel/runtime@7.27.6)
       react-native-maps:
         specifier: 1.20.1
         version: 1.20.1(react-native-web@0.20.0)(react-native@0.79.4)(react@19.0.0)
@@ -10879,6 +10882,15 @@ packages:
 
   /react-is@19.1.0:
     resolution: {integrity: sha512-Oe56aUPnkHyyDxxkvqtd7KkdQP5uIUfHxd5XTb3wE9d/kRnZLmKbDB0GWk919tdQ+mxxPtG6EAs6RMT6i1qtHg==}
+    dev: false
+
+  /react-native-dotenv@3.4.11(@babel/runtime@7.27.6):
+    resolution: {integrity: sha512-6vnIE+WHABSeHCaYP6l3O1BOEhWxKH6nHAdV7n/wKn/sciZ64zPPp2NUdEUf1m7g4uuzlLbjgr+6uDt89q2DOg==}
+    peerDependencies:
+      '@babel/runtime': ^7.20.6
+    dependencies:
+      '@babel/runtime': 7.27.6
+      dotenv: 16.6.0
     dev: false
 
   /react-native-edge-to-edge@1.6.0(react-native@0.79.4)(react@19.0.0):

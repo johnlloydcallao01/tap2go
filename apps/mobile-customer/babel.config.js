@@ -3,6 +3,18 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
+      [
+        'module:react-native-dotenv',
+        {
+          moduleName: '@env',
+          path: '../../.env.local',
+          blocklist: null,
+          allowlist: null,
+          safe: false,
+          allowUndefined: true,
+          verbose: false,
+        },
+      ],
       'nativewind/babel', // NativeWind v2.0.11 - Enterprise ready
       'react-native-reanimated/plugin'
     ]

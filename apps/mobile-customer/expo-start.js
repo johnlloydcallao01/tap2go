@@ -28,7 +28,7 @@ if (fs.existsSync(expoDir)) {
 // Set multiple environment variables to ENABLE caching for better performance
 process.env.EXPO_CACHE = '1';
 process.env.EXPO_BETA = 'false';
-process.env.EXPO_NO_DOTENV = '1';
+// REMOVED: process.env.EXPO_NO_DOTENV = '1'; // Enable .env loading for mobile app
 process.env.EXPO_NO_TELEMETRY = '1';
 
 console.log('🚀 Starting Expo with CACHING ENABLED for better performance...');

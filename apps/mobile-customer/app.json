@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Tap2Go",
-    "slug": "tap2go-mobile",
+    "name": "Tap2Go Customer",
+    "slug": "tap2go-mobile-customer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -26,7 +26,12 @@
       },
       "package": "com.tap2go.mobile",
       "edgeToEdgeEnabled": true,
-      "versionCode": 1
+      "versionCode": 1,
+      "config": {
+        "googleMaps": {
+          "apiKey": "GOOGLE_MAPS_API_KEY"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -37,17 +42,14 @@
         {
           "android": {
             "gradleVersion": "8.10.2",
-            "androidGradlePluginVersion": "8.7.2",
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
+            "androidGradlePluginVersion": "8.7.2"
           }
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "tap2go-mobile"
+        "projectId": "d7681f1c-f3dc-4c48-aa50-1ab34b79ea2e"
       }
     }
   }
