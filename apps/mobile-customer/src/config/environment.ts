@@ -1,34 +1,12 @@
 /**
  * Environment Configuration for Mobile App
- * This file loads environment variables from .env.local during development
- * and from EAS Build environment during production builds
+ * Uses process.env for all environment variables
+ * Works in both local development and EAS Build
  */
-
-// Check if we're in EAS Build environment
-const isEASBuild = process.env.EAS_BUILD === 'true' || process.env.CI === 'true';
-
-// Import environment variables conditionally
-let envVars: any = {};
-
-if (!isEASBuild) {
-  // Local development - import from @env (react-native-dotenv)
-  try {
-    envVars = require('@env');
-  } catch (error) {
-    console.warn('Failed to load @env, falling back to process.env');
-    envVars = {};
-  }
-}
 
 // Helper function to get environment variable
 const getEnvVar = (key: string): string => {
-  if (isEASBuild) {
-    // EAS Build - use process.env directly
-    return process.env[key] || '';
-  } else {
-    // Local development - use imported variables or fallback to process.env
-    return envVars[key] || process.env[key] || '';
-  }
+  return process.env[key] || '';
 };
 
 // Environment detection
