@@ -67,6 +67,7 @@ config.resolver.extraNodeModules = {
   'color': path.resolve(monorepoRoot, 'node_modules/color'),
   'color-string': path.resolve(monorepoRoot, 'node_modules/color-string'),
   'hoist-non-react-statics': path.resolve(monorepoRoot, 'node_modules/hoist-non-react-statics'),
+  'warn-once': path.resolve(monorepoRoot, 'node_modules/warn-once'),
   '@babel/runtime': path.resolve(monorepoRoot, 'node_modules/@babel/runtime'),
   'scheduler': path.resolve(monorepoRoot, 'node_modules/scheduler/index.native.js'),
 };
@@ -139,6 +140,7 @@ config.resolver.extraNodeModules = {
   'color': path.resolve(monorepoRoot, 'node_modules/color'),
   'color-string': path.resolve(monorepoRoot, 'node_modules/color-string'),
   'hoist-non-react-statics': path.resolve(monorepoRoot, 'node_modules/hoist-non-react-statics'),
+  'warn-once': path.resolve(monorepoRoot, 'node_modules/warn-once'),
   '@babel/runtime': path.resolve(monorepoRoot, 'node_modules/@babel/runtime'),
   'scheduler': path.resolve(monorepoRoot, 'node_modules/scheduler/index.native.js'),
 };

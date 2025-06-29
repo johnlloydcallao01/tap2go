@@ -116,6 +116,9 @@ importers:
       '@react-navigation/stack':
         specifier: ^7.3.6
         version: 7.4.2(@react-navigation/native@7.1.14)(react-native-gesture-handler@2.24.0)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0)
+      abort-controller:
+        specifier: ^3.0.0
+        version: 3.0.0
       ansi-regex:
         specifier: ^6.1.0
         version: 6.1.0
@@ -146,6 +149,9 @@ importers:
       escape-string-regexp:
         specifier: ^5.0.0
         version: 5.0.0
+      event-target-shim:
+        specifier: ^5.0.0
+        version: 5.0.1
       expo:
         specifier: 53.0.13
         version: 53.0.13(@babel/core@7.27.7)(@expo/metro-runtime@5.0.4)(react-native@0.79.4)(react@19.0.0)
@@ -173,9 +179,6 @@ importers:
       expo-linking:
         specifier: ^7.1.5
         version: 7.1.5(expo@53.0.13)(react-native@0.79.4)(react@19.0.0)
-      expo-modules-core:
-        specifier: ^2.4.0
-        version: 2.4.0
       expo-router:
         specifier: ~5.1.1
         version: 5.1.1(@types/react@19.0.14)(expo-constants@17.1.6)(expo-linking@7.1.5)(expo@53.0.13)(react-native-reanimated@3.17.4)(react-native-safe-area-context@5.4.0)(react-native-screens@4.11.1)(react-native@0.79.4)(react@19.0.0)
@@ -200,6 +203,9 @@ importers:
       invariant:
         specifier: ^2.2.4
         version: 2.2.4
+      is-arrayish:
+        specifier: ^0.3.2
+        version: 0.3.2
       memoize-one:
         specifier: ^6.0.0
         version: 6.0.0
@@ -212,6 +218,9 @@ importers:
       nullthrows:
         specifier: ^1.1.1
         version: 1.1.1
+      promise:
+        specifier: ^8.3.0
+        version: 8.3.0
       query-string:
         specifier: ^9.1.1
         version: 9.2.1
@@ -221,6 +230,9 @@ importers:
       react-dom:
         specifier: 19.0.0
         version: 19.0.0(react@19.0.0)
+      react-freeze:
+        specifier: ^1.0.0
+        version: 1.0.4(react@19.0.0)
       react-is:
         specifier: ^18.3.1
         version: 18.3.1
@@ -260,6 +272,9 @@ importers:
       react-native-web-linear-gradient:
         specifier: ^1.1.2
         version: 1.1.2(react-native-web@0.20.0)
+      regenerator-runtime:
+        specifier: ^0.14.1
+        version: 0.14.1
       scheduler:
         specifier: ^0.25.0
         version: 0.25.0
@@ -281,9 +296,15 @@ importers:
       use-sync-external-store:
         specifier: ^1.2.0
         version: 1.5.0(react@19.0.0)
+      warn-once:
+        specifier: ^0.1.1
+        version: 0.1.1
       webidl-conversions:
         specifier: ^7.0.0
         version: 7.0.0
+      whatwg-fetch:
+        specifier: ^3.0.0
+        version: 3.6.20
       whatwg-url-without-unicode:
         specifier: ^8.0.0-3
         version: 8.0.0-3
@@ -11724,6 +11745,10 @@ packages:
 
   /regenerator-runtime@0.13.11:
     resolution: {integrity: sha512-kY1AZVr2Ra+t+piVaJ4gxaFaReZVH40AKNo7UCX6W+dEwBo/2oZJzqfuN1qLq1oL45o56cPaTXELwrTh8Fpggg==}
+    dev: false
+
+  /regenerator-runtime@0.14.1:
+    resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==}
     dev: false
 
   /regexp.prototype.flags@1.5.4:

@@ -7,16 +7,13 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "android": {
-      "package": "com.tap2go.mobile"
-    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "owner": "tap2go9n",
+    "owner": "tap2go9o",
     "extra": {
       "eas": {
-        "projectId": "fa72c7a1-5750-4912-9f23-957f6ff2c253"
+        "projectId": "ef7a580f-cd18-4020-871e-aa6551eba1f0"
       }
     }
   }
