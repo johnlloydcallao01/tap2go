@@ -2,233 +2,289 @@ const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 const fs = require('fs');
 
-// Find the project and workspace directories
+// Simplified Metro config specifically for EAS builds
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
 
+console.log('🏗️  EAS BUILD Metro Configuration');
+console.log('📁 Project root:', projectRoot);
+console.log('📁 Monorepo root:', monorepoRoot);
+
 const config = getDefaultConfig(projectRoot);
 
-// ENTERPRISE OPTIMIZATION: Only watch specific directories to prevent timeout
-// Instead of watching entire monorepo, only watch what's actually needed
-const specificPackages = {
-  '@tap2go/config': path.resolve(monorepoRoot, 'packages/config'),
-  // Add other packages as needed
-};
-
-// 1. OPTIMIZED: Watch project root, workspace root, and specific packages for pnpm monorepo
+// Essential configuration for EAS builds
 config.watchFolders = [
   projectRoot,
-  monorepoRoot,
-  ...Object.values(specificPackages)
+  // Add monorepo root and critical directories for proper file watching
+  path.resolve(monorepoRoot, 'packages'),
+  path.resolve(monorepoRoot, 'apps'),
+  path.resolve(monorepoRoot, 'node_modules'),
+  // Explicitly watch @babel/runtime for SHA-1 computation
+  path.resolve(monorepoRoot, 'node_modules/@babel/runtime'),
 ];
 
-// 2. Let Metro know where to resolve packages and in what order
+// Critical resolver configuration for pnpm monorepo
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 
-// Enable proper workspace resolution for pnpm hoisted structure
+// CRITICAL: Disable hierarchical lookup for pnpm compatibility
 config.resolver.disableHierarchicalLookup = true;
-config.resolver.unstable_enableSymlinks = false;
 
-// 3. Add specific packages as extraNodeModules to avoid symlink issues
-// Include critical Expo modules for EAS Build compatibility
+// Function to generate @babel/runtime helper mappings
+function generateBabelRuntimeMappings() {
+  const babelRuntimeHelpers = {};
+  const helpersDir = path.resolve(monorepoRoot, 'node_modules/@babel/runtime/helpers');
+
+  console.log(`🔍 Checking @babel/runtime helpers directory: ${helpersDir}`);
+  console.log(`🔍 Directory exists: ${fs.existsSync(helpersDir)}`);
+
+  if (fs.existsSync(helpersDir)) {
+    const helperFiles = fs.readdirSync(helpersDir);
+    console.log(`🔍 Found ${helperFiles.length} helper files`);
+
+    helperFiles.forEach(file => {
+      if (file.endsWith('.js') && file !== 'esm') {
+        const helperName = file.replace('.js', '');
+        const moduleName = `@babel/runtime/helpers/${helperName}`;
+        const helperPath = path.resolve(helpersDir, file);
+        babelRuntimeHelpers[moduleName] = helperPath;
+
+        // Log the specific helper we're having trouble with
+        if (helperName === 'interopRequireDefault') {
+          console.log(`✅ Mapped interopRequireDefault: ${moduleName} -> ${helperPath}`);
+          console.log(`✅ File exists: ${fs.existsSync(helperPath)}`);
+        }
+      }
+    });
+
+    console.log(`🔍 Total @babel/runtime helpers mapped: ${Object.keys(babelRuntimeHelpers).length}`);
+  } else {
+    console.log('❌ @babel/runtime helpers directory not found');
+  }
+
+  return babelRuntimeHelpers;
+}
+
+// CRITICAL: Add expo-modules-core resolution for EAS builds
+const babelRuntimeMappings = generateBabelRuntimeMappings();
+
 config.resolver.extraNodeModules = {
-  ...specificPackages,
-  // Critical Expo modules that must be resolved correctly
   'expo-modules-core': path.resolve(monorepoRoot, 'node_modules/expo-modules-core'),
   'expo': path.resolve(monorepoRoot, 'node_modules/expo'),
   '@expo/metro-runtime': path.resolve(monorepoRoot, 'node_modules/@expo/metro-runtime'),
+  'react-native-is-edge-to-edge': path.resolve(monorepoRoot, 'node_modules/react-native-is-edge-to-edge'),
+  '@react-native/virtualized-lists': path.resolve(monorepoRoot, 'node_modules/@react-native/virtualized-lists'),
+  'memoize-one': path.resolve(monorepoRoot, 'node_modules/memoize-one'),
+  'whatwg-url-without-unicode': path.resolve(monorepoRoot, 'node_modules/whatwg-url-without-unicode'),
+  'use-sync-external-store': path.resolve(monorepoRoot, 'node_modules/use-sync-external-store'),
+  'use-latest-callback': path.resolve(monorepoRoot, 'node_modules/use-latest-callback'),
+  '@react-navigation/routers': path.resolve(monorepoRoot, 'node_modules/@react-navigation/routers'),
+  'ansi-regex': path.resolve(monorepoRoot, 'node_modules/ansi-regex'),
+  '@react-native/normalize-colors': path.resolve(monorepoRoot, 'node_modules/@react-native/normalize-colors'),
+  'react-is': path.resolve(monorepoRoot, 'node_modules/react-is'),
+  'query-string': path.resolve(monorepoRoot, 'node_modules/query-string'),
+  'nanoid': path.resolve(monorepoRoot, 'node_modules/nanoid'),
+  'escape-string-regexp': path.resolve(monorepoRoot, 'node_modules/escape-string-regexp'),
+  '@react-navigation/elements': path.resolve(monorepoRoot, 'node_modules/@react-navigation/elements'),
+  'buffer': path.resolve(monorepoRoot, 'node_modules/buffer'),
+  '@react-native/assets-registry': path.resolve(monorepoRoot, 'node_modules/@react-native/assets-registry'),
+  'base64-js': path.resolve(monorepoRoot, 'node_modules/base64-js'),
+  'stacktrace-parser': path.resolve(monorepoRoot, 'node_modules/stacktrace-parser'),
+  'css-mediaquery': path.resolve(monorepoRoot, 'node_modules/css-mediaquery'),
+  'webidl-conversions': path.resolve(monorepoRoot, 'node_modules/webidl-conversions'),
+  'decode-uri-component': path.resolve(monorepoRoot, 'node_modules/decode-uri-component'),
+  'ieee754': path.resolve(monorepoRoot, 'node_modules/ieee754'),
+  'filter-obj': path.resolve(monorepoRoot, 'node_modules/filter-obj'),
+  'split-on-first': path.resolve(monorepoRoot, 'node_modules/split-on-first'),
+  'color': path.resolve(monorepoRoot, 'node_modules/color'),
+  'color-string': path.resolve(monorepoRoot, 'node_modules/color-string'),
+  'color-convert': path.resolve(monorepoRoot, 'node_modules/color-convert'),
+  '@babel/runtime': path.resolve(monorepoRoot, 'node_modules/@babel/runtime'),
+  ...babelRuntimeMappings, // Add all @babel/runtime helpers dynamically
+  'scheduler': path.resolve(monorepoRoot, 'node_modules/scheduler/index.native.js'),
 };
 
-// 4. ENTERPRISE PNPM COMPATIBILITY - Critical dependency aliases
-// These aliases are REQUIRED for pnpm monorepos to resolve core dependencies
+// Disable symlinks for EAS build stability
+config.resolver.unstable_enableSymlinks = false;
+
+// CRITICAL: Essential aliases for EAS build resolution
 config.resolver.alias = {
-  // Core React dependencies - must resolve from mobile app
-  'react': fs.existsSync(path.resolve(projectRoot, 'node_modules/react'))
-    ? path.resolve(projectRoot, 'node_modules/react')
-    : path.resolve(monorepoRoot, 'node_modules/react'),
-  'react-dom': fs.existsSync(path.resolve(projectRoot, 'node_modules/react-dom'))
-    ? path.resolve(projectRoot, 'node_modules/react-dom')
-    : path.resolve(monorepoRoot, 'node_modules/react-dom'),
-  'react-native': fs.existsSync(path.resolve(projectRoot, 'node_modules/react-native'))
-    ? path.resolve(projectRoot, 'node_modules/react-native')
-    : path.resolve(monorepoRoot, 'node_modules/react-native'),
+  // Core Expo modules - essential for EAS builds
+  'expo': path.resolve(monorepoRoot, 'node_modules/expo'),
+  'expo-modules-core': path.resolve(monorepoRoot, 'node_modules/expo-modules-core'),
+  '@expo/metro-runtime': path.resolve(monorepoRoot, 'node_modules/@expo/metro-runtime'),
+  
+  // Core React modules
+  'react': path.resolve(monorepoRoot, 'node_modules/react'),
+  'react-native': path.resolve(monorepoRoot, 'node_modules/react-native'),
+  
+  // Essential Expo modules
+  'expo-constants': path.resolve(monorepoRoot, 'node_modules/expo-constants'),
+  'expo-router': path.resolve(monorepoRoot, 'node_modules/expo-router'),
+  'expo-asset': path.resolve(monorepoRoot, 'node_modules/expo-asset'),
+  'expo-font': path.resolve(monorepoRoot, 'node_modules/expo-font'),
+  'expo-file-system': path.resolve(monorepoRoot, 'node_modules/expo-file-system'),
 
-  // Expo core dependencies - critical for pnpm resolution
-  'expo': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo'))
-    ? path.resolve(projectRoot, 'node_modules/expo')
-    : path.resolve(monorepoRoot, 'node_modules/expo'),
-  'expo-modules-core': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-modules-core'))
-    ? path.resolve(projectRoot, 'node_modules/expo-modules-core')
-    : path.resolve(monorepoRoot, 'node_modules/expo-modules-core'),
+  // React Navigation modules
+  '@react-navigation/core': path.resolve(monorepoRoot, 'node_modules/@react-navigation/core'),
+  '@react-navigation/native': path.resolve(monorepoRoot, 'node_modules/@react-navigation/native'),
+  '@react-navigation/stack': path.resolve(monorepoRoot, 'node_modules/@react-navigation/stack'),
+  '@react-navigation/bottom-tabs': path.resolve(monorepoRoot, 'node_modules/@react-navigation/bottom-tabs'),
 
-  'expo-asset': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-asset'))
-    ? path.resolve(projectRoot, 'node_modules/expo-asset')
-    : path.resolve(monorepoRoot, 'node_modules/expo-asset'),
-  'expo-constants': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-constants'))
-    ? path.resolve(projectRoot, 'node_modules/expo-constants')
-    : path.resolve(monorepoRoot, 'node_modules/expo-constants'),
-  'expo-file-system': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-file-system'))
-    ? path.resolve(projectRoot, 'node_modules/expo-file-system')
-    : path.resolve(monorepoRoot, 'node_modules/expo-file-system'),
-  'expo-font': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-font'))
-    ? path.resolve(projectRoot, 'node_modules/expo-font')
-    : path.resolve(monorepoRoot, 'node_modules/expo-font'),
-  'expo-router': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-router'))
-    ? path.resolve(projectRoot, 'node_modules/expo-router')
-    : path.resolve(monorepoRoot, 'node_modules/expo-router'),
-  'expo-status-bar': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-status-bar'))
-    ? path.resolve(projectRoot, 'node_modules/expo-status-bar')
-    : path.resolve(monorepoRoot, 'node_modules/expo-status-bar'),
-  'expo-linear-gradient': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-linear-gradient'))
-    ? path.resolve(projectRoot, 'node_modules/expo-linear-gradient')
-    : path.resolve(monorepoRoot, 'node_modules/expo-linear-gradient'),
-  'expo-build-properties': fs.existsSync(path.resolve(projectRoot, 'node_modules/expo-build-properties'))
-    ? path.resolve(projectRoot, 'node_modules/expo-build-properties')
-    : path.resolve(monorepoRoot, 'node_modules/expo-build-properties'),
-
-  // React Native core modules
-  'react-native-reanimated': fs.existsSync(path.resolve(projectRoot, 'node_modules/react-native-reanimated'))
-    ? path.resolve(projectRoot, 'node_modules/react-native-reanimated')
-    : path.resolve(monorepoRoot, 'node_modules/react-native-reanimated'),
-  '@react-native-async-storage/async-storage': fs.existsSync(path.resolve(projectRoot, 'node_modules/@react-native-async-storage/async-storage'))
-    ? path.resolve(projectRoot, 'node_modules/@react-native-async-storage/async-storage')
-    : path.resolve(monorepoRoot, 'node_modules/@react-native-async-storage/async-storage'),
-
-  // Critical React Native dependencies - required for EAS Build
-  'invariant': fs.existsSync(path.resolve(projectRoot, 'node_modules/invariant'))
-    ? path.resolve(projectRoot, 'node_modules/invariant')
-    : path.resolve(monorepoRoot, 'node_modules/invariant'),
-  'fbjs': fs.existsSync(path.resolve(projectRoot, 'node_modules/fbjs'))
-    ? path.resolve(projectRoot, 'node_modules/fbjs')
-    : path.resolve(monorepoRoot, 'node_modules/fbjs'),
-  'nullthrows': fs.existsSync(path.resolve(projectRoot, 'node_modules/nullthrows'))
-    ? path.resolve(projectRoot, 'node_modules/nullthrows')
-    : path.resolve(monorepoRoot, 'node_modules/nullthrows'),
-
-  // Babel runtime - critical for pnpm (try local first in CI, then workspace)
-  '@babel/runtime': process.env.CI
-    ? (fs.existsSync(path.resolve(projectRoot, 'node_modules/@babel/runtime'))
-        ? path.resolve(projectRoot, 'node_modules/@babel/runtime')
-        : path.resolve(monorepoRoot, 'node_modules/@babel/runtime'))
-    : (fs.existsSync(path.resolve(monorepoRoot, 'node_modules/@babel/runtime'))
-        ? path.resolve(monorepoRoot, 'node_modules/@babel/runtime')
-        : path.resolve(projectRoot, 'node_modules/@babel/runtime')),
-
-  // Metro runtime
-  '@expo/metro-runtime': fs.existsSync(path.resolve(projectRoot, 'node_modules/@expo/metro-runtime'))
-    ? path.resolve(projectRoot, 'node_modules/@expo/metro-runtime')
-    : path.resolve(monorepoRoot, 'node_modules/@expo/metro-runtime'),
-
-  // React Navigation modules with fallback resolution
-  '@react-navigation/core': fs.existsSync(path.resolve(projectRoot, 'node_modules/@react-navigation/core'))
-    ? path.resolve(projectRoot, 'node_modules/@react-navigation/core')
-    : path.resolve(monorepoRoot, 'node_modules/@react-navigation/core'),
-  '@react-navigation/native': fs.existsSync(path.resolve(projectRoot, 'node_modules/@react-navigation/native'))
-    ? path.resolve(projectRoot, 'node_modules/@react-navigation/native')
-    : path.resolve(monorepoRoot, 'node_modules/@react-navigation/native'),
-  '@react-navigation/stack': fs.existsSync(path.resolve(projectRoot, 'node_modules/@react-navigation/stack'))
-    ? path.resolve(projectRoot, 'node_modules/@react-navigation/stack')
-    : path.resolve(monorepoRoot, 'node_modules/@react-navigation/stack'),
-  '@react-navigation/bottom-tabs': fs.existsSync(path.resolve(projectRoot, 'node_modules/@react-navigation/bottom-tabs'))
-    ? path.resolve(projectRoot, 'node_modules/@react-navigation/bottom-tabs')
-    : path.resolve(monorepoRoot, 'node_modules/@react-navigation/bottom-tabs'),
+  // Required peer dependencies
+  'react-native-gesture-handler': path.resolve(monorepoRoot, 'node_modules/react-native-gesture-handler'),
+  'expo-linking': path.resolve(monorepoRoot, 'node_modules/expo-linking'),
+  'react-native-is-edge-to-edge': path.resolve(monorepoRoot, 'node_modules/react-native-is-edge-to-edge'),
+  'react-native-edge-to-edge': path.resolve(monorepoRoot, 'node_modules/react-native-edge-to-edge'),
 };
 
-// 5. Force Metro to resolve (sub)dependencies only from the `nodeModulesPaths`
-config.resolver.disableHierarchicalLookup = true;
+// Merge additional modules with existing extraNodeModules (avoid duplication)
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  'react': path.resolve(monorepoRoot, 'node_modules/react'),
+  'react-native': path.resolve(monorepoRoot, 'node_modules/react-native'),
+  'react-native-gesture-handler': path.resolve(monorepoRoot, 'node_modules/react-native-gesture-handler'),
+  'expo-linking': path.resolve(monorepoRoot, 'node_modules/expo-linking'),
+  'react-native-edge-to-edge': path.resolve(monorepoRoot, 'node_modules/react-native-edge-to-edge'),
+};
 
-// 6. PNPM-specific resolver optimizations
-config.resolver.platforms = ['ios', 'android', 'native', 'web'];
+// Platform extensions
+config.resolver.platforms = ['native', 'android', 'ios', 'web'];
 
-// 6.1. GitHub Actions CI/CD optimizations
-if (process.env.CI) {
-  console.log('🚀 Detected CI environment - applying GitHub Actions optimizations');
+// Add resolver alias for @babel/runtime and color modules
+config.resolver.alias = {
+  '@babel/runtime': path.resolve(monorepoRoot, 'node_modules/@babel/runtime'),
+  'color-convert': path.resolve(monorepoRoot, 'node_modules/color-convert'),
+};
 
-  // CRITICAL: Keep monorepoRoot in watchFolders for dependency resolution
-  config.watchFolders = [projectRoot, monorepoRoot];
-
-  // Increase timeouts for CI builds
-  config.server = {
-    ...config.server,
-    port: 8081,
-  };
-
-  // Optimize for CI memory usage
-  config.transformer.minifierConfig = {
-    keep_fnames: true,
-    mangle: {
-      keep_fnames: true,
-    },
-  };
-}
-
-// 7. Enable symlink resolution for pnpm (experimental but required)
-config.resolver.unstable_enableSymlinks = true;
-
-// 8. Ensure proper resolution order for pnpm hoisted dependencies
-config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
-
-// 9. PNPM workspace package resolution
+// Custom resolver for critical modules
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // Handle workspace packages
-  if (moduleName.startsWith('@tap2go/')) {
-    const packagePath = path.resolve(monorepoRoot, 'packages', moduleName.replace('@tap2go/', ''));
-    if (fs.existsSync(packagePath)) {
+  // Handle scheduler module
+  if (moduleName === 'scheduler') {
+    const schedulerPath = path.resolve(monorepoRoot, 'node_modules/scheduler/index.native.js');
+    console.log(`🔧 Resolving scheduler to: ${schedulerPath}`);
+
+    if (fs.existsSync(schedulerPath)) {
+      console.log('✅ Scheduler native file found');
       return {
-        filePath: path.join(packagePath, 'src/index.ts'),
+        filePath: schedulerPath,
         type: 'sourceFile',
       };
+    } else {
+      console.log('❌ Scheduler native file not found, falling back to default resolution');
     }
+  }
+
+  // Handle color-convert module
+  if (moduleName === 'color-convert') {
+    const colorConvertPath = path.resolve(monorepoRoot, 'node_modules/color-convert');
+    console.log(`🔧 Resolving color-convert to: ${colorConvertPath}`);
+
+    if (fs.existsSync(colorConvertPath)) {
+      const indexPath = path.resolve(colorConvertPath, 'index.js');
+      if (fs.existsSync(indexPath)) {
+        console.log('✅ color-convert index.js found');
+        return {
+          filePath: indexPath,
+          type: 'sourceFile',
+        };
+      } else {
+        console.log('❌ color-convert index.js not found');
+      }
+    } else {
+      console.log('❌ color-convert directory not found');
+    }
+  }
+
+  // Handle @babel/runtime modules with detailed logging
+  if (moduleName.startsWith('@babel/runtime/')) {
+    console.log(`🔧 Attempting to resolve @babel/runtime module: ${moduleName}`);
+
+    // Check if it's in our extraNodeModules mapping
+    if (config.resolver.extraNodeModules && config.resolver.extraNodeModules[moduleName]) {
+      const mappedPath = config.resolver.extraNodeModules[moduleName];
+      console.log(`🔍 Found in extraNodeModules: ${mappedPath}`);
+
+      if (fs.existsSync(mappedPath)) {
+        console.log(`✅ @babel/runtime module resolved: ${mappedPath}`);
+        return {
+          filePath: mappedPath,
+          type: 'sourceFile',
+        };
+      } else {
+        console.log(`❌ Mapped path does not exist: ${mappedPath}`);
+      }
+    }
+
+    // Try direct resolution
+    const directPath = path.resolve(monorepoRoot, 'node_modules', moduleName + '.js');
+    console.log(`🔍 Trying direct path: ${directPath}`);
+
+    if (fs.existsSync(directPath)) {
+      console.log(`✅ @babel/runtime module found directly: ${directPath}`);
+      return {
+        filePath: directPath,
+        type: 'sourceFile',
+      };
+    } else {
+      console.log(`❌ Direct path does not exist: ${directPath}`);
+    }
+
+    console.log('❌ @babel/runtime module resolution failed, falling back to default');
   }
 
   // Fallback to default resolution
   return context.resolveRequest(context, moduleName, platform);
 };
 
-// 5. ENTERPRISE PERFORMANCE OPTIMIZATIONS
-// Increase timeout for large monorepos
-config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
+// Asset extensions
+config.resolver.assetExts = [
+  ...config.resolver.assetExts,
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+  'ttf', 'otf', 'woff', 'woff2',
+  'mp4', 'mov', 'avi', 'mkv',
+  'mp3', 'wav', 'aac',
+  'pdf', 'zip'
+];
 
-// 6. Windows-specific optimizations for file watching
-if (process.platform === 'win32') {
-  // Reduce file watching overhead on Windows - only watch mobile app
-  config.watchFolders = [projectRoot];
+// Source extensions
+config.resolver.sourceExts = [
+  ...config.resolver.sourceExts,
+  'ts', 'tsx', 'js', 'jsx', 'json', 'mjs', 'cjs'
+];
 
-  // Add timeout configuration for Windows
-  config.server = {
-    ...config.server,
-    enhanceMiddleware: (middleware) => {
-      return (req, res, next) => {
-        // Set longer timeout for Windows file system
-        req.setTimeout(60000); // 60 seconds
-        res.setTimeout(60000);
-        return middleware(req, res, next);
-      };
-    },
-  };
-}
+// Transformer configuration
+config.transformer = {
+  ...config.transformer,
+  unstable_allowRequireContext: true,
+};
 
-// 7. Cache optimization for enterprise development
+// SVG support (simplified for EAS)
 try {
-  const FileStore = require('metro-cache/src/stores/FileStore');
-  config.cacheStores = [
-    new FileStore({
-      root: path.join(projectRoot, '.metro-cache'),
-    }),
-  ];
+  const svgTransformer = require.resolve('react-native-svg-transformer');
+  config.transformer.babelTransformerPath = svgTransformer;
+  config.resolver.assetExts = config.resolver.assetExts.filter((ext) => ext !== 'svg');
+  config.resolver.sourceExts.push('svg');
+  console.log('✅ SVG transformer enabled for EAS build');
 } catch (error) {
-  // Fallback if FileStore is not available or has issues
-  console.log('⚠️ Using default Metro cache configuration');
+  console.log('⚠️  SVG transformer not available, using default asset handling');
 }
 
-console.log('📝 Using ENTERPRISE-OPTIMIZED Metro config with PNPM + NativeWind v2 compatibility');
-console.log(`🔍 Watching folders: ${config.watchFolders.length} directories`);
-console.log(`🖥️  Platform: ${process.platform}`);
-console.log(`📦 PNPM symlink resolution: ${config.resolver.unstable_enableSymlinks ? 'ENABLED' : 'DISABLED'}`);
-console.log(`🎯 Critical aliases configured: ${Object.keys(config.resolver.alias).length} dependencies`);
-console.log(`🎨 NativeWind v2.0.11: ENTERPRISE READY`);
+// Apply NativeWind (simplified for EAS)
+try {
+  const { withNativeWind } = require('nativewind/metro');
+  const finalConfig = withNativeWind(config, {
+    input: './global.css',
+    configPath: './tailwind.config.js',
+  });
+  console.log('✅ NativeWind applied to EAS build config');
+  module.exports = finalConfig;
+} catch (error) {
+  console.log('⚠️  NativeWind not available, using basic config');
+  module.exports = config;
+}
 
-module.exports = config;
+console.log('✅ EAS Metro configuration loaded successfully');
+console.log('🎯 Optimized for EAS build resolution');

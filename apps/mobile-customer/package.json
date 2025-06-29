@@ -37,30 +37,52 @@
     "@react-native-firebase/app": "^22.2.1",
     "@react-native-firebase/auth": "^22.2.1",
     "@react-native-firebase/firestore": "^22.2.1",
+    "@react-native/assets-registry": "^0.79.4",
+    "@react-native/normalize-colors": "^0.79.4",
+    "@react-native/virtualized-lists": "^0.79.4",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/core": "^7.1.6",
+    "@react-navigation/elements": "^2.1.14",
     "@react-navigation/native": "^7.1.6",
+    "@react-navigation/routers": "^7.1.14",
     "@react-navigation/stack": "^7.3.6",
+    "ansi-regex": "^6.1.0",
+    "base64-js": "^1.5.1",
+    "buffer": "^6.0.3",
+    "color": "^4.2.3",
+    "color-string": "^1.9.1",
+    "css-mediaquery": "^0.1.2",
+    "decode-uri-component": "^0.4.1",
+    "escape-string-regexp": "^5.0.0",
     "expo": "53.0.13",
     "expo-asset": "^11.1.5",
     "expo-build-properties": "~0.14.6",
     "expo-constants": "^17.1.6",
+    "expo-dev-client": "^5.2.2",
     "expo-file-system": "^18.1.10",
     "expo-font": "^13.3.1",
     "expo-linear-gradient": "~14.1.5",
     "expo-linking": "^7.1.5",
-
+    "expo-modules-core": "^2.4.0",
     "expo-router": "~5.1.1",
     "expo-status-bar": "~2.2.3",
     "fbjs": "^3.0.5",
+    "filter-obj": "^6.1.0",
     "firebase": "^11.8.1",
+    "ieee754": "^1.2.1",
     "invariant": "^2.2.4",
+    "memoize-one": "^6.0.0",
+    "nanoid": "^5.0.9",
     "nativewind": "^2.0.11",
     "nullthrows": "^1.1.1",
+    "query-string": "^9.1.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-is": "^18.3.1",
     "react-native": "0.79.4",
+    "react-native-edge-to-edge": "^1.6.0",
     "react-native-gesture-handler": "~2.24.0",
+    "react-native-is-edge-to-edge": "^1.1.4",
     "react-native-maps": "1.20.1",
     "react-native-reanimated": "3.17.4",
     "react-native-safe-area-context": "5.4.0",
@@ -69,34 +91,14 @@
     "react-native-vector-icons": "^10.2.0",
     "react-native-web": "^0.20.0",
     "react-native-web-linear-gradient": "^1.1.2",
-    "react-native-is-edge-to-edge": "^1.1.4",
-    "react-native-edge-to-edge": "^1.6.0",
-    "@react-native/virtualized-lists": "^0.79.4",
-    "memoize-one": "^6.0.0",
-    "whatwg-url-without-unicode": "^8.0.0-3",
-    "use-sync-external-store": "^1.2.0",
-    "use-latest-callback": "^0.2.1",
-    "@react-navigation/routers": "^7.1.14",
-    "ansi-regex": "^6.1.0",
-    "@react-native/normalize-colors": "^0.79.4",
-    "react-is": "^18.3.1",
-    "query-string": "^9.1.1",
-    "nanoid": "^5.0.9",
-    "escape-string-regexp": "^5.0.0",
-    "@react-navigation/elements": "^2.1.14",
-    "buffer": "^6.0.3",
-    "@react-native/assets-registry": "^0.79.4",
-    "base64-js": "^1.5.1",
-    "stacktrace-parser": "^0.1.10",
-    "css-mediaquery": "^0.1.2",
-    "webidl-conversions": "^7.0.0",
-    "decode-uri-component": "^0.4.1",
-    "ieee754": "^1.2.1",
-    "filter-obj": "^6.1.0",
-    "split-on-first": "^3.0.0",
-    "color": "^4.2.3",
     "scheduler": "^0.25.0",
-    "typescript": "~5.8.3"
+    "split-on-first": "^3.0.0",
+    "stacktrace-parser": "^0.1.10",
+    "typescript": "~5.8.3",
+    "use-latest-callback": "^0.2.1",
+    "use-sync-external-store": "^1.2.0",
+    "webidl-conversions": "^7.0.0",
+    "whatwg-url-without-unicode": "^8.0.0-3"
   },
   "devDependencies": {
     "@babel/core": "^7.27.4",
@@ -111,7 +113,21 @@
     "doctor": {
       "reactNativeDirectoryCheck": {
         "listUnknownPackages": false,
-        "exclude": ["react-native-is-edge-to-edge"]
+        "exclude": [
+          "react-native-is-edge-to-edge"
+        ]
+      }
+    },
+    "autolinking": {
+      "android": {
+        "searchPaths": ["../.."],
+        "exclude": []
+      },
+      "expo": {
+        "android": {
+          "sourceDir": "../../node_modules/expo/android",
+          "packageImportPath": "import expo.modules.ExpoModulesPackage;"
+        }
       }
     }
   },

@@ -36,13 +36,53 @@ if [ "$EAS_BUILD" = "true" ] || [ "$CI" = "true" ]; then
         echo "❌ @expo/metro-runtime NOT found in root node_modules"
         exit 1
     fi
+
+    # Verify scheduler module
+    echo "🔍 Verifying scheduler..."
+    if [ -d "../../node_modules/scheduler" ]; then
+        echo "✅ scheduler found in root node_modules"
+        if [ -f "../../node_modules/scheduler/index.native.js" ]; then
+            echo "✅ scheduler/index.native.js exists"
+        else
+            echo "❌ scheduler/index.native.js NOT found"
+            exit 1
+        fi
+    else
+        echo "❌ scheduler NOT found in root node_modules"
+        exit 1
+    fi
     
     # Test Metro config loading
     echo "🔧 Testing Metro configuration..."
-    if node -e "require('./metro.config.js'); console.log('✅ Metro config loads successfully')"; then
-        echo "✅ Metro configuration is valid"
+    if node -e "require('./metro.config.eas.js'); console.log('✅ EAS Metro config loads successfully')"; then
+        echo "✅ EAS Metro configuration is valid"
     else
-        echo "❌ Metro configuration has errors"
+        echo "❌ EAS Metro configuration has errors"
+        exit 1
+    fi
+
+    # Test scheduler resolution specifically
+    echo "🔧 Testing scheduler module resolution..."
+    if node -e "
+        const path = require('path');
+        const fs = require('fs');
+        const schedulerPath = path.resolve('../../node_modules/scheduler/index.native.js');
+        if (fs.existsSync(schedulerPath)) {
+            const scheduler = require(schedulerPath);
+            if (typeof scheduler.unstable_scheduleCallback === 'function') {
+                console.log('✅ Scheduler module resolution successful');
+            } else {
+                console.log('❌ Scheduler missing expected exports');
+                process.exit(1);
+            }
+        } else {
+            console.log('❌ Scheduler native file not found');
+            process.exit(1);
+        }
+    "; then
+        echo "✅ Scheduler module verification passed"
+    else
+        echo "❌ Scheduler module verification failed"
         exit 1
     fi
     

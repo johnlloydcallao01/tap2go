@@ -10,6 +10,17 @@ console.log('🏗️  EAS BUILD Metro Configuration');
 console.log('📁 Project root:', projectRoot);
 console.log('📁 Monorepo root:', monorepoRoot);
 
+// Debug: Check if @babel/runtime exists
+const babelRuntimePath = path.resolve(monorepoRoot, 'node_modules/@babel/runtime');
+const babelRuntimeExists = fs.existsSync(babelRuntimePath);
+console.log('🔍 @babel/runtime exists at monorepo root:', babelRuntimeExists);
+
+if (babelRuntimeExists) {
+  const helperPath = path.resolve(babelRuntimePath, 'helpers/interopRequireDefault.js');
+  const helperExists = fs.existsSync(helperPath);
+  console.log('🔍 interopRequireDefault helper exists:', helperExists);
+}
+
 const config = getDefaultConfig(projectRoot);
 
 // Essential configuration for EAS builds
@@ -54,7 +65,9 @@ config.resolver.extraNodeModules = {
   'filter-obj': path.resolve(monorepoRoot, 'node_modules/filter-obj'),
   'split-on-first': path.resolve(monorepoRoot, 'node_modules/split-on-first'),
   'color': path.resolve(monorepoRoot, 'node_modules/color'),
-  'scheduler': path.resolve(monorepoRoot, 'node_modules/scheduler'),
+  'color-string': path.resolve(monorepoRoot, 'node_modules/color-string'),
+  '@babel/runtime': path.resolve(monorepoRoot, 'node_modules/@babel/runtime'),
+  'scheduler': path.resolve(monorepoRoot, 'node_modules/scheduler/index.native.js'),
 };
 
 // Disable symlinks for EAS build stability
@@ -123,11 +136,60 @@ config.resolver.extraNodeModules = {
   'filter-obj': path.resolve(monorepoRoot, 'node_modules/filter-obj'),
   'split-on-first': path.resolve(monorepoRoot, 'node_modules/split-on-first'),
   'color': path.resolve(monorepoRoot, 'node_modules/color'),
-  'scheduler': path.resolve(monorepoRoot, 'node_modules/scheduler'),
+  'color-string': path.resolve(monorepoRoot, 'node_modules/color-string'),
+  '@babel/runtime': path.resolve(monorepoRoot, 'node_modules/@babel/runtime'),
+  'scheduler': path.resolve(monorepoRoot, 'node_modules/scheduler/index.native.js'),
 };
 
 // Platform extensions
 config.resolver.platforms = ['native', 'android', 'ios', 'web'];
+
+// Custom resolver for critical modules
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Handle scheduler module
+  if (moduleName === 'scheduler') {
+    const schedulerPath = path.resolve(monorepoRoot, 'node_modules/scheduler/index.native.js');
+    console.log(`🔧 Resolving scheduler to: ${schedulerPath}`);
+
+    if (fs.existsSync(schedulerPath)) {
+      console.log('✅ Scheduler native file found');
+      return {
+        filePath: schedulerPath,
+        type: 'sourceFile',
+      };
+    } else {
+      console.log('❌ Scheduler native file not found, falling back to default resolution');
+    }
+  }
+
+  // Handle @babel/runtime modules
+  if (moduleName.startsWith('@babel/runtime/')) {
+    // Try multiple possible locations
+    const possiblePaths = [
+      path.resolve(monorepoRoot, 'node_modules', moduleName + '.js'),
+      path.resolve(monorepoRoot, 'node_modules', moduleName, 'index.js'),
+      path.resolve(projectRoot, 'node_modules', moduleName + '.js'),
+      path.resolve(projectRoot, 'node_modules', moduleName, 'index.js'),
+    ];
+
+    console.log(`🔧 Resolving @babel/runtime module: ${moduleName}`);
+
+    for (const possiblePath of possiblePaths) {
+      if (fs.existsSync(possiblePath)) {
+        console.log(`✅ @babel/runtime module found at: ${possiblePath}`);
+        return {
+          filePath: possiblePath,
+          type: 'sourceFile',
+        };
+      }
+    }
+
+    console.log('❌ @babel/runtime module not found in any location, falling back to default resolution');
+  }
+
+  // Fallback to default resolution
+  return context.resolveRequest(context, moduleName, platform);
+};
 
 // Asset extensions
 config.resolver.assetExts = [

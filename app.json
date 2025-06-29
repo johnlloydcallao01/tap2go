@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "tap2go9n/tap2go-mobile-customer"
+      }
+    }
+  }
+}

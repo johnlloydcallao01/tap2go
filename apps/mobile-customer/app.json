@@ -3,18 +3,21 @@
     "name": "Tap2Go Customer",
     "slug": "tap2go-mobile-customer",
     "version": "1.0.0",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*"
     ],
+    "android": {
+      "package": "com.tap2go.mobile"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "owner": "tap2go9n",
     "extra": {
       "eas": {
-        "projectId": "8e1bc5e3-d3d5-4de0-b1b4-f427a592c0ff"
+        "projectId": "fa72c7a1-5750-4912-9f23-957f6ff2c253"
       }
-    },
-    "owner": "johnwebsites"
+    }
   }
 }
