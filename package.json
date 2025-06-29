@@ -52,6 +52,9 @@
       "color-string",
       "color",
       "color-convert",
+      "color-name",
+      "simple-swizzle",
+      "hoist-non-react-statics",
       "@babel/runtime"
     ],
     "overrides": {
@@ -76,10 +79,15 @@
   "dependencies": {
     "@babel/runtime": "^7.27.6",
     "@headlessui/react": "^2.2.4",
+    "color": "^4.2.3",
+    "color-convert": "^3.1.0",
+    "color-name": "^2.0.0",
+    "color-string": "^1.9.1",
+    "hoist-non-react-statics": "^3.3.2",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "redux-persist": "^6.0.0",
     "scheduler": "^0.25.0",
-    "color-string": "^1.9.1"
+    "simple-swizzle": "^0.2.2"
   }
 }

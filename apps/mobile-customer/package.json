@@ -50,6 +50,8 @@
     "base64-js": "^1.5.1",
     "buffer": "^6.0.3",
     "color": "^4.2.3",
+    "color-convert": "^3.1.0",
+    "color-name": "^2.0.0",
     "color-string": "^1.9.1",
     "css-mediaquery": "^0.1.2",
     "decode-uri-component": "^0.4.1",
@@ -69,6 +71,7 @@
     "fbjs": "^3.0.5",
     "filter-obj": "^6.1.0",
     "firebase": "^11.8.1",
+    "hoist-non-react-statics": "^3.3.2",
     "ieee754": "^1.2.1",
     "invariant": "^2.2.4",
     "memoize-one": "^6.0.0",
@@ -92,6 +95,7 @@
     "react-native-web": "^0.20.0",
     "react-native-web-linear-gradient": "^1.1.2",
     "scheduler": "^0.25.0",
+    "simple-swizzle": "^0.2.2",
     "split-on-first": "^3.0.0",
     "stacktrace-parser": "^0.1.10",
     "typescript": "~5.8.3",
@@ -103,6 +107,7 @@
   "devDependencies": {
     "@babel/core": "^7.27.4",
     "@expo/cli": "^0.24.15",
+    "@react-native-community/cli": "^18.0.0",
     "@types/react": "~19.0.10",
     "babel-preset-expo": "~13.0.0",
     "prettier-plugin-tailwindcss": "^0.5.14",
@@ -120,14 +125,7 @@
     },
     "autolinking": {
       "android": {
-        "searchPaths": ["../.."],
-        "exclude": []
-      },
-      "expo": {
-        "android": {
-          "sourceDir": "../../node_modules/expo/android",
-          "packageImportPath": "import expo.modules.ExpoModulesPackage;"
-        }
+        "packageName": "com.tap2go.mobile"
       }
     }
   },
