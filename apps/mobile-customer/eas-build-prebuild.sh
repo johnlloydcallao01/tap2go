@@ -8,6 +8,8 @@ echo "🔧 EAS Build Prebuild Hook - Ensuring Expo CLI availability"
 # Check if we're in EAS Build environment
 if [ "$EAS_BUILD" = "true" ] || [ "$CI" = "true" ]; then
     echo "✅ EAS Build environment detected"
+
+
     
     # Check if local expo CLI is available
     if [ -f "node_modules/expo/bin/cli" ]; then

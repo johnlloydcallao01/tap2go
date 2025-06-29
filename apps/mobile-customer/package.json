@@ -27,7 +27,7 @@
     "build:android:debug": "npx expo prebuild --platform android && cd android && ./gradlew assembleDebug",
     "prebuild:android": "npx expo prebuild --platform android --clean",
     "prebuild:clean": "npx expo prebuild --clear",
-    "postinstall": "bash eas-build-post-install.sh"
+    "postinstall": "bash eas-build-post-install.sh || echo 'Post-install script skipped (not in EAS build environment)'"
   },
   "dependencies": {
     "@babel/plugin-transform-runtime": "^7.27.4",
