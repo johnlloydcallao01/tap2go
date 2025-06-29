@@ -92,12 +92,37 @@ if [ "$EAS_BUILD" = "true" ] || [ "$CI" = "true" ]; then
         # Verify the expo symlink works
         if [ -f "node_modules/expo/package.json" ]; then
             echo "✅ expo symlink verified - package.json accessible"
+
+            # Also verify the CLI binary exists
+            if [ -f "node_modules/expo/bin/cli" ]; then
+                echo "✅ expo CLI binary accessible at node_modules/expo/bin/cli"
+            else
+                echo "⚠️  expo CLI binary not found at node_modules/expo/bin/cli"
+            fi
         else
             echo "❌ expo symlink failed - package.json not accessible"
-            echo "⚠️  Continuing without expo symlink - Metro resolver will handle this"
+            echo "⚠️  Continuing without expo symlink - will try alternative approaches"
         fi
     else
-        echo "⚠️  expo not found in root node_modules - Metro resolver will handle this"
+        echo "⚠️  expo not found in root node_modules - will try alternative approaches"
+
+        # Try to find expo in pnpm structure
+        if [ -d "../../node_modules/.pnpm" ]; then
+            for dir in "../../node_modules/.pnpm"/expo@*; do
+                if [ -d "$dir/node_modules/expo" ]; then
+                    echo "📍 Found expo in pnpm structure: $dir/node_modules/expo"
+                    ln -sf "$(pwd)/$dir/node_modules/expo" "node_modules/expo"
+                    echo "✅ Created symlink: node_modules/expo -> $dir/node_modules/expo"
+
+                    if [ -f "node_modules/expo/bin/cli" ]; then
+                        echo "✅ expo CLI binary accessible from pnpm structure"
+                    else
+                        echo "⚠️  expo CLI binary not found in pnpm structure"
+                    fi
+                    break
+                fi
+            done
+        fi
     fi
     
     # Verify Metro runtime
