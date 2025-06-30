@@ -5,8 +5,28 @@
  */
 
 import React from 'react';
-import { View, ViewStyle } from 'react-native';
-import { useResponsiveStyles, createResponsiveValue, createResponsiveSpacing } from '../hooks/useResponsiveStyles';
+import { View, ViewStyle, Text, TextStyle, TouchableOpacity } from 'react-native';
+
+// Safe import with fallback
+let useResponsiveStyles: any;
+let createResponsiveValue: any;
+let createResponsiveSpacing: any;
+
+try {
+  const responsiveModule = require('../hooks/useResponsiveStyles');
+  useResponsiveStyles = responsiveModule.useResponsiveStyles;
+  createResponsiveValue = responsiveModule.createResponsiveValue;
+  createResponsiveSpacing = responsiveModule.createResponsiveSpacing;
+} catch (error) {
+  console.warn('ResponsiveStyles not available, using fallbacks:', error);
+
+  // Fallback implementations
+  useResponsiveStyles = (callback: any) => {
+    return callback({ width: 375, height: 667, deviceType: 'mobile' });
+  };
+  createResponsiveValue = (screenInfo: any, values: any) => values.mobile || values;
+  createResponsiveSpacing = (screenInfo: any, value: number) => value;
+}
 
 interface ResponsiveContainerProps {
   children: React.ReactNode;
@@ -165,7 +185,6 @@ export const ResponsiveCard: React.FC<ResponsiveCardProps> = ({
  * Responsive Text Component
  * Automatically adjusts font size based on screen size
  */
-import { Text, TextStyle } from 'react-native';
 
 interface ResponsiveTextProps {
   children: React.ReactNode;
@@ -214,7 +233,6 @@ export const ResponsiveText: React.FC<ResponsiveTextProps> = ({
  * Responsive Button Component
  * Adapts size and padding based on screen size
  */
-import { TouchableOpacity } from 'react-native';
 
 interface ResponsiveButtonProps {
   children: React.ReactNode;

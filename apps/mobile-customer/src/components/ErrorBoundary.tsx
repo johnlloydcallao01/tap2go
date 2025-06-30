@@ -31,10 +31,17 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('🚨 ErrorBoundary caught an error:', error);
+    console.error('🚨 Error Info:', errorInfo);
+    console.error('🚨 Error Stack:', error.stack);
+    console.error('🚨 Component Stack:', errorInfo.componentStack);
 
     // Report crash to our crash reporting system
-    CrashReporter.getInstance().logCrash(error, errorInfo);
+    try {
+      CrashReporter.getInstance().logCrash(error, errorInfo);
+    } catch (crashReportError) {
+      console.error('Failed to report crash:', crashReportError);
+    }
 
     this.setState({
       error,

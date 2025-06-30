@@ -45,7 +45,17 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function useCart() {
   const context = useContext(CartContext);
   if (context === undefined) {
-    throw new Error('useCart must be used within a CartProvider');
+    console.error('useCart must be used within a CartProvider');
+    // Return a safe fallback instead of throwing
+    return {
+      cart: null,
+      addToCart: () => console.warn('Cart not available'),
+      removeFromCart: () => console.warn('Cart not available'),
+      updateQuantity: () => console.warn('Cart not available'),
+      clearCart: () => console.warn('Cart not available'),
+      getCartTotal: () => 0,
+      getCartItemCount: () => 0,
+    };
   }
   return context;
 }
@@ -198,14 +208,16 @@ interface CartProviderProps {
 export function CartProvider({ children }: CartProviderProps) {
   const [cart, dispatch] = useReducer(cartReducer, null);
 
-  // Load cart from AsyncStorage on mount
+  // Load cart from AsyncStorage on mount with error handling
   useEffect(() => {
     const loadCart = async () => {
       try {
-        const savedCart = await AsyncStorage.getItem('cart');
-        if (savedCart) {
-          const parsedCart = JSON.parse(savedCart);
-          dispatch({ type: 'LOAD_CART', payload: parsedCart });
+        if (AsyncStorage && typeof AsyncStorage.getItem === 'function') {
+          const savedCart = await AsyncStorage.getItem('cart');
+          if (savedCart) {
+            const parsedCart = JSON.parse(savedCart);
+            dispatch({ type: 'LOAD_CART', payload: parsedCart });
+          }
         }
       } catch (error) {
         console.error('Error loading cart from AsyncStorage:', error);
@@ -215,14 +227,16 @@ export function CartProvider({ children }: CartProviderProps) {
     loadCart();
   }, []);
 
-  // Save cart to AsyncStorage whenever it changes
+  // Save cart to AsyncStorage whenever it changes with error handling
   useEffect(() => {
     const saveCart = async () => {
       try {
-        if (cart) {
-          await AsyncStorage.setItem('cart', JSON.stringify(cart));
-        } else {
-          await AsyncStorage.removeItem('cart');
+        if (AsyncStorage && typeof AsyncStorage.setItem === 'function') {
+          if (cart) {
+            await AsyncStorage.setItem('cart', JSON.stringify(cart));
+          } else {
+            await AsyncStorage.removeItem('cart');
+          }
         }
       } catch (error) {
         console.error('Error saving cart to AsyncStorage:', error);

@@ -12,6 +12,7 @@
     "start-safe": "node fix-expo-cache.js",
     "start-fallback": "copy metro.config.fallback.js metro.config.js && node fix-expo-cache.js",
     "start-original": "npx expo start",
+    "start-expo-go": "npx expo start --go",
     "cache:validate": "node scripts/enterprise-cache-manager.js validate",
     "cache:clean": "node scripts/enterprise-cache-manager.js clean",
     "cache:optimize": "node scripts/enterprise-cache-manager.js optimize",

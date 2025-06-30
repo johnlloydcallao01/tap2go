@@ -10,6 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+// Import responsive components
+import { ResponsiveText, ResponsiveContainer, ResponsiveCard, ResponsiveGrid } from '../components';
+
 // Import components with error handling
 let RestaurantCard: any;
 let CategoryFilter: any;
@@ -17,29 +20,46 @@ let SearchBar: any;
 let MapSection: any;
 let MobileHeader: any;
 let FooterNavigation: any;
-let ResponsiveContainer: any;
-let ResponsiveCard: any;
-let ResponsiveText: any;
-let ResponsiveGrid: any;
+// ResponsiveContainer, ResponsiveText, etc. are now imported from components
 let useResponsive: any;
 let useCart: any;
 
 try {
-  RestaurantCard = require('../components/RestaurantCard').default;
-  CategoryFilter = require('../components/CategoryFilter').default;
-  SearchBar = require('../components/SearchBar').default;
-  MapSection = require('../components/MapSection').default;
-  MobileHeader = require('../components/MobileHeader').default;
-  FooterNavigation = require('../components/FooterNavigation').default;
+  // Safe component imports with fallback checks
+  const restaurantCardModule = require('../components/RestaurantCard');
+  RestaurantCard = restaurantCardModule?.default || restaurantCardModule;
 
+  const categoryFilterModule = require('../components/CategoryFilter');
+  CategoryFilter = categoryFilterModule?.default || categoryFilterModule;
+
+  const searchBarModule = require('../components/SearchBar');
+  SearchBar = searchBarModule?.default || searchBarModule;
+
+  const mapSectionModule = require('../components/MapSection');
+  MapSection = mapSectionModule?.default || mapSectionModule;
+
+  const mobileHeaderModule = require('../components/MobileHeader');
+  MobileHeader = mobileHeaderModule?.default || mobileHeaderModule;
+
+  const footerNavModule = require('../components/FooterNavigation');
+  FooterNavigation = footerNavModule?.default || footerNavModule;
+
+  // Safe responsive components import with null checks
   const ResponsiveComponents = require('../components/ResponsiveContainer');
-  ResponsiveContainer = ResponsiveComponents.ResponsiveContainer;
-  ResponsiveCard = ResponsiveComponents.ResponsiveCard;
-  ResponsiveText = ResponsiveComponents.ResponsiveText;
-  ResponsiveGrid = ResponsiveComponents.ResponsiveGrid;
+  if (ResponsiveComponents && typeof ResponsiveComponents === 'object') {
+    ResponsiveContainer = ResponsiveComponents.ResponsiveContainer || ResponsiveComponents.default;
+  }
 
-  useResponsive = require('../utils/responsive').useResponsive;
-  useCart = require('../contexts/CartContext').useCart;
+  // Safe hook imports with null checks
+  const responsiveModule = require('../utils/responsive');
+  if (responsiveModule && typeof responsiveModule === 'object') {
+    useResponsive = responsiveModule.useResponsive || responsiveModule.default;
+  }
+
+  const cartModule = require('../contexts/CartContext');
+  if (cartModule && typeof cartModule === 'object') {
+    useCart = cartModule.useCart || cartModule.default;
+  }
 } catch (error) {
   console.warn('Failed to import some components, using fallbacks:', error);
 
@@ -63,14 +83,8 @@ try {
 
   FooterNavigation = () => <View style={{ height: 60, backgroundColor: '#f3a823' }} />;
 
-  ResponsiveContainer = ({ children }: { children: React.ReactNode }) => <View>{children}</View>;
-  ResponsiveCard = ({ children, ...props }: any) => (
-    <View style={{ backgroundColor: 'white', borderRadius: 8, padding: 16, margin: 8 }} {...props}>
-      {children}
-    </View>
-  );
-  ResponsiveText = ({ children, ...props }: any) => <Text {...props}>{children}</Text>;
-  ResponsiveGrid = ({ children }: { children: React.ReactNode }) => <View>{children}</View>;
+  // ResponsiveText is now imported from components
+  // ResponsiveContainer, ResponsiveCard, ResponsiveGrid are now imported from components
 
   useResponsive = () => ({ isMobile: true, isTablet: false, isDesktop: false });
   useCart = () => ({ items: [], addItem: () => {}, removeItem: () => {}, clearCart: () => {} });
@@ -128,9 +142,9 @@ export default function HomeScreen({ navigation }: any) {
     cartData = { addToCart: () => {}, getCartItemCount: () => 0 };
   }
 
-  const { isTablet, deviceType } = responsiveData;
-  const { addToCart, getCartItemCount } = cartData;
-  const cartItemCount = getCartItemCount();
+  const { isTablet = false, deviceType = 'mobile' } = responsiveData || {};
+  const { addToCart = () => {}, getCartItemCount = () => 0 } = cartData || {};
+  const cartItemCount = typeof getCartItemCount === 'function' ? getCartItemCount() : 0;
 
   // Load data function (same logic as web app)
   const loadData = async () => {
@@ -741,9 +755,6 @@ export default function HomeScreen({ navigation }: any) {
 
         </ScrollView>
       </View>
-
-      {/* Footer Navigation - positioned above bottom safe area */}
-      <FooterNavigation navigation={navigation} activeScreen="Home" />
 
       {/* Bottom safe area with light background */}
       <SafeAreaView style={{ backgroundColor: '#f9fafb' }} edges={['bottom']} />

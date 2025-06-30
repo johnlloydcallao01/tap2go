@@ -1,0 +1,3 @@
+@echo off
+echo Starting Expo with Development Build...
+npx expo start

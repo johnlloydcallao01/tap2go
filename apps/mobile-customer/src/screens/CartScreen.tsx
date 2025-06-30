@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCart } from '../contexts/CartContext';
-import FooterNavigation from '../components/FooterNavigation';
+
 
 export default function CartScreen({ navigation }: any) {
   const { cart, getCartItemCount, addToCart, clearCart } = useCart();
@@ -93,9 +93,6 @@ export default function CartScreen({ navigation }: any) {
         )}
         </ScrollView>
       </View>
-
-      {/* Footer Navigation - positioned above bottom safe area */}
-      <FooterNavigation navigation={navigation} activeScreen="Cart" />
 
       {/* Bottom safe area with light background */}
       <SafeAreaView style={{ backgroundColor: '#f9fafb' }} edges={['bottom']} />

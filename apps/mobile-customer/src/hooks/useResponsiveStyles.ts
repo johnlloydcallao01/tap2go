@@ -22,14 +22,33 @@ type StylesObject = { [key: string]: Style };
 export const useResponsiveStyles = <T extends StylesObject>(
   createStyles: (screenInfo: ScreenInfo) => T
 ): T => {
-  const screenInfo = useResponsive();
-  
+  let screenInfo: ScreenInfo;
+
+  try {
+    screenInfo = useResponsive();
+  } catch (error) {
+    console.warn('useResponsive failed, using fallback:', error);
+    screenInfo = {
+      width: 375,
+      height: 667,
+      deviceType: 'mobile',
+      isTablet: false,
+      isLargeScreen: false,
+      orientation: 'portrait'
+    };
+  }
+
   // Memoize styles to prevent unnecessary recalculations
   const styles = useMemo(() => {
-    const styleObject = createStyles(screenInfo);
-    return StyleSheet.create(styleObject);
+    try {
+      const styleObject = createStyles(screenInfo);
+      return StyleSheet.create(styleObject);
+    } catch (styleError) {
+      console.warn('Style creation failed, using empty styles:', styleError);
+      return {} as T;
+    }
   }, [screenInfo.width, screenInfo.height, screenInfo.deviceType]);
-  
+
   return styles;
 };
 

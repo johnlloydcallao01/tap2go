@@ -3,6 +3,7 @@
     "name": "Tap2Go Customer",
     "slug": "tap2go-mobile-customer",
     "version": "1.0.0",
+    "scheme": "tap2go",
     "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*"
@@ -10,6 +11,20 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
+    ],
     "owner": "tap2go9o",
     "extra": {
       "eas": {

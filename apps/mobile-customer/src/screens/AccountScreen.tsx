@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import FooterNavigation from '../components/FooterNavigation';
+
 
 export default function AccountScreen({ navigation }: any) {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
@@ -272,9 +272,6 @@ export default function AccountScreen({ navigation }: any) {
         <View style={{ height: 100 }} />
         </ScrollView>
       </View>
-
-      {/* Footer Navigation - positioned above bottom safe area */}
-      <FooterNavigation navigation={navigation} activeScreen="Account" />
 
       {/* Bottom safe area with light background */}
       <SafeAreaView style={{ backgroundColor: '#f9fafb' }} edges={['bottom']} />

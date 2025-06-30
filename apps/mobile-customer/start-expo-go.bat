@@ -1,0 +1,3 @@
+@echo off
+echo Starting Expo with Expo Go (managed workflow)...
+npx expo start --go
