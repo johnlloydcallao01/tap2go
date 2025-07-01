@@ -4,7 +4,6 @@
     "slug": "tap2go-mobile-customer",
     "version": "1.0.0",
     "scheme": "tap2go",
-    "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*"
     ],

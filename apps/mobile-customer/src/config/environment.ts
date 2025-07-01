@@ -4,10 +4,71 @@
  * Works in both local development and EAS Build
  */
 
+// In production builds, environment variables should be inlined by Metro bundler
+// If they're not accessible via process.env, we need to use direct references
+// This is a workaround for React Native production build environment variable access
+
+// Direct environment variable references for production builds
+// These will be replaced by Metro bundler during build time
+const ENV_VARS = {
+  EXPO_PUBLIC_FIREBASE_API_KEY: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  EXPO_PUBLIC_FIREBASE_PROJECT_ID: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  EXPO_PUBLIC_FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  EXPO_PUBLIC_FIREBASE_VAPID_KEY: process.env.EXPO_PUBLIC_FIREBASE_VAPID_KEY,
+  EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  EXPO_PUBLIC_MAPS_FRONTEND_KEY: process.env.EXPO_PUBLIC_MAPS_FRONTEND_KEY,
+  EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  EXPO_PUBLIC_PAYMONGO_PUBLIC_KEY_LIVE: process.env.EXPO_PUBLIC_PAYMONGO_PUBLIC_KEY_LIVE,
+} as const;
+
 // Helper function to get environment variable with safe fallback
 const getEnvVar = (key: string): string => {
   try {
-    return process.env[key] || '';
+    // First, try to get from the pre-defined ENV_VARS object (for production builds)
+    if (key in ENV_VARS) {
+      const value = ENV_VARS[key as keyof typeof ENV_VARS];
+      if (value) {
+        // Debug logging for critical variables
+        if (key.includes('FIREBASE') || key.includes('SUPABASE') || key.includes('MAPS')) {
+          console.log(`🔧 getEnvVar(${key}): ✅ Found via ENV_VARS (${value.substring(0, 20)}...)`);
+        }
+        return value;
+      }
+    }
+
+    // Fallback: try process.env (for development and some build configurations)
+    let value = '';
+    if (typeof process !== 'undefined' && process.env) {
+      value = process.env[key] || '';
+    }
+
+    // Debug logging for critical variables
+    if (key.includes('FIREBASE') || key.includes('SUPABASE') || key.includes('MAPS')) {
+      console.log(`🔧 getEnvVar(${key}): ${value ? `✅ Found via process.env (${value.substring(0, 20)}...)` : '❌ Empty/Missing'}`);
+
+      // Additional debugging for production builds
+      if (!value) {
+        console.log(`🔧 Debug info for ${key}:`);
+        console.log(`  - ENV_VARS[${key}]: ${key in ENV_VARS ? (ENV_VARS[key as keyof typeof ENV_VARS] ? 'SET' : 'EMPTY') : 'NOT_FOUND'}`);
+        console.log(`  - typeof process: ${typeof process}`);
+        console.log(`  - process.env exists: ${typeof process !== 'undefined' && !!process.env}`);
+
+        // Log all available EXPO_PUBLIC_ variables for debugging
+        if (typeof process !== 'undefined' && process.env) {
+          const expoVars = Object.keys(process.env).filter(k => k.startsWith('EXPO_PUBLIC_'));
+          console.log(`  - Available EXPO_PUBLIC_ vars: ${expoVars.length} found`);
+          expoVars.slice(0, 5).forEach(k => {
+            console.log(`    ${k}: ${process.env[k] ? 'SET' : 'EMPTY'}`);
+          });
+        }
+      }
+    }
+
+    return value;
   } catch (error) {
     console.warn(`Failed to access environment variable ${key}:`, error);
     return '';
@@ -17,6 +78,61 @@ const getEnvVar = (key: string): string => {
 // Environment detection with safe fallback
 export const isDevelopment = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
 export const isProduction = !isDevelopment;
+
+// Comprehensive environment debugging function
+export const debugEnvironmentVariables = () => {
+  console.log('🔧 === ENVIRONMENT DEBUGGING ===');
+  console.log(`🔧 Environment: ${isDevelopment ? 'Development' : 'Production'}`);
+  console.log(`🔧 __DEV__: ${typeof __DEV__ !== 'undefined' ? __DEV__ : 'undefined'}`);
+  console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'undefined'}`);
+
+  // Check ENV_VARS object (production build compatibility)
+  console.log('🔧 ENV_VARS object status:');
+  Object.entries(ENV_VARS).forEach(([key, value]) => {
+    console.log(`  ${key}: ${value ? `✅ SET (${value.substring(0, 20)}...)` : '❌ EMPTY'}`);
+  });
+
+  // Check process.env availability
+  console.log(`🔧 typeof process: ${typeof process}`);
+  console.log(`🔧 process.env exists: ${typeof process !== 'undefined' && !!process.env}`);
+
+  if (typeof process !== 'undefined' && process.env) {
+    // Count total environment variables
+    const totalVars = Object.keys(process.env).length;
+    console.log(`🔧 Total environment variables: ${totalVars}`);
+
+    // Check EXPO_PUBLIC_ variables specifically
+    const expoPublicVars = Object.keys(process.env).filter(key => key.startsWith('EXPO_PUBLIC_'));
+    console.log(`🔧 EXPO_PUBLIC_ variables found: ${expoPublicVars.length}`);
+
+    // Log critical variables from process.env
+    const criticalVars = [
+      'EXPO_PUBLIC_FIREBASE_API_KEY',
+      'EXPO_PUBLIC_FIREBASE_PROJECT_ID',
+      'EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN',
+      'EXPO_PUBLIC_SUPABASE_URL',
+      'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+      'EXPO_PUBLIC_MAPS_FRONTEND_KEY'
+    ];
+
+    console.log('🔧 Critical variables status (process.env):');
+    criticalVars.forEach(varName => {
+      const value = process.env[varName];
+      console.log(`  ${varName}: ${value ? `✅ SET (${value.substring(0, 20)}...)` : '❌ MISSING'}`);
+    });
+
+    // Log first few EXPO_PUBLIC_ variables for debugging
+    console.log('🔧 Sample EXPO_PUBLIC_ variables (process.env):');
+    expoPublicVars.slice(0, 10).forEach(varName => {
+      const value = process.env[varName];
+      console.log(`  ${varName}: ${value ? `SET (${value.substring(0, 20)}...)` : 'EMPTY'}`);
+    });
+  } else {
+    console.error('🚨 process.env is not available!');
+  }
+
+  console.log('🔧 === END ENVIRONMENT DEBUGGING ===');
+};
 
 // Firebase Configuration
 export const firebaseConfig = {
@@ -108,6 +224,15 @@ export const validateEnvironment = (): { isValid: boolean; errors: string[] } =>
   const errors: string[] = [];
 
   try {
+    console.log('🔧 Starting environment validation...');
+
+    // Debug: Log all process.env variables that start with EXPO_PUBLIC_
+    console.log('🔧 Available EXPO_PUBLIC_ variables:');
+    Object.keys(process.env).filter(key => key.startsWith('EXPO_PUBLIC_')).forEach(key => {
+      const value = process.env[key];
+      console.log(`  ${key}: ${value ? `✅ Set (${value.substring(0, 20)}...)` : '❌ Empty'}`);
+    });
+
     // Safely check critical configuration objects with null checks
     const requiredVars = {
       'Firebase API Key': firebaseConfig?.apiKey || '',
@@ -118,8 +243,10 @@ export const validateEnvironment = (): { isValid: boolean; errors: string[] } =>
       'Google Maps Frontend Key': mapsConfig?.frontendKey || '',
     };
 
+    console.log('🔧 Checking required configuration values:');
     Object.entries(requiredVars).forEach(([name, value]) => {
       if (!value) {
+        console.error(`❌ ${name}: Missing or empty`);
         errors.push(`Missing ${name}: Configuration value is empty or undefined`);
       } else {
         console.log(`✅ ${name}: Present (${value.substring(0, 20)}...)`);

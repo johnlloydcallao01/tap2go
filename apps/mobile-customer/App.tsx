@@ -115,6 +115,15 @@ export default function App() {
           console.warn('⚠️ Could not check runtime environment:', envCheckError);
         }
 
+        // Debug environment variables first
+        console.log('🔧 Running comprehensive environment debugging...');
+        try {
+          const { debugEnvironmentVariables } = await import('./src/config/environment');
+          debugEnvironmentVariables();
+        } catch (debugError) {
+          console.error('🚨 Environment debugging failed:', debugError);
+        }
+
         // Validate environment variables with error handling
         console.log('🔧 Validating environment configuration...');
         let envValidation;
