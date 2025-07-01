@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import responsive components
-import { ResponsiveText, ResponsiveContainer, ResponsiveCard, ResponsiveGrid } from '../components';
+import { ResponsiveText } from '../components';
 
 // Import components with error handling
 let RestaurantCard: any;
@@ -20,7 +20,7 @@ let SearchBar: any;
 let MapSection: any;
 let MobileHeader: any;
 let FooterNavigation: any;
-// ResponsiveContainer, ResponsiveText, etc. are now imported from components
+// ResponsiveText is now imported from components
 let useResponsive: any;
 let useCart: any;
 
@@ -44,11 +44,7 @@ try {
   const footerNavModule = require('../components/FooterNavigation');
   FooterNavigation = footerNavModule?.default || footerNavModule;
 
-  // Safe responsive components import with null checks
-  const ResponsiveComponents = require('../components/ResponsiveContainer');
-  if (ResponsiveComponents && typeof ResponsiveComponents === 'object') {
-    ResponsiveContainer = ResponsiveComponents.ResponsiveContainer || ResponsiveComponents.default;
-  }
+  // ResponsiveContainer is already imported at the top - no need to reassign
 
   // Safe hook imports with null checks
   const responsiveModule = require('../utils/responsive');
@@ -84,7 +80,6 @@ try {
   FooterNavigation = () => <View style={{ height: 60, backgroundColor: '#f3a823' }} />;
 
   // ResponsiveText is now imported from components
-  // ResponsiveContainer, ResponsiveCard, ResponsiveGrid are now imported from components
 
   useResponsive = () => ({ isMobile: true, isTablet: false, isDesktop: false });
   useCart = () => ({ items: [], addItem: () => {}, removeItem: () => {}, clearCart: () => {} });
@@ -756,8 +751,7 @@ export default function HomeScreen({ navigation }: any) {
         </ScrollView>
       </View>
 
-      {/* Bottom safe area with light background */}
-      <SafeAreaView style={{ backgroundColor: '#f9fafb' }} edges={['bottom']} />
+
     </View>
   );
 }

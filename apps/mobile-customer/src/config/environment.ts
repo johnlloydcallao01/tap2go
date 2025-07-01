@@ -11,6 +11,7 @@
 // Direct environment variable references for production builds
 // These will be replaced by Metro bundler during build time
 const ENV_VARS = {
+  // Firebase Configuration
   EXPO_PUBLIC_FIREBASE_API_KEY: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
   EXPO_PUBLIC_FIREBASE_PROJECT_ID: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
@@ -18,11 +19,50 @@ const ENV_VARS = {
   EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   EXPO_PUBLIC_FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   EXPO_PUBLIC_FIREBASE_VAPID_KEY: process.env.EXPO_PUBLIC_FIREBASE_VAPID_KEY,
+
+  // Note: Firebase Admin SDK is NOT used in mobile apps - only in server-side web app
+
+  // Supabase Configuration
   EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
   EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
+  EXPO_PUBLIC_ENABLE_SUPABASE_CMS: process.env.EXPO_PUBLIC_ENABLE_SUPABASE_CMS,
+
+  // Maps Configuration
   EXPO_PUBLIC_MAPS_FRONTEND_KEY: process.env.EXPO_PUBLIC_MAPS_FRONTEND_KEY,
+  EXPO_PUBLIC_MAPS_BACKEND_KEY: process.env.EXPO_PUBLIC_MAPS_BACKEND_KEY,
+
+  // Cloudinary Configuration
   EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  EXPO_PUBLIC_CLOUDINARY_API_KEY: process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY,
+  EXPO_PUBLIC_CLOUDINARY_API_SECRET: process.env.EXPO_PUBLIC_CLOUDINARY_API_SECRET,
+
+  // PayMongo Configuration
   EXPO_PUBLIC_PAYMONGO_PUBLIC_KEY_LIVE: process.env.EXPO_PUBLIC_PAYMONGO_PUBLIC_KEY_LIVE,
+  EXPO_PUBLIC_PAYMONGO_SECRET_KEY_LIVE: process.env.EXPO_PUBLIC_PAYMONGO_SECRET_KEY_LIVE,
+
+  // Redis Configuration
+  EXPO_PUBLIC_UPSTASH_REDIS_REST_URL: process.env.EXPO_PUBLIC_UPSTASH_REDIS_REST_URL,
+  EXPO_PUBLIC_UPSTASH_REDIS_REST_TOKEN: process.env.EXPO_PUBLIC_UPSTASH_REDIS_REST_TOKEN,
+  EXPO_PUBLIC_ENABLE_REDIS_CACHING: process.env.EXPO_PUBLIC_ENABLE_REDIS_CACHING,
+  EXPO_PUBLIC_REDIS_DEFAULT_TTL: process.env.EXPO_PUBLIC_REDIS_DEFAULT_TTL,
+
+  // Email Configuration
+  EXPO_PUBLIC_RESEND_FROM_EMAIL: process.env.EXPO_PUBLIC_RESEND_FROM_EMAIL,
+  EXPO_PUBLIC_RESEND_API_KEY: process.env.EXPO_PUBLIC_RESEND_API_KEY,
+  EXPO_PUBLIC_ENABLE_EMAIL_NOTIFICATIONS: process.env.EXPO_PUBLIC_ENABLE_EMAIL_NOTIFICATIONS,
+  EXPO_PUBLIC_EMAIL_FROM_NAME: process.env.EXPO_PUBLIC_EMAIL_FROM_NAME,
+  EXPO_PUBLIC_EMAIL_REPLY_TO: process.env.EXPO_PUBLIC_EMAIL_REPLY_TO,
+
+  // AI Configuration
+  EXPO_PUBLIC_GOOGLE_AI_API_KEY: process.env.EXPO_PUBLIC_GOOGLE_AI_API_KEY,
+  EXPO_PUBLIC_ENABLE_AI_FEATURES: process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES,
+  EXPO_PUBLIC_AI_MODEL_DEFAULT: process.env.EXPO_PUBLIC_AI_MODEL_DEFAULT,
+
+  // Bonsai Configuration
+  EXPO_PUBLIC_BONSAI_HOST: process.env.EXPO_PUBLIC_BONSAI_HOST,
+  EXPO_PUBLIC_BONSAI_USERNAME: process.env.EXPO_PUBLIC_BONSAI_USERNAME,
+  EXPO_PUBLIC_BONSAI_PASSWORD: process.env.EXPO_PUBLIC_BONSAI_PASSWORD,
 } as const;
 
 // Helper function to get environment variable with safe fallback
@@ -145,12 +185,9 @@ export const firebaseConfig = {
   vapidKey: getEnvVar('EXPO_PUBLIC_FIREBASE_VAPID_KEY') || getEnvVar('NEXT_PUBLIC_FIREBASE_VAPID_KEY'),
 };
 
-// Firebase Admin Configuration
-export const firebaseAdminConfig = {
-  projectId: getEnvVar('EXPO_PUBLIC_FIREBASE_ADMIN_PROJECT_ID') || getEnvVar('FIREBASE_ADMIN_PROJECT_ID'),
-  privateKey: getEnvVar('FIREBASE_ADMIN_PRIVATE_KEY'), // Keep as server-side only
-  clientEmail: getEnvVar('EXPO_PUBLIC_FIREBASE_ADMIN_CLIENT_EMAIL') || getEnvVar('FIREBASE_ADMIN_CLIENT_EMAIL'),
-};
+// Note: Firebase Admin SDK is NOT used in mobile apps
+// Admin functionality is handled by server-side API calls to the web app
+// Mobile apps only use the regular Firebase client SDK (configured above)
 
 // Google Maps Configuration
 export const mapsConfig = {

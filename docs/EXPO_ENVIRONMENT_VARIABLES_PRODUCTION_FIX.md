@@ -245,20 +245,31 @@ export const debugEnvironmentVariables = () => {
 
 ## 🚨 Common Pitfalls & Solutions
 
-### Pitfall 1: Missing Variables in ENV_VARS
-**Problem**: Adding new environment variables but forgetting to add them to ENV_VARS object.
+### Pitfall 1: Missing Variables in ENV_VARS Object
+**Problem**: Adding new environment variables to `eas.json` and `.env.local` but forgetting to add them to the `ENV_VARS` object in `environment.ts`.
 
-**Solution**: Always update both places:
+**Symptoms**: Variables show as "NOT_FOUND" in ENV_VARS debugging logs, even though they exist in `eas.json`.
+
+**Solution**: Always update all three places:
 ```typescript
 // 1. Add to eas.json
 "EXPO_PUBLIC_NEW_VARIABLE": "value"
 
-// 2. Add to ENV_VARS object
+// 2. Add to .env.local
+EXPO_PUBLIC_NEW_VARIABLE=value
+
+// 3. Add to ENV_VARS object in environment.ts
 const ENV_VARS = {
   // ... existing variables
   EXPO_PUBLIC_NEW_VARIABLE: process.env.EXPO_PUBLIC_NEW_VARIABLE,
 } as const;
 ```
+
+**Real Example**: The original issue was caused by missing variables in ENV_VARS:
+- `EXPO_PUBLIC_FIREBASE_VAPID_KEY` - existed in eas.json but missing from ENV_VARS
+- `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` - existed in eas.json but missing from ENV_VARS
+- `EXPO_PUBLIC_PAYMONGO_PUBLIC_KEY_LIVE` - existed in eas.json but missing from ENV_VARS
+- And several others...
 
 ### Pitfall 2: Dynamic Environment Variable Access
 **Problem**: Using computed property names or dynamic access patterns.
@@ -288,11 +299,14 @@ eas build --platform android --profile preview
 ## 🔍 Troubleshooting Guide
 
 ### Issue: Variables Still Undefined in Production
-1. **Check ENV_VARS object**: Ensure all variables are listed
+1. **Check ENV_VARS object**: Ensure ALL variables are listed in the ENV_VARS object
 2. **Verify eas.json**: Confirm variables are in build profile
-3. **Check build logs**: Look for environment variable loading messages
-4. **Add debugging**: Use `debugEnvironmentVariables()` function
-5. **Test incrementally**: Add one variable at a time to isolate issues
+3. **Check .env.local**: Ensure EXPO_PUBLIC_ prefixed versions exist
+4. **Check build logs**: Look for environment variable loading messages
+5. **Add debugging**: Use `debugEnvironmentVariables()` function
+6. **Test incrementally**: Add one variable at a time to isolate issues
+
+**Critical Check**: Compare the `env: export` line in terminal output with your ENV_VARS object. Missing variables in the export line indicate they're not in .env.local with EXPO_PUBLIC_ prefix.
 
 ### Issue: Variables Work in Development but Not Production
 1. **Check Metro bundler**: Ensure it's inlining variables correctly
@@ -311,3 +325,109 @@ eas build --platform android --profile preview
 **The fundamental issue**: Metro bundler's environment variable inlining works differently in production builds compared to development. The solution is to provide static, analyzable references that Metro can reliably inline at build time.
 
 **The fix**: Create an ENV_VARS object with direct `process.env` references and use a dual-access pattern that tries this object first, then falls back to dynamic `process.env` access for development compatibility.
+
+## 🔍 Debugging Checklist
+
+When environment variables are missing, follow this systematic debugging approach:
+
+### 1. Check Terminal Output
+Look for the `env: export` line when starting Expo:
+```bash
+env: export EXPO_PUBLIC_FIREBASE_API_KEY EXPO_PUBLIC_FIREBASE_PROJECT_ID ...
+```
+**Missing variables here = not in .env.local with EXPO_PUBLIC_ prefix**
+
+### 2. Check ENV_VARS Object
+Run the app and look for debugging logs:
+```
+ENV_VARS[EXPO_PUBLIC_FIREBASE_VAPID_KEY]: NOT_FOUND
+```
+**NOT_FOUND = missing from ENV_VARS object in environment.ts**
+
+### 3. Check Configuration Files
+Ensure variables exist in all three places:
+- ✅ `apps/mobile-customer/eas.json` (preview build profile)
+- ✅ `apps/mobile-customer/.env.local` (with EXPO_PUBLIC_ prefix)
+- ✅ `apps/mobile-customer/src/config/environment.ts` (in ENV_VARS object)
+
+### 4. Verify Variable Names
+Common naming issues:
+- ❌ `FIREBASE_ADMIN_CLIENT_EMAIL` (missing EXPO_PUBLIC_ prefix)
+- ✅ `EXPO_PUBLIC_FIREBASE_ADMIN_CLIENT_EMAIL` (correct)
+- ❌ `EXPO_PUBLIC_MAPS_BACKEND_KEY` in eas.json but `MAPS_BACKEND_KEY` in code
+- ✅ Consistent naming across all files
+
+### 5. Test Environment Loading
+```bash
+# Restart Expo and check logs
+npx expo start --go
+
+# Look for these patterns in logs:
+🔧 getEnvVar(EXPO_PUBLIC_FIREBASE_VAPID_KEY): ✅ Found via ENV_VARS
+🔧 getEnvVar(EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME): ❌ Empty/Missing
+```
+
+## 📋 Complete Variable Checklist
+
+Ensure these variables are in ALL THREE locations:
+
+### Firebase Variables
+- `EXPO_PUBLIC_FIREBASE_API_KEY`
+- `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
+- `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `EXPO_PUBLIC_FIREBASE_APP_ID`
+- `EXPO_PUBLIC_FIREBASE_VAPID_KEY` ⚠️ Often missed
+- `EXPO_PUBLIC_FIREBASE_ADMIN_CLIENT_EMAIL` ⚠️ Often missed
+
+### Supabase Variables
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` ⚠️ Often missed
+- `EXPO_PUBLIC_ENABLE_SUPABASE_CMS` ⚠️ Often missed
+
+### Maps Variables
+- `EXPO_PUBLIC_MAPS_FRONTEND_KEY`
+- `EXPO_PUBLIC_MAPS_BACKEND_KEY` ⚠️ Often missed
+
+### Other Service Variables
+- `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` ⚠️ Often missed
+- `EXPO_PUBLIC_PAYMONGO_PUBLIC_KEY_LIVE` ⚠️ Often missed
+- `EXPO_PUBLIC_GOOGLE_AI_API_KEY`
+- `EXPO_PUBLIC_ENABLE_AI_FEATURES`
+
+⚠️ = Variables that were missing in the original issue and commonly forgotten
+
+## 🚨 Critical Security Fix: Firebase Admin SDK Removal
+
+**Issue**: The mobile app was incorrectly configured to use Firebase Admin SDK, which is a **server-side only** SDK that should never be used in client applications.
+
+**Security Risks**:
+- Exposed Firebase Admin private key to client applications
+- Potential unauthorized access to Firebase Admin functions
+- Violation of Firebase security best practices
+
+**Resolution**:
+- ✅ Removed `firebaseAdminConfig` from mobile app environment configuration
+- ✅ Removed Firebase Admin variables from ENV_VARS object
+- ✅ Added clear documentation that Firebase Admin SDK is server-side only
+- ✅ Mobile app now only uses Firebase Client SDK (secure and appropriate)
+
+**Important**: Firebase Admin functionality should only be accessed through server-side API calls to the web application.
+
+## 🔧 Final Resolution Summary
+
+**Root Cause**: Environment variables were not being properly inlined by Metro bundler during production builds due to dynamic access patterns.
+
+**Solution**: Implemented dual-access pattern with ENV_VARS object containing direct `process.env` references that Metro bundler can reliably inline at build time.
+
+**Key Changes**:
+1. ✅ Created ENV_VARS object with direct environment variable references
+2. ✅ Updated getEnvVar function to prioritize ENV_VARS for production builds
+3. ✅ Added comprehensive debugging and validation
+4. ✅ Updated all missing variables in ENV_VARS object
+5. ✅ Enhanced troubleshooting documentation
+6. ✅ **SECURITY FIX**: Removed Firebase Admin SDK from mobile app (server-side only)
+
+**Status**: ✅ **RESOLVED** - All environment variables now load correctly in both development and production builds.

@@ -76,18 +76,21 @@ function FallbackNavigator() {
   };
 
 return (
-    <NavigationContext.Provider value={navigationValue}>
-      <View style={{ height: '100%' }}>
-        {renderScreen()}
-
-        {/* Footer Navigation */}
-        <FooterNavigation navigation={{ navigate, goBack }} activeScreen={currentScreen} />
-
-        {/* Bottom safe area */}
-        <SafeAreaView style={{ backgroundColor: '#f9fafb' }} edges={['bottom']} />
-      </View>
-    </NavigationContext.Provider>
-  );
+  <NavigationContext.Provider value={navigationValue}>
+    <View style={{ flex: 1 }}>
+      {renderScreen()}
+      <SafeAreaView 
+        style={{ backgroundColor: '#ffffff' }} 
+        edges={['bottom']}
+      >
+        <FooterNavigation 
+          navigation={{ navigate, goBack }} 
+          activeScreen={currentScreen} 
+        />
+      </SafeAreaView>
+    </View>
+  </NavigationContext.Provider>
+);
 }
 // Main App Navigator (Customer App) - State-Based Navigation
 export default function AppNavigator() {

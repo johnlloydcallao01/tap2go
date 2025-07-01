@@ -247,8 +247,7 @@ export default function OrdersScreen({ navigation }: any) {
         </ScrollView>
       </View>
 
-      {/* Bottom safe area with light background */}
-      <SafeAreaView style={{ backgroundColor: '#f9fafb' }} edges={['bottom']} />
+
     </View>
   );
 }
