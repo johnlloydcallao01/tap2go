@@ -1,6 +1,7 @@
 import React, { useState, createContext, useContext } from 'react';
 import { View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useThemeColors } from '../contexts/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
 
 // Import screens
@@ -35,6 +36,7 @@ export const useNavigation = () => {
 // Fallback component for when Stack Navigator is not available
 function FallbackNavigator() {
   const [currentScreen, setCurrentScreen] = useState('Home');
+  const colors = useThemeColors();
 
   const navigate = (screenName: string) => {
     console.log(`Navigating to: ${screenName}`);
@@ -75,19 +77,24 @@ function FallbackNavigator() {
     }
   };
 
+const insets = useSafeAreaInsets();
+
 return (
   <NavigationContext.Provider value={navigationValue}>
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {renderScreen()}
-      <SafeAreaView 
-        style={{ backgroundColor: '#ffffff' }} 
-        edges={['bottom']}
-      >
-        <FooterNavigation 
-          navigation={{ navigate, goBack }} 
-          activeScreen={currentScreen} 
+      {/* Professional footer that extends to fill system bar area */}
+      <View style={{
+        backgroundColor: colors.background,
+        paddingBottom: insets.bottom, // Extends into system bar area
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+      }}>
+        <FooterNavigation
+          navigation={{ navigate, goBack }}
+          activeScreen={currentScreen}
         />
-      </SafeAreaView>
+      </View>
     </View>
   </NavigationContext.Provider>
 );

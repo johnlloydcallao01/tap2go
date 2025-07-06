@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '../contexts/ThemeContext';
 
 // Import responsive components
 import { ResponsiveText } from '../components';
@@ -59,25 +60,45 @@ try {
 } catch (error) {
   console.warn('Failed to import some components, using fallbacks:', error);
 
-  // Fallback components
-  RestaurantCard = ({ restaurant }: any) => (
-    <View style={{ backgroundColor: 'white', padding: 16, margin: 8, borderRadius: 8 }}>
-      <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{restaurant?.name || 'Restaurant'}</Text>
-      <Text style={{ color: '#666' }}>{restaurant?.description || 'Description not available'}</Text>
-    </View>
-  );
+  // Fallback components that use theme context
+  RestaurantCard = ({ restaurant }: any) => {
+    const colors = useThemeColors();
+    return (
+      <View style={{ backgroundColor: colors.card, padding: 16, margin: 8, borderRadius: 8 }}>
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text }}>{restaurant?.name || 'Restaurant'}</Text>
+        <Text style={{ color: colors.textSecondary }}>{restaurant?.description || 'Description not available'}</Text>
+      </View>
+    );
+  };
 
-  CategoryFilter = () => <View style={{ height: 50, backgroundColor: '#f5f5f5' }} />;
-  SearchBar = () => <View style={{ height: 40, backgroundColor: '#f5f5f5', margin: 16 }} />;
-  MapSection = () => <View style={{ height: 200, backgroundColor: '#e5e5e5', margin: 16 }} />;
+  CategoryFilter = () => {
+    const colors = useThemeColors();
+    return <View style={{ height: 50, backgroundColor: colors.surface }} />;
+  };
 
-  MobileHeader = ({ title }: { title: string }) => (
-    <View style={{ padding: 16, backgroundColor: '#f3a823' }}>
-      <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>{title}</Text>
-    </View>
-  );
+  SearchBar = () => {
+    const colors = useThemeColors();
+    return <View style={{ height: 40, backgroundColor: colors.surface, margin: 16 }} />;
+  };
 
-  FooterNavigation = () => <View style={{ height: 60, backgroundColor: '#f3a823' }} />;
+  MapSection = () => {
+    const colors = useThemeColors();
+    return <View style={{ height: 200, backgroundColor: colors.border, margin: 16 }} />;
+  };
+
+  MobileHeader = ({ title }: { title: string }) => {
+    const colors = useThemeColors();
+    return (
+      <View style={{ padding: 16, backgroundColor: colors.primary }}>
+        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>{title}</Text>
+      </View>
+    );
+  };
+
+  FooterNavigation = () => {
+    const colors = useThemeColors();
+    return <View style={{ height: 60, backgroundColor: colors.primary }} />;
+  };
 
   // ResponsiveText is now imported from components
 
@@ -111,6 +132,7 @@ interface Category {
 export default function HomeScreen({ navigation }: any) {
   console.log('🏠 HomeScreen: Component initializing...');
 
+  const colors = useThemeColors();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -206,9 +228,9 @@ export default function HomeScreen({ navigation }: any) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Brand color status bar area only */}
-      <SafeAreaView style={{ backgroundColor: '#f3a823' }} edges={['top']} />
+      <SafeAreaView style={{ backgroundColor: colors.primary }} edges={['top']} />
 
       {/* Mobile Header - Now responsive for tablets */}
       <MobileHeader
@@ -222,8 +244,8 @@ export default function HomeScreen({ navigation }: any) {
         }}
       />
 
-      {/* Content area with white/light background */}
-      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+      {/* Content area with theme background */}
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView
           className="flex-1"
           refreshControl={
@@ -234,7 +256,7 @@ export default function HomeScreen({ navigation }: any) {
           {/* Hero Banner Section */}
           <View style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 24 }}>
             <View style={{
-              backgroundColor: '#f3a823',
+              backgroundColor: colors.primary,
               borderRadius: 16,
               padding: 20,
               position: 'relative',
@@ -258,7 +280,7 @@ export default function HomeScreen({ navigation }: any) {
                 </ResponsiveText>
                 <TouchableOpacity
                   style={{
-                    backgroundColor: 'white',
+                    backgroundColor: colors.surface,
                     paddingHorizontal: 24,
                     paddingVertical: 12,
                     borderRadius: 25,
@@ -266,7 +288,7 @@ export default function HomeScreen({ navigation }: any) {
                   }}
                 >
                   <ResponsiveText style={{
-                    color: '#f3a823',
+                    color: colors.primary,
                     fontWeight: '600',
                     fontSize: 16,
                   }}>
@@ -302,7 +324,7 @@ export default function HomeScreen({ navigation }: any) {
               <ResponsiveText style={{
                 fontSize: isTablet ? 24 : 20,
                 fontWeight: 'bold',
-                color: '#111827',
+                color: colors.text,
               }}>
                 What are you craving?
               </ResponsiveText>
@@ -352,7 +374,7 @@ export default function HomeScreen({ navigation }: any) {
                   <ResponsiveText style={{
                     fontSize: 12,
                     fontWeight: '500',
-                    color: '#374151',
+                    color: colors.text,
                     textAlign: 'center',
                   }}>
                     {category.name}
@@ -373,13 +395,13 @@ export default function HomeScreen({ navigation }: any) {
               <ResponsiveText style={{
                 fontSize: isTablet ? 24 : 20,
                 fontWeight: 'bold',
-                color: '#111827',
+                color: colors.text,
               }}>
                 Featured restaurants
               </ResponsiveText>
               <TouchableOpacity>
                 <ResponsiveText style={{
-                  color: '#f3a823',
+                  color: colors.primary,
                   fontWeight: '600',
                   fontSize: 14,
                 }}>
@@ -392,10 +414,10 @@ export default function HomeScreen({ navigation }: any) {
               <View style={{ gap: 16 }}>
                 {[1, 2, 3].map((item) => (
                   <View key={item} style={{
-                    backgroundColor: 'white',
+                    backgroundColor: colors.card,
                     borderRadius: 12,
                     padding: 16,
-                    shadowColor: '#000',
+                    shadowColor: colors.isDark ? '#ffffff' : '#000000',
                     shadowOffset: { width: 0, height: 2 },
                     shadowOpacity: 0.1,
                     shadowRadius: 8,
@@ -408,25 +430,25 @@ export default function HomeScreen({ navigation }: any) {
                       <View style={{
                         width: 80,
                         height: 80,
-                        backgroundColor: '#f3f4f6',
+                        backgroundColor: colors.border,
                         borderRadius: 8,
                       }} />
                       <View style={{ flex: 1, gap: 8 }}>
                         <View style={{
                           height: 16,
-                          backgroundColor: '#f3f4f6',
+                          backgroundColor: colors.border,
                           borderRadius: 4,
                           width: '70%',
                         }} />
                         <View style={{
                           height: 12,
-                          backgroundColor: '#f3f4f6',
+                          backgroundColor: colors.border,
                           borderRadius: 4,
                           width: '90%',
                         }} />
                         <View style={{
                           height: 12,
-                          backgroundColor: '#f3f4f6',
+                          backgroundColor: colors.border,
                           borderRadius: 4,
                           width: '60%',
                         }} />
@@ -473,10 +495,10 @@ export default function HomeScreen({ navigation }: any) {
                   <TouchableOpacity
                     key={restaurant.id}
                     style={{
-                      backgroundColor: 'white',
+                      backgroundColor: colors.card,
                       borderRadius: 12,
                       padding: 16,
-                      shadowColor: '#000',
+                      shadowColor: colors.isDark ? '#ffffff' : '#000000',
                       shadowOffset: { width: 0, height: 2 },
                       shadowOpacity: 0.1,
                       shadowRadius: 8,
@@ -495,7 +517,7 @@ export default function HomeScreen({ navigation }: any) {
                       <View style={{
                         width: 80,
                         height: 80,
-                        backgroundColor: '#f3f4f6',
+                        backgroundColor: colors.border,
                         borderRadius: 8,
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -509,7 +531,7 @@ export default function HomeScreen({ navigation }: any) {
                             position: 'absolute',
                             top: -4,
                             right: -4,
-                            backgroundColor: '#f3a823',
+                            backgroundColor: colors.primary,
                             paddingHorizontal: 6,
                             paddingVertical: 2,
                             borderRadius: 8,
@@ -531,14 +553,14 @@ export default function HomeScreen({ navigation }: any) {
                           <ResponsiveText style={{
                             fontSize: 16,
                             fontWeight: 'bold',
-                            color: '#111827',
+                            color: colors.text,
                             marginBottom: 4,
                           }}>
                             {restaurant.name}
                           </ResponsiveText>
                           <ResponsiveText style={{
                             fontSize: 14,
-                            color: '#6b7280',
+                            color: colors.textSecondary,
                             marginBottom: 8,
                           }}>
                             {restaurant.cuisine}
@@ -559,20 +581,20 @@ export default function HomeScreen({ navigation }: any) {
                             <ResponsiveText style={{
                               fontSize: 12,
                               fontWeight: '600',
-                              color: '#111827',
+                              color: colors.text,
                             }}>
                               {restaurant.rating}
                             </ResponsiveText>
                             <ResponsiveText style={{
                               fontSize: 12,
-                              color: '#6b7280',
+                              color: colors.textSecondary,
                             }}>
                               • {restaurant.deliveryTime}
                             </ResponsiveText>
                           </View>
                           <ResponsiveText style={{
                             fontSize: 12,
-                            color: restaurant.deliveryFee === 'Free delivery' ? '#10b981' : '#6b7280',
+                            color: restaurant.deliveryFee === 'Free delivery' ? '#10b981' : colors.textSecondary,
                             fontWeight: '500',
                           }}>
                             {restaurant.deliveryFee}
@@ -591,7 +613,7 @@ export default function HomeScreen({ navigation }: any) {
             <ResponsiveText style={{
               fontSize: isTablet ? 24 : 20,
               fontWeight: 'bold',
-              color: '#111827',
+              color: colors.text,
               marginBottom: 16,
             }}>
               More ways to save
@@ -602,11 +624,11 @@ export default function HomeScreen({ navigation }: any) {
             }}>
               <TouchableOpacity style={{
                 flex: 1,
-                backgroundColor: 'white',
+                backgroundColor: colors.card,
                 borderRadius: 12,
                 padding: 16,
                 alignItems: 'center',
-                shadowColor: '#000',
+                shadowColor: colors.isDark ? '#ffffff' : '#000000',
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.1,
                 shadowRadius: 8,
@@ -615,7 +637,7 @@ export default function HomeScreen({ navigation }: any) {
                 <View style={{
                   width: 48,
                   height: 48,
-                  backgroundColor: '#fef3c7',
+                  backgroundColor: colors.isDark ? '#3A2F1A' : '#fef3c7',
                   borderRadius: 24,
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -626,7 +648,7 @@ export default function HomeScreen({ navigation }: any) {
                 <ResponsiveText style={{
                   fontSize: 14,
                   fontWeight: '600',
-                  color: '#111827',
+                  color: colors.text,
                   textAlign: 'center',
                 }}>
                   Deals
@@ -635,11 +657,11 @@ export default function HomeScreen({ navigation }: any) {
 
               <TouchableOpacity style={{
                 flex: 1,
-                backgroundColor: 'white',
+                backgroundColor: colors.card,
                 borderRadius: 12,
                 padding: 16,
                 alignItems: 'center',
-                shadowColor: '#000',
+                shadowColor: colors.isDark ? '#ffffff' : '#000000',
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.1,
                 shadowRadius: 8,
@@ -648,7 +670,7 @@ export default function HomeScreen({ navigation }: any) {
                 <View style={{
                   width: 48,
                   height: 48,
-                  backgroundColor: '#dbeafe',
+                  backgroundColor: colors.isDark ? '#1E2A3A' : '#dbeafe',
                   borderRadius: 24,
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -659,7 +681,7 @@ export default function HomeScreen({ navigation }: any) {
                 <ResponsiveText style={{
                   fontSize: 14,
                   fontWeight: '600',
-                  color: '#111827',
+                  color: colors.text,
                   textAlign: 'center',
                 }}>
                   Pickup
@@ -668,11 +690,11 @@ export default function HomeScreen({ navigation }: any) {
 
               <TouchableOpacity style={{
                 flex: 1,
-                backgroundColor: 'white',
+                backgroundColor: colors.card,
                 borderRadius: 12,
                 padding: 16,
                 alignItems: 'center',
-                shadowColor: '#000',
+                shadowColor: colors.isDark ? '#ffffff' : '#000000',
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.1,
                 shadowRadius: 8,
@@ -681,7 +703,7 @@ export default function HomeScreen({ navigation }: any) {
                 <View style={{
                   width: 48,
                   height: 48,
-                  backgroundColor: '#f3e8ff',
+                  backgroundColor: colors.isDark ? '#2A1E3A' : '#f3e8ff',
                   borderRadius: 24,
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -692,7 +714,7 @@ export default function HomeScreen({ navigation }: any) {
                 <ResponsiveText style={{
                   fontSize: 14,
                   fontWeight: '600',
-                  color: '#111827',
+                  color: colors.text,
                   textAlign: 'center',
                 }}>
                   Express
@@ -704,10 +726,10 @@ export default function HomeScreen({ navigation }: any) {
           {/* Test Cart Functionality */}
           <View style={{ paddingHorizontal: 16, paddingBottom: 32 }}>
             <View style={{
-              backgroundColor: 'white',
+              backgroundColor: colors.card,
               borderRadius: 12,
               padding: 16,
-              shadowColor: '#000',
+              shadowColor: colors.isDark ? '#ffffff' : '#000000',
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.1,
               shadowRadius: 8,
@@ -716,14 +738,14 @@ export default function HomeScreen({ navigation }: any) {
               <ResponsiveText style={{
                 fontSize: 16,
                 fontWeight: 'bold',
-                color: '#111827',
+                color: colors.text,
                 marginBottom: 8,
               }}>
                 Test Cart Feature
               </ResponsiveText>
               <ResponsiveText style={{
                 fontSize: 14,
-                color: '#6b7280',
+                color: colors.textSecondary,
                 marginBottom: 16,
               }}>
                 Cart Items: {cartItemCount}
@@ -731,7 +753,7 @@ export default function HomeScreen({ navigation }: any) {
               <TouchableOpacity
                 onPress={addTestItem}
                 style={{
-                  backgroundColor: '#f3a823',
+                  backgroundColor: colors.primary,
                   paddingVertical: 12,
                   borderRadius: 8,
                   alignItems: 'center',
@@ -750,6 +772,7 @@ export default function HomeScreen({ navigation }: any) {
 
         </ScrollView>
       </View>
+
 
 
     </View>

@@ -1,12 +1,13 @@
-import 'expo-dev-client'; // Add development client for better debugging
+import 'expo-dev-client';
+import 'react-native-url-polyfill/auto';
 
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Text, View, ScrollView, StyleSheet, Alert, ErrorUtils } from 'react-native';
+import { Text, View, ScrollView, StyleSheet, Alert, type ErrorUtils } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { CartProvider } from './src/contexts/CartContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import ProductionErrorHandler from './src/components/ProductionErrorHandler';
 import { validateEnvironment } from './src/config/environment';
@@ -60,9 +61,6 @@ try {
   console.error('Failed to setup global error handler:', errorUtilsError);
 }
 
-// Note: React Native handles promise rejections differently than web
-// Unhandled promise rejections are logged to console automatically
-
 // Import CSS conditionally to prevent production crashes
 try {
   if (__DEV__) {
@@ -107,7 +105,7 @@ export default function App() {
 
         // Check runtime environment
         try {
-          if (typeof global !== 'undefined' && global.HermesInternal) {
+          if (typeof global !== 'undefined' && (global as any).HermesInternal) {
             console.log('✅ Running on Hermes engine');
           }
           // Note: React Native handles promise rejections automatically
@@ -149,7 +147,7 @@ export default function App() {
         console.log('🔥 Testing Firebase configuration...');
         try {
           const envModule = await import('./src/config/environment');
-          const firebaseConfig = envModule?.firebaseConfig || {};
+          const firebaseConfig = (envModule?.firebaseConfig || {}) as any;
           console.log('Firebase config loaded:', {
             apiKey: firebaseConfig?.apiKey ? '✅ Present' : '❌ Missing',
             projectId: firebaseConfig?.projectId ? '✅ Present' : '❌ Missing',
@@ -157,7 +155,7 @@ export default function App() {
           });
 
           console.log('🔥 Testing Supabase configuration...');
-          const supabaseConfig = envModule?.supabaseConfig || {};
+          const supabaseConfig = (envModule?.supabaseConfig || {}) as any;
           console.log('Supabase config loaded:', {
             url: supabaseConfig?.url ? '✅ Present' : '❌ Missing',
             anonKey: supabaseConfig?.anonKey ? '✅ Present' : '❌ Missing'
@@ -213,18 +211,12 @@ export default function App() {
     <ProductionErrorHandler>
       <ErrorBoundary>
         <SafeAreaProvider>
-          <CartProvider>
-            <NavigationContainer
-              fallback={
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text>Loading...</Text>
-                </View>
-              }
-            >
+          <ThemeProvider>
+            <CartProvider>
               <AppNavigator />
-              <StatusBar style="light" />
-            </NavigationContainer>
-          </CartProvider>
+              <StatusBar style="auto" />
+            </CartProvider>
+          </ThemeProvider>
         </SafeAreaProvider>
       </ErrorBoundary>
     </ProductionErrorHandler>

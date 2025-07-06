@@ -181,6 +181,12 @@ if [ "$EAS_BUILD" = "true" ] || [ "$CI" = "true" ]; then
     fi
     
     echo "✅ All dependency verifications passed"
+
+    # Run the autolinking fix immediately after setup
+    echo "🔧 Running immediate autolinking fix..."
+    if [ -f "fix-autolinking.js" ]; then
+        node fix-autolinking.js
+    fi
 else
     echo "⚠️  Not in EAS Build environment, skipping verifications"
 fi

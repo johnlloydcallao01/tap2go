@@ -3,20 +3,50 @@
     "name": "Tap2Go Customer",
     "slug": "tap2go-mobile-customer",
     "version": "1.0.0",
-    "scheme": "tap2go",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f3a823"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tap2go.customer",
+      "userInterfaceStyle": "automatic"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f3a823"
+      },
+      "package": "com.tap2go.mobile",
+      "userInterfaceStyle": "automatic",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "scheme": "tap2go-customer",
     "plugins": [
       [
         "expo-build-properties",
         {
           "android": {
-            "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "35.0.0",
+            "minSdkVersion": 24
           },
           "ios": {
             "deploymentTarget": "15.1"
@@ -24,11 +54,11 @@
         }
       ]
     ],
-    "owner": "tap2go9o",
     "extra": {
       "eas": {
         "projectId": "ef7a580f-cd18-4020-871e-aa6551eba1f0"
       }
-    }
+    },
+    "owner": "tap2go9o"
   }
 }

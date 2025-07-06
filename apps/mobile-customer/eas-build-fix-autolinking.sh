@@ -56,7 +56,14 @@ fix_package_list_import() {
 
 # Wait for autolinking to generate files (this runs after prebuild)
 echo "⏳ Waiting for autolinking files to be generated..."
-sleep 5
+sleep 10
+
+# Also check if prebuild has completed by looking for android directory
+if [ ! -d "android" ]; then
+    echo "⚠️  Android directory not found, prebuild may not have completed yet"
+    echo "⏳ Waiting additional time for prebuild to complete..."
+    sleep 15
+fi
 
 # Search for PackageList.java in common locations
 PACKAGE_LIST_LOCATIONS=(

@@ -83,4 +83,75 @@ else
     echo "⚠️  Not in EAS Build environment, skipping prebuild setup"
 fi
 
+    # Function to fix PackageList.java import
+    fix_package_list_import() {
+        local package_list_file="$1"
+
+        if [ ! -f "$package_list_file" ]; then
+            echo "⚠️  PackageList.java not found at: $package_list_file"
+            return 1
+        fi
+
+        echo "🔍 Found PackageList.java at: $package_list_file"
+
+        # Check if the file contains the incorrect import
+        if grep -q "import expo.core.ExpoModulesPackage;" "$package_list_file"; then
+            echo "🔧 Fixing incorrect import: expo.core.ExpoModulesPackage -> expo.modules.ExpoModulesPackage"
+
+            # Create backup
+            cp "$package_list_file" "$package_list_file.backup"
+            echo "💾 Created backup: $package_list_file.backup"
+
+            # Fix the import statement
+            sed -i 's/import expo\.core\.ExpoModulesPackage;/import expo.modules.ExpoModulesPackage;/g' "$package_list_file"
+
+            # Verify the fix
+            if grep -q "import expo.modules.ExpoModulesPackage;" "$package_list_file"; then
+                echo "✅ Successfully fixed import statement"
+                return 0
+            else
+                echo "❌ Failed to fix import statement, restoring backup"
+                mv "$package_list_file.backup" "$package_list_file"
+                return 1
+            fi
+        else
+            echo "ℹ️  No incorrect import found in PackageList.java"
+            return 0
+        fi
+    }
+
+    # Wait for autolinking to complete and fix PackageList.java
+    echo "🔧 Checking for autolinking issues..."
+    sleep 5
+
+    # Search for PackageList.java in common locations
+    PACKAGE_LIST_LOCATIONS=(
+        "android/app/build/generated/autolinking/src/main/java/com/facebook/react/PackageList.java"
+        "android/app/src/main/java/com/facebook/react/PackageList.java"
+        "android/app/build/generated/rncli/src/main/java/com/facebook/react/PackageList.java"
+    )
+
+    FIXED=false
+
+    for location in "${PACKAGE_LIST_LOCATIONS[@]}"; do
+        if [ -f "$location" ]; then
+            echo "📁 Checking: $location"
+            if fix_package_list_import "$location"; then
+                FIXED=true
+            fi
+        else
+            echo "📁 Not found: $location"
+        fi
+    done
+
+    # If no files found, search recursively
+    if [ "$FIXED" = false ] && [ -d "android" ]; then
+        echo "🔍 Searching recursively for PackageList.java files..."
+
+        find android -name "PackageList.java" -type f 2>/dev/null | while read -r file; do
+            echo "📁 Found: $file"
+            fix_package_list_import "$file"
+        done
+    fi
+
 echo "🎯 Prebuild hook completed"

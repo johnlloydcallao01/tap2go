@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useResponsiveStyles, createResponsiveValue, createResponsiveSpacing, createResponsiveFontSize } from '../hooks/useResponsiveStyles';
+import { useThemeColors } from '../contexts/ThemeContext';
 
 interface MobileHeaderProps {
   searchQuery: string;
@@ -17,16 +18,17 @@ export default function MobileHeader({
   onWishlistPress
 }: MobileHeaderProps) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const colors = useThemeColors();
 
   // Create responsive styles
   const styles = useResponsiveStyles((screenInfo) => ({
     container: {
-      shadowColor: '#000',
+      shadowColor: colors.isDark ? '#ffffff' : '#000000',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.1,
       shadowRadius: 2,
       borderBottomWidth: 1,
-      borderBottomColor: '#e5e7eb',
+      borderBottomColor: colors.border,
     },
     topRow: {
       flexDirection: 'row',
@@ -69,7 +71,7 @@ export default function MobileHeader({
     logoText: {
       fontWeight: 'bold',
       fontSize: createResponsiveFontSize(screenInfo, 18),
-      color: '#f3a823',
+      color: colors.primary,
     },
     locationSection: {
       flexDirection: 'row',
@@ -107,7 +109,7 @@ export default function MobileHeader({
     searchInputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'white',
+      backgroundColor: colors.surface,
       borderRadius: createResponsiveValue(screenInfo, {
         mobile: 20,
         tablet: 22,
@@ -116,7 +118,7 @@ export default function MobileHeader({
       paddingHorizontal: createResponsiveSpacing(screenInfo, 12),
       paddingVertical: createResponsiveSpacing(screenInfo, 8),
       borderWidth: isSearchFocused ? 2 : 1,
-      borderColor: isSearchFocused ? 'white' : '#e5e7eb',
+      borderColor: isSearchFocused ? colors.primary : colors.border,
       height: createResponsiveValue(screenInfo, {
         mobile: 41,
         tablet: 43,
@@ -130,7 +132,7 @@ export default function MobileHeader({
     searchInput: {
       flex: 1,
       fontSize: createResponsiveFontSize(screenInfo, 14),
-      color: '#374151',
+      color: colors.text,
       paddingVertical: 0,
     },
     clearButton: {
@@ -140,7 +142,7 @@ export default function MobileHeader({
 
   return (
     <View
-      style={[styles.container, { backgroundColor: '#f3a823' }]}
+      style={[styles.container, { backgroundColor: colors.primary }]}
     >
       {/* Top Row - Logo, Location, Wishlist, Notifications */}
       <View style={styles.topRow}>
@@ -188,7 +190,7 @@ export default function MobileHeader({
               right: 4,
               width: 12,
               height: 12,
-              backgroundColor: '#ef4444',
+              backgroundColor: colors.notification,
               borderRadius: 6,
             }} />
           </TouchableOpacity>
@@ -201,7 +203,7 @@ export default function MobileHeader({
           <Ionicons
             name="search"
             size={20}
-            color="#9CA3AF"
+            color={colors.textSecondary}
             style={styles.searchIcon}
           />
           <TextInput
@@ -209,13 +211,13 @@ export default function MobileHeader({
             value={searchQuery}
             onChangeText={onSearchChange}
             placeholder="Pizza Hut 50% OFF Flash Sale!"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textSecondary}
             onFocus={() => setIsSearchFocused(true)}
             onBlur={() => setIsSearchFocused(false)}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => onSearchChange('')} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>

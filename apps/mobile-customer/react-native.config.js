@@ -7,12 +7,18 @@ module.exports = {
     },
   },
   dependencies: {
-    // Configure React Native CLI autolinking for expo-modules-core
-    // Provide explicit path and import configuration
+    // Disable autolinking for expo-modules-core as it's handled by expo package
     'expo-modules-core': {
       platforms: {
+        android: null,
+        ios: null,
+      },
+    },
+    // Override expo autolinking to use correct package
+    'expo': {
+      platforms: {
         android: {
-          sourceDir: '../../../node_modules/expo-modules-core/android',
+          sourceDir: '../../../node_modules/expo/android',
           packageImportPath: 'import expo.modules.ExpoModulesPackage;',
         },
       },

@@ -73,7 +73,7 @@ const getEnvVar = (key: string): string => {
       const value = ENV_VARS[key as keyof typeof ENV_VARS];
       if (value) {
         // Debug logging for critical variables
-        if (key.includes('FIREBASE') || key.includes('SUPABASE') || key.includes('MAPS')) {
+        if (key.includes('FIREBASE') || key.includes('SUPABASE') || key.includes('MAPS') || key.includes('RESEND') || key.includes('BONSAI')) {
           console.log(`🔧 getEnvVar(${key}): ✅ Found via ENV_VARS (${value.substring(0, 20)}...)`);
         }
         return value;
@@ -87,7 +87,7 @@ const getEnvVar = (key: string): string => {
     }
 
     // Debug logging for critical variables
-    if (key.includes('FIREBASE') || key.includes('SUPABASE') || key.includes('MAPS')) {
+    if (key.includes('FIREBASE') || key.includes('SUPABASE') || key.includes('MAPS') || key.includes('RESEND') || key.includes('BONSAI')) {
       console.log(`🔧 getEnvVar(${key}): ${value ? `✅ Found via process.env (${value.substring(0, 20)}...)` : '❌ Empty/Missing'}`);
 
       // Additional debugging for production builds
@@ -152,7 +152,11 @@ export const debugEnvironmentVariables = () => {
       'EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN',
       'EXPO_PUBLIC_SUPABASE_URL',
       'EXPO_PUBLIC_SUPABASE_ANON_KEY',
-      'EXPO_PUBLIC_MAPS_FRONTEND_KEY'
+      'EXPO_PUBLIC_MAPS_FRONTEND_KEY',
+      'EXPO_PUBLIC_RESEND_FROM_EMAIL',
+      'EXPO_PUBLIC_BONSAI_HOST',
+      'EXPO_PUBLIC_BONSAI_USERNAME',
+      'EXPO_PUBLIC_BONSAI_PASSWORD'
     ];
 
     console.log('🔧 Critical variables status (process.env):');

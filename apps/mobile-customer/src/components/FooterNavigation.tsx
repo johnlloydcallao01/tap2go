@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '../contexts/ThemeContext';
 
 interface FooterNavigationProps {
   navigation: any;
@@ -8,6 +9,8 @@ interface FooterNavigationProps {
 }
 
 export default function FooterNavigation({ navigation, activeScreen }: FooterNavigationProps) {
+  const colors = useThemeColors();
+
   const tabs = [
     { name: 'Home', icon: 'home', screen: 'Home' },
     { name: 'Orders', icon: 'receipt-outline', screen: 'Orders' },
@@ -17,11 +20,9 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
   ];
 
   return (
-    <View style={{ 
-      flexDirection: 'row', 
-      backgroundColor: '#FFFFFF',
-      borderTopWidth: 1,
-      borderTopColor: '#E5E5E5',
+    <View style={{
+      flexDirection: 'row',
+      backgroundColor: 'transparent', // Let parent handle background
       paddingTop: 8,
       paddingBottom: 8,
       height: 60,
@@ -47,11 +48,11 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
               width: 44,
               height: 44,
               borderRadius: 22,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               alignItems: 'center',
               justifyContent: 'center',
               marginTop: -12, // Elevate above other tabs
-              shadowColor: '#000',
+              shadowColor: colors.text,
               shadowOffset: {
                 width: 0,
                 height: 2,
@@ -63,7 +64,7 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
               <Ionicons
                 name="cart-outline"
                 size={22}
-                color="#666"
+                color={colors.textSecondary}
               />
             </View>
           ) : (
@@ -71,14 +72,14 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
             <Ionicons
               name={tab.icon as any}
               size={20}
-              color={activeScreen === tab.screen ? '#f3a823' : '#666'}
+              color={activeScreen === tab.screen ? colors.primary : colors.textSecondary}
             />
           )}
           <Text style={{
             fontSize: 10,
             marginTop: tab.name === 'Cart' ? 6 : 2, // Extra spacing for elevated cart
             fontWeight: '500',
-            color: activeScreen === tab.screen ? '#f3a823' : '#666',
+            color: activeScreen === tab.screen ? colors.primary : colors.textSecondary,
           }}>
             {tab.name}
           </Text>

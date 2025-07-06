@@ -20,13 +20,12 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "apk"
       },
       "env": {
-        "NODE_ENV": "production",
-        "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
         "EAS_SKIP_AUTO_FINGERPRINT": "1",
+        "EAS_NO_FROZEN_LOCKFILE": "1",
+        "EXPO_AUTOLINKING_FIX": "1",
 
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB6ALvnN6aX0DMVhePhkUow9VrPauBCqgQ",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "tap2go-kuucn.firebaseapp.com",
@@ -92,8 +91,7 @@
         "UPSTASH_REDIS_REST_TOKEN": "AZhXAAIjcDEyNDI2YWYxOGVhMGI0MjRjYWIzY2JmMGQxZDhjYTExM3AxMA",
         "RESEND_API_KEY": "re_SZwhCkVr_Nq5yjCJQP812Kg8qJP7AZKBU",
         "GOOGLE_AI_API_KEY": "AIzaSyBGv6UYOc9N8pZ1XfY88H9Tit301vjLMtw"
-      },
-      "prebuildCommand": "bash eas-build-prebuild.sh"
+      }
     },
     "production": {
       "android": {
