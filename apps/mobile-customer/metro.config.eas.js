@@ -7,8 +7,9 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Essential configuration for EAS builds
-config.watchFolders = [projectRoot, monorepoRoot];
+// OPTIMIZED: Only watch the project directory, not the entire monorepo
+// This prevents expo doctor timeout issues in large monorepos
+config.watchFolders = [projectRoot];
 
 // Critical resolver configuration for pnpm monorepo
 config.resolver.nodeModulesPaths = [
@@ -23,6 +24,10 @@ config.resolver.extraNodeModules = {
   'expo': path.resolve(monorepoRoot, 'node_modules/expo'),
   'expo-modules-core': path.resolve(monorepoRoot, 'node_modules/expo-modules-core'),
 };
+
+// Fix autolinking by ensuring proper module resolution
+config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
+config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 
 // Apply NativeWind
 try {
