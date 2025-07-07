@@ -4,7 +4,8 @@ import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Text, View, ScrollView, StyleSheet, Alert, type ErrorUtils } from 'react-native';
+import { Text, View, ScrollView, StyleSheet, Alert, type ErrorUtils, Platform } from 'react-native';
+import { enableEdgeToEdge } from 'react-native-edge-to-edge';
 import AppNavigator from './src/navigation/AppNavigator';
 import { CartProvider } from './src/contexts/CartContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
@@ -102,6 +103,16 @@ export default function App() {
     const initializeApp = async () => {
       try {
         console.log('🚀 Starting app initialization...');
+
+        // Initialize edge-to-edge display for modern Android experience
+        try {
+          if (Platform.OS === 'android') {
+            enableEdgeToEdge();
+            console.log('✅ Edge-to-edge display enabled');
+          }
+        } catch (edgeToEdgeError) {
+          console.warn('⚠️ Could not enable edge-to-edge display:', edgeToEdgeError);
+        }
 
         // Check runtime environment
         try {

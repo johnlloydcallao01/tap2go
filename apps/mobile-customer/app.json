@@ -26,6 +26,7 @@
       },
       "package": "com.tap2go.mobile",
       "userInterfaceStyle": "automatic",
+      "edgeToEdgeEnabled": true,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -52,7 +53,8 @@
             "deploymentTarget": "15.1"
           }
         }
-      ]
+      ],
+      "react-native-edge-to-edge"
     ],
     "extra": {
       "eas": {
