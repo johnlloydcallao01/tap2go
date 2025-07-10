@@ -42,7 +42,7 @@ export default function DriverLayout({
     const redirectTimer = setTimeout(() => {
       if (!loading) {
         if (!user) {
-          router.push('/auth/signin');
+          router.push('/driver/auth/signin');
         } else if (user.role !== 'driver' && user.role !== 'admin') {
           router.push('/');
         }
