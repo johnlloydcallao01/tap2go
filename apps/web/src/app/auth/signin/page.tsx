@@ -19,13 +19,23 @@ export default function SignIn() {
   const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // Redirect if already logged in
+  // Redirect if already logged in based on role
   React.useEffect(() => {
     if (!authLoading && user) {
-      if (user.role === 'admin') {
-        router.replace('/admin');
-      } else {
-        router.replace('/');
+      switch (user.role) {
+        case 'admin':
+          router.replace('/admin/dashboard');
+          break;
+        case 'vendor':
+          router.replace('/vendor/dashboard');
+          break;
+        case 'driver':
+          router.replace('/driver/dashboard');
+          break;
+        case 'customer':
+        default:
+          router.replace('/');
+          break;
       }
     }
   }, [user, authLoading, router]);
@@ -37,8 +47,7 @@ export default function SignIn() {
 
     try {
       await signIn(email, password);
-      // The auth context will handle the redirect based on user role
-      router.push('/');
+      // The auth context and useEffect will handle the redirect based on user role
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to sign in';
       setError(errorMessage);
@@ -53,8 +62,7 @@ export default function SignIn() {
 
     try {
       await signInWithGoogle();
-      // The auth context will handle the redirect based on user role
-      router.push('/');
+      // The auth context and useEffect will handle the redirect based on user role
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to sign in with Google';
       setError(errorMessage);
