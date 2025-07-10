@@ -3,11 +3,12 @@
 // Force dynamic rendering to avoid SSR issues
 export const dynamic = 'force-dynamic';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { Store, Shield, Truck } from 'lucide-react';
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
@@ -15,13 +16,45 @@ export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [panelType, setPanelType] = useState<'customer' | 'vendor' | 'admin' | 'driver'>('customer');
 
   const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // Redirect if already logged in based on role
+  // Detect panel type from hostname
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      if (hostname.includes('tap2go-vendor') || hostname.startsWith('vendor.')) {
+        setPanelType('vendor');
+      } else if (hostname.includes('tap2go-admin') || hostname.startsWith('admin.')) {
+        setPanelType('admin');
+      } else if (hostname.includes('tap2go-driver') || hostname.startsWith('driver.')) {
+        setPanelType('driver');
+      } else {
+        setPanelType('customer');
+      }
+    }
+  }, []);
+
+  // Redirect if already logged in based on role and panel validation
   React.useEffect(() => {
     if (!authLoading && user) {
+      // Validate user role against panel type
+      if (panelType === 'vendor' && user.role !== 'vendor' && user.role !== 'admin') {
+        setError('This portal is for restaurant partners only. Please use the correct login portal for your account type.');
+        return;
+      }
+      if (panelType === 'admin' && user.role !== 'admin') {
+        setError('This portal is for administrators only. Please use the correct login portal for your account type.');
+        return;
+      }
+      if (panelType === 'driver' && user.role !== 'driver' && user.role !== 'admin') {
+        setError('This portal is for delivery drivers only. Please use the correct login portal for your account type.');
+        return;
+      }
+
+      // Redirect based on role
       switch (user.role) {
         case 'admin':
           router.replace('/admin/dashboard');
@@ -38,7 +71,7 @@ export default function SignIn() {
           break;
       }
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, panelType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,20 +135,49 @@ export default function SignIn() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#f3a823' }}>
-              <span className="text-white font-bold text-xl">T</span>
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+              panelType === 'vendor' ? 'bg-orange-500' :
+              panelType === 'admin' ? 'bg-blue-600' :
+              panelType === 'driver' ? 'bg-green-600' :
+              'bg-orange-500'
+            }`}>
+              {panelType === 'vendor' ? <Store className="w-6 h-6 text-white" /> :
+               panelType === 'admin' ? <Shield className="w-6 h-6 text-white" /> :
+               panelType === 'driver' ? <Truck className="w-6 h-6 text-white" /> :
+               <span className="text-white font-bold text-xl">T</span>}
             </div>
-            <span className="text-2xl font-bold text-gray-900">Tap2Go</span>
+            <div>
+              <span className="text-2xl font-bold text-gray-900">Tap2Go</span>
+              {panelType !== 'customer' && (
+                <p className={`text-sm font-medium ${
+                  panelType === 'vendor' ? 'text-orange-600' :
+                  panelType === 'admin' ? 'text-blue-600' :
+                  panelType === 'driver' ? 'text-green-600' :
+                  'text-orange-600'
+                }`}>
+                  {panelType === 'vendor' ? 'Vendor Portal' :
+                   panelType === 'admin' ? 'Admin Portal' :
+                   panelType === 'driver' ? 'Driver Portal' : ''}
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your account
+          {panelType === 'vendor' ? 'Restaurant Partner Sign In' :
+           panelType === 'admin' ? 'Administrator Sign In' :
+           panelType === 'driver' ? 'Driver Sign In' :
+           'Sign in to your account'}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link href="/auth/signup" className="font-medium hover:opacity-80" style={{ color: '#f3a823' }}>
-            create a new account
-          </Link>
+          {panelType === 'vendor' ? 'Access your restaurant management dashboard' :
+           panelType === 'admin' ? 'Access the platform management dashboard' :
+           panelType === 'driver' ? 'Access your delivery dashboard and earnings' :
+           <>Or{' '}
+             <Link href="/auth/signup" className="font-medium hover:opacity-80" style={{ color: '#f3a823' }}>
+               create a new account
+             </Link>
+           </>}
         </p>
       </div>
 

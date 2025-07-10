@@ -20,8 +20,8 @@ export default function VendorLayout({ children }: VendorLayoutProps) {
   useEffect(() => {
     if (!loading && isInitialized) {
       if (!user) {
-        // Not authenticated, redirect to vendor sign in
-        router.replace('/vendor/auth/signin');
+        // Not authenticated, redirect to sign in
+        router.replace('/auth/signin');
         return;
       }
 

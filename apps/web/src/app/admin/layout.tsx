@@ -40,7 +40,7 @@ export default function AdminLayout({
     const redirectTimer = setTimeout(() => {
       if (!loading) {
         if (!user) {
-          router.push('/admin/auth/signin');
+          router.push('/auth/signin');
         } else if (user.role !== 'admin') {
           router.push('/');
         }
