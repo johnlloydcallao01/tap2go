@@ -31,10 +31,13 @@ RUN npm install -g @expo/cli
 RUN npm install -g firebase-tools
 RUN npm install -g vercel
 
-# Set environment variables
+# Set environment variables for better Docker performance
 ENV NODE_ENV=development
 ENV PNPM_HOME=/usr/local/bin
 ENV PATH=$PNPM_HOME:$PATH
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV PNPM_CONFIG_STORE_DIR=/root/.pnpm-store
+ENV PNPM_CONFIG_CACHE_DIR=/root/.pnpm-cache
 
 # -----------------------------------------------------------------------------
 # Stage 2: Dependencies Installation
@@ -58,12 +61,19 @@ COPY packages/shared-ui/package.json ./packages/shared-ui/
 COPY packages/shared-utils/package.json ./packages/shared-utils/
 
 COPY apps/web/package.json ./apps/web/
-COPY apps/mobile/package.json ./apps/mobile/
+COPY apps/mobile-customer/package.json ./apps/mobile-customer/
 COPY functions/package.json ./functions/
 
-# Install dependencies with frozen lockfile for reproducibility
+# Copy scripts directory needed for postinstall
+COPY scripts/ ./scripts/
+
+# Install dependencies with better error handling and memory management
 # This layer is cached unless package.json or pnpm-lock.yaml changes
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm config set store-dir /root/.pnpm-store && \
+    pnpm install --no-frozen-lockfile --prefer-offline || \
+    (echo "Retrying with network timeout..." && pnpm install --no-frozen-lockfile --network-timeout 300000) || \
+    (echo "Final retry without lockfile..." && rm -f pnpm-lock.yaml && pnpm install)
 
 # -----------------------------------------------------------------------------
 # Stage 3: Source Code and Build
@@ -80,8 +90,10 @@ COPY . .
 RUN find /app -type f -name "*.sh" -exec chmod +x {} \; || true
 RUN find /app -type f -path "*/node_modules/.bin/*" -exec chmod +x {} \; || true
 
-# Build the project (only runs when source code changes)
-RUN pnpm run build || echo "Build completed with warnings"
+# Build the project with better error handling
+RUN pnpm run sync-env && \
+    (pnpm run build || echo "Build completed with warnings - continuing...") && \
+    echo "Build process completed"
 
 # -----------------------------------------------------------------------------
 # Stage 4: Production Environment

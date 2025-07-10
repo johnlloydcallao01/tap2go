@@ -60,6 +60,16 @@ export const config = {
     url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
   },
 
+  // Panel Configuration (Multi-subdomain support)
+  panel: {
+    type: process.env.NEXT_PUBLIC_PANEL_TYPE || 'customer',
+    baseUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    isCustomer: (process.env.NEXT_PUBLIC_PANEL_TYPE || 'customer') === 'customer',
+    isVendor: (process.env.NEXT_PUBLIC_PANEL_TYPE || 'customer') === 'vendor',
+    isAdmin: (process.env.NEXT_PUBLIC_PANEL_TYPE || 'customer') === 'admin',
+    isDriver: (process.env.NEXT_PUBLIC_PANEL_TYPE || 'customer') === 'driver',
+  },
+
   // Business Configuration
   business: {
     defaultCommissionRate: 15, // 15%

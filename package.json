@@ -28,7 +28,12 @@
     "mobile:ios": "turbo run ios --filter=mobile-customer",
     "mobile:android": "turbo run android --filter=mobile-customer",
     "vercel-build": "cd apps/web && pnpm run build",
-    "start": "cd apps/web && pnpm start"
+    "start": "cd apps/web && pnpm start",
+    "deploy:all": "node scripts/deploy-subdomains.js",
+    "deploy:customer": "node scripts/deploy-subdomains.js --panel customer",
+    "deploy:vendor": "node scripts/deploy-subdomains.js --panel vendor",
+    "deploy:admin": "node scripts/deploy-subdomains.js --panel admin",
+    "deploy:driver": "node scripts/deploy-subdomains.js --panel driver"
   },
   "devDependencies": {
     "@turbo/gen": "^2.0.0",
