@@ -11,6 +11,10 @@ export function middleware(request: NextRequest) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/auth/signin', request.url));
     }
+    // Don't rewrite auth routes - let them go to the main auth page
+    if (pathname.startsWith('/auth/')) {
+      return NextResponse.next();
+    }
     // Rewrite all other paths to vendor routes
     if (!pathname.startsWith('/vendor')) {
       return NextResponse.rewrite(new URL(`/vendor${pathname}`, request.url));
@@ -21,6 +25,10 @@ export function middleware(request: NextRequest) {
     // Handle root path - redirect to auth
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/auth/signin', request.url));
+    }
+    // Don't rewrite auth routes - let them go to the main auth page
+    if (pathname.startsWith('/auth/')) {
+      return NextResponse.next();
     }
     // Rewrite all other paths to admin routes
     if (!pathname.startsWith('/admin')) {
@@ -33,6 +41,10 @@ export function middleware(request: NextRequest) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/auth/signin', request.url));
     }
+    // Don't rewrite auth routes - let them go to the main auth page
+    if (pathname.startsWith('/auth/')) {
+      return NextResponse.next();
+    }
     // Rewrite all other paths to driver routes
     if (!pathname.startsWith('/driver')) {
       return NextResponse.rewrite(new URL(`/driver${pathname}`, request.url));
@@ -44,6 +56,10 @@ export function middleware(request: NextRequest) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/auth/signin', request.url));
     }
+    // Don't rewrite auth routes - let them go to the main auth page
+    if (pathname.startsWith('/auth/')) {
+      return NextResponse.next();
+    }
     if (!pathname.startsWith('/vendor')) {
       return NextResponse.rewrite(new URL(`/vendor${pathname}`, request.url));
     }
@@ -53,6 +69,10 @@ export function middleware(request: NextRequest) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/auth/signin', request.url));
     }
+    // Don't rewrite auth routes - let them go to the main auth page
+    if (pathname.startsWith('/auth/')) {
+      return NextResponse.next();
+    }
     if (!pathname.startsWith('/admin')) {
       return NextResponse.rewrite(new URL(`/admin${pathname}`, request.url));
     }
@@ -61,6 +81,10 @@ export function middleware(request: NextRequest) {
   if (hostname.startsWith('driver.')) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/auth/signin', request.url));
+    }
+    // Don't rewrite auth routes - let them go to the main auth page
+    if (pathname.startsWith('/auth/')) {
+      return NextResponse.next();
     }
     if (!pathname.startsWith('/driver')) {
       return NextResponse.rewrite(new URL(`/driver${pathname}`, request.url));
