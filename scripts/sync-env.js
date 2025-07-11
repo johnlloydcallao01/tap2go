@@ -25,6 +25,26 @@ class EnvSynchronizer {
         needsSync: false, // Next.js automatically loads from root
       },
       {
+        name: 'web-customer',
+        path: path.join(this.rootDir, 'apps/web-customer'),
+        needsSync: false, // Next.js automatically loads from root
+      },
+      {
+        name: 'web-vendor',
+        path: path.join(this.rootDir, 'apps/web-vendor'),
+        needsSync: false, // Next.js automatically loads from root
+      },
+      {
+        name: 'web-admin',
+        path: path.join(this.rootDir, 'apps/web-admin'),
+        needsSync: false, // Next.js automatically loads from root
+      },
+      {
+        name: 'web-driver',
+        path: path.join(this.rootDir, 'apps/web-driver'),
+        needsSync: false, // Next.js automatically loads from root
+      },
+      {
         name: 'mobile-customer',
         path: path.join(this.rootDir, 'apps/mobile-customer'),
         needsSync: true, // React Native needs explicit sync

@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "pnpm exec next dev --turbopack",
+    "dev:vendor": "cross-env NEXT_PUBLIC_FORCE_PANEL=vendor pnpm exec next dev --turbopack",
+    "dev:admin": "cross-env NEXT_PUBLIC_FORCE_PANEL=admin pnpm exec next dev --turbopack",
+    "dev:driver": "cross-env NEXT_PUBLIC_FORCE_PANEL=driver pnpm exec next dev --turbopack",
+    "dev:customer": "cross-env NEXT_PUBLIC_FORCE_PANEL=customer pnpm exec next dev --turbopack",
     "build": "npm run patch-styled-jsx && npx next build",
     "start": "pnpm exec next start",
     "lint": "pnpm exec next lint",
@@ -85,6 +89,7 @@
     "@types/node": "^20.17.57",
     "@typescript-eslint/eslint-plugin": "^8.33.1",
     "@typescript-eslint/parser": "^8.33.1",
+    "cross-env": "^7.0.3",
     "eslint": "^9",
     "eslint-config-next": "15.3.2",
     "tailwindcss": "^4",
