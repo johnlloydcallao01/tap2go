@@ -14,7 +14,7 @@
       "SKIP_ENV_VALIDATION": "1"
     }
   },
-  "buildCommand": "cd ../.. && pnpm install && cd apps/web-driver && pnpm run build",
+  "buildCommand": "cd ../.. && pnpm install --no-frozen-lockfile && cd apps/web-driver && pnpm run build",
   "headers": [
     {
       "source": "/(.*)",
