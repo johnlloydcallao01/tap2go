@@ -26,8 +26,6 @@
     "config": "workspace:*",
     "firebase": "^11.8.1",
     "firebase-admin": "^13.4.0",
-    "@firebase/auth": "^1.8.0",
-    "@firebase/firestore": "^4.8.0",
     "firebase-config": "workspace:*",
     "lucide-react": "^0.445.0",
     "next": "15.3.2",
