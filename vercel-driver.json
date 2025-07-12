@@ -1,0 +1,28 @@
+{
+  "name": "tap2go-driver-panel",
+  "version": 2,
+  "builds": [
+    {
+      "src": "apps/web-driver/package.json",
+      "use": "@vercel/next",
+      "config": {
+        "distDir": "apps/web-driver/.next"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "apps/web-driver/$1"
+    }
+  ],
+  "functions": {
+    "apps/web-driver/src/app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "installCommand": "pnpm install",
+  "buildCommand": "cd apps/web-driver && pnpm run build",
+  "devCommand": "cd apps/web-driver && pnpm run dev",
+  "outputDirectory": "apps/web-driver/.next"
+}

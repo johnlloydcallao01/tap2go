@@ -50,10 +50,4 @@ export interface CardProps extends BaseComponentProps {
   loading?: boolean;
 }
 
-export default {
-  BaseComponentProps,
-  ButtonProps,
-  InputProps,
-  ModalProps,
-  CardProps,
-};
+// Types are already exported individually above

@@ -802,12 +802,21 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared-utils
     devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3
+        version: 3.3.1
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.1.11
       '@types/node':
         specifier: ^20
         version: 20.19.2
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.33.1
+        version: 8.35.0(@typescript-eslint/parser@8.35.0)(eslint@9.30.0)(typescript@5.8.3)
+      '@typescript-eslint/parser':
+        specifier: ^8.33.1
+        version: 8.35.0(eslint@9.30.0)(typescript@5.8.3)
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.21(postcss@8.5.6)
@@ -815,11 +824,11 @@ importers:
         specifier: ^7.0.3
         version: 7.0.3
       eslint:
-        specifier: ^8
-        version: 8.57.1
+        specifier: ^9
+        version: 9.30.0
       eslint-config-next:
         specifier: 15.3.2
-        version: 15.3.2(eslint@8.57.1)(typescript@5.8.3)
+        version: 15.3.2(eslint@9.30.0)(typescript@5.8.3)
       postcss:
         specifier: ^8.4.47
         version: 8.5.6

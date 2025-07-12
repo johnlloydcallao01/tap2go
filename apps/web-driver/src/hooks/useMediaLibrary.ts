@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type { MediaFile, MediaFolder, MediaSearchFilters, MediaSearchOptions } from '@/lib/services/mediaLibraryService';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 interface MediaLibraryState {
   files: MediaFile[];
@@ -423,7 +423,7 @@ export function useMediaLibrary() {
           schema: 'public',
           table: 'media_files'
         },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<MediaFile>) => {
           console.log('📡 Real-time media_files change:', payload);
 
           switch (payload.eventType) {
@@ -469,7 +469,7 @@ export function useMediaLibrary() {
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => {
         console.log('📡 Real-time subscription status:', status);
       });
 

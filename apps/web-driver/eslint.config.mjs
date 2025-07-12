@@ -21,6 +21,8 @@ const eslintConfig = [
       "src/app/system-docs/**/*",
       "src/contexts/**/*",
       "src/types/**/*",
+      "src/components/maps/**/*", // Placeholder map components
+      "src/components/emails/**/*", // Placeholder email components
       "scripts/test-*.js"
     ],
     rules: {

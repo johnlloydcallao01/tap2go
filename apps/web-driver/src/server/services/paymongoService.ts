@@ -172,7 +172,7 @@ export class PayMongoService {
         },
       };
 
-      const response = await paymongoPublicClient.post('/payment_methods', payload);
+      const response = await paymongoPublicClient().post('/payment_methods', payload);
       return response.data;
     } catch (error) {
       console.error('PayMongo createPaymentMethod error:', error);
@@ -197,7 +197,7 @@ export class PayMongoService {
         },
       };
 
-      const response = await paymongoPublicClient.post(
+      const response = await paymongoPublicClient().post(
         `/payment_intents/${request.payment_intent_id}/attach`,
         payload
       );

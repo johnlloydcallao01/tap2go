@@ -38,7 +38,7 @@ export const createDriverUser = async () => {
       
       console.log('✅ Existing driver user updated with driver role');
       
-    } catch (error) {
+    } catch {
       // User doesn't exist, create new one
       console.log('Creating new driver user...');
       userRecord = await adminAuth.createUser({
