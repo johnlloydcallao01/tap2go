@@ -16,7 +16,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { User, AuthContextType } from '@/types';
-import { createUser, getUser, updateUser, updateUserLastLogin } from '../lib/database/users';
+import { createUser, getUser, updateUser, updateUserLastLogin } from '@/lib/database/users';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
