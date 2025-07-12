@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm exec next dev --turbopack --port 3003",
     "build": "pnpm run patch-styled-jsx && pnpm exec next build",
+    "vercel-build": "node scripts/vercel-build.js && pnpm run build",
     "start": "pnpm exec next start --port 3003",
     "lint": "pnpm exec next lint",
     "type-check": "pnpm exec tsc --noEmit",

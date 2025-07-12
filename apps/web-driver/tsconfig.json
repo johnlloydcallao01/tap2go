@@ -23,9 +23,13 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@/lib/*": ["./src/lib/*"],
+      "@/lib/firebase": ["./src/lib/firebase.ts"],
+      "@/lib/firebase-admin": ["./src/lib/firebase-admin.ts"],
+      "@/lib/database/users": ["./src/lib/database/users.ts"],
       "@/components/*": ["./src/components/*"],
       "@/contexts/*": ["./src/contexts/*"],
       "@/types/*": ["./src/types/*"],
@@ -33,7 +37,6 @@
       "@/hooks/*": ["./src/hooks/*"],
       "@/utils/*": ["./src/utils/*"]
     },
-    "baseUrl": ".",
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "typeRoots": [

@@ -10,9 +10,11 @@
     "env": {
       "NODE_OPTIONS": "--max-old-space-size=4096",
       "VERCEL": "1",
-      "NEXT_TELEMETRY_DISABLED": "1"
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "SKIP_ENV_VALIDATION": "1"
     }
   },
+  "buildCommand": "cd ../.. && pnpm install && cd apps/web-driver && pnpm run vercel-build",
   "headers": [
     {
       "source": "/(.*)",
