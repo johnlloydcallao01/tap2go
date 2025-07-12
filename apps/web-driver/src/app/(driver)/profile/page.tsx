@@ -1,8 +1,5 @@
 'use client';
 
-// Force dynamic rendering to avoid SSR issues
-export const dynamic = 'force-dynamic';
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {

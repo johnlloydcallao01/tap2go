@@ -6,8 +6,13 @@
   "devCommand": "pnpm run dev",
   "regions": ["sin1"],
   "functions": {
-    "app/**/*.{js,ts,tsx}": {
+    "src/app/api/**/*.{js,ts,tsx}": {
       "maxDuration": 30
+    }
+  },
+  "build": {
+    "env": {
+      "NODE_OPTIONS": "--max-old-space-size=4096"
     }
   },
   "headers": [

@@ -36,13 +36,29 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   webpack: (config) => {
+    const path = require('path');
+
+    // Enhanced path resolution for Vercel compatibility
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': require('path').resolve(__dirname, 'src'),
-      'react': require('path').resolve(__dirname, '../../node_modules/react'),
-      'react-dom': require('path').resolve(__dirname, '../../node_modules/react-dom'),
+      '@': path.resolve(__dirname, 'src'),
+      '@/lib': path.resolve(__dirname, 'src/lib'),
+      '@/components': path.resolve(__dirname, 'src/components'),
+      '@/contexts': path.resolve(__dirname, 'src/contexts'),
+      '@/types': path.resolve(__dirname, 'src/types'),
+      '@/app': path.resolve(__dirname, 'src/app'),
     };
+
     config.resolve.extensions = ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'];
+
+    // Ensure proper module resolution
+    config.resolve.modules = [
+      path.resolve(__dirname, 'src'),
+      path.resolve(__dirname, 'node_modules'),
+      path.resolve(__dirname, '../../node_modules'),
+      'node_modules'
+    ];
+
     return config;
   },
   turbopack: {
@@ -54,8 +70,11 @@ const nextConfig: NextConfig = {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
     resolveAlias: {
       '@': require('path').resolve(__dirname, 'src'),
-      'react': require('path').resolve(__dirname, '../../node_modules/react'),
-      'react-dom': require('path').resolve(__dirname, '../../node_modules/react-dom'),
+      '@/lib': require('path').resolve(__dirname, 'src/lib'),
+      '@/components': require('path').resolve(__dirname, 'src/components'),
+      '@/contexts': require('path').resolve(__dirname, 'src/contexts'),
+      '@/types': require('path').resolve(__dirname, 'src/types'),
+      '@/app': require('path').resolve(__dirname, 'src/app'),
     },
   },
 };
