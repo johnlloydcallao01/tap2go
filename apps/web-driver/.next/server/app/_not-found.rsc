@@ -1,0 +1,21 @@
+1:"$Sreact.fragment"
+2:I[7281,["149","static/chunks/14aeac6e-e55a8100361bed7e.js","546","static/chunks/be261db7-2b6996adc56b2edd.js","1","static/chunks/1-89477d114f405b01.js","662","static/chunks/662-130f62f683c8c725.js","177","static/chunks/app/layout-a93ce43212bdb76e.js"],"AuthProvider"]
+3:I[7132,[],""]
+4:I[5983,["39","static/chunks/app/error-3558eaaa52ace9bc.js"],"default"]
+5:I[5082,[],""]
+6:I[7261,["261","static/chunks/261-ecbc2eac0789fc02.js","345","static/chunks/app/not-found-3d1ff391c0be165c.js"],""]
+7:I[700,[],"MetadataBoundary"]
+9:I[700,[],"OutletBoundary"]
+c:I[7748,[],"AsyncMetadataOutlet"]
+e:I[700,[],"ViewportBoundary"]
+10:I[9699,[],""]
+:HL["/_next/static/css/599e2f2c5a43f9a6.css","style"]
+0:{"P":null,"b":"HIVNLmcP1IB8Lq4W0J8x-","p":"","c":["","_not-found"],"i":false,"f":[[["",{"children":["/_not-found",{"children":["__PAGE__",{}]}]},"$undefined","$undefined",true],["",["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/599e2f2c5a43f9a6.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"en","children":["$","body",null,{"className":"__className_e8ce0c","children":["$","$L2",null,{"children":["$","$L3",null,{"parallelRouterKey":"children","error":"$4","errorStyles":[],"errorScripts":[],"template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","div",null,{"className":"min-h-screen bg-gray-50 flex items-center justify-center p-4","children":["$","div",null,{"className":"max-w-md w-full text-center","children":[["$","div",null,{"className":"text-6xl font-bold text-orange-500 mb-4","children":"404"}],["$","h1",null,{"className":"text-xl font-bold text-gray-900 mb-4","children":"Page Not Found"}],["$","p",null,{"className":"text-gray-600 mb-8","children":"Sorry, we couldn't find the page you're looking for."}],["$","$L6",null,{"href":"/","className":"inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors","children":"Go Home"}]]}]}],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}]}]}]]}],{"children":["/_not-found",["$","$1","c",{"children":[null,["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":["__PAGE__",["$","$1","c",{"children":[["$","div",null,{"className":"min-h-screen bg-gray-50 flex items-center justify-center p-4","children":["$","div",null,{"className":"max-w-md w-full text-center","children":[["$","div",null,{"className":"text-6xl font-bold text-orange-500 mb-4","children":"404"}],["$","h1",null,{"className":"text-xl font-bold text-gray-900 mb-4","children":"Page Not Found"}],["$","p",null,{"className":"text-gray-600 mb-8","children":"Sorry, we couldn't find the page you're looking for."}],["$","$L6",null,{"href":"/","className":"inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors","children":"Go Home"}]]}]}],["$","$L7",null,{"children":"$L8"}],null,["$","$L9",null,{"children":["$La","$Lb",["$","$Lc",null,{"promise":"$@d"}]]}]]}],{},null,false]},null,false]},null,false],["$","$1","h",{"children":[["$","meta",null,{"name":"robots","content":"noindex"}],["$","$1","PVRY6pYSSA17Eh_kIw4P9",{"children":[["$","$Le",null,{"children":"$Lf"}],null]}],null]}],false]],"m":"$undefined","G":["$10","$undefined"],"s":false,"S":true}
+11:"$Sreact.suspense"
+12:I[7748,[],"AsyncMetadata"]
+8:["$","$11",null,{"fallback":null,"children":["$","$L12",null,{"promise":"$@13"}]}]
+b:null
+f:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]
+a:null
+13:{"metadata":[["$","title","0",{"children":"Tap2Go Driver"}],["$","meta","1",{"name":"description","content":"Driver panel for Tap2Go food delivery platform"}],["$","link","2",{"rel":"icon","href":"/favicon.ico","type":"image/x-icon","sizes":"16x16"}]],"error":null,"digest":"$undefined"}
+d:{"metadata":"$13:metadata","error":null,"digest":"$undefined"}

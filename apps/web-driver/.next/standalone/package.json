@@ -1,0 +1,111 @@
+{
+  "name": "tap2go-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "build:customer": "cd apps/web-customer && pnpm run build",
+    "build:vendor": "cd apps/web-vendor && pnpm run build",
+    "build:admin": "cd apps/web-admin && pnpm run build",
+    "build:driver": "cd apps/web-driver && pnpm run build",
+    "dev": "turbo run dev",
+    "dev:customer": "cd apps/web-customer && pnpm run dev",
+    "dev:vendor": "cd apps/web-vendor && pnpm run dev",
+    "dev:admin": "cd apps/web-admin && pnpm run dev",
+    "dev:driver": "cd apps/web-driver && pnpm run dev",
+    "start:customer": "cd apps/web-customer && pnpm run start",
+    "start:vendor": "cd apps/web-vendor && pnpm run start",
+    "start:admin": "cd apps/web-admin && pnpm run start",
+    "start:driver": "cd apps/web-driver && pnpm run start",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean",
+    "sync-env": "node scripts/sync-env.js",
+    "postinstall": "node scripts/sync-env.js",
+    "type-check": "pnpm run type-check:packages && pnpm run type-check:apps",
+    "type-check:apps": "pnpm run type-check:web && pnpm run type-check:mobile-customer",
+    "type-check:web": "cd apps/web && npx tsc --noEmit",
+    "type-check:mobile-customer": "cd apps/mobile-customer && npx tsc --noEmit",
+    "type-check:packages": "tsc --build",
+    "type-check:turbo": "turbo run type-check",
+    "web:dev": "turbo run dev --filter=web",
+    "web:build": "turbo run build --filter=web",
+    "web:start": "cd apps/web && pnpm start",
+    "web:deploy": "cd apps/web && pnpm run build",
+    "mobile:dev": "pnpm run sync-env && turbo run dev --filter=mobile-customer",
+    "mobile:build": "turbo run build --filter=mobile-customer",
+    "mobile:ios": "turbo run ios --filter=mobile-customer",
+    "mobile:android": "turbo run android --filter=mobile-customer",
+    "vercel-build": "cd apps/web && pnpm run build",
+    "start": "cd apps/web && pnpm start",
+    "deploy:all": "node scripts/deploy-subdomains.js",
+    "deploy:customer": "node scripts/deploy-subdomains.js --panel customer",
+    "deploy:vendor": "node scripts/deploy-subdomains.js --panel vendor",
+    "deploy:admin": "node scripts/deploy-subdomains.js --panel admin",
+    "deploy:driver": "node scripts/deploy-subdomains.js --panel driver"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^2.0.0",
+    "next": "15.3.2",
+    "turbo": "^2.0.0",
+    "typescript": "5.8.3"
+  },
+  "packageManager": "pnpm@8.15.6",
+  "pnpm": {
+    "shamefullyHoist": true,
+    "hoistPattern": [
+      "*"
+    ],
+    "publicHoistPattern": [
+      "*expo*",
+      "*react-native*",
+      "*@babel*",
+      "*metro*",
+      "*expo-modules-core*",
+      "scheduler",
+      "color-string",
+      "color",
+      "color-convert",
+      "color-name",
+      "simple-swizzle",
+      "hoist-non-react-statics",
+      "@babel/runtime"
+    ],
+    "overrides": {
+      "@react-native-async-storage/async-storage": "2.1.2",
+      "@types/react": "~19.0.10",
+      "babel-preset-expo": "~13.0.0"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "react": "19.x"
+      },
+      "ignoreMissing": [
+        "@react-native-async-storage/async-storage"
+      ]
+    }
+  },
+  "engines": {
+    "node": "18.x || 20.x || 22.x",
+    "npm": ">=8.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.27.6",
+    "@headlessui/react": "^2.2.4",
+    "color": "^4.2.3",
+    "color-convert": "^3.1.0",
+    "color-name": "^2.0.0",
+    "color-string": "^1.9.1",
+    "hoist-non-react-statics": "^3.3.2",
+    "nativewind": "2.0.11",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "redux-persist": "^6.0.0",
+    "scheduler": "^0.25.0",
+    "simple-swizzle": "^0.2.2"
+  }
+}
