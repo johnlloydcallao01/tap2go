@@ -744,6 +744,12 @@ importers:
 
   apps/web-driver:
     dependencies:
+      '@firebase/auth':
+        specifier: ^1.8.0
+        version: 1.10.7(@firebase/app@0.13.1)(@react-native-async-storage/async-storage@2.1.2)
+      '@firebase/firestore':
+        specifier: ^4.8.0
+        version: 4.8.0(@firebase/app@0.13.1)
       '@google/generative-ai':
         specifier: ^0.24.1
         version: 0.24.1
@@ -3014,6 +3020,14 @@ packages:
       tslib: 2.8.1
     dev: false
 
+  /@firebase/component@0.6.18:
+    resolution: {integrity: sha512-n28kPCkE2dL2U28fSxZJjzPPVpKsQminJ6NrzcKXAI0E/lYC8YhfwpyllScqVEvAI3J2QgJZWYgrX+1qGI+SQQ==}
+    engines: {node: '>=18.0.0'}
+    dependencies:
+      '@firebase/util': 1.12.1
+      tslib: 2.8.1
+    dev: false
+
   /@firebase/component@0.6.9:
     resolution: {integrity: sha512-gm8EUEJE/fEac86AvHn8Z/QW8BvR56TBw3hMW0O838J/1mThYQXAIQBgUv75EqlCZfdawpWLrKt1uXvp9ciK3Q==}
     dependencies:
@@ -3277,6 +3291,22 @@ packages:
       '@firebase/component': 0.6.12
       '@firebase/logger': 0.4.4
       '@firebase/util': 1.10.3
+      '@firebase/webchannel-wrapper': 1.0.3
+      '@grpc/grpc-js': 1.9.15
+      '@grpc/proto-loader': 0.7.15
+      tslib: 2.8.1
+    dev: false
+
+  /@firebase/firestore@4.8.0(@firebase/app@0.13.1):
+    resolution: {integrity: sha512-QSRk+Q1/CaabKyqn3C32KSFiOdZpSqI9rpLK5BHPcooElumOBooPFa6YkDdiT+/KhJtel36LdAacha9BptMj2A==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@firebase/app': 0.x
+    dependencies:
+      '@firebase/app': 0.13.1
+      '@firebase/component': 0.6.18
+      '@firebase/logger': 0.4.4
+      '@firebase/util': 1.12.1
       '@firebase/webchannel-wrapper': 1.0.3
       '@grpc/grpc-js': 1.9.15
       '@grpc/proto-loader': 0.7.15
@@ -3911,6 +3941,14 @@ packages:
 
   /@firebase/util@1.12.0:
     resolution: {integrity: sha512-Z4rK23xBCwgKDqmzGVMef+Vb4xso2j5Q8OG0vVL4m4fA5ZjPMYQazu8OJJC3vtQRC3SQ/Pgx/6TPNVsCd70QRw==}
+    engines: {node: '>=18.0.0'}
+    requiresBuild: true
+    dependencies:
+      tslib: 2.8.1
+    dev: false
+
+  /@firebase/util@1.12.1:
+    resolution: {integrity: sha512-zGlBn/9Dnya5ta9bX/fgEoNC3Cp8s6h+uYPYaDieZsFOAdHP/ExzQ/eaDgxD3GOROdPkLKpvKY0iIzr9adle0w==}
     engines: {node: '>=18.0.0'}
     requiresBuild: true
     dependencies:

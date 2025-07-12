@@ -77,7 +77,30 @@ const nextConfig = {
         net: false,
         tls: false,
         crypto: false,
+        stream: false,
+        util: false,
+        buffer: false,
+        events: false,
+        http2: false,
+        dns: false,
+        child_process: false,
+        os: false,
+        path: false,
+        url: false,
+        querystring: false,
+        zlib: false,
       };
+    }
+
+    // Remove problematic Firebase aliases - let Next.js handle module resolution
+
+    // Exclude Node.js specific Firebase modules from client bundle
+    if (!isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@grpc/grpc-js': 'commonjs @grpc/grpc-js',
+        'firebase-admin': 'commonjs firebase-admin',
+      });
     }
 
     return config;

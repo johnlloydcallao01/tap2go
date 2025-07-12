@@ -46,6 +46,9 @@ const nextConfig: NextConfig = {
       ...config.resolve.alias,
       '@': srcPath,
       '@/lib': path.join(srcPath, 'lib'),
+      '@/lib/firebase': path.join(srcPath, 'lib/firebase.ts'),
+      '@/lib/firebase-admin': path.join(srcPath, 'lib/firebase-admin.ts'),
+      '@/lib/database/users': path.join(srcPath, 'lib/database/users.ts'),
       '@/components': path.join(srcPath, 'components'),
       '@/contexts': path.join(srcPath, 'contexts'),
       '@/types': path.join(srcPath, 'types'),
@@ -76,7 +79,30 @@ const nextConfig: NextConfig = {
         net: false,
         tls: false,
         crypto: false,
+        stream: false,
+        util: false,
+        buffer: false,
+        events: false,
+        http2: false,
+        dns: false,
+        child_process: false,
+        os: false,
+        path: false,
+        url: false,
+        querystring: false,
+        zlib: false,
       };
+    }
+
+    // Remove problematic Firebase aliases - let Next.js handle module resolution
+
+    // Exclude Node.js specific Firebase modules from client bundle
+    if (!isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@grpc/grpc-js': 'commonjs @grpc/grpc-js',
+        'firebase-admin': 'commonjs firebase-admin',
+      });
     }
 
     return config;
