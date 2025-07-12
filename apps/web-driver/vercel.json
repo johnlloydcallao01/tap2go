@@ -1,10 +1,5 @@
 {
-  "buildCommand": "cd apps/web-driver && pnpm run build",
-  "outputDirectory": "apps/web-driver/.next",
   "framework": "nextjs",
-  "installCommand": "pnpm install",
-  "devCommand": "cd apps/web-driver && pnpm run dev",
-  "rootDirectory": "apps/web-driver",
   "regions": ["sin1"],
   "functions": {
     "src/app/api/**/*.{js,ts,tsx}": {
