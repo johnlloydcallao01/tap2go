@@ -39,14 +39,33 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   webpack: (config, { isServer }) => {
-    // Simple webpack configuration like the working web app
+    // Enhanced webpack configuration for Vercel compatibility
+    const srcPath = path.resolve(__dirname, 'src');
+
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': path.resolve(__dirname, 'src'),
+      '@': srcPath,
+      '@/lib': path.join(srcPath, 'lib'),
+      '@/components': path.join(srcPath, 'components'),
+      '@/contexts': path.join(srcPath, 'contexts'),
+      '@/types': path.join(srcPath, 'types'),
+      '@/app': path.join(srcPath, 'app'),
+      '@/hooks': path.join(srcPath, 'hooks'),
+      '@/utils': path.join(srcPath, 'utils'),
     };
 
     // Ensure proper file extensions are resolved
     config.resolve.extensions = ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'];
+
+    // Vercel-specific optimizations
+    if (process.env.VERCEL) {
+      config.resolve.symlinks = false;
+      config.resolve.modules = [
+        path.resolve(__dirname, 'node_modules'),
+        path.resolve(__dirname, '../../node_modules'),
+        'node_modules'
+      ];
+    }
 
     return config;
   },

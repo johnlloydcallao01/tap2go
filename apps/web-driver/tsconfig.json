@@ -24,7 +24,14 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/contexts/*": ["./src/contexts/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/app/*": ["./src/app/*"],
+      "@/hooks/*": ["./src/hooks/*"],
+      "@/utils/*": ["./src/utils/*"]
     },
     "baseUrl": ".",
     "forceConsistentCasingInFileNames": true,
