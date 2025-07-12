@@ -26,12 +26,12 @@ if (missingVars.length > 0) {
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: requiredEnvVars.apiKey!,
-  authDomain: requiredEnvVars.authDomain!,
-  projectId: requiredEnvVars.projectId!,
-  storageBucket: requiredEnvVars.storageBucket!,
-  messagingSenderId: requiredEnvVars.messagingSenderId!,
-  appId: requiredEnvVars.appId!
+  apiKey: requiredEnvVars.apiKey as string,
+  authDomain: requiredEnvVars.authDomain as string,
+  projectId: requiredEnvVars.projectId as string,
+  storageBucket: requiredEnvVars.storageBucket as string,
+  messagingSenderId: requiredEnvVars.messagingSenderId as string,
+  appId: requiredEnvVars.appId as string
 };
 
 // Initialize Firebase
@@ -72,3 +72,63 @@ export const getMessagingInstance = () => messaging;
 export { messaging, firebaseConfig };
 
 export default app;
+
+// Firebase Admin configuration (server-side only)
+let adminApp: any = null;
+let adminDb: any = null;
+let adminAuth: any = null;
+
+// Initialize Firebase Admin safely (only on server-side)
+if (typeof window === 'undefined') {
+  try {
+    const { initializeApp: initializeAdminApp, getApps, cert } = require('firebase-admin/app');
+    const { getFirestore } = require('firebase-admin/firestore');
+    const { getAuth } = require('firebase-admin/auth');
+
+    // Check if already initialized
+    if (getApps().length === 0) {
+      // Get environment variables
+      const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
+      const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+      const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+
+      if (projectId && privateKey && clientEmail) {
+        // Process private key
+        let processedPrivateKey = privateKey;
+        processedPrivateKey = processedPrivateKey.replace(/^["']|["']$/g, '');
+        processedPrivateKey = processedPrivateKey.replace(/\\n/g, '\n');
+
+        // Create service account configuration
+        const serviceAccount = {
+          type: "service_account",
+          project_id: projectId,
+          private_key: processedPrivateKey,
+          client_email: clientEmail,
+        };
+
+        // Initialize Firebase Admin
+        adminApp = initializeAdminApp({
+          credential: cert(serviceAccount),
+          projectId: projectId,
+        });
+
+        // Initialize services
+        adminDb = getFirestore(adminApp);
+        adminAuth = getAuth(adminApp);
+
+        console.log('Firebase Admin initialized successfully in firebase-config');
+      } else {
+        console.warn('Firebase Admin environment variables not found in firebase-config');
+      }
+    } else {
+      adminApp = getApps()[0];
+      adminDb = getFirestore(adminApp);
+      adminAuth = getAuth(adminApp);
+    }
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin in firebase-config:', error);
+  }
+}
+
+// Export admin services
+export { adminDb, adminAuth, adminApp };
