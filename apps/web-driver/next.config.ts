@@ -5,8 +5,6 @@ const nextConfig: NextConfig = {
   experimental: {
     reactCompiler: false,
     ...(process.env.NODE_ENV === 'production' ? { forceSwcTransforms: true } : {}),
-    // Enable better module resolution for Vercel
-    optimizePackageImports: ['firebase', 'firebase/auth', 'firebase/firestore'],
   },
   output: 'standalone',
   trailingSlash: false,
