@@ -2,7 +2,7 @@
 
 /**
  * Vercel Build Script for web-driver
- * 
+ *
  * This script ensures proper module resolution and dependency handling
  * for Vercel deployments in monorepo environments.
  */
@@ -11,6 +11,15 @@ const fs = require('fs');
 const path = require('path');
 
 console.log('🚀 Starting Vercel build preparation...');
+console.log('📍 Current working directory:', process.cwd());
+console.log('📍 Script directory:', __dirname);
+
+// Determine the correct base directory
+const baseDir = process.cwd().includes('apps/web-driver')
+  ? process.cwd()
+  : path.resolve(__dirname, '..');
+
+console.log('📍 Base directory:', baseDir);
 
 // Verify critical files exist
 const criticalFiles = [
@@ -22,9 +31,28 @@ const criticalFiles = [
 
 console.log('📋 Verifying critical files...');
 for (const file of criticalFiles) {
-  const filePath = path.resolve(__dirname, '..', file);
+  const filePath = path.resolve(baseDir, file);
+  console.log(`🔍 Checking: ${filePath}`);
   if (!fs.existsSync(filePath)) {
     console.error(`❌ Critical file missing: ${file}`);
+    console.error(`   Expected at: ${filePath}`);
+
+    // Try alternative paths for debugging
+    const altPath1 = path.resolve(process.cwd(), file);
+    const altPath2 = path.resolve(__dirname, '..', file);
+    console.log(`🔍 Alternative path 1: ${altPath1} - exists: ${fs.existsSync(altPath1)}`);
+    console.log(`🔍 Alternative path 2: ${altPath2} - exists: ${fs.existsSync(altPath2)}`);
+
+    // List directory contents for debugging
+    const srcDir = path.resolve(baseDir, 'src');
+    if (fs.existsSync(srcDir)) {
+      console.log(`📁 Contents of ${srcDir}:`, fs.readdirSync(srcDir));
+      const libDir = path.resolve(srcDir, 'lib');
+      if (fs.existsSync(libDir)) {
+        console.log(`📁 Contents of ${libDir}:`, fs.readdirSync(libDir));
+      }
+    }
+
     process.exit(1);
   } else {
     console.log(`✅ Found: ${file}`);
@@ -32,9 +60,9 @@ for (const file of criticalFiles) {
 }
 
 // Verify TypeScript configuration
-const tsconfigPath = path.resolve(__dirname, '..', 'tsconfig.json');
+const tsconfigPath = path.resolve(baseDir, 'tsconfig.json');
 if (!fs.existsSync(tsconfigPath)) {
-  console.error('❌ tsconfig.json not found');
+  console.error('❌ tsconfig.json not found at:', tsconfigPath);
   process.exit(1);
 }
 
@@ -47,9 +75,9 @@ if (!tsconfig.compilerOptions.paths || !tsconfig.compilerOptions.paths['@/*']) {
 console.log('✅ TypeScript configuration verified');
 
 // Verify Next.js configuration
-const nextConfigPath = path.resolve(__dirname, '..', 'next.config.ts');
+const nextConfigPath = path.resolve(baseDir, 'next.config.ts');
 if (!fs.existsSync(nextConfigPath)) {
-  console.error('❌ next.config.ts not found');
+  console.error('❌ next.config.ts not found at:', nextConfigPath);
   process.exit(1);
 }
 
@@ -63,10 +91,18 @@ process.env.SKIP_ENV_VALIDATION = '1';
 console.log('🎯 Environment variables set for Vercel build');
 
 // Verify node_modules structure
-const nodeModulesPath = path.resolve(__dirname, '..', 'node_modules');
+const nodeModulesPath = path.resolve(baseDir, 'node_modules');
 if (!fs.existsSync(nodeModulesPath)) {
-  console.error('❌ node_modules not found');
-  process.exit(1);
+  console.warn('⚠️ Local node_modules not found, checking workspace root...');
+  const workspaceNodeModules = path.resolve(baseDir, '../../node_modules');
+  if (!fs.existsSync(workspaceNodeModules)) {
+    console.error('❌ No node_modules found');
+    process.exit(1);
+  } else {
+    console.log('✅ Workspace node_modules found');
+  }
+} else {
+  console.log('✅ Local node_modules found');
 }
 
 console.log('✅ Dependencies verified');
