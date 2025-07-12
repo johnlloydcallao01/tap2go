@@ -55,7 +55,6 @@ const navigationCategories: NavigationCategory[] = [
       { name: 'All Users', href: '/admin/users', icon: asIconComponent(UsersIcon) },
       { name: 'Customers', href: '/admin/customers', icon: asIconComponent(UserGroupIcon) },
       { name: 'Vendors', href: '/admin/vendors', icon: asIconComponent(BuildingStorefrontIcon) },
-      { name: 'Drivers', href: '/admin/drivers', icon: asIconComponent(TruckIcon) },
     ]
   },
   {

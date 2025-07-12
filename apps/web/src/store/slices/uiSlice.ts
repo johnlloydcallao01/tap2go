@@ -76,13 +76,7 @@ export interface UIState {
     menuEditMode: boolean;
     selectedOrders: string[];
   };
-  
-  driverPanel: {
-    mapView: 'normal' | 'satellite' | 'terrain';
-    showTraffic: boolean;
-    autoAcceptOrders: boolean;
-  };
-  
+
   // Customer app
   customerApp: {
     viewMode: 'list' | 'grid' | 'map';
@@ -116,11 +110,6 @@ const initialState: UIState = {
     activeSection: 'dashboard',
     menuEditMode: false,
     selectedOrders: [],
-  },
-  driverPanel: {
-    mapView: 'normal',
-    showTraffic: true,
-    autoAcceptOrders: false,
   },
   customerApp: {
     viewMode: 'list',
@@ -296,20 +285,7 @@ const uiSlice = createSlice({
     setVendorSelectedOrders: (state, action: PayloadAction<string[]>) => {
       state.vendorPanel.selectedOrders = action.payload;
     },
-    
-    // Driver panel
-    setDriverMapView: (state, action: PayloadAction<UIState['driverPanel']['mapView']>) => {
-      state.driverPanel.mapView = action.payload;
-    },
-    
-    toggleDriverTraffic: (state) => {
-      state.driverPanel.showTraffic = !state.driverPanel.showTraffic;
-    },
-    
-    setDriverAutoAccept: (state, action: PayloadAction<boolean>) => {
-      state.driverPanel.autoAcceptOrders = action.payload;
-    },
-    
+
     // Customer app
     setCustomerViewMode: (state, action: PayloadAction<UIState['customerApp']['viewMode']>) => {
       state.customerApp.viewMode = action.payload;
@@ -411,9 +387,6 @@ export const {
   setVendorActiveSection,
   setVendorMenuEditMode,
   setVendorSelectedOrders,
-  setDriverMapView,
-  toggleDriverTraffic,
-  setDriverAutoAccept,
   setCustomerViewMode,
   setCustomerSortBy,
   toggleCustomerFilters,

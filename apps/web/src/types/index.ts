@@ -2,7 +2,7 @@ export interface User {
   id: string;
   email: string;
   name?: string;
-  role: 'customer' | 'vendor' | 'driver' | 'admin';
+  role: 'customer' | 'vendor' | 'admin';
   phone?: string;
   address?: Address;
   profileImage?: string;
@@ -24,8 +24,6 @@ export interface VendorProfile extends User {
   documents: VendorDocument[];
 }
 
-// Driver interface removed - not implemented yet
-
 export interface BankAccount {
   accountNumber: string;
   routingNumber: string;
@@ -41,12 +39,7 @@ export interface VendorDocument {
   uploadedAt: Date;
 }
 
-export interface DriverEarnings {
-  today: number;
-  thisWeek: number;
-  thisMonth: number;
-  total: number;
-}
+
 
 export interface Address {
   street: string;
@@ -194,7 +187,7 @@ export interface Order {
   id: string;
   customerId: string;
   restaurantId: string;
-  driverId?: string;
+
   items: CartItem[];
   status: OrderStatus;
   subtotal: number;
@@ -202,7 +195,6 @@ export interface Order {
   tax: number;
   platformFee: number;
   vendorEarnings: number;
-  driverEarnings: number;
   total: number;
   deliveryAddress: Address;
   restaurantAddress: Address;
@@ -225,7 +217,7 @@ export type OrderStatus =
   | 'confirmed'
   | 'preparing'
   | 'ready'
-  | 'driver_assigned'
+
   | 'picked_up'
   | 'out_for_delivery'
   | 'delivered'
@@ -275,13 +267,7 @@ export interface VendorAnalytics {
   };
 }
 
-export interface DriverAnalytics {
-  driverId: string;
-  period: 'today' | 'week' | 'month' | 'year';
-  totalDeliveries: number;
-  totalEarnings: number;
-  averageDeliveryTime: number;
-  rating: number;
+
   totalRatings: number;
   onlineHours: number;
   deliveriesByStatus: {

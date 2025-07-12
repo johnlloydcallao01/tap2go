@@ -36,20 +36,7 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  if (hostname.includes('tap2go-driver.vercel.app')) {
-    // Handle root path - redirect to auth
-    if (pathname === '/') {
-      return NextResponse.redirect(new URL('/auth/signin', request.url));
-    }
-    // Don't rewrite auth routes - let them go to the main auth page
-    if (pathname.startsWith('/auth/')) {
-      return NextResponse.next();
-    }
-    // Rewrite all other paths to driver routes
-    if (!pathname.startsWith('/driver')) {
-      return NextResponse.rewrite(new URL(`/driver${pathname}`, request.url));
-    }
-  }
+
 
   // Subdomain-based routing for custom domains (future)
   if (hostname.startsWith('vendor.')) {
@@ -78,18 +65,7 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  if (hostname.startsWith('driver.')) {
-    if (pathname === '/') {
-      return NextResponse.redirect(new URL('/auth/signin', request.url));
-    }
-    // Don't rewrite auth routes - let them go to the main auth page
-    if (pathname.startsWith('/auth/')) {
-      return NextResponse.next();
-    }
-    if (!pathname.startsWith('/driver')) {
-      return NextResponse.rewrite(new URL(`/driver${pathname}`, request.url));
-    }
-  }
+
 
   // Check if this is a test route
   if (pathname.startsWith('/tests/') || pathname.startsWith('/test-')) {
