@@ -1,0 +1,21 @@
+# Vercel ignore file for web-driver app
+# Only ignore what's absolutely necessary
+
+# Development files
+*.log
+.DS_Store
+Thumbs.db
+
+# Build artifacts that should be rebuilt
+.next/cache
+.turbo
+
+# Don't ignore any source files or configurations
+!src/
+!public/
+!package.json
+!next.config.ts
+!tsconfig.json
+!tailwind.config.js
+!postcss.config.mjs
+!.env.local

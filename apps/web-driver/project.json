@@ -1,0 +1,17 @@
+{
+  "name": "tap2go-web-driver",
+  "version": "0.1.0",
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && pnpm build --filter=web-driver",
+  "outputDirectory": ".next",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "devCommand": "cd ../.. && pnpm web-driver:dev",
+  "rootDirectory": "./",
+  "sourceDirectory": ".",
+  "nodeVersion": "22.x",
+  "environmentVariables": {
+    "NODE_VERSION": "22",
+    "NEXT_TELEMETRY_DISABLED": "1",
+    "ENABLE_EXPERIMENTAL_COREPACK": "1"
+  }
+}
