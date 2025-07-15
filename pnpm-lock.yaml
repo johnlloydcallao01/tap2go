@@ -557,6 +557,9 @@ importers:
 
   apps/web-driver:
     dependencies:
+      '@heroicons/react':
+        specifier: ^2.2.0
+        version: 2.2.0(react@19.0.0)
       next:
         specifier: 15.3.5
         version: 15.3.5(react-dom@19.0.0)(react@19.0.0)
