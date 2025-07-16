@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack --port 3002",
+    "dev": "next dev --turbopack --port 3005",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "firebase": "^11.8.1",
+    "firebase-config": "workspace:*",
+    "shared-types": "workspace:*",
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

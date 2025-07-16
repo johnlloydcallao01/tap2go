@@ -560,6 +560,12 @@ importers:
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.0.0)
+      firebase:
+        specifier: ^11.8.1
+        version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
+      firebase-config:
+        specifier: workspace:*
+        version: link:../../packages/firebase-config
       next:
         specifier: 15.3.5
         version: 15.3.5(react-dom@19.0.0)(react@19.0.0)
@@ -569,6 +575,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.0.0(react@19.0.0)
+      shared-types:
+        specifier: workspace:*
+        version: link:../../packages/shared-types
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3
