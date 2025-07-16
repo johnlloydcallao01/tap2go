@@ -15,14 +15,14 @@ import {
   updateProfile as updateFirebaseProfile,
   getIdToken,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth } from 'firebase-config';
 import { DriverUser, DriverAuthContextType, AuthProviderProps } from '@/types/auth';
 import {
   createDriverUser,
   getDriverUser,
   getDriverProfile,
   updateDriverLastLogin,
-} from '@/lib/database/users';
+} from '@/lib/database';
 
 const AuthContext = createContext<DriverAuthContextType | undefined>(undefined);
 
