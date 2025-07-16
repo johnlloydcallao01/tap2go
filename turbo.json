@@ -55,6 +55,7 @@
     "ENABLE_AI_FEATURES",
     "AI_MODEL_DEFAULT",
     "NODE_VERSION",
+    "NEXT_TELEMETRY_DISABLED",
     "NODE_ENV",
     "CI",
     "VERCEL",
@@ -75,6 +76,7 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**", "lib/**", "*.tsbuildinfo"],
       "env": [
         "NODE_VERSION",
+        "NEXT_TELEMETRY_DISABLED",
         "NODE_ENV",
         "CI",
         "VERCEL",
@@ -88,11 +90,11 @@
     },
     "lint": {
       "dependsOn": ["^build"],
-      "env": ["NODE_VERSION", "NODE_ENV"]
+      "env": ["NODE_VERSION", "NEXT_TELEMETRY_DISABLED", "NODE_ENV"]
     },
     "type-check": {
       "dependsOn": ["^build"],
-      "env": ["NODE_VERSION", "NODE_ENV"]
+      "env": ["NODE_VERSION", "NEXT_TELEMETRY_DISABLED", "NODE_ENV"]
     },
     "clean": {
       "cache": false
