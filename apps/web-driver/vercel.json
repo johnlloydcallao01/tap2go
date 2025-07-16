@@ -1,7 +1,7 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "buildCommand": "cd ../.. && pnpm build --filter=web-driver",
+  "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm run build:packages && pnpm build --filter=web-driver",
   "outputDirectory": ".next",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "env": {
