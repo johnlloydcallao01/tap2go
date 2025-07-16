@@ -11,19 +11,21 @@
     }
   },
   "scripts": {
-    "build": "pnpm exec tsc",
-    "dev": "pnpm exec tsc --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "lint": "eslint src/",
-    "type-check": "pnpm exec tsc --noEmit",
+    "type-check": "tsc --noEmit",
     "clean": "rimraf dist"
   },
   "peerDependencies": {
     "react": "^19.0.0",
     "@types/react": "~19.0.10"
   },
-  "devDependencies": {
+  "dependencies": {
     "react": "^19.0.0",
-    "@types/react": "~19.0.10",
+    "@types/react": "~19.0.10"
+  },
+  "devDependencies": {
     "rimraf": "^6.0.1",
     "typescript": "^5.8.3"
   }
