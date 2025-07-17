@@ -17,12 +17,131 @@ import {
 } from 'firebase/auth';
 import { auth } from 'firebase-config';
 import { DriverUser, DriverAuthContextType, AuthProviderProps } from '@/types/auth';
+// Database imports - moved here to avoid import resolution issues on Vercel
+import { db } from 'firebase-config';
+import { COLLECTIONS } from 'database';
 import {
-  createDriverUser,
-  getDriverUser,
-  getDriverProfile,
-  updateDriverLastLogin,
-} from '../lib/database';
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp
+} from 'firebase/firestore';
+
+// Driver-specific interfaces
+interface DriverUserData {
+  uid: string;
+  email: string;
+  phoneNumber?: string;
+  role: 'driver';
+  profileImageUrl?: string;
+  isActive: boolean;
+  isVerified: boolean;
+  fcmTokens?: string[];
+  preferredLanguage?: string;
+  timezone?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  lastLoginAt?: Timestamp;
+}
+
+interface DriverProfileData {
+  userRef: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  profileImageUrl?: string;
+  status: 'pending_approval' | 'approved' | 'suspended' | 'rejected';
+  verificationStatus: 'pending' | 'verified' | 'rejected';
+  isOnline: boolean;
+  isAvailable: boolean;
+  currentLocation?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  };
+  totalDeliveries: number;
+  totalEarnings: number;
+  rating?: number;
+  joinedAt: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// Database functions - embedded to avoid import issues
+const createDriverUser = async (
+  uid: string,
+  email: string,
+  firstName: string,
+  lastName: string
+): Promise<void> => {
+  const userRef = doc(db, COLLECTIONS.USERS, uid);
+  const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+
+  // Create user document
+  const userData: Omit<DriverUserData, 'uid'> = {
+    email,
+    role: 'driver',
+    isActive: true,
+    isVerified: false,
+    createdAt: serverTimestamp() as Timestamp,
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+
+  // Create driver profile document
+  const driverData: DriverProfileData = {
+    userRef: `users/${uid}`,
+    firstName,
+    lastName,
+    status: 'pending_approval',
+    verificationStatus: 'pending',
+    isOnline: false,
+    isAvailable: false,
+    totalDeliveries: 0,
+    totalEarnings: 0,
+    joinedAt: serverTimestamp() as Timestamp,
+    createdAt: serverTimestamp() as Timestamp,
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+
+  // Create both documents atomically
+  await Promise.all([
+    setDoc(userRef, userData),
+    setDoc(driverRef, driverData)
+  ]);
+};
+
+const getDriverUser = async (uid: string): Promise<DriverUserData | null> => {
+  const userRef = doc(db, COLLECTIONS.USERS, uid);
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    return { uid, ...userSnap.data() } as DriverUserData;
+  }
+
+  return null;
+};
+
+const getDriverProfile = async (uid: string): Promise<DriverProfileData | null> => {
+  const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+  const driverSnap = await getDoc(driverRef);
+
+  if (driverSnap.exists()) {
+    return driverSnap.data() as DriverProfileData;
+  }
+
+  return null;
+};
+
+const updateDriverLastLogin = async (uid: string): Promise<void> => {
+  const userRef = doc(db, COLLECTIONS.USERS, uid);
+
+  await updateDoc(userRef, {
+    lastLoginAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+};
 
 const AuthContext = createContext<DriverAuthContextType | undefined>(undefined);
 
