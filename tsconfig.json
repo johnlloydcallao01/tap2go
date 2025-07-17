@@ -6,6 +6,7 @@
       "DOM.Iterable",
       "ES6"
     ],
+    "types": ["node"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -44,9 +45,11 @@
     },
     {
       "path": "./packages/shared-utils"
+    },
+    {
+      "path": "./packages/shared-auth"
     }
   ],
   "files": [],
-  "include": [],
-  "extends": "expo/tsconfig.base"
+  "include": []
 }

@@ -1,5 +1,4 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
@@ -15,6 +14,10 @@
     "skipLibCheck": true,
     "strict": true,
     "baseUrl": ".",
+    "types": ["node"],
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "target": "ES2020",
+    "module": "ESNext",
     "paths": {
       "@/*": ["./src/*"]
     }
