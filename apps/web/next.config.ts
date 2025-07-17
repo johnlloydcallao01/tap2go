@@ -21,6 +21,9 @@ const nextConfig: NextConfig = {
   // Skip problematic static generation
   skipMiddlewareUrlNormalize: true,
 
+  // Critical for monorepo builds on Vercel - includes files from monorepo root
+  outputFileTracingRoot: require('path').join(__dirname, '../../'),
+
   // Move serverComponentsExternalPackages to the correct location
   serverExternalPackages: ['styled-jsx'],
   // Completely disable styled-jsx
