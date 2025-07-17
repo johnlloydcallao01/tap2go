@@ -3,10 +3,9 @@
  * Handles user data operations in Firestore using shared database package
  */
 
-import { getFirebaseDb } from 'firebase-config';
+import { getFirebaseDb, collection, doc } from 'firebase-config';
 import { COLLECTIONS } from 'database';
 import {
-  doc,
   setDoc,
   getDoc,
   updateDoc,
@@ -35,9 +34,16 @@ function getDb(): Firestore {
   }
 
   try {
-    return getFirebaseDb();
+    const db = getFirebaseDb();
+    if (!db) {
+      throw new Error('Firebase database instance is null or undefined');
+    }
+    return db;
   } catch (error) {
     console.error('Failed to get Firebase database:', error);
+    if (error instanceof Error) {
+      throw new Error(`Firebase database error: ${error.message}`);
+    }
     throw new Error('Firebase database is not available. Please try again.');
   }
 }

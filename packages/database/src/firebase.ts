@@ -3,12 +3,11 @@
  * Centralized database operations for all collections
  */
 
+import { collection, doc } from 'firebase-config';
 import {
-  doc,
   setDoc,
   getDoc,
   updateDoc,
-  collection,
   addDoc,
   query,
   where,

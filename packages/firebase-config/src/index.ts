@@ -3,3 +3,6 @@ export * from './firebase-config';
 
 // Export SSR-safe functions
 export { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from './firebase-config';
+
+// Export debugging utilities
+export { collection, doc, debugFirebaseInit } from './debug-wrapper';

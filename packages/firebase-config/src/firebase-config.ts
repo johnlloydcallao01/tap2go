@@ -4,6 +4,7 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
+import { debugFirebaseInit } from "./debug-wrapper";
 
 // Validate environment variables
 const requiredEnvVars = {
@@ -63,8 +64,16 @@ function initializeFirebase() {
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);
+
+    console.log('Firebase initialized successfully');
   } catch (error) {
     console.error('Failed to initialize Firebase:', error);
+    // Reset all services to null on failure
+    app = null;
+    auth = null;
+    db = null;
+    storage = null;
+    throw error; // Re-throw the error so callers know initialization failed
   }
 }
 
@@ -72,9 +81,20 @@ function initializeFirebase() {
  * Get Firebase Auth instance (SSR-safe)
  */
 export function getFirebaseAuth() {
-  initializeFirebase();
+  // Ensure we're on the client side
+  if (typeof window === 'undefined') {
+    throw new Error('Firebase Auth can only be accessed on the client side');
+  }
+
+  try {
+    initializeFirebase();
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+    throw new Error('Firebase initialization failed. Please check your configuration.');
+  }
+
   if (!auth) {
-    throw new Error('Firebase Auth is not initialized. Make sure you are on the client side.');
+    throw new Error('Firebase Auth is not initialized. Please check your Firebase configuration.');
   }
   return auth;
 }
@@ -83,11 +103,24 @@ export function getFirebaseAuth() {
  * Get Firestore instance (SSR-safe)
  */
 export function getFirebaseDb() {
-  initializeFirebase();
-  if (!db) {
-    throw new Error('Firebase Firestore is not initialized. Make sure you are on the client side.');
+  // Ensure we're on the client side
+  if (typeof window === 'undefined') {
+    throw new Error('Firebase Firestore can only be accessed on the client side');
   }
-  return db;
+
+  try {
+    initializeFirebase();
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+    throw new Error('Firebase initialization failed. Please check your configuration.');
+  }
+
+  if (!db) {
+    throw new Error('Firebase Firestore is not initialized. Please check your Firebase configuration.');
+  }
+
+  // Debug the database instance before returning it
+  return debugFirebaseInit(db, 'getFirebaseDb');
 }
 
 /**
