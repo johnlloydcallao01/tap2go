@@ -3,7 +3,7 @@
  * Handles user data operations in Firestore using shared database package
  */
 
-import { db } from 'firebase-config';
+import { getFirebaseDb } from 'firebase-config';
 import { COLLECTIONS } from 'database';
 import {
   doc,
@@ -12,6 +12,7 @@ import {
   updateDoc,
   serverTimestamp,
   Timestamp,
+  Firestore,
 } from 'firebase/firestore';
 import { User } from 'shared-types';
 import {
@@ -23,6 +24,23 @@ import {
   AdminUser,
   AnyAuthUser,
 } from '../types/auth';
+
+/**
+ * Get Firebase Firestore instance (SSR-safe)
+ */
+function getDb(): Firestore {
+  // Ensure we're on the client side
+  if (typeof window === 'undefined') {
+    throw new Error('Database operations can only be performed on the client side');
+  }
+
+  try {
+    return getFirebaseDb();
+  } catch (error) {
+    console.error('Failed to get Firebase database:', error);
+    throw new Error('Firebase database is not available. Please try again.');
+  }
+}
 
 /**
  * User Database Service Class
@@ -38,7 +56,8 @@ export class UserDatabaseService {
     role: User['role'],
     additionalData?: Record<string, any>
   ): Promise<void> {
-    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const database = getDb();
+    const userRef = doc(database, COLLECTIONS.USERS, uid);
 
     const userData: UserDocumentData = {
       email,
@@ -62,8 +81,9 @@ export class UserDatabaseService {
     firstName: string,
     lastName: string
   ): Promise<void> {
-    const userRef = doc(db, COLLECTIONS.USERS, uid);
-    const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+    const database = getDb();
+    const userRef = doc(database, COLLECTIONS.USERS, uid);
+    const driverRef = doc(database, COLLECTIONS.DRIVERS, uid);
 
     // Create user document
     const userData: UserDocumentData = {
@@ -106,8 +126,9 @@ export class UserDatabaseService {
     email: string,
     name?: string
   ): Promise<void> {
-    const userRef = doc(db, COLLECTIONS.USERS, uid);
-    const customerRef = doc(db, COLLECTIONS.CUSTOMERS, uid);
+    const database = getDb();
+    const userRef = doc(database, COLLECTIONS.USERS, uid);
+    const customerRef = doc(database, COLLECTIONS.CUSTOMERS, uid);
 
     // Create user document
     const userData: UserDocumentData = {
@@ -145,8 +166,9 @@ export class UserDatabaseService {
     businessName: string,
     contactName: string
   ): Promise<void> {
-    const userRef = doc(db, COLLECTIONS.USERS, uid);
-    const vendorRef = doc(db, COLLECTIONS.VENDORS, uid);
+    const database = getDb();
+    const userRef = doc(database, COLLECTIONS.USERS, uid);
+    const vendorRef = doc(database, COLLECTIONS.VENDORS, uid);
 
     // Create user document
     const userData: UserDocumentData = {
@@ -182,7 +204,8 @@ export class UserDatabaseService {
    * Get user data by UID
    */
   async getUser(uid: string): Promise<UserDocumentData | null> {
-    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const database = getDb();
+    const userRef = doc(database, COLLECTIONS.USERS, uid);
     const userSnap = await getDoc(userRef);
 
     if (userSnap.exists()) {
@@ -244,7 +267,8 @@ export class UserDatabaseService {
    * Get driver profile data
    */
   async getDriverProfile(uid: string): Promise<DriverDocumentData | null> {
-    const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+    const database = getDb();
+    const driverRef = doc(database, COLLECTIONS.DRIVERS, uid);
     const driverSnap = await getDoc(driverRef);
 
     if (driverSnap.exists()) {
@@ -258,7 +282,8 @@ export class UserDatabaseService {
    * Update user last login time
    */
   async updateUserLastLogin(uid: string): Promise<void> {
-    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const database = getDb();
+    const userRef = doc(database, COLLECTIONS.USERS, uid);
 
     await updateDoc(userRef, {
       lastLoginAt: serverTimestamp(),
@@ -273,7 +298,8 @@ export class UserDatabaseService {
     uid: string,
     updates: Partial<Omit<UserDocumentData, 'createdAt'>>
   ): Promise<void> {
-    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const database = getDb();
+    const userRef = doc(database, COLLECTIONS.USERS, uid);
 
     await updateDoc(userRef, {
       ...updates,
@@ -288,7 +314,8 @@ export class UserDatabaseService {
     uid: string,
     updates: Partial<Omit<DriverDocumentData, 'userRef' | 'createdAt'>>
   ): Promise<void> {
-    const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+    const database = getDb();
+    const driverRef = doc(database, COLLECTIONS.DRIVERS, uid);
 
     await updateDoc(driverRef, {
       ...updates,

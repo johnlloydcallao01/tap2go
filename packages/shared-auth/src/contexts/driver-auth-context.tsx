@@ -34,14 +34,22 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Services - initialize once
-  const authService = useRef<AuthService>(new AuthService({
-    role: 'driver',
-    enableGoogleAuth: false,
-    enableMultiTabSync: true,
-    tokenRefreshInterval: TOKEN_REFRESH_INTERVAL,
-  }));
-  const userDbService = useRef<UserDatabaseService>(new UserDatabaseService());
+  // Services - initialize once (client-side only)
+  const authService = useRef<AuthService | null>(null);
+  const userDbService = useRef<UserDatabaseService | null>(null);
+
+  // Initialize services on client side only
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !authService.current) {
+      authService.current = new AuthService({
+        role: 'driver',
+        enableGoogleAuth: false,
+        enableMultiTabSync: true,
+        tokenRefreshInterval: TOKEN_REFRESH_INTERVAL,
+      });
+      userDbService.current = new UserDatabaseService();
+    }
+  }, []);
 
   // Refs for cleanup and token management
   const tokenRefreshInterval = useRef<NodeJS.Timeout | null>(null);
@@ -63,7 +71,9 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
 
     tokenRefreshInterval.current = setInterval(async () => {
       try {
-        await authService.current.getIdToken(true);
+        if (authService.current) {
+          await authService.current.getIdToken(true);
+        }
       } catch (error) {
         console.error('Token refresh failed:', error);
       }
@@ -101,6 +111,9 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
   // Handle driver user data loading with role validation
   const handleDriverUserLoad = useCallback(async (firebaseUser: FirebaseUser): Promise<DriverUser | null> => {
     try {
+      if (!userDbService.current) {
+        throw new Error('Database service not initialized');
+      }
       const driverUser = await userDbService.current.getDriverUser(firebaseUser.uid);
 
       if (!driverUser) {
@@ -117,7 +130,9 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
       }
 
       // Update last login time in background
-      userDbService.current.updateUserLastLogin(firebaseUser.uid).catch(console.error);
+      if (userDbService.current) {
+        userDbService.current.updateUserLastLogin(firebaseUser.uid).catch(console.error);
+      }
 
       return driverUser;
     } catch (error) {
@@ -130,6 +145,12 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
   // Main auth state listener
   useEffect(() => {
     let mounted = true;
+
+    if (!authService.current) {
+      setLoading(false);
+      setIsInitialized(true);
+      return;
+    }
 
     const unsubscribe = authService.current.onAuthStateChanged(async (firebaseUser) => {
       if (!mounted) return;
@@ -190,6 +211,9 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
 
   // Driver sign in
   const signIn = async (email: string, password: string) => {
+    if (!authService.current) {
+      throw new Error('Authentication service not initialized');
+    }
     setLoading(true);
     setAuthError(null);
     try {
@@ -205,12 +229,15 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
 
   // Driver sign up
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+    if (!authService.current || !userDbService.current) {
+      throw new Error('Services not initialized');
+    }
     setLoading(true);
     setAuthError(null);
     try {
       const firebaseUser = await authService.current.signUp(
-        email, 
-        password, 
+        email,
+        password,
         `${firstName} ${lastName}`
       );
 
@@ -228,6 +255,9 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
 
   // Sign out
   const signOut = async () => {
+    if (!authService.current) {
+      throw new Error('Authentication service not initialized');
+    }
     setLoading(true);
     try {
       await authService.current.signOut();

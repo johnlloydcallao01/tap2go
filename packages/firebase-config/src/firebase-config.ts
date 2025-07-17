@@ -34,13 +34,75 @@ const firebaseConfig = {
   appId: requiredEnvVars.appId!
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// SSR-safe Firebase initialization
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+let storage: any = null;
 
-// Initialize Firebase services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+/**
+ * Initialize Firebase services in a SSR-safe way
+ * This function ensures Firebase is only initialized on the client side
+ */
+function initializeFirebase() {
+  // Only initialize on client side
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  // Check if already initialized
+  if (app && auth && db && storage) {
+    return;
+  }
+
+  try {
+    // Initialize Firebase
+    app = initializeApp(firebaseConfig);
+
+    // Initialize Firebase services
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  } catch (error) {
+    console.error('Failed to initialize Firebase:', error);
+  }
+}
+
+/**
+ * Get Firebase Auth instance (SSR-safe)
+ */
+export function getFirebaseAuth() {
+  initializeFirebase();
+  if (!auth) {
+    throw new Error('Firebase Auth is not initialized. Make sure you are on the client side.');
+  }
+  return auth;
+}
+
+/**
+ * Get Firestore instance (SSR-safe)
+ */
+export function getFirebaseDb() {
+  initializeFirebase();
+  if (!db) {
+    throw new Error('Firebase Firestore is not initialized. Make sure you are on the client side.');
+  }
+  return db;
+}
+
+/**
+ * Get Firebase Storage instance (SSR-safe)
+ */
+export function getFirebaseStorage() {
+  initializeFirebase();
+  if (!storage) {
+    throw new Error('Firebase Storage is not initialized. Make sure you are on the client side.');
+  }
+  return storage;
+}
+
+// Legacy exports for backward compatibility - these will be null during SSR
+export { auth, db, storage };
 
 // Initialize Firebase Cloud Messaging (only in browser environment)
 let messaging: unknown = null;
