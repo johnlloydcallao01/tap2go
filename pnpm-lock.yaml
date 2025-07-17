@@ -664,13 +664,13 @@ importers:
       shared-utils:
         specifier: workspace:*
         version: link:../shared-utils
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
     devDependencies:
       '@types/node':
         specifier: ^20.17.57
         version: 20.19.2
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
 
   packages/business-logic:
     dependencies:
@@ -683,7 +683,6 @@ importers:
       shared-utils:
         specifier: workspace:*
         version: link:../shared-utils
-    devDependencies:
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -693,13 +692,13 @@ importers:
       shared-types:
         specifier: workspace:*
         version: link:../shared-types
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
     devDependencies:
       '@types/node':
         specifier: ^20.17.57
         version: 20.19.2
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
 
   packages/database:
     dependencies:
@@ -715,6 +714,9 @@ importers:
       shared-types:
         specifier: workspace:*
         version: link:../shared-types
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
     devDependencies:
       '@types/node':
         specifier: ^20.17.57
@@ -722,9 +724,6 @@ importers:
       rimraf:
         specifier: ^6.0.1
         version: 6.0.1
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
 
   packages/firebase-config:
     dependencies:
@@ -737,6 +736,9 @@ importers:
       shared-types:
         specifier: workspace:*
         version: link:../shared-types
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
     devDependencies:
       '@types/node':
         specifier: ^20.17.57
@@ -744,9 +746,6 @@ importers:
       rimraf:
         specifier: ^6.0.1
         version: 6.0.1
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
 
   packages/shared-types:
     dependencies:
@@ -784,6 +783,9 @@ importers:
       tailwindcss:
         specifier: ^4
         version: 4.1.11
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
     devDependencies:
       '@types/react':
         specifier: ~19.0.10
@@ -791,22 +793,19 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.1.6(@types/react@19.0.14)
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
 
   packages/shared-utils:
     dependencies:
       shared-types:
         specifier: workspace:*
         version: link:../shared-types
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
     devDependencies:
       '@types/node':
         specifier: ^20.17.57
         version: 20.19.2
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
 
 packages:
 

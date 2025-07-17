@@ -5,17 +5,17 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "build": "npx tsc",
-    "dev": "npx tsc --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "lint": "eslint src/",
-    "type-check": "npx tsc --noEmit",
+    "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "shared-types": "workspace:*"
+    "shared-types": "workspace:*",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
-    "@types/node": "^20.17.57",
-    "typescript": "^5.8.3"
+    "@types/node": "^20.17.57"
   }
 }

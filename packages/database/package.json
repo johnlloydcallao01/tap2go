@@ -11,21 +11,21 @@
     }
   },
   "scripts": {
-    "build": "npx tsc",
-    "dev": "npx tsc --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "lint": "eslint src/",
-    "type-check": "npx tsc --noEmit",
+    "type-check": "tsc --noEmit",
     "clean": "rimraf dist"
   },
   "dependencies": {
     "firebase": "^11.8.1",
     "firebase-admin": "^13.4.0",
     "shared-types": "workspace:*",
-    "firebase-config": "workspace:*"
+    "firebase-config": "workspace:*",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@types/node": "^20.17.57",
-    "rimraf": "^6.0.1",
-    "typescript": "^5.8.3"
+    "rimraf": "^6.0.1"
   }
 }

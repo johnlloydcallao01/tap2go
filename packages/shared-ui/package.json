@@ -5,10 +5,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "build": "npx tsc",
-    "dev": "npx tsc --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "lint": "eslint src/",
-    "type-check": "npx tsc --noEmit",
+    "type-check": "tsc --noEmit",
     "clean": "if exist dist rmdir /s /q dist"
   },
   "dependencies": {
@@ -17,12 +17,12 @@
     "lucide-react": "^0.511.0",
     "clsx": "^2.1.1",
     "tailwindcss": "^4",
-    "shared-types": "workspace:*"
+    "shared-types": "workspace:*",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "typescript": "^5.8.3"
+    "@types/react-dom": "^19"
   },
   "peerDependencies": {
     "react": "^19.0.0",
