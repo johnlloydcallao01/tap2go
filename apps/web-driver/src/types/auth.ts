@@ -1,32 +1,14 @@
 /**
- * Authentication types for Driver App
+ * Authentication types for Driver App - Using Shared Auth Package
+ * Re-exports types from shared authentication package for backward compatibility
  */
 
-export interface DriverUser {
-  id: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  role: 'driver';
-  phone?: string;
-  profileImage?: string;
-  isActive: boolean;
-  isVerified: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// Import from shared authentication package
+import {
+  DriverUser,
+  DriverAuthContextType,
+  AuthProviderProps
+} from 'shared-auth';
 
-export interface DriverAuthContextType {
-  user: DriverUser | null;
-  loading: boolean;
-  isInitialized: boolean;
-  authError: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  clearError: () => void;
-}
-
-export interface AuthProviderProps {
-  children: React.ReactNode;
-}
+// Re-export for backward compatibility
+export type { DriverUser, DriverAuthContextType, AuthProviderProps };

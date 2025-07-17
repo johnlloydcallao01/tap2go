@@ -1,0 +1,322 @@
+/**
+ * User Database Service
+ * Handles user data operations in Firestore using shared database package
+ */
+
+import { db } from 'firebase-config';
+import { COLLECTIONS } from 'database';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
+} from 'firebase/firestore';
+import { User } from 'shared-types';
+import {
+  UserDocumentData,
+  DriverDocumentData,
+  DriverUser,
+  CustomerUser,
+  VendorUser,
+  AdminUser,
+  AnyAuthUser,
+} from '../types/auth';
+
+/**
+ * User Database Service Class
+ * Provides centralized user data operations for all user types
+ */
+export class UserDatabaseService {
+  /**
+   * Create a new user document in Firestore
+   */
+  async createUser(
+    uid: string,
+    email: string,
+    role: User['role'],
+    additionalData?: Record<string, any>
+  ): Promise<void> {
+    const userRef = doc(db, COLLECTIONS.USERS, uid);
+
+    const userData: UserDocumentData = {
+      email,
+      role,
+      isActive: true,
+      isVerified: false,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+      ...additionalData,
+    };
+
+    await setDoc(userRef, userData);
+  }
+
+  /**
+   * Create a driver user with profile
+   */
+  async createDriverUser(
+    uid: string,
+    email: string,
+    firstName: string,
+    lastName: string
+  ): Promise<void> {
+    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+
+    // Create user document
+    const userData: UserDocumentData = {
+      email,
+      role: 'driver',
+      isActive: true,
+      isVerified: false,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    // Create driver profile document
+    const driverData: DriverDocumentData = {
+      userRef: `users/${uid}`,
+      firstName,
+      lastName,
+      status: 'pending_approval',
+      verificationStatus: 'pending',
+      isOnline: false,
+      isAvailable: false,
+      totalDeliveries: 0,
+      totalEarnings: 0,
+      joinedAt: serverTimestamp() as Timestamp,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    // Create both documents atomically
+    await Promise.all([
+      setDoc(userRef, userData),
+      setDoc(driverRef, driverData),
+    ]);
+  }
+
+  /**
+   * Create a customer user
+   */
+  async createCustomerUser(
+    uid: string,
+    email: string,
+    name?: string
+  ): Promise<void> {
+    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const customerRef = doc(db, COLLECTIONS.CUSTOMERS, uid);
+
+    // Create user document
+    const userData: UserDocumentData = {
+      email,
+      role: 'customer',
+      isActive: true,
+      isVerified: false,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    // Create customer profile document
+    const customerData = {
+      userRef: `users/${uid}`,
+      name: name || '',
+      totalOrders: 0,
+      totalSpent: 0,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    // Create both documents atomically
+    await Promise.all([
+      setDoc(userRef, userData),
+      setDoc(customerRef, customerData),
+    ]);
+  }
+
+  /**
+   * Create a vendor user
+   */
+  async createVendorUser(
+    uid: string,
+    email: string,
+    businessName: string,
+    contactName: string
+  ): Promise<void> {
+    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const vendorRef = doc(db, COLLECTIONS.VENDORS, uid);
+
+    // Create user document
+    const userData: UserDocumentData = {
+      email,
+      role: 'vendor',
+      isActive: true,
+      isVerified: false,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    // Create vendor profile document
+    const vendorData = {
+      userRef: `users/${uid}`,
+      businessName,
+      contactName,
+      status: 'pending',
+      commissionRate: 0.15, // Default 15%
+      totalEarnings: 0,
+      totalOrders: 0,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    // Create both documents atomically
+    await Promise.all([
+      setDoc(userRef, userData),
+      setDoc(vendorRef, vendorData),
+    ]);
+  }
+
+  /**
+   * Get user data by UID
+   */
+  async getUser(uid: string): Promise<UserDocumentData | null> {
+    const userRef = doc(db, COLLECTIONS.USERS, uid);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      return userSnap.data() as UserDocumentData;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get driver user with profile
+   */
+  async getDriverUser(uid: string): Promise<DriverUser | null> {
+    const [userData, driverData] = await Promise.all([
+      this.getUser(uid),
+      this.getDriverProfile(uid),
+    ]);
+
+    if (!userData || !driverData || userData.role !== 'driver') {
+      return null;
+    }
+
+    return {
+      id: uid,
+      firebaseUid: uid,
+      email: userData.email,
+      role: 'driver',
+      firstName: driverData.firstName,
+      lastName: driverData.lastName,
+      name: `${driverData.firstName} ${driverData.lastName}`,
+      phoneNumber: driverData.phoneNumber,
+      profileImageUrl: driverData.profileImageUrl,
+      isActive: userData.isActive,
+      isVerified: userData.isVerified,
+      status: driverData.status,
+      verificationStatus: driverData.verificationStatus,
+      isOnline: driverData.isOnline,
+      isAvailable: driverData.isAvailable,
+      currentLocation: driverData.currentLocation,
+      vehicleType: driverData.vehicleType,
+      vehicleDetails: driverData.vehicleDetails ? {
+        ...driverData.vehicleDetails,
+        insuranceExpiry: driverData.vehicleDetails.insuranceExpiry?.toDate(),
+      } : undefined,
+      totalDeliveries: driverData.totalDeliveries,
+      totalEarnings: driverData.totalEarnings,
+      rating: driverData.rating,
+      joinedAt: driverData.joinedAt.toDate(),
+      createdAt: userData.createdAt.toDate(),
+      updatedAt: userData.updatedAt.toDate(),
+      lastLoginAt: userData.lastLoginAt?.toDate(),
+      fcmTokens: userData.fcmTokens,
+      preferredLanguage: userData.preferredLanguage,
+      timezone: userData.timezone,
+    };
+  }
+
+  /**
+   * Get driver profile data
+   */
+  async getDriverProfile(uid: string): Promise<DriverDocumentData | null> {
+    const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+    const driverSnap = await getDoc(driverRef);
+
+    if (driverSnap.exists()) {
+      return driverSnap.data() as DriverDocumentData;
+    }
+
+    return null;
+  }
+
+  /**
+   * Update user last login time
+   */
+  async updateUserLastLogin(uid: string): Promise<void> {
+    const userRef = doc(db, COLLECTIONS.USERS, uid);
+
+    await updateDoc(userRef, {
+      lastLoginAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /**
+   * Update user data
+   */
+  async updateUser(
+    uid: string,
+    updates: Partial<Omit<UserDocumentData, 'createdAt'>>
+  ): Promise<void> {
+    const userRef = doc(db, COLLECTIONS.USERS, uid);
+
+    await updateDoc(userRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /**
+   * Update driver profile
+   */
+  async updateDriverProfile(
+    uid: string,
+    updates: Partial<Omit<DriverDocumentData, 'userRef' | 'createdAt'>>
+  ): Promise<void> {
+    const driverRef = doc(db, COLLECTIONS.DRIVERS, uid);
+
+    await updateDoc(driverRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /**
+   * Check if user exists
+   */
+  async userExists(uid: string): Promise<boolean> {
+    const user = await this.getUser(uid);
+    return user !== null;
+  }
+
+  /**
+   * Check if user is active
+   */
+  async isUserActive(uid: string): Promise<boolean> {
+    const user = await this.getUser(uid);
+    return user?.isActive === true;
+  }
+
+  /**
+   * Check if user is verified
+   */
+  async isUserVerified(uid: string): Promise<boolean> {
+    const user = await this.getUser(uid);
+    return user?.isVerified === true;
+  }
+}

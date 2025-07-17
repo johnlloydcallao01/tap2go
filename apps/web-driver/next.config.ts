@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     'database',
     'firebase-config',
     'shared-types',
+    'shared-auth',
     'shared-ui',
     'shared-utils'
   ],
@@ -20,18 +21,6 @@ const nextConfig: NextConfig = {
   },
   // Critical for monorepo builds on Vercel - includes files from monorepo root
   outputFileTracingRoot: path.join(__dirname, '../../'),
-
-  // Additional webpack configuration for better module resolution
-  webpack: (config, { isServer }) => {
-    // Ensure proper module resolution for TypeScript paths
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': path.resolve(__dirname, 'src'),
-      '@/lib/database': path.resolve(__dirname, 'src/lib/database.ts'),
-    };
-
-    return config;
-  },
 };
 
 export default nextConfig;

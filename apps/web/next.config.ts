@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
   },
   // Disable static optimization to prevent styled-jsx issues
   output: 'standalone',
+  // Transpile workspace packages
+  transpilePackages: [
+    'shared-auth',
+    'shared-types',
+    'shared-ui',
+    'shared-utils',
+    'database',
+    'firebase-config'
+  ],
   // Disable static generation for error pages
   generateBuildId: async () => {
     return 'build-' + Date.now();
