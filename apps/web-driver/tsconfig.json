@@ -24,6 +24,7 @@
       "@/contexts/*": ["./src/contexts/*"],
       "@/components/*": ["./src/components/*"],
       "@/lib/*": ["./src/lib/*"],
+      "@/lib/database": ["./src/lib/database.ts"],
       "@/types/*": ["./src/types/*"]
     }
   },

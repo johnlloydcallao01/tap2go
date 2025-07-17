@@ -27,6 +27,7 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': path.resolve(__dirname, 'src'),
+      '@/lib/database': path.resolve(__dirname, 'src/lib/database.ts'),
     };
 
     return config;
