@@ -1,8 +1,6 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "buildCommand": "cd ../.. && pnpm install && pnpm run web-driver:build",
-  "installCommand": "cd ../.. && pnpm install",
   "env": {
     "NODE_VERSION": "20",
     "NEXT_TELEMETRY_DISABLED": "1"

@@ -20,6 +20,17 @@ const nextConfig: NextConfig = {
   },
   // Critical for monorepo builds on Vercel - includes files from monorepo root
   outputFileTracingRoot: path.join(__dirname, '../../'),
+
+  // Additional webpack configuration for better module resolution
+  webpack: (config, { isServer }) => {
+    // Ensure proper module resolution for TypeScript paths
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname, 'src'),
+    };
+
+    return config;
+  },
 };
 
 export default nextConfig;
