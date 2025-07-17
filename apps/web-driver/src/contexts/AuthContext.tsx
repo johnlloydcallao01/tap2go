@@ -22,7 +22,7 @@ import {
   getDriverUser,
   getDriverProfile,
   updateDriverLastLogin,
-} from '../lib/database';
+} from '@/lib/database';
 
 const AuthContext = createContext<DriverAuthContextType | undefined>(undefined);
 
