@@ -26,7 +26,7 @@
     "web:start": "cd apps/web && pnpm start",
     "web:deploy": "cd apps/web && pnpm run build",
     "web-driver:dev": "turbo run dev --filter=web-driver",
-    "web-driver:build": "turbo run build --filter=web-driver",
+    "web-driver:build": "pnpm exec turbo run build --filter=web-driver",
     "web-driver:start": "cd apps/web-driver && pnpm start",
     "web-driver:deploy": "cd apps/web-driver && pnpm run build",
     "web-admin:dev": "turbo run dev --filter=web-admin",

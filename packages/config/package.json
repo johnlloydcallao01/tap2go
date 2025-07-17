@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "shared-types": "workspace:*",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@types/node": "^20.17.57"
   },
   "devDependencies": {
-    "@types/node": "^20.17.57"
   }
 }

@@ -689,16 +689,15 @@ importers:
 
   packages/config:
     dependencies:
+      '@types/node':
+        specifier: ^20.17.57
+        version: 20.19.2
       shared-types:
         specifier: workspace:*
         version: link:../shared-types
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
-    devDependencies:
-      '@types/node':
-        specifier: ^20.17.57
-        version: 20.19.2
 
   packages/database:
     dependencies:
@@ -727,6 +726,9 @@ importers:
 
   packages/firebase-config:
     dependencies:
+      '@types/node':
+        specifier: ^20.17.57
+        version: 20.19.2
       firebase:
         specifier: ^11.8.1
         version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
@@ -740,9 +742,6 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
     devDependencies:
-      '@types/node':
-        specifier: ^20.17.57
-        version: 20.19.2
       rimraf:
         specifier: ^6.0.1
         version: 6.0.1
