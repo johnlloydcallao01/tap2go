@@ -1,22 +1,23 @@
 // Firebase Cloud Messaging Service Worker
 // This file is required for Firebase Cloud Messaging to work in the browser
 
-// Import Firebase scripts for service worker
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+// Import Firebase scripts for service worker - UPDATED TO MATCH MAIN APP
+importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-messaging-compat.js');
 
-// Initialize Firebase in service worker
+// Initialize Firebase in service worker - USING CORRECT PROJECT CONFIGURATION
+// Use a specific app name to avoid conflicts with main app
 firebase.initializeApp({
-  apiKey: "AIzaSyDWWpv5PBQFpfIkHmtOnHTGktHv5o36Cnw",
+  apiKey: "AIzaSyB6ALvnN6aX0DMVhePhkUow9VrPauBCqgQ",
   authDomain: "tap2go-kuucn.firebaseapp.com",
   projectId: "tap2go-kuucn",
   storageBucket: "tap2go-kuucn.firebasestorage.app",
-  messagingSenderId: "191284661715922",
-  appId: "1:191284661715922:web:8b8c8b8c8b8c8b8c8b8c8b"
-});
+  messagingSenderId: "828629511294",
+  appId: "1:828629511294:web:fae32760ca3c3afcb87c2f"
+}, 'tap2go-sw');
 
-// Initialize Firebase Cloud Messaging
-const messaging = firebase.messaging();
+// Initialize Firebase Cloud Messaging with the named app
+const messaging = firebase.messaging(firebase.app('tap2go-sw'));
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {

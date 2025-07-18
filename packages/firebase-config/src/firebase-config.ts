@@ -1,10 +1,10 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp, deleteApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
-import { debugFirebaseInit } from "./debug-wrapper";
+// Remove debug wrapper to avoid Firebase conflicts
 
 // Validate environment variables
 const requiredEnvVars = {
@@ -35,59 +35,72 @@ const firebaseConfig = {
   appId: requiredEnvVars.appId!
 };
 
-// SSR-safe Firebase initialization
+// GLOBAL Firebase instances - ONLY ONE INSTANCE ALLOWED
 let app: any = null;
 let auth: any = null;
 let db: any = null;
 let storage: any = null;
+let initializationPromise: Promise<void> | null = null;
 
 /**
- * Initialize Firebase services in a SSR-safe way
- * This function ensures Firebase is only initialized on the client side
+ * FORCE SINGLE Firebase instance across entire application
  */
-function initializeFirebase() {
-  // Only initialize on client side
-  if (typeof window === 'undefined') {
-    return;
+async function initializeFirebase(): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  // If already initialized, return immediately
+  if (app && auth && db && storage) return;
+
+  // If initialization is in progress, wait for it
+  if (initializationPromise) {
+    return initializationPromise;
   }
 
-  // Check if already initialized
-  if (app && auth && db && storage) {
-    return;
-  }
+  // Start initialization
+  initializationPromise = (async () => {
+    try {
+      // DESTROY any existing Firebase apps first
+      const existingApps = getApps();
+      for (const existingApp of existingApps) {
+        try {
+          await deleteApp(existingApp);
+          console.log('Deleted existing Firebase app:', existingApp.name);
+        } catch (e) {
+          // Ignore deletion errors
+        }
+      }
 
-  try {
-    // Initialize Firebase
-    app = initializeApp(firebaseConfig);
+      // Create ONE and ONLY ONE Firebase app
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      storage = getStorage(app);
 
-    // Initialize Firebase services
-    auth = getAuth(app);
-    db = getFirestore(app);
-    storage = getStorage(app);
+      console.log('✅ SINGLE Firebase app created successfully');
+    } catch (error) {
+      console.error('❌ Firebase initialization failed:', error);
+      app = null;
+      auth = null;
+      db = null;
+      storage = null;
+      initializationPromise = null; // Reset so we can retry
+      throw error;
+    }
+  })();
 
-    console.log('Firebase initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize Firebase:', error);
-    // Reset all services to null on failure
-    app = null;
-    auth = null;
-    db = null;
-    storage = null;
-    throw error; // Re-throw the error so callers know initialization failed
-  }
+  return initializationPromise;
 }
 
 /**
  * Get Firebase Auth instance (SSR-safe)
  */
-export function getFirebaseAuth() {
-  // Ensure we're on the client side
+export async function getFirebaseAuth() {
   if (typeof window === 'undefined') {
     throw new Error('Firebase Auth can only be accessed on the client side');
   }
 
   try {
-    initializeFirebase();
+    await initializeFirebase();
   } catch (error) {
     console.error('Firebase initialization failed:', error);
     throw new Error('Firebase initialization failed. Please check your configuration.');
@@ -102,14 +115,13 @@ export function getFirebaseAuth() {
 /**
  * Get Firestore instance (SSR-safe)
  */
-export function getFirebaseDb() {
-  // Ensure we're on the client side
+export async function getFirebaseDb() {
   if (typeof window === 'undefined') {
     throw new Error('Firebase Firestore can only be accessed on the client side');
   }
 
   try {
-    initializeFirebase();
+    await initializeFirebase();
   } catch (error) {
     console.error('Firebase initialization failed:', error);
     throw new Error('Firebase initialization failed. Please check your configuration.');
@@ -119,8 +131,7 @@ export function getFirebaseDb() {
     throw new Error('Firebase Firestore is not initialized. Please check your Firebase configuration.');
   }
 
-  // Debug the database instance before returning it
-  return debugFirebaseInit(db, 'getFirebaseDb');
+  return db;
 }
 
 /**

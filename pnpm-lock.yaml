@@ -566,9 +566,6 @@ importers:
       database:
         specifier: workspace:*
         version: link:../../packages/database
-      firebase:
-        specifier: ^11.8.1
-        version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
       firebase-config:
         specifier: workspace:*
         version: link:../../packages/firebase-config
@@ -758,7 +755,7 @@ importers:
         specifier: workspace:*
         version: link:../database
       firebase:
-        specifier: ^11.9.1
+        specifier: ^11.8.1
         version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
       firebase-config:
         specifier: workspace:*

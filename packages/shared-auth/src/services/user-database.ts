@@ -3,16 +3,18 @@
  * Handles user data operations in Firestore using shared database package
  */
 
-import { getFirebaseDb, collection, doc } from 'firebase-config';
-import { COLLECTIONS } from 'database';
 import {
+  getFirebaseDb,
+  collection,
+  doc,
   setDoc,
   getDoc,
   updateDoc,
   serverTimestamp,
   Timestamp,
   Firestore,
-} from 'firebase/firestore';
+} from 'firebase-config';
+import { COLLECTIONS } from 'database';
 import { User } from 'shared-types';
 import {
   UserDocumentData,
@@ -27,14 +29,13 @@ import {
 /**
  * Get Firebase Firestore instance (SSR-safe)
  */
-function getDb(): Firestore {
-  // Ensure we're on the client side
+async function getDb(): Promise<Firestore> {
   if (typeof window === 'undefined') {
     throw new Error('Database operations can only be performed on the client side');
   }
 
   try {
-    const db = getFirebaseDb();
+    const db = await getFirebaseDb();
     if (!db) {
       throw new Error('Firebase database instance is null or undefined');
     }
@@ -62,7 +63,7 @@ export class UserDatabaseService {
     role: User['role'],
     additionalData?: Record<string, any>
   ): Promise<void> {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, COLLECTIONS.USERS, uid);
 
     const userData: UserDocumentData = {
@@ -87,7 +88,7 @@ export class UserDatabaseService {
     firstName: string,
     lastName: string
   ): Promise<void> {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, COLLECTIONS.USERS, uid);
     const driverRef = doc(database, COLLECTIONS.DRIVERS, uid);
 
@@ -132,7 +133,7 @@ export class UserDatabaseService {
     email: string,
     name?: string
   ): Promise<void> {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, COLLECTIONS.USERS, uid);
     const customerRef = doc(database, COLLECTIONS.CUSTOMERS, uid);
 
@@ -172,7 +173,7 @@ export class UserDatabaseService {
     businessName: string,
     contactName: string
   ): Promise<void> {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, COLLECTIONS.USERS, uid);
     const vendorRef = doc(database, COLLECTIONS.VENDORS, uid);
 
@@ -210,7 +211,7 @@ export class UserDatabaseService {
    * Get user data by UID
    */
   async getUser(uid: string): Promise<UserDocumentData | null> {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, COLLECTIONS.USERS, uid);
     const userSnap = await getDoc(userRef);
 
@@ -254,15 +255,15 @@ export class UserDatabaseService {
       vehicleType: driverData.vehicleType,
       vehicleDetails: driverData.vehicleDetails ? {
         ...driverData.vehicleDetails,
-        insuranceExpiry: driverData.vehicleDetails.insuranceExpiry?.toDate(),
+        insuranceExpiry: driverData.vehicleDetails.insuranceExpiry?.toDate?.() || undefined,
       } : undefined,
       totalDeliveries: driverData.totalDeliveries,
       totalEarnings: driverData.totalEarnings,
       rating: driverData.rating,
-      joinedAt: driverData.joinedAt.toDate(),
-      createdAt: userData.createdAt.toDate(),
-      updatedAt: userData.updatedAt.toDate(),
-      lastLoginAt: userData.lastLoginAt?.toDate(),
+      joinedAt: driverData.joinedAt?.toDate?.() || new Date(),
+      createdAt: userData.createdAt?.toDate?.() || new Date(),
+      updatedAt: userData.updatedAt?.toDate?.() || new Date(),
+      lastLoginAt: userData.lastLoginAt?.toDate?.() || undefined,
       fcmTokens: userData.fcmTokens,
       preferredLanguage: userData.preferredLanguage,
       timezone: userData.timezone,
@@ -273,7 +274,7 @@ export class UserDatabaseService {
    * Get driver profile data
    */
   async getDriverProfile(uid: string): Promise<DriverDocumentData | null> {
-    const database = getDb();
+    const database = await getDb();
     const driverRef = doc(database, COLLECTIONS.DRIVERS, uid);
     const driverSnap = await getDoc(driverRef);
 
@@ -288,7 +289,7 @@ export class UserDatabaseService {
    * Update user last login time
    */
   async updateUserLastLogin(uid: string): Promise<void> {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, COLLECTIONS.USERS, uid);
 
     await updateDoc(userRef, {
@@ -304,7 +305,7 @@ export class UserDatabaseService {
     uid: string,
     updates: Partial<Omit<UserDocumentData, 'createdAt'>>
   ): Promise<void> {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, COLLECTIONS.USERS, uid);
 
     await updateDoc(userRef, {
@@ -320,7 +321,7 @@ export class UserDatabaseService {
     uid: string,
     updates: Partial<Omit<DriverDocumentData, 'userRef' | 'createdAt'>>
   ): Promise<void> {
-    const database = getDb();
+    const database = await getDb();
     const driverRef = doc(database, COLLECTIONS.DRIVERS, uid);
 
     await updateDoc(driverRef, {

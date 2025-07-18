@@ -150,7 +150,8 @@ export function CustomerAuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     let mounted = true;
 
-    const unsubscribe = authService.current!.onAuthStateChanged(async (firebaseUser) => {
+    const setupAuthListener = async () => {
+      const unsubscribe = await authService.current!.onAuthStateChanged(async (firebaseUser) => {
       if (!mounted) return;
 
       try {
@@ -196,15 +197,18 @@ export function CustomerAuthProvider({ children }: AuthProviderProps) {
           }
         }
       }
-    });
+      });
 
-    authStateUnsubscribe.current = unsubscribe;
+      authStateUnsubscribe.current = unsubscribe;
 
-    return () => {
-      mounted = false;
-      unsubscribe();
-      cleanupTokenRefresh();
+      return () => {
+        mounted = false;
+        unsubscribe();
+        cleanupTokenRefresh();
+      };
     };
+
+    setupAuthListener().catch(console.error);
   }, [handleCustomerUserLoad, setupTokenRefresh, cleanupTokenRefresh, broadcastAuthChange, setAuthSession, isHydrated]);
 
   // Customer sign in

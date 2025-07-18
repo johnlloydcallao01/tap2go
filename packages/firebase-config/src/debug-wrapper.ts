@@ -3,16 +3,24 @@
  * Because Firebase error messages are absolute garbage
  */
 
-import { 
-  collection as firebaseCollection, 
-  doc as firebaseDoc,
-  Firestore 
-} from 'firebase/firestore';
+// Import from the same Firebase instance to avoid conflicts
+let firebaseCollection: any;
+let firebaseDoc: any;
+
+// Lazy load Firebase functions to use the same instance
+async function loadFirebaseFunctions() {
+  if (!firebaseCollection || !firebaseDoc) {
+    const firestore = await import('firebase/firestore');
+    firebaseCollection = firestore.collection;
+    firebaseDoc = firestore.doc;
+  }
+}
 
 /**
  * Enhanced collection function with proper debugging
  */
-export function collection(firestore: any, path: string, ...pathSegments: string[]) {
+export async function collection(firestore: any, path: string, ...pathSegments: string[]) {
+  await loadFirebaseFunctions();
   // Professional debugging - let's see what we're actually getting
   console.group('🔥 Firebase Collection Debug');
   console.log('📍 Called from:', new Error().stack?.split('\n')[2]?.trim());
@@ -73,7 +81,8 @@ export function collection(firestore: any, path: string, ...pathSegments: string
 /**
  * Enhanced doc function with proper debugging
  */
-export function doc(firestore: any, path: string, ...pathSegments: string[]) {
+export async function doc(firestore: any, path: string, ...pathSegments: string[]) {
+  await loadFirebaseFunctions();
   // Professional debugging
   console.group('🔥 Firebase Doc Debug');
   console.log('📍 Called from:', new Error().stack?.split('\n')[2]?.trim());

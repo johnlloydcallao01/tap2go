@@ -36,15 +36,14 @@ export class AuthService {
   /**
    * Get Firebase Auth instance (lazy initialization)
    */
-  private getAuth(): Auth {
-    // Ensure we're on the client side
+  private async getAuth(): Promise<Auth> {
     if (typeof window === 'undefined') {
       throw new Error('Authentication operations can only be performed on the client side');
     }
 
     if (!this.auth) {
       try {
-        this.auth = getFirebaseAuth();
+        this.auth = await getFirebaseAuth();
       } catch (error) {
         console.error('Failed to get Firebase auth:', error);
         throw new Error('Firebase authentication is not available. Please try again.');
@@ -58,7 +57,8 @@ export class AuthService {
    */
   async signIn(email: string, password: string): Promise<FirebaseUser> {
     try {
-      const result = await signInWithEmailAndPassword(this.getAuth(), email, password);
+      const auth = await this.getAuth();
+      const result = await signInWithEmailAndPassword(auth, email, password);
       return result.user;
     } catch (error) {
       throw this.handleAuthError(error);
@@ -70,7 +70,8 @@ export class AuthService {
    */
   async signUp(email: string, password: string, displayName?: string): Promise<FirebaseUser> {
     try {
-      const result = await createUserWithEmailAndPassword(this.getAuth(), email, password);
+      const auth = await this.getAuth();
+      const result = await createUserWithEmailAndPassword(auth, email, password);
       
       // Update Firebase Auth profile if displayName provided
       if (displayName) {
@@ -93,7 +94,8 @@ export class AuthService {
 
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(this.getAuth(), provider);
+      const auth = await this.getAuth();
+      const result = await signInWithPopup(auth, provider);
       return result.user;
     } catch (error) {
       throw this.handleAuthError(error);
@@ -105,7 +107,8 @@ export class AuthService {
    */
   async signOut(): Promise<void> {
     try {
-      await firebaseSignOut(this.getAuth());
+      const auth = await this.getAuth();
+      await firebaseSignOut(auth);
     } catch (error) {
       throw this.handleAuthError(error);
     }
@@ -115,7 +118,8 @@ export class AuthService {
    * Get current user's ID token
    */
   async getIdToken(forceRefresh = false): Promise<string | null> {
-    const user = this.getAuth().currentUser;
+    const auth = await this.getAuth();
+    const user = auth.currentUser;
     if (!user) return null;
 
     try {
@@ -129,7 +133,8 @@ export class AuthService {
    * Update Firebase user profile
    */
   async updateProfile(updates: { displayName?: string; photoURL?: string }): Promise<void> {
-    const user = this.getAuth().currentUser;
+    const auth = await this.getAuth();
+    const user = auth.currentUser;
     if (!user) {
       throw new Error('No authenticated user');
     }
@@ -144,15 +149,17 @@ export class AuthService {
   /**
    * Listen to authentication state changes
    */
-  onAuthStateChanged(callback: (user: FirebaseUser | null) => void): () => void {
-    return onAuthStateChanged(this.getAuth(), callback);
+  async onAuthStateChanged(callback: (user: FirebaseUser | null) => void): Promise<() => void> {
+    const auth = await this.getAuth();
+    return onAuthStateChanged(auth, callback);
   }
 
   /**
    * Get current Firebase user
    */
-  getCurrentUser(): FirebaseUser | null {
-    return this.getAuth().currentUser;
+  async getCurrentUser(): Promise<FirebaseUser | null> {
+    const auth = await this.getAuth();
+    return auth.currentUser;
   }
 
   /**

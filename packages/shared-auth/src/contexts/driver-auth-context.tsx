@@ -152,7 +152,8 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    const unsubscribe = authService.current.onAuthStateChanged(async (firebaseUser) => {
+    const setupAuthListener = async () => {
+      const unsubscribe = await authService.current!.onAuthStateChanged(async (firebaseUser) => {
       if (!mounted) return;
 
       try {
@@ -198,15 +199,18 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
           }
         }
       }
-    });
+      });
 
-    authStateUnsubscribe.current = unsubscribe;
+      authStateUnsubscribe.current = unsubscribe;
 
-    return () => {
-      mounted = false;
-      unsubscribe();
-      cleanupTokenRefresh();
+      return () => {
+        mounted = false;
+        unsubscribe();
+        cleanupTokenRefresh();
+      };
     };
+
+    setupAuthListener().catch(console.error);
   }, [handleDriverUserLoad, setupTokenRefresh, cleanupTokenRefresh, broadcastAuthChange, setAuthSession, isHydrated]);
 
   // Driver sign in

@@ -3,8 +3,11 @@
  * Centralized database operations for all collections
  */
 
-import { collection, doc } from 'firebase-config';
+// Import EVERYTHING from firebase-config to ensure single SDK instance
 import {
+  collection,
+  doc,
+  getFirebaseDb,
   setDoc,
   getDoc,
   updateDoc,
@@ -25,7 +28,7 @@ import {
   WhereFilterOp,
   Query,
   CollectionReference
-} from 'firebase/firestore';
+} from 'firebase-config';
 
 // Collection names
 export const COLLECTIONS = {
