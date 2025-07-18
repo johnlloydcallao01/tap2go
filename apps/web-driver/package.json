@@ -6,14 +6,16 @@
     "dev": "next dev --turbopack --port 3007",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "firebase-config": "workspace:*",
-    "database": "workspace:*",
-    "shared-types": "workspace:*",
-    "shared-auth": "workspace:*",
+    "@tap2go/firebase-config": "workspace:*",
+    "@tap2go/database": "workspace:*",
+    "@tap2go/shared-types": "workspace:*",
+    "@tap2go/shared-auth": "workspace:*",
+    "@tap2go/shared-ui": "workspace:*",
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

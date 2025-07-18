@@ -1,5 +1,5 @@
 {
-  "name": "business-logic",
+  "name": "@tap2go/business-logic",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
@@ -12,9 +12,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "shared-types": "workspace:*",
-    "shared-utils": "workspace:*",
-    "api-client": "workspace:*",
+    "@tap2go/shared-types": "workspace:*",
+    "@tap2go/shared-utils": "workspace:*",
+    "@tap2go/api-client": "workspace:*",
     "typescript": "^5.8.3"
   },
   "devDependencies": {

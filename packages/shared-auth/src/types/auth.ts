@@ -5,7 +5,7 @@
 
 import { User as FirebaseUser } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
-import { User } from 'shared-types';
+import { User } from '@tap2go/shared-types';
 
 // Extended user types for authentication
 export interface AuthUser extends User {
@@ -90,6 +90,11 @@ export interface AdminUser extends AuthUser {
   role: 'admin';
   permissions: string[];
   department?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  phoneNumber?: string;
+  profileImageUrl?: string;
 }
 
 // Union type for all user types

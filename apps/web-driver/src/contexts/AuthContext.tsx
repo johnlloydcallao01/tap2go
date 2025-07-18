@@ -9,7 +9,7 @@
 export const dynamic = 'force-dynamic';
 
 // Import from shared authentication package
-import { DriverAuthProvider, useDriverAuth } from 'shared-auth';
+import { DriverAuthProvider, useDriverAuth } from '@tap2go/shared-auth';
 
 // Re-export for backward compatibility
 export { DriverAuthProvider, useDriverAuth };

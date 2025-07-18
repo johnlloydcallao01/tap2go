@@ -1,5 +1,5 @@
 {
-  "name": "shared-auth",
+  "name": "@tap2go/shared-auth",
   "version": "0.1.0",
   "description": "Shared Firebase authentication package for Tap2Go monorepo",
   "main": "src/index.ts",
@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "firebase": "^11.8.1",
-    "firebase-config": "workspace:*",
-    "database": "workspace:*",
-    "shared-types": "workspace:*",
+    "@tap2go/firebase-config": "workspace:*",
+    "@tap2go/database": "workspace:*",
+    "@tap2go/shared-types": "workspace:*",
     "react": "^19.0.0"
   },
   "devDependencies": {

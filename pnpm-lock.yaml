@@ -381,6 +381,33 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.50.0
         version: 2.50.2
+      '@tap2go/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@tap2go/business-logic':
+        specifier: workspace:*
+        version: link:../../packages/business-logic
+      '@tap2go/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@tap2go/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@tap2go/firebase-config':
+        specifier: workspace:*
+        version: link:../../packages/firebase-config
+      '@tap2go/shared-auth':
+        specifier: workspace:*
+        version: link:../../packages/shared-auth
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@tap2go/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
+      '@tap2go/shared-utils':
+        specifier: workspace:*
+        version: link:../../packages/shared-utils
       '@types/react':
         specifier: ~19.0.10
         version: 19.0.14
@@ -393,27 +420,15 @@ importers:
       '@upstash/redis':
         specifier: ^1.35.0
         version: 1.35.0
-      api-client:
-        specifier: workspace:*
-        version: link:../../packages/api-client
       axios:
         specifier: ^1.9.0
         version: 1.10.0
-      business-logic:
-        specifier: workspace:*
-        version: link:../../packages/business-logic
       cloudinary:
         specifier: ^2.6.1
         version: 2.7.0
-      config:
-        specifier: workspace:*
-        version: link:../../packages/config
       crypto-js:
         specifier: ^4.2.0
         version: 4.2.0
-      database:
-        specifier: workspace:*
-        version: link:../../packages/database
       dotenv:
         specifier: ^16.5.0
         version: 16.6.1
@@ -429,9 +444,6 @@ importers:
       firebase-admin:
         specifier: ^13.4.0
         version: 13.4.0
-      firebase-config:
-        specifier: workspace:*
-        version: link:../../packages/firebase-config
       form-data:
         specifier: ^4.0.3
         version: 4.0.3
@@ -468,18 +480,6 @@ importers:
       resend:
         specifier: ^4.5.2
         version: 4.6.0(react-dom@19.0.0)(react@19.0.0)
-      shared-auth:
-        specifier: workspace:*
-        version: link:../../packages/shared-auth
-      shared-types:
-        specifier: workspace:*
-        version: link:../../packages/shared-types
-      shared-ui:
-        specifier: workspace:*
-        version: link:../../packages/shared-ui
-      shared-utils:
-        specifier: workspace:*
-        version: link:../../packages/shared-utils
       ws:
         specifier: ^8.18.2
         version: 8.18.2
@@ -520,6 +520,24 @@ importers:
 
   apps/web-admin:
     dependencies:
+      '@heroicons/react':
+        specifier: ^2.2.0
+        version: 2.2.0(react@19.0.0)
+      '@tap2go/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@tap2go/firebase-config':
+        specifier: workspace:*
+        version: link:../../packages/firebase-config
+      '@tap2go/shared-auth':
+        specifier: workspace:*
+        version: link:../../packages/shared-auth
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@tap2go/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
       next:
         specifier: 15.3.5
         version: 15.3.5(react-dom@19.0.0)(react@19.0.0)
@@ -563,12 +581,21 @@ importers:
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.0.0)
-      database:
+      '@tap2go/database':
         specifier: workspace:*
         version: link:../../packages/database
-      firebase-config:
+      '@tap2go/firebase-config':
         specifier: workspace:*
         version: link:../../packages/firebase-config
+      '@tap2go/shared-auth':
+        specifier: workspace:*
+        version: link:../../packages/shared-auth
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@tap2go/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
       next:
         specifier: 15.3.5
         version: 15.3.5(react-dom@19.0.0)(react@19.0.0)
@@ -578,12 +605,6 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.0.0(react@19.0.0)
-      shared-auth:
-        specifier: workspace:*
-        version: link:../../packages/shared-auth
-      shared-types:
-        specifier: workspace:*
-        version: link:../../packages/shared-types
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3
@@ -658,15 +679,15 @@ importers:
       '@reduxjs/toolkit':
         specifier: ^2.5.0
         version: 2.8.2(react-redux@9.2.0)(react@19.0.0)
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@tap2go/shared-utils':
+        specifier: workspace:*
+        version: link:../shared-utils
       axios:
         specifier: ^1.9.0
         version: 1.10.0
-      shared-types:
-        specifier: workspace:*
-        version: link:../shared-types
-      shared-utils:
-        specifier: workspace:*
-        version: link:../shared-utils
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -677,13 +698,13 @@ importers:
 
   packages/business-logic:
     dependencies:
-      api-client:
+      '@tap2go/api-client':
         specifier: workspace:*
         version: link:../api-client
-      shared-types:
+      '@tap2go/shared-types':
         specifier: workspace:*
         version: link:../shared-types
-      shared-utils:
+      '@tap2go/shared-utils':
         specifier: workspace:*
         version: link:../shared-utils
       typescript:
@@ -692,30 +713,30 @@ importers:
 
   packages/config:
     dependencies:
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       '@types/node':
         specifier: ^20.17.57
         version: 20.19.2
-      shared-types:
-        specifier: workspace:*
-        version: link:../shared-types
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
 
   packages/database:
     dependencies:
+      '@tap2go/firebase-config':
+        specifier: workspace:*
+        version: link:../firebase-config
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       firebase:
         specifier: ^11.8.1
         version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
       firebase-admin:
         specifier: ^13.4.0
         version: 13.4.0
-      firebase-config:
-        specifier: workspace:*
-        version: link:../firebase-config
-      shared-types:
-        specifier: workspace:*
-        version: link:../shared-types
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -729,6 +750,9 @@ importers:
 
   packages/firebase-config:
     dependencies:
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       '@types/node':
         specifier: ^20.17.57
         version: 20.19.2
@@ -738,9 +762,6 @@ importers:
       firebase-admin:
         specifier: ^13.4.0
         version: 13.4.0
-      shared-types:
-        specifier: workspace:*
-        version: link:../shared-types
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -751,21 +772,21 @@ importers:
 
   packages/shared-auth:
     dependencies:
-      database:
+      '@tap2go/database':
         specifier: workspace:*
         version: link:../database
+      '@tap2go/firebase-config':
+        specifier: workspace:*
+        version: link:../firebase-config
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       firebase:
         specifier: ^11.8.1
         version: 11.9.1(@react-native-async-storage/async-storage@2.1.2)
-      firebase-config:
-        specifier: workspace:*
-        version: link:../firebase-config
       react:
         specifier: ^19.0.0
         version: 19.0.0
-      shared-types:
-        specifier: workspace:*
-        version: link:../shared-types
     devDependencies:
       '@types/node':
         specifier: ^20.19.2
@@ -795,6 +816,12 @@ importers:
 
   packages/shared-ui:
     dependencies:
+      '@heroicons/react':
+        specifier: ^2.2.0
+        version: 2.2.0(react@19.0.0)
+      '@tap2go/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -807,9 +834,6 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.0.0(react@19.0.0)
-      shared-types:
-        specifier: workspace:*
-        version: link:../shared-types
       tailwindcss:
         specifier: ^4
         version: 4.1.11
@@ -826,7 +850,7 @@ importers:
 
   packages/shared-utils:
     dependencies:
-      shared-types:
+      '@tap2go/shared-types':
         specifier: workspace:*
         version: link:../shared-types
       typescript:

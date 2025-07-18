@@ -5,7 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { DriverAuthProvider } from "@/contexts/AuthContext";
+import { DriverAuthProvider } from "@tap2go/shared-auth";
 import DriverHeader from "@/components/DriverHeader";
 import DriverSidebar from "@/components/DriverSidebar";
 

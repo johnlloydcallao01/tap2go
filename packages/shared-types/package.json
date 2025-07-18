@@ -1,5 +1,5 @@
 {
-  "name": "shared-types",
+  "name": "@tap2go/shared-types",
   "version": "0.1.0",
   "private": true,
   "main": "./dist/index.js",

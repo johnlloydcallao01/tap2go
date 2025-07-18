@@ -8,7 +8,7 @@ import {
   DriverUser,
   DriverAuthContextType,
   AuthProviderProps
-} from 'shared-auth';
+} from '@tap2go/shared-auth';
 
 // Re-export for backward compatibility
 export type { DriverUser, DriverAuthContextType, AuthProviderProps };

@@ -1,39 +1,37 @@
 'use client';
 
 /**
- * Professional Driver Signup Form
- * Enterprise-grade signup form with comprehensive validation and driver role assignment
+ * Admin Signup Form
+ * Note: In production, admin accounts are typically created by other admins
+ * This form is provided for development/initial setup purposes
  */
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@tap2go/shared-auth';
-import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
+import { useAdminAuth } from '@/contexts/AuthContext';
+import { useAuthForm, type AuthFormConfig } from 'shared-ui';
 import {
   UserIcon,
   KeyIcon,
-  TruckIcon,
+  ShieldCheckIcon,
   EnvelopeIcon,
-  EyeIcon,
-  EyeSlashIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
-interface SignupFormProps {
+interface AdminSignupFormProps {
   onSwitchToLogin?: () => void;
 }
 
-export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
-  const router = useRouter();
-  const { signUp, loading, authError, clearError } = useDriverAuth();
+export default function AdminSignupForm({ onSwitchToLogin }: AdminSignupFormProps) {
+  const { loading, authError, clearError } = useAdminAuth();
 
-  // Form configuration using shared hook
+  // Form configuration
   const formConfig: AuthFormConfig = {
     fields: [
       {
         name: 'firstName',
         label: 'First Name',
         type: 'text',
-        placeholder: 'First name',
+        placeholder: 'Enter your first name',
         autoComplete: 'given-name',
         validation: {
           required: true,
@@ -48,7 +46,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
         name: 'lastName',
         label: 'Last Name',
         type: 'text',
-        placeholder: 'Last name',
+        placeholder: 'Enter your last name',
         autoComplete: 'family-name',
         validation: {
           required: true,
@@ -63,7 +61,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
         name: 'email',
         label: 'Email Address',
         type: 'email',
-        placeholder: 'Enter your email address',
+        placeholder: 'Enter your admin email',
         autoComplete: 'email',
         validation: {
           required: true,
@@ -97,8 +95,8 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
         },
       },
     ],
-    submitButtonText: 'Create Driver Account',
-    loadingText: 'Creating Account...',
+    submitButtonText: 'Create Admin Account',
+    loadingText: 'Creating account...',
   };
 
   const {
@@ -108,13 +106,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
     handleInputChange,
     handleSubmit,
     setFieldError,
-    clearFieldError,
   } = useAuthForm(formConfig);
-
-  // Additional state for terms and conditions and password visibility
-  const [acceptedTerms, setAcceptedTerms] = React.useState(false);
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   // Handle form submission
   const onSubmit = async (data: { [key: string]: string }) => {
@@ -124,24 +116,22 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
       return;
     }
 
-    // Validate terms acceptance
-    if (!acceptedTerms) {
-      setFieldError('terms', 'You must accept the terms and conditions');
-      return;
-    }
-
     try {
-      await signUp(
-        data.email.trim(),
-        data.password,
-        data.firstName.trim(),
-        data.lastName.trim()
-      );
-      // Redirect will be handled by auth context or route protection
-      router.push('/dashboard');
+      // Note: In a real application, admin creation would be handled differently
+      // This is just for demonstration purposes
+      console.log('Admin signup attempt:', {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+      });
+      
+      // For now, just redirect to login
+      alert('Admin account creation is restricted. Please contact your system administrator.');
+      if (onSwitchToLogin) {
+        onSwitchToLogin();
+      }
     } catch (error) {
-      // Error is handled by auth context
-      console.error('Signup error:', error);
+      console.error('Admin signup error:', error);
     }
   };
 
@@ -153,7 +143,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
   }, [formData, authError, clearError]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-20">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
@@ -161,9 +151,9 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
 
       <div className="relative flex min-h-screen">
         {/* Left Side - Branding */}
-        <div className="hidden lg:flex lg:w-1/2 xl:w-2/3 bg-gradient-to-br from-green-600 via-emerald-700 to-teal-800 relative overflow-hidden">
+        <div className="hidden lg:flex lg:w-1/2 xl:w-2/3 bg-gradient-to-br from-amber-600 via-orange-700 to-red-800 relative overflow-hidden">
           {/* Decorative Elements */}
-          <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-600/20 to-transparent"></div>
           <div className="absolute top-0 left-0 w-full h-full">
             <div className="absolute top-20 left-20 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
             <div className="absolute bottom-40 right-20 w-48 h-48 bg-white/5 rounded-full blur-2xl"></div>
@@ -174,40 +164,39 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
             <div className="max-w-md">
               <div className="flex items-center mb-8">
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                  <TruckIcon className="w-7 h-7 text-white" />
+                  <ShieldCheckIcon className="w-7 h-7 text-white" />
                 </div>
                 <div className="ml-4">
                   <h1 className="text-2xl font-bold text-white">Tap2Go</h1>
-                  <p className="text-green-100 text-sm">Driver Registration</p>
+                  <p className="text-orange-100 text-sm">Admin Setup</p>
                 </div>
               </div>
 
               <h2 className="text-4xl xl:text-5xl font-bold text-white mb-6 leading-tight">
-                Start Your
-                <span className="block text-green-200">Driving</span>
-                <span className="block text-green-300">Journey</span>
+                Join Our
+                <span className="block text-orange-200">Administrative</span>
+                <span className="block text-orange-300">Team</span>
               </h2>
 
-              <p className="text-green-100 text-lg mb-8 leading-relaxed">
-                Join our community of professional drivers and start earning with flexible schedules. Get access to thousands of delivery opportunities in your area.
+              <p className="text-orange-100 text-lg mb-8 leading-relaxed">
+                Request access to the Tap2Go administrative dashboard. Admin accounts require approval from existing administrators.
               </p>
 
-              <div className="space-y-4">
-                <div className="flex items-center text-green-100">
-                  <div className="w-2 h-2 bg-green-300 rounded-full mr-3"></div>
-                  <span>Quick & easy registration</span>
-                </div>
-                <div className="flex items-center text-green-100">
-                  <div className="w-2 h-2 bg-green-300 rounded-full mr-3"></div>
-                  <span>Start earning immediately</span>
-                </div>
-                <div className="flex items-center text-green-100">
-                  <div className="w-2 h-2 bg-green-300 rounded-full mr-3"></div>
-                  <span>24/7 driver support</span>
-                </div>
-                <div className="flex items-center text-green-100">
-                  <div className="w-2 h-2 bg-green-300 rounded-full mr-3"></div>
-                  <span>No hidden fees</span>
+              <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-xl p-4 backdrop-blur-sm">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-200">
+                      Development Mode
+                    </h3>
+                    <div className="mt-2 text-sm text-yellow-300">
+                      <p>
+                        In production, admin accounts are created by existing administrators. This form is for development purposes only.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -219,27 +208,26 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
           <div className="w-full max-w-md">
             {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-2xl mb-4">
-                <TruckIcon className="w-8 h-8 text-white" />
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-600 rounded-2xl mb-4">
+                <ShieldCheckIcon className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-white mb-2">Tap2Go Driver</h1>
-              <p className="text-slate-400">Create your account</p>
+              <h1 className="text-2xl font-bold text-white mb-2">Tap2Go Admin</h1>
+              <p className="text-slate-400">Request admin access</p>
             </div>
 
             {/* Signup Card */}
             <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-8 shadow-2xl">
               <div className="hidden lg:block text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">Join Our Team</h2>
-                <p className="text-slate-300">Create your driver account</p>
+                <h2 className="text-2xl font-bold text-white mb-2">Admin Account Request</h2>
+                <p className="text-slate-300">Fill out the form to request access</p>
               </div>
-
               <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">
                 {/* Global Error Message */}
                 {authError && (
                   <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 backdrop-blur-sm">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
-                        <TruckIcon className="h-5 w-5 text-red-400" />
+                        <ShieldCheckIcon className="h-5 w-5 text-red-400" />
                       </div>
                       <div className="ml-3">
                         <h3 className="text-sm font-medium text-red-200">
@@ -279,9 +267,9 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                         type="text"
                         autoComplete="given-name"
                         required
-                        value={formData.firstName}
+                        value={formData.firstName || ''}
                         onChange={handleInputChange}
-                        className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                        className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
                         placeholder="First name"
                       />
                     </div>
@@ -305,9 +293,9 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                         type="text"
                         autoComplete="family-name"
                         required
-                        value={formData.lastName}
+                        value={formData.lastName || ''}
                         onChange={handleInputChange}
-                        className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                        className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
                         placeholder="Last name"
                       />
                     </div>
@@ -332,10 +320,10 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                       type="email"
                       autoComplete="email"
                       required
-                      value={formData.email}
+                      value={formData.email || ''}
                       onChange={handleInputChange}
-                      className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
-                      placeholder="Enter your email address"
+                      className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                      placeholder="Enter your admin email"
                     />
                   </div>
                   {errors.email && (
@@ -355,25 +343,14 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                     <input
                       id="password"
                       name="password"
-                      type={showPassword ? 'text' : 'password'}
+                      type="password"
                       autoComplete="new-password"
                       required
-                      value={formData.password}
+                      value={formData.password || ''}
                       onChange={handleInputChange}
-                      className="block w-full pl-10 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                      className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
                       placeholder="Create a strong password"
                     />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-300 transition-colors"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeSlashIcon className="h-5 w-5" />
-                      ) : (
-                        <EyeIcon className="h-5 w-5" />
-                      )}
-                    </button>
                   </div>
                   {errors.password && (
                     <p className="mt-2 text-sm text-red-400">{errors.password}</p>
@@ -392,116 +369,50 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                     <input
                       id="confirmPassword"
                       name="confirmPassword"
-                      type={showConfirmPassword ? 'text' : 'password'}
+                      type="password"
                       autoComplete="new-password"
                       required
-                      value={formData.confirmPassword}
+                      value={formData.confirmPassword || ''}
                       onChange={handleInputChange}
-                      className="block w-full pl-10 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                      className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
                       placeholder="Confirm your password"
                     />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-300 transition-colors"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      {showConfirmPassword ? (
-                        <EyeSlashIcon className="h-5 w-5" />
-                      ) : (
-                        <EyeIcon className="h-5 w-5" />
-                      )}
-                    </button>
                   </div>
                   {errors.confirmPassword && (
                     <p className="mt-2 text-sm text-red-400">{errors.confirmPassword}</p>
                   )}
                 </div>
 
-                {/* Terms and Conditions */}
-                <div>
-                  <div className="flex items-start">
-                    <div className="flex items-center h-5">
-                      <input
-                        id="terms"
-                        name="terms"
-                        type="checkbox"
-                        checked={acceptedTerms}
-                        onChange={(e) => {
-                          setAcceptedTerms(e.target.checked);
-                          if (errors.terms) {
-                            clearFieldError('terms');
-                          }
-                        }}
-                        className="focus:ring-green-500 h-4 w-4 text-green-600 border-white/20 rounded bg-white/10 backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="terms" className="text-slate-300">
-                        I agree to the{' '}
-                        <a href="#" className="text-green-400 hover:text-green-300 font-medium">
-                          Terms and Conditions
-                        </a>{' '}
-                        and{' '}
-                        <a href="#" className="text-green-400 hover:text-green-300 font-medium">
-                          Privacy Policy
-                        </a>
-                      </label>
-                    </div>
-                  </div>
-                  {errors.terms && (
-                    <p className="mt-2 text-sm text-red-400">{errors.terms}</p>
-                  )}
-                </div>
-
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting || loading}
-                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                  disabled={loading || isSubmitting}
+                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
-                  {isSubmitting || loading ? (
+                  {loading || isSubmitting ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Creating Account...
+                      Creating account...
                     </>
                   ) : (
-                    'Create Driver Account'
+                    'Request Admin Account'
                   )}
                 </button>
-
-                {/* Driver Welcome Notice */}
-                <div className="mt-6 p-4 bg-green-500/20 border border-green-500/30 rounded-xl backdrop-blur-sm">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <TruckIcon className="h-5 w-5 text-green-400" />
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-green-200">
-                        Welcome to the Team!
-                      </h3>
-                      <div className="mt-2 text-sm text-green-300">
-                        <p>
-                          Start earning immediately after account verification. Join thousands of successful drivers on our platform.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Footer Link */}
                 {onSwitchToLogin && (
                   <div className="text-center">
                     <p className="text-sm text-slate-400">
-                      Already have a driver account?{' '}
+                      Already have an admin account?{' '}
                       <button
                         type="button"
                         onClick={onSwitchToLogin}
-                        className="font-medium text-green-400 hover:text-green-300 transition-colors"
+                        className="font-medium text-amber-400 hover:text-amber-300 transition-colors"
                       >
-                        Sign In
+                        Sign in here
                       </button>
                     </p>
                   </div>

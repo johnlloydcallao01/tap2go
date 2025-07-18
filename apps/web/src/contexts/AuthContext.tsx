@@ -9,7 +9,7 @@
 export const dynamic = 'force-dynamic';
 
 // Import from shared authentication package
-import { CustomerAuthProvider, useCustomerAuth } from 'shared-auth';
+import { CustomerAuthProvider, useCustomerAuth } from '@tap2go/shared-auth';
 
 // Re-export for backward compatibility with existing components
 export { CustomerAuthProvider as AuthProvider };

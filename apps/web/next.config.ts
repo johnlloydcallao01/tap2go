@@ -13,12 +13,12 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // Transpile workspace packages
   transpilePackages: [
-    'shared-auth',
-    'shared-types',
-    'shared-ui',
-    'shared-utils',
-    'database',
-    'firebase-config'
+    '@tap2go/shared-auth',
+    '@tap2go/shared-types',
+    '@tap2go/shared-ui',
+    '@tap2go/shared-utils',
+    '@tap2go/database',
+    '@tap2go/firebase-config'
   ],
   // Disable static generation for error pages
   generateBuildId: async () => {

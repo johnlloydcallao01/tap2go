@@ -1,5 +1,5 @@
 {
-  "name": "api-client",
+  "name": "@tap2go/api-client",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
@@ -14,8 +14,8 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.5.0",
     "axios": "^1.9.0",
-    "shared-types": "workspace:*",
-    "shared-utils": "workspace:*",
+    "@tap2go/shared-types": "workspace:*",
+    "@tap2go/shared-utils": "workspace:*",
     "typescript": "^5.8.3"
   },
   "devDependencies": {

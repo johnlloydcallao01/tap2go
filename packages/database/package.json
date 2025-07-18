@@ -1,5 +1,5 @@
 {
-  "name": "database",
+  "name": "@tap2go/database",
   "version": "0.1.0",
   "private": true,
   "main": "./dist/index.js",
@@ -20,8 +20,8 @@
   "dependencies": {
     "firebase": "^11.8.1",
     "firebase-admin": "^13.4.0",
-    "shared-types": "workspace:*",
-    "firebase-config": "workspace:*",
+    "@tap2go/shared-types": "workspace:*",
+    "@tap2go/firebase-config": "workspace:*",
     "typescript": "^5.8.3"
   },
   "devDependencies": {

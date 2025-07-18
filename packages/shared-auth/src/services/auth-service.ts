@@ -16,8 +16,8 @@ import {
   signInWithRedirect,
   Auth,
 } from 'firebase/auth';
-import { getFirebaseAuth } from 'firebase-config';
-import { User } from 'shared-types';
+import { getFirebaseAuth } from '@tap2go/firebase-config';
+import { User } from '@tap2go/shared-types';
 import { AuthServiceConfig, AuthError, AuthErrorCode } from '../types/auth';
 
 /**

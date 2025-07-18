@@ -13,9 +13,9 @@ import {
   serverTimestamp,
   Timestamp,
   Firestore,
-} from 'firebase-config';
-import { COLLECTIONS } from 'database';
-import { User } from 'shared-types';
+} from '@tap2go/firebase-config';
+import { COLLECTIONS } from '@tap2go/database';
+import { User } from '@tap2go/shared-types';
 import {
   UserDocumentData,
   DriverDocumentData,
@@ -352,5 +352,184 @@ export class UserDatabaseService {
   async isUserVerified(uid: string): Promise<boolean> {
     const user = await this.getUser(uid);
     return user?.isVerified === true;
+  }
+
+  // ===== ADMIN USER OPERATIONS =====
+
+  /**
+   * Get admin user by Firebase UID
+   */
+  async getAdminUser(uid: string): Promise<AdminUser | null> {
+    try {
+      const database = await getDb();
+      const userRef = doc(database, COLLECTIONS.USERS, uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        return null;
+      }
+
+      const userData = userSnap.data() as UserDocumentData;
+
+      // Verify user is an admin
+      if (userData.role !== 'admin') {
+        return null;
+      }
+
+      // Get admin profile from admins collection
+      const adminRef = doc(database, COLLECTIONS.ADMINS, uid);
+      const adminSnap = await getDoc(adminRef);
+
+      if (!adminSnap.exists()) {
+        console.warn('Admin user found but no admin profile:', uid);
+        return null;
+      }
+
+      const adminData = adminSnap.data();
+
+      return {
+        id: uid,
+        firebaseUid: uid,
+        email: userData.email,
+        role: 'admin',
+        isActive: userData.isActive,
+        isVerified: userData.isVerified,
+        createdAt: userData.createdAt?.toDate() || new Date(),
+        updatedAt: userData.updatedAt?.toDate() || new Date(),
+        lastLoginAt: userData.lastLoginAt?.toDate(),
+        fcmTokens: userData.fcmTokens || [],
+        preferredLanguage: userData.preferredLanguage || 'en',
+        timezone: userData.timezone || 'UTC',
+
+        // Admin-specific fields
+        permissions: adminData.permissions || [],
+        department: adminData.department,
+        firstName: adminData.firstName,
+        lastName: adminData.lastName,
+        displayName: `${adminData.firstName} ${adminData.lastName}`,
+        phoneNumber: adminData.phoneNumber,
+        profileImageUrl: adminData.profileImageUrl,
+      };
+    } catch (error) {
+      console.error('Error getting admin user:', error);
+      throw new Error('Failed to retrieve admin user');
+    }
+  }
+
+  /**
+   * Create admin user (typically called by other admins)
+   */
+  async createAdminUser(
+    uid: string,
+    email: string,
+    firstName: string,
+    lastName: string,
+    permissions: string[] = [],
+    department?: string
+  ): Promise<AdminUser> {
+    try {
+      const database = await getDb();
+      const now = serverTimestamp();
+
+      // Create user document
+      const userRef = doc(database, COLLECTIONS.USERS, uid);
+      const userData: UserDocumentData = {
+        email,
+        role: 'admin',
+        isActive: true,
+        isVerified: true, // Admins are pre-verified
+        createdAt: now as any,
+        updatedAt: now as any,
+        preferredLanguage: 'en',
+        timezone: 'UTC',
+      };
+
+      await setDoc(userRef, userData);
+
+      // Create admin profile document
+      const adminRef = doc(database, COLLECTIONS.ADMINS, uid);
+      const adminData = {
+        userRef: userRef,
+        firstName,
+        lastName,
+        permissions,
+        department,
+        createdAt: now as any,
+        updatedAt: now as any,
+      };
+
+      await setDoc(adminRef, adminData);
+
+      // Return the created admin user
+      const adminUser = await this.getAdminUser(uid);
+      if (!adminUser) {
+        throw new Error('Failed to retrieve created admin user');
+      }
+
+      return adminUser;
+    } catch (error) {
+      console.error('Error creating admin user:', error);
+      throw new Error('Failed to create admin user');
+    }
+  }
+
+  /**
+   * Update admin permissions
+   */
+  async updateAdminPermissions(uid: string, permissions: string[]): Promise<void> {
+    try {
+      const database = await getDb();
+      const adminRef = doc(database, COLLECTIONS.ADMINS, uid);
+
+      await updateDoc(adminRef, {
+        permissions,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Error updating admin permissions:', error);
+      throw new Error('Failed to update admin permissions');
+    }
+  }
+
+  /**
+   * Update admin profile
+   */
+  async updateAdminProfile(
+    uid: string,
+    updates: {
+      firstName?: string;
+      lastName?: string;
+      department?: string;
+      phoneNumber?: string;
+      profileImageUrl?: string;
+    }
+  ): Promise<void> {
+    try {
+      const database = await getDb();
+      const adminRef = doc(database, COLLECTIONS.ADMINS, uid);
+
+      await updateDoc(adminRef, {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Error updating admin profile:', error);
+      throw new Error('Failed to update admin profile');
+    }
+  }
+
+  /**
+   * Check if user has admin permissions
+   */
+  async hasAdminPermission(uid: string, permission: string): Promise<boolean> {
+    try {
+      const adminUser = await this.getAdminUser(uid);
+      if (!adminUser) return false;
+
+      return adminUser.permissions.includes(permission) || adminUser.permissions.includes('*');
+    } catch (error) {
+      console.error('Error checking admin permission:', error);
+      return false;
+    }
   }
 }

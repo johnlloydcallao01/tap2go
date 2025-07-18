@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { useDriverAuth } from '@/contexts/AuthContext';
+import { useDriverAuth } from '@tap2go/shared-auth';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import {
   TruckIcon,

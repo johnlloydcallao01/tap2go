@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@/contexts/AuthContext';
+import { useDriverAuth } from '@tap2go/shared-auth';
 
 export default function Home() {
   const router = useRouter();

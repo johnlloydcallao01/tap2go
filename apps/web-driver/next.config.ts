@@ -8,12 +8,12 @@ const nextConfig: NextConfig = {
   // Standalone output for better deployment
   output: 'standalone',
   transpilePackages: [
-    'database',
-    'firebase-config',
-    'shared-types',
-    'shared-auth',
-    'shared-ui',
-    'shared-utils'
+    '@tap2go/database',
+    '@tap2go/firebase-config',
+    '@tap2go/shared-types',
+    '@tap2go/shared-auth',
+    '@tap2go/shared-ui',
+    '@tap2go/shared-utils'
   ],
   experimental: {
     // Enable experimental features for better monorepo support

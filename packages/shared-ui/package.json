@@ -1,5 +1,5 @@
 {
-  "name": "shared-ui",
+  "name": "@tap2go/shared-ui",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
@@ -15,9 +15,10 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "lucide-react": "^0.511.0",
+    "@heroicons/react": "^2.2.0",
     "clsx": "^2.1.1",
     "tailwindcss": "^4",
-    "shared-types": "workspace:*",
+    "@tap2go/shared-types": "workspace:*",
     "typescript": "^5.8.3"
   },
   "devDependencies": {

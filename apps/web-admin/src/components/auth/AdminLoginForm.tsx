@@ -1,38 +1,36 @@
 'use client';
 
 /**
- * Professional Driver Login Form
- * Enterprise-grade login form with comprehensive validation and error handling
+ * Admin Login Form
+ * Professional admin login form using shared components with admin-specific styling
  */
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@tap2go/shared-auth';
+import { useAdminAuth } from '@/contexts/AuthContext';
 import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
 import {
   UserIcon,
   KeyIcon,
-  TruckIcon,
-  EyeIcon,
-  EyeSlashIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
-interface LoginFormProps {
+interface AdminLoginFormProps {
   onSwitchToSignup?: () => void;
 }
 
-export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
+export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps) {
   const router = useRouter();
-  const { signIn, loading, authError, clearError } = useDriverAuth();
+  const { signIn, loading, authError, clearError } = useAdminAuth();
 
-  // Form configuration using shared hook
+  // Form configuration
   const formConfig: AuthFormConfig = {
     fields: [
       {
         name: 'email',
         label: 'Email Address',
         type: 'email',
-        placeholder: 'Enter your email address',
+        placeholder: 'Enter your admin email',
         autoComplete: 'email',
         validation: {
           required: true,
@@ -53,8 +51,8 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
         },
       },
     ],
-    submitButtonText: 'Sign In to Dashboard',
-    loadingText: 'Signing In...',
+    submitButtonText: 'Sign In to Admin Panel',
+    loadingText: 'Signing in...',
   };
 
   const {
@@ -65,9 +63,6 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
     handleSubmit,
   } = useAuthForm(formConfig);
 
-  // Additional state for password visibility
-  const [showPassword, setShowPassword] = React.useState(false);
-
   // Handle form submission
   const onSubmit = async (data: { [key: string]: string }) => {
     try {
@@ -76,7 +71,7 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
       router.push('/dashboard');
     } catch (error) {
       // Error is handled by auth context
-      console.error('Login error:', error);
+      console.error('Admin login error:', error);
     }
   };
 
@@ -88,7 +83,7 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
   }, [formData, authError, clearError]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-20">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
@@ -96,7 +91,7 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
 
       <div className="relative flex min-h-screen">
         {/* Left Side - Branding */}
-        <div className="hidden lg:flex lg:w-1/2 xl:w-2/3 bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 relative overflow-hidden">
+        <div className="hidden lg:flex lg:w-1/2 xl:w-2/3 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 relative overflow-hidden">
           {/* Decorative Elements */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent"></div>
           <div className="absolute top-0 left-0 w-full h-full">
@@ -109,40 +104,36 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
             <div className="max-w-md">
               <div className="flex items-center mb-8">
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                  <TruckIcon className="w-7 h-7 text-white" />
+                  <ShieldCheckIcon className="w-7 h-7 text-white" />
                 </div>
                 <div className="ml-4">
                   <h1 className="text-2xl font-bold text-white">Tap2Go</h1>
-                  <p className="text-blue-100 text-sm">Driver Portal</p>
+                  <p className="text-blue-100 text-sm">Admin Portal</p>
                 </div>
               </div>
 
               <h2 className="text-4xl xl:text-5xl font-bold text-white mb-6 leading-tight">
-                Drive Your
-                <span className="block text-blue-200">Success</span>
-                <span className="block text-blue-300">Forward</span>
+                Manage Your
+                <span className="block text-blue-200">Food Delivery</span>
+                <span className="block text-blue-300">Platform</span>
               </h2>
 
               <p className="text-blue-100 text-lg mb-8 leading-relaxed">
-                Join thousands of drivers earning great income with flexible schedules. Access your dashboard to manage deliveries, track earnings, and grow your business.
+                Access comprehensive administrative tools to manage restaurants, drivers, orders, and analytics in one powerful dashboard.
               </p>
 
               <div className="space-y-4">
                 <div className="flex items-center text-blue-100">
                   <div className="w-2 h-2 bg-blue-300 rounded-full mr-3"></div>
-                  <span>Flexible working hours</span>
+                  <span>Real-time order monitoring</span>
                 </div>
                 <div className="flex items-center text-blue-100">
                   <div className="w-2 h-2 bg-blue-300 rounded-full mr-3"></div>
-                  <span>Competitive earnings & tips</span>
+                  <span>Driver & restaurant management</span>
                 </div>
                 <div className="flex items-center text-blue-100">
                   <div className="w-2 h-2 bg-blue-300 rounded-full mr-3"></div>
-                  <span>Real-time delivery tracking</span>
-                </div>
-                <div className="flex items-center text-blue-100">
-                  <div className="w-2 h-2 bg-blue-300 rounded-full mr-3"></div>
-                  <span>Weekly instant payouts</span>
+                  <span>Advanced analytics & reporting</span>
                 </div>
               </div>
             </div>
@@ -155,9 +146,9 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
             {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-                <TruckIcon className="w-8 h-8 text-white" />
+                <ShieldCheckIcon className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-white mb-2">Tap2Go Driver</h1>
+              <h1 className="text-2xl font-bold text-white mb-2">Tap2Go Admin</h1>
               <p className="text-slate-400">Sign in to your dashboard</p>
             </div>
 
@@ -165,7 +156,7 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
             <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-8 shadow-2xl">
               <div className="hidden lg:block text-center mb-8">
                 <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
-                <p className="text-slate-300">Sign in to your driver dashboard</p>
+                <p className="text-slate-300">Sign in to your admin dashboard</p>
               </div>
 
               <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">
@@ -174,7 +165,7 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                   <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 backdrop-blur-sm">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
-                        <TruckIcon className="h-5 w-5 text-red-400" />
+                        <ShieldCheckIcon className="h-5 w-5 text-red-400" />
                       </div>
                       <div className="ml-3">
                         <h3 className="text-sm font-medium text-red-200">
@@ -212,10 +203,10 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                       type="email"
                       autoComplete="email"
                       required
-                      value={formData.email}
+                      value={formData.email || ''}
                       onChange={handleInputChange}
                       className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
-                      placeholder="Enter your email address"
+                      placeholder="Enter your admin email"
                     />
                   </div>
                   {errors.email && (
@@ -235,25 +226,14 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                     <input
                       id="password"
                       name="password"
-                      type={showPassword ? 'text' : 'password'}
+                      type="password"
                       autoComplete="current-password"
                       required
-                      value={formData.password}
+                      value={formData.password || ''}
                       onChange={handleInputChange}
-                      className="block w-full pl-10 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                      className="block w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
                       placeholder="Enter your password"
                     />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-300 transition-colors"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeSlashIcon className="h-5 w-5" />
-                      ) : (
-                        <EyeIcon className="h-5 w-5" />
-                      )}
-                    </button>
                   </div>
                   {errors.password && (
                     <p className="mt-2 text-sm text-red-400">{errors.password}</p>
@@ -263,35 +243,35 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting || loading}
-                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                  disabled={loading || isSubmitting}
+                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
-                  {isSubmitting || loading ? (
+                  {loading || isSubmitting ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Signing In...
+                      Signing in...
                     </>
                   ) : (
-                    'Sign In to Dashboard'
+                    'Sign In to Admin Panel'
                   )}
                 </button>
 
-                {/* Driver Benefits Notice */}
+                {/* Security Notice */}
                 <div className="mt-6 p-4 bg-blue-500/20 border border-blue-500/30 rounded-xl backdrop-blur-sm">
                   <div className="flex">
                     <div className="flex-shrink-0">
-                      <TruckIcon className="h-5 w-5 text-blue-400" />
+                      <ShieldCheckIcon className="h-5 w-5 text-blue-400" />
                     </div>
                     <div className="ml-3">
                       <h3 className="text-sm font-medium text-blue-200">
-                        Driver Benefits
+                        Secure Admin Access
                       </h3>
                       <div className="mt-2 text-sm text-blue-300">
                         <p>
-                          Earn competitive rates with flexible schedules. Weekly payouts and full support included.
+                          This portal is restricted to authorized administrators. All access attempts are logged and monitored for security.
                         </p>
                       </div>
                     </div>
@@ -302,13 +282,13 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                 {onSwitchToSignup && (
                   <div className="text-center">
                     <p className="text-sm text-slate-400">
-                      Don&apos;t have a driver account?{' '}
+                      Need an admin account?{' '}
                       <button
                         type="button"
                         onClick={onSwitchToSignup}
                         className="font-medium text-blue-400 hover:text-blue-300 transition-colors"
                       >
-                        Create Account
+                        Contact your administrator
                       </button>
                     </p>
                   </div>
