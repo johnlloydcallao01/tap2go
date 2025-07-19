@@ -28,7 +28,7 @@ import {
   WhereFilterOp,
   Query,
   CollectionReference
-} from 'firebase-config';
+} from '@tap2go/firebase-config';
 
 // Collection names
 export const COLLECTIONS = {
