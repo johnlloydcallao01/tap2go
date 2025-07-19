@@ -11,13 +11,13 @@ A clean, simple Next.js application for the Tap2Go driver portal.
 
 ## 🛠️ Development
 
-Run the development server on port 3001:
+Run the development server on port 3005:
 
 ```bash
 pnpm dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) with your browser to see the result.
+Open [http://localhost:3005](http://localhost:3005) with your browser to see the result.
 
 ## 📦 Build
 
