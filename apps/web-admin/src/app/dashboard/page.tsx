@@ -6,7 +6,7 @@
  */
 
 import { useAdminAuth } from '@/contexts/AuthContext';
-import { LoadingSpinner } from 'shared-ui';
+import { LoadingSpinner } from '@tap2go/shared-ui';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import {

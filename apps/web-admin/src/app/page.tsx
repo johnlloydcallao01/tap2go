@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/contexts/AuthContext';
-import { LoadingSpinner } from 'shared-ui';
+import { LoadingSpinner } from '@tap2go/shared-ui';
 import Link from 'next/link';
 
 export default function Home() {

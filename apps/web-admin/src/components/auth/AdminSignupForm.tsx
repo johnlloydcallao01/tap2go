@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { useAdminAuth } from '@/contexts/AuthContext';
-import { useAuthForm, type AuthFormConfig } from 'shared-ui';
+import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
 import {
   UserIcon,
   KeyIcon,
