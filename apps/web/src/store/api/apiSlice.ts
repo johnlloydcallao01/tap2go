@@ -23,7 +23,6 @@ export const apiSlice = createApi({
     'Restaurant',
     'MenuItem',
     'Order',
-    'Driver',
     'Customer',
     'Vendor',
     'Admin',

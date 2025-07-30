@@ -96,18 +96,7 @@ export const useVendorState = () => {
   }));
 };
 
-// Driver panel state hook
-export const useDriverState = () => {
-  return useAppSelector((state) => ({
-    profile: state.driverPanel.profile,
-    currentDelivery: state.driverPanel.currentDelivery,
-    earnings: state.driverPanel.earnings,
-    isOnline: state.driverPanel.isOnline,
-    location: state.driverPanel.location,
-    loading: state.driverPanel.loading,
-    error: state.driverPanel.error,
-  }));
-};
+
 
 // Notifications state hook
 export const useNotificationsState = () => {
@@ -195,12 +184,7 @@ export const useOrderById = (orderId: string | undefined) => {
   );
 };
 
-// Memoized driver selector
-export const useDriverById = (driverId: string | undefined) => {
-  return useAppSelector((state) => 
-    driverId ? state.drivers.drivers.find(d => d.id === driverId) : undefined
-  );
-};
+
 
 const reduxHooks = {
   useAppDispatch,
@@ -213,14 +197,14 @@ const reduxHooks = {
   useRealTimeState,
   useAdminState,
   useVendorState,
-  useDriverState,
+
   useNotificationsState,
   useAnalyticsState,
   useUserRole,
   usePermissions,
   useRestaurantById,
   useOrderById,
-  useDriverById,
+
 };
 
 export default reduxHooks;

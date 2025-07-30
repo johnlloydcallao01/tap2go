@@ -49,27 +49,25 @@ export const useAdminApi = () => {
     }
   };
 
-  // Driver operations
+  // Driver operations - DEPRECATED: Moved to apps/web-driver
   const approveDriver = async (driverUid: string) => {
-    return makeAdminRequest('/drivers/approve', {
-      method: 'POST',
-      body: JSON.stringify({ driverUid }),
-    });
+    console.warn('Driver operations have been moved to apps/web-driver');
+    throw new Error('Driver operations have been moved to apps/web-driver');
   };
 
   const rejectDriver = async (driverUid: string, reason?: string) => {
-    return makeAdminRequest('/drivers/reject', {
-      method: 'POST',
-      body: JSON.stringify({ driverUid, reason }),
-    });
+    console.warn('Driver operations have been moved to apps/web-driver');
+    throw new Error('Driver operations have been moved to apps/web-driver');
   };
 
   const getPendingDrivers = async () => {
-    return makeAdminRequest('/drivers/pending');
+    console.warn('Driver operations have been moved to apps/web-driver');
+    throw new Error('Driver operations have been moved to apps/web-driver');
   };
 
   const getDriverAnalytics = async () => {
-    return makeAdminRequest('/drivers/analytics');
+    console.warn('Driver operations have been moved to apps/web-driver');
+    throw new Error('Driver operations have been moved to apps/web-driver');
   };
 
   // Vendor operations

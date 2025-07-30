@@ -344,75 +344,18 @@ export async function analyzeDeliveryPerformance(timeframe: 'day' | 'week' | 'mo
 }
 
 // ===== 5. DRIVER & LOGISTICS =====
+// NOTE: Driver functionality has been moved to apps/web-driver
 
 /**
  * Find nearest available driver - Backend Operation
+ * NOTE: Driver functionality has been moved to apps/web-driver
  */
 export async function findNearestAvailableDriver(
   pickupLocation: Coordinates
 ): Promise<{ driverId: string; distance: number; estimatedArrival: number } | null> {
-  try {
-    // Check if Firebase Admin is initialized
-    if (!db) {
-      throw new Error('Firebase Admin not initialized');
-    }
+  // Driver functionality has been migrated to apps/web-driver
+  // This function is deprecated and should not be used
+  console.warn('Driver functionality has been moved to apps/web-driver');
+  return null;
 
-    // Get available drivers from database
-    const database = db as Firestore;
-    const driversSnapshot = await database
-      .collection('drivers')
-      .where('isOnline', '==', true)
-      .where('isAvailable', '==', true)
-      .get();
-
-    if (driversSnapshot.empty) {
-      return null;
-    }
-
-    const drivers: Array<{ id: string; currentLocation: Coordinates }> = [];
-    driversSnapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.currentLocation) {
-        drivers.push({
-          id: doc.id,
-          currentLocation: {
-            lat: data.currentLocation.latitude,
-            lng: data.currentLocation.longitude
-          }
-        });
-      }
-    });
-
-    if (drivers.length === 0) {
-      return null;
-    }
-
-    // Calculate distances to all drivers
-    const driverLocations = drivers.map(d => d.currentLocation);
-    const distanceResults = await calculateDistanceMatrix(pickupLocation, driverLocations);
-
-    // Find nearest driver
-    let nearestDriver = null;
-    let shortestDistance = Infinity;
-
-    for (let i = 0; i < drivers.length; i++) {
-      const result = distanceResults[i];
-      if (result.status === 'OK') {
-        const distanceKm = result.distance.value / 1000;
-        if (distanceKm < shortestDistance) {
-          shortestDistance = distanceKm;
-          nearestDriver = {
-            driverId: drivers[i].id,
-            distance: distanceKm,
-            estimatedArrival: Math.round(result.duration.value / 60)
-          };
-        }
-      }
-    }
-
-    return nearestDriver;
-  } catch (error) {
-    console.error('Find nearest driver error:', error);
-    return null;
-  }
 }

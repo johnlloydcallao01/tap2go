@@ -44,7 +44,7 @@ async function updateCompleteSystemDocumentation() {
       version: "1.0.0",
       lastUpdated: Timestamp.now(),
       collections: {
-        topLevel: ["users", "admins", "vendors", "customers", "drivers", "restaurants", "orders", "platformConfig", "notifications", "disputes", "analytics"],
+        topLevel: ["users", "admins", "vendors", "customers", "restaurants", "orders", "platformConfig", "notifications", "disputes", "analytics"],
         system: ["_system"]
       }
     },
@@ -73,7 +73,7 @@ async function updateCompleteSystemDocumentation() {
         role: {
           type: "string",
           required: true,
-          enum: ["admin", "vendor", "driver", "customer"],
+          enum: ["admin", "vendor", "customer"],
           description: "User's role in the platform"
         },
         profileImageUrl: {
@@ -124,7 +124,7 @@ async function updateCompleteSystemDocumentation() {
       },
       subcollections: {},
       relationships: {
-        oneToOne: ["admins", "vendors", "drivers", "customers"],
+        oneToOne: ["admins", "vendors", "customers"],
         description: "Each user can have one role-specific profile"
       }
     },
@@ -422,236 +422,7 @@ async function updateCompleteSystemDocumentation() {
     },
 
     // ===== 4. DRIVERS COLLECTION =====
-    drivers: {
-      purpose: "Delivery personnel and vehicle management",
-      docIdFormat: "Driver's Auth UID (same as users UID)",
-      collectionPath: "drivers/{driverUid}",
-      fields: {
-        userRef: {
-          type: "string",
-          required: true,
-          description: "Reference path to users/{uid}"
-        },
-        firstName: {
-          type: "string",
-          required: true,
-          description: "Driver's first name"
-        },
-        lastName: {
-          type: "string",
-          required: true,
-          description: "Driver's last name"
-        },
-        dateOfBirth: {
-          type: "timestamp",
-          required: true,
-          description: "Driver's date of birth"
-        },
-        gender: {
-          type: "string",
-          required: false,
-          enum: ["male", "female", "other", "prefer_not_to_say"],
-          description: "Driver's gender"
-        },
-        nationalId: {
-          type: "string",
-          required: true,
-          description: "National ID number"
-        },
-        driverLicenseNumber: {
-          type: "string",
-          required: true,
-          description: "Driver's license number"
-        },
-        vehicleType: {
-          type: "string",
-          required: true,
-          enum: ["bicycle", "motorcycle", "car", "scooter"],
-          description: "Type of delivery vehicle"
-        },
-        vehicleDetails: {
-          type: "map",
-          required: true,
-          description: "Vehicle information",
-          structure: {
-            make: "string (optional) - vehicle make",
-            model: "string (optional) - vehicle model",
-            year: "number (optional) - vehicle year",
-            licensePlate: "string - vehicle license plate",
-            color: "string - vehicle color",
-            insuranceExpiry: "timestamp (optional) - insurance expiry date"
-          }
-        },
-        status: {
-          type: "string",
-          required: true,
-          enum: ["pending_approval", "active", "suspended", "rejected", "inactive"],
-          description: "Driver's current status"
-        },
-        verificationStatus: {
-          type: "string",
-          required: true,
-          enum: ["pending", "verified", "rejected"],
-          description: "Document verification status"
-        },
-        verificationDocuments: {
-          type: "map",
-          required: true,
-          description: "URLs to uploaded verification documents",
-          structure: {
-            driverLicense: "string - URL to driver license",
-            vehicleRegistration: "string - URL to vehicle registration",
-            insurance: "string - URL to insurance document",
-            nationalId: "string - URL to national ID",
-            profilePhoto: "string - URL to profile photo",
-            backgroundCheck: "string (optional) - URL to background check"
-          }
-        },
-        currentLocation: {
-          type: "GeoPoint",
-          required: false,
-          description: "Driver's current location"
-        },
-        isOnline: {
-          type: "boolean",
-          required: true,
-          description: "Whether driver is currently online"
-        },
-        isAvailable: {
-          type: "boolean",
-          required: true,
-          description: "Whether driver can accept new orders"
-        },
-        deliveryRadius: {
-          type: "number",
-          required: true,
-          description: "Driver's delivery radius in kilometers"
-        },
-        avgRating: {
-          type: "number",
-          required: false,
-          description: "Average customer rating"
-        },
-        totalDeliveries: {
-          type: "number",
-          required: true,
-          description: "Total number of completed deliveries"
-        },
-        totalEarnings: {
-          type: "number",
-          required: true,
-          description: "Total earnings to date"
-        },
-        joinedAt: {
-          type: "timestamp",
-          required: true,
-          description: "When driver joined the platform"
-        },
-        approvedBy: {
-          type: "string",
-          required: false,
-          description: "Admin UID who approved the driver"
-        },
-        approvedAt: {
-          type: "timestamp",
-          required: false,
-          description: "When the driver was approved"
-        },
-        bankDetails: {
-          type: "map",
-          required: true,
-          description: "Bank account information for payments",
-          structure: {
-            accountHolderName: "string - account holder name",
-            accountNumber: "string - bank account number",
-            bankName: "string - bank name",
-            routingNumber: "string (optional) - routing number",
-            swiftCode: "string (optional) - SWIFT code"
-          }
-        },
-        emergencyContact: {
-          type: "map",
-          required: true,
-          description: "Emergency contact information",
-          structure: {
-            name: "string - emergency contact name",
-            relationship: "string - relationship to driver",
-            phone: "string - emergency contact phone"
-          }
-        },
-        createdAt: {
-          type: "timestamp",
-          required: true,
-          description: "Driver profile creation timestamp"
-        },
-        updatedAt: {
-          type: "timestamp",
-          required: true,
-          description: "Last update timestamp"
-        },
-        lastActiveAt: {
-          type: "timestamp",
-          required: false,
-          description: "Last activity timestamp"
-        }
-      },
-      subcollections: {
-        earnings: {
-          path: "drivers/{driverUid}/earnings/{date}",
-          purpose: "Daily earnings and performance tracking",
-          fields: {
-            date: "string - YYYY-MM-DD format",
-            totalEarnings: "number - total earnings for the day",
-            deliveryFees: "number - earnings from delivery fees",
-            tips: "number - tips received",
-            bonuses: "number - bonuses earned",
-            penalties: "number - penalties deducted",
-            totalDeliveries: "number - deliveries completed",
-            avgDeliveryTime: "number - average delivery time in minutes",
-            fuelCosts: "number (optional) - driver-reported fuel costs"
-          }
-        },
-        reviews: {
-          path: "drivers/{driverUid}/reviews/{reviewId}",
-          purpose: "Customer reviews and ratings for drivers",
-          fields: {
-            reviewId: "string - auto-generated review ID",
-            customerRef: "string - path to customers/{customerId}",
-            orderRef: "string - path to orders/{orderId}",
-            rating: "number - overall rating 1-5",
-            comment: "string (optional) - customer comment",
-            punctualityRating: "number - punctuality rating 1-5",
-            politenessRating: "number - politeness rating 1-5",
-            conditionRating: "number - food condition rating 1-5",
-            isVerifiedDelivery: "boolean - whether delivery was verified",
-            createdAt: "timestamp - review creation time"
-          }
-        },
-        deliveryHistory: {
-          path: "drivers/{driverUid}/deliveryHistory/{deliveryId}",
-          purpose: "Complete delivery history and analytics",
-          fields: {
-            deliveryId: "string - auto-generated delivery ID",
-            orderRef: "string - path to orders/{orderId}",
-            restaurantRef: "string - path to restaurants/{restId}",
-            customerRef: "string - path to customers/{customerId}",
-            pickupLocation: "GeoPoint - restaurant location",
-            deliveryLocation: "GeoPoint - customer location",
-            distance: "number - delivery distance in km",
-            estimatedTime: "number - estimated delivery time in minutes",
-            actualTime: "number - actual delivery time in minutes",
-            status: "string - assigned | picked_up | delivered | cancelled",
-            earnings: "number - earnings from this delivery",
-            tips: "number - tips received for this delivery",
-            deliveredAt: "timestamp (optional) - delivery completion time"
-          }
-        }
-      },
-      relationships: {
-        belongsTo: "users",
-        description: "Each driver belongs to one user account"
-      }
-    },
+    // REMOVED: Driver functionality has been moved to apps/web-driver
 
     // ===== 5. RESTAURANTS COLLECTION =====
     restaurants: {
@@ -1001,12 +772,7 @@ async function updateCollectionSummary() {
         subcollections: 4,
         keyFeatures: ["loyalty program", "address management", "payment methods", "order history"]
       },
-      drivers: {
-        type: "top-level",
-        purpose: "Delivery personnel and vehicle management",
-        subcollections: 3,
-        keyFeatures: ["vehicle verification", "location tracking", "earnings tracking", "performance analytics"]
-      },
+
       restaurants: {
         type: "top-level",
         purpose: "Individual restaurant outlets/branches",
@@ -1048,11 +814,11 @@ async function updateCollectionSummary() {
       "users -> admins": "one-to-one",
       "users -> vendors": "one-to-one",
       "users -> customers": "one-to-one",
-      "users -> drivers": "one-to-one",
+
       "vendors -> restaurants": "one-to-many",
       "restaurants -> menuItems": "one-to-many",
       "restaurants -> reviews": "one-to-many",
-      "drivers -> deliveries": "one-to-many"
+
     },
     developmentInfo: {
       setupScripts: [
@@ -1062,7 +828,7 @@ async function updateCollectionSummary() {
         "update-system-docs.js"
       ],
       setupPages: [
-        "/setup-drivers"
+        ""
       ],
       testPages: [
         "/test-admin",
@@ -1073,7 +839,7 @@ async function updateCollectionSummary() {
         "src/lib/database/users.ts",
         "src/lib/database/vendors.ts",
         "src/lib/database/customers.ts",
-        "src/lib/database/drivers.ts",
+
         "src/lib/database/schema.ts"
       ]
     }
@@ -1098,7 +864,7 @@ async function updateSystemDocumentation() {
     console.log('- ✅ Previous structure docs remain for reference');
 
     console.log('\n📊 Current Database Structure:');
-    console.log('- 11 Top-level collections (users, admins, vendors, customers, drivers, restaurants, orders, platformConfig, notifications, disputes, analytics)');
+    console.log('- 10 Top-level collections (users, admins, vendors, customers, restaurants, orders, platformConfig, notifications, disputes, analytics)');
     console.log('- 17 Subcollections across all collections');
     console.log('- Complete field specifications with types and descriptions');
     console.log('- Relationship mappings between collections');

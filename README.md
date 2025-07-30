@@ -144,14 +144,11 @@ tap2go/
 │   │   │   ├── menu/                 # Menu management
 │   │   │   ├── orders/               # Order processing
 │   │   │   └── analytics/            # Vendor analytics
-│   │   ├── driver/                   # Driver Panel Pages
-│   │   │   ├── dashboard/            # Driver dashboard
-│   │   │   ├── deliveries/           # Delivery management
-│   │   │   └── earnings/             # Earnings tracking
+│   │   ├── driver/                   # REMOVED: Driver functionality moved to apps/web-driver
 │   │   ├── api/                      # API Routes (App Router)
 │   │   │   ├── admin/                # Admin API endpoints
 │   │   │   ├── vendor/               # Vendor API endpoints
-│   │   │   ├── driver/               # Driver API endpoints
+│   │   │   ├── driver/               # REMOVED: Driver API moved to apps/web-driver
 │   │   │   ├── paymongo/             # Payment processing
 │   │   │   ├── maps/                 # Google Maps services
 │   │   │   └── search/               # Search functionality

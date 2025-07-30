@@ -21,7 +21,6 @@ import cartSlice from './slices/cartSlice';
 // Business logic slices
 import ordersSlice from './slices/ordersSlice';
 import restaurantsSlice from './slices/restaurantsSlice';
-import driversSlice from './slices/driversSlice';
 import customersSlice from './slices/customersSlice';
 
 // Advanced features
@@ -32,7 +31,6 @@ import notificationsSlice from './slices/notificationsSlice';
 // Panel-specific slices
 import adminSlice from './slices/adminSlice';
 import vendorSlice from './slices/vendorSlice';
-import driverPanelSlice from './slices/driverPanelSlice';
 
 // CMS slice
 import cmsReducer from './slices/cmsSliceSimple';
@@ -56,7 +54,6 @@ const rootReducer = combineReducers({
   // Business logic
   orders: ordersSlice.reducer,
   restaurants: restaurantsSlice.reducer,
-  drivers: driversSlice.reducer,
   customers: customersSlice.reducer,
   
   // Advanced features
@@ -67,7 +64,6 @@ const rootReducer = combineReducers({
   // Panel-specific
   admin: adminSlice.reducer,
   vendor: vendorSlice.reducer,
-  driverPanel: driverPanelSlice.reducer,
 
   // CMS
   cms: cmsReducer,
@@ -131,14 +127,12 @@ export type { UIState, Notification, Modal } from './slices/uiSlice';
 export type { CartState } from './slices/cartSlice';
 export type { OrdersState, Order, OrderFilters } from './slices/ordersSlice';
 export type { RestaurantsState } from './slices/restaurantsSlice';
-export type { DriversState, Driver } from './slices/driversSlice';
 export type { CustomersState, Customer, CustomerPreferences } from './slices/customersSlice';
 export type { RealTimeState, OrderUpdate } from './slices/realTimeSlice';
 export type { AnalyticsState, AnalyticsMetrics, AnalyticsReport } from './slices/analyticsSlice';
 export type { NotificationsState, Notification as NotificationItem } from './slices/notificationsSlice';
 export type { AdminState } from './slices/adminSlice';
 export type { VendorState } from './slices/vendorSlice';
-export type { DriverPanelState, DriverProfile } from './slices/driverPanelSlice';
 
 // Store setup listener for RTK Query
 import { setupListeners } from '@reduxjs/toolkit/query';

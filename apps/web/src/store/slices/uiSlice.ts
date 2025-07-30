@@ -77,11 +77,7 @@ export interface UIState {
     selectedOrders: string[];
   };
   
-  driverPanel: {
-    mapView: 'normal' | 'satellite' | 'terrain';
-    showTraffic: boolean;
-    autoAcceptOrders: boolean;
-  };
+
   
   // Customer app
   customerApp: {
@@ -117,11 +113,7 @@ const initialState: UIState = {
     menuEditMode: false,
     selectedOrders: [],
   },
-  driverPanel: {
-    mapView: 'normal',
-    showTraffic: true,
-    autoAcceptOrders: false,
-  },
+
   customerApp: {
     viewMode: 'list',
     sortBy: 'distance',
