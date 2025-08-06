@@ -1,24 +1,29 @@
 # Admin App Server Directory
 
-This directory contains server-side business logic specific to the Admin application.
+This directory contains the complete server-side architecture for the Admin application, organized for enterprise-level administration and management.
 
-## Purpose
-
-This `server/` directory follows our monorepo architecture pattern where each Next.js app can have its own app-specific server-side logic, separate from shared packages.
-
-## Structure
+## 🏗️ Architecture Overview
 
 ```
 src/server/
-├── README.md           # This file
-└── services/          # Admin-specific server services (to be created)
-    ├── users.ts       # User management operations
-    ├── analytics.ts   # Platform analytics and reporting
-    ├── moderation.ts  # Content moderation logic
-    ├── system.ts      # System administration tasks
-    ├── reports.ts     # Admin reporting and exports
-    └── audit.ts       # Audit logging and compliance
+├── actions/          # Admin Server Actions (Next.js App Router)
+├── middleware/       # Admin-specific middleware
+├── services/         # Admin business logic services
+├── types/           # Admin-specific TypeScript types
+├── utils/           # Admin utility functions
+└── validators/      # Admin input validation schemas
 ```
+
+## 📁 Directory Structure
+
+### `actions/` - Admin Server Actions
+Server Actions for administrative operations and form handling.
+
+### `middleware/` - Admin Middleware
+Cross-cutting concerns specific to admin operations.
+
+### `services/` - Admin Business Logic Services
+Core administrative business logic and data operations.
 
 ## When to Add Logic Here
 

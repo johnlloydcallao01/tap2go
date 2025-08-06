@@ -1,24 +1,29 @@
 # Vendor App Server Directory
 
-This directory contains server-side business logic specific to the Vendor application.
+This directory contains the complete server-side architecture for the Vendor application, organized for enterprise-level vendor operations and restaurant management.
 
-## Purpose
-
-This `server/` directory follows our monorepo architecture pattern where each Next.js app can have its own app-specific server-side logic, separate from shared packages.
-
-## Structure
+## 🏗️ Architecture Overview
 
 ```
 src/server/
-├── README.md           # This file
-└── services/          # Vendor-specific server services (to be created)
-    ├── outlets.ts     # Multiple outlets management
-    ├── menu.ts        # Menu management logic
-    ├── orders.ts      # Vendor order processing
-    ├── analytics.ts   # Vendor business analytics
-    ├── earnings.ts    # Vendor earnings calculations
-    └── promotions.ts  # Vendor promotions management
+├── actions/          # Vendor Server Actions (Next.js App Router)
+├── middleware/       # Vendor-specific middleware
+├── services/         # Vendor business logic services
+├── types/           # Vendor-specific TypeScript types
+├── utils/           # Vendor utility functions
+└── validators/      # Vendor input validation schemas
 ```
+
+## 📁 Directory Structure
+
+### `actions/` - Vendor Server Actions
+Server Actions for vendor operations and restaurant management.
+
+### `middleware/` - Vendor Middleware
+Cross-cutting concerns specific to vendor operations.
+
+### `services/` - Vendor Business Logic Services
+Core vendor business logic and restaurant management operations.
 
 ## When to Add Logic Here
 

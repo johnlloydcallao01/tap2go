@@ -1,22 +1,29 @@
 # Driver App Server Directory
 
-This directory contains server-side business logic specific to the Driver application.
+This directory contains the complete server-side architecture for the Driver application, organized for enterprise-level driver operations and management.
 
-## Purpose
-
-This `server/` directory follows our monorepo architecture pattern where each Next.js app can have its own app-specific server-side logic, separate from shared packages.
-
-## Structure
+## 🏗️ Architecture Overview
 
 ```
 src/server/
-├── README.md           # This file
-└── services/          # Driver-specific server services (to be created)
-    ├── routes.ts      # Driver route optimization logic
-    ├── earnings.ts    # Driver earnings calculations
-    ├── delivery.ts    # Driver delivery management
-    └── analytics.ts   # Driver performance analytics
+├── actions/          # Driver Server Actions (Next.js App Router)
+├── middleware/       # Driver-specific middleware
+├── services/         # Driver business logic services
+├── types/           # Driver-specific TypeScript types
+├── utils/           # Driver utility functions
+└── validators/      # Driver input validation schemas
 ```
+
+## 📁 Directory Structure
+
+### `actions/` - Driver Server Actions
+Server Actions for driver operations and form handling.
+
+### `middleware/` - Driver Middleware
+Cross-cutting concerns specific to driver operations.
+
+### `services/` - Driver Business Logic Services
+Core driver business logic and data operations.
 
 ## When to Add Logic Here
 
