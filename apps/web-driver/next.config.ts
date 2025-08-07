@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
-  // Standalone output for better deployment
+  // Standalone output for better deployment (outputs to .next/standalone)
   output: 'standalone',
   transpilePackages: [
     '@tap2go/database',
@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     externalDir: true,
   },
   // Critical for monorepo builds on Vercel - includes files from monorepo root
+  // This should only affect .next/standalone, not create source directories
   outputFileTracingRoot: path.join(__dirname, '../../'),
 };
 

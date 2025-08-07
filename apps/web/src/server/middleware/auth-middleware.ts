@@ -1,17 +1,16 @@
 /**
- * Authentication Middleware
- * 
- * Middleware for handling authentication, authorization, and user context.
- * This is the server-side middleware (different from Next.js middleware.ts).
+ * Authentication Middleware - DISABLED
+ *
+ * Authentication has been disabled for the public web app.
+ * This file is maintained for future use if authentication is needed.
  */
 
 import { NextRequest } from 'next/server';
-import { getAuth } from 'firebase-admin/auth';
 import { User } from '../types/user';
-import { createApiError } from '../utils/error-utils';
 
+// Placeholder interfaces for maintaining structure
 export interface AuthenticatedRequest extends NextRequest {
-  user: User;
+  user: User | null;
   token: string;
 }
 
@@ -22,61 +21,19 @@ export interface AuthOptions {
 }
 
 /**
- * Extract and validate JWT token from request
+ * Placeholder function - authentication disabled
  */
 async function extractAndValidateToken(request: NextRequest): Promise<{ token: string; decodedToken: any }> {
-  const authHeader = request.headers.get('authorization');
-  
-  if (!authHeader) {
-    throw new Error('No authorization header provided');
-  }
-
-  if (!authHeader.startsWith('Bearer ')) {
-    throw new Error('Invalid authorization header format. Expected: Bearer <token>');
-  }
-
-  const token = authHeader.substring(7);
-  
-  if (!token) {
-    throw new Error('No token provided');
-  }
-
-  try {
-    // Verify token with Firebase Admin
-    const decodedToken = await getAuth().verifyIdToken(token, true);
-    return { token, decodedToken };
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('expired')) {
-        throw new Error('Token has expired');
-      }
-      if (error.message.includes('invalid')) {
-        throw new Error('Invalid token');
-      }
-    }
-    throw new Error('Token verification failed');
-  }
+  console.warn('Authentication is disabled in the public web app');
+  throw new Error('Authentication is disabled');
 }
 
 /**
- * Get user data from decoded token
+ * Placeholder function - authentication disabled
  */
 async function getUserFromToken(decodedToken: any): Promise<User> {
-  // TODO: Implement proper user lookup from your database
-  // This is a placeholder - replace with your actual user service
-  
-  const user: User = {
-    id: decodedToken.uid,
-    email: decodedToken.email || '',
-    name: decodedToken.name || decodedToken.email || 'Unknown User',
-    role: decodedToken.role || 'customer',
-    isActive: true,
-    isVerified: Boolean(decodedToken.email_verified),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
-  return user;
+  console.warn('Authentication is disabled in the public web app');
+  throw new Error('Authentication is disabled');
 }
 
 /**
@@ -104,83 +61,26 @@ function hasRequiredPermissions(user: User, requiredPermissions?: string[]): boo
 }
 
 /**
- * Main authentication middleware
+ * Placeholder authentication middleware - always returns null (no authentication)
  */
 export async function authenticateRequest(
   request: NextRequest,
   options: AuthOptions = {}
 ): Promise<{ user: User; token: string } | null> {
-  
-  // If authentication is not required, try to authenticate but don't fail
-  if (!options.required) {
-    try {
-      const { token, decodedToken } = await extractAndValidateToken(request);
-      const user = await getUserFromToken(decodedToken);
-      return { user, token };
-    } catch {
-      return null;
-    }
-  }
-
-  // Authentication is required
-  try {
-    const { token, decodedToken } = await extractAndValidateToken(request);
-    const user = await getUserFromToken(decodedToken);
-
-    // Check if user is active
-    if (!user.isActive) {
-      throw new Error('User account is deactivated');
-    }
-
-    // Check role requirements
-    if (!hasRequiredRole(user, options.roles)) {
-      throw new Error(`Access denied. Required roles: ${options.roles?.join(', ')}`);
-    }
-
-    // Check permission requirements
-    if (!hasRequiredPermissions(user, options.permissions)) {
-      throw new Error(`Access denied. Required permissions: ${options.permissions?.join(', ')}`);
-    }
-
-    return { user, token };
-
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Authentication failed';
-    throw createApiError(message, 401);
-  }
+  console.warn('Authentication is disabled in the public web app');
+  return null;
 }
 
 /**
- * Middleware wrapper for API routes
+ * Placeholder middleware wrapper - passes through without authentication
  */
 export function withAuth<T extends unknown[]>(
-  handler: (request: NextRequest, context: { user: User; token: string }, ...args: T) => Promise<Response>,
-  options: AuthOptions = { required: true }
+  handler: (request: NextRequest, context: { user: User | null; token: string }, ...args: T) => Promise<Response>,
+  options: AuthOptions = { required: false }
 ) {
   return async (request: NextRequest, ...args: T): Promise<Response> => {
-    try {
-      const authResult = await authenticateRequest(request, options);
-      
-      if (options.required && !authResult) {
-        return Response.json(
-          { error: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-
-      return await handler(request, authResult || { user: null as unknown as User, token: '' }, ...args);
-    } catch (error) {
-      if (error instanceof Error) {
-        return Response.json(
-          { error: error.message },
-          { status: 401 }
-        );
-      }
-      return Response.json(
-        { error: 'Authentication failed' },
-        { status: 401 }
-      );
-    }
+    // Always pass through with no user (public access)
+    return await handler(request, { user: null, token: '' }, ...args);
   };
 }
 
@@ -194,10 +94,10 @@ interface AuthResult {
 
 type AuthHandler = (request: NextRequest, auth: AuthResult, ...args: unknown[]) => Promise<Response>;
 
-export const requireAdmin = (handler: AuthHandler) => withAuth(handler, { required: true, roles: ['admin'] });
-export const requireVendor = (handler: AuthHandler) => withAuth(handler, { required: true, roles: ['vendor', 'admin'] });
-export const requireDriver = (handler: AuthHandler) => withAuth(handler, { required: true, roles: ['driver', 'admin'] });
-export const requireCustomer = (handler: AuthHandler) => withAuth(handler, { required: true, roles: ['customer', 'admin'] });
+export const requireAdmin = (handler: AuthHandler) => withAuth(handler, { required: false });
+export const requireVendor = (handler: AuthHandler) => withAuth(handler, { required: false });
+export const requireDriver = (handler: AuthHandler) => withAuth(handler, { required: false });
+export const requireCustomer = (handler: AuthHandler) => withAuth(handler, { required: false });
 
 /**
  * Optional authentication (for public endpoints that can benefit from user context)

@@ -2,21 +2,17 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import VendorHeader from '@/components/vendor/VendorHeader';
-import VendorSidebar from '@/components/vendor/VendorSidebar';
+import AdminSidebar from './AdminSidebar';
+import AdminHeader from './AdminHeader';
 
-interface VendorLayoutProps {
+export default function AdminLayout({
+  children,
+}: {
   children: React.ReactNode;
-}
-
-export default function VendorLayout({ children }: VendorLayoutProps) {
+}) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Authentication disabled - allow all access
-
-
 
   // Handle expand sidebar and navigate to specific page
   const handleExpandAndNavigate = (href: string, categoryName: string) => {
@@ -35,19 +31,17 @@ export default function VendorLayout({ children }: VendorLayoutProps) {
     }, 300);
   };
 
-  // No authentication checks - allow all access
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Fixed at top, starts after sidebar on desktop */}
-      <VendorHeader
+      <AdminHeader
         onMenuClick={() => setSidebarOpen(true)}
         sidebarCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       {/* Sidebar - Fixed on left, starts below header */}
-      <VendorSidebar
+      <AdminSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isCollapsed={sidebarCollapsed}

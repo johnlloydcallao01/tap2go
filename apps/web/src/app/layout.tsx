@@ -3,7 +3,6 @@ import React from 'react';
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import LoadingProvider from "@/components/loading/LoadingProvider";
 import ReduxProvider from "@/store/ReduxProvider";
@@ -34,20 +33,18 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
         <ReduxProvider>
-          <AuthProvider>
-            <LoadingProvider variant="facebook" showInitialLoad={true}>
-              <CartProvider>
-                {children}
-                {/* Global Chatbot Widget */}
-                <ChatWidget
-                  showWelcomeMessage={true}
-                  autoOpen={false}
-                  theme="orange"
-                  position="bottom-left"
-                />
-              </CartProvider>
-            </LoadingProvider>
-          </AuthProvider>
+          <LoadingProvider variant="facebook" showInitialLoad={true}>
+            <CartProvider>
+              {children}
+              {/* Global Chatbot Widget */}
+              <ChatWidget
+                showWelcomeMessage={true}
+                autoOpen={false}
+                theme="orange"
+                position="bottom-left"
+              />
+            </CartProvider>
+          </LoadingProvider>
         </ReduxProvider>
       </body>
     </html>

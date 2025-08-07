@@ -1,6 +1,7 @@
 /**
- * Web Authentication Context - Using Shared Auth Package
- * This file now uses the shared authentication package for consistency across apps
+ * Web Authentication Context - DISABLED
+ * Authentication is disabled for the public web app
+ * This file is kept for future use when authentication might be needed
  */
 
 'use client';
@@ -8,32 +9,32 @@
 // Force dynamic rendering to avoid SSR issues
 export const dynamic = 'force-dynamic';
 
-// Import from shared authentication package
-import { CustomerAuthProvider, useCustomerAuth } from '@tap2go/shared-auth';
+// Placeholder AuthProvider that does nothing
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
 
-// Re-export for backward compatibility with existing components
-export { CustomerAuthProvider as AuthProvider };
-
-// Create a wrapper hook that matches the existing interface
+// Placeholder hook that returns no user (public access)
 export function useAuth() {
-  const customerAuth = useCustomerAuth();
-  
-  // Map the customer auth interface to the existing auth interface
   return {
-    user: customerAuth.user,
-    loading: customerAuth.loading,
-    signIn: customerAuth.signIn,
-    signUp: (email: string, password: string, name: string, role?: string) => {
-      // For web app, we'll always create customers
-      return customerAuth.signUp(email, password, name);
+    user: null,
+    loading: false,
+    signIn: async () => {
+      console.warn('Authentication is disabled in the public web app');
     },
-    signInWithGoogle: customerAuth.signInWithGoogle,
-    signOut: customerAuth.signOut,
-    updateProfile: async (updates: { displayName?: string; photoURL?: string }) => {
-      // This functionality would need to be implemented in the shared auth package
-      console.warn('updateProfile not yet implemented in shared auth package');
+    signUp: async () => {
+      console.warn('Authentication is disabled in the public web app');
     },
-    authError: customerAuth.authError,
-    isInitialized: customerAuth.isInitialized,
+    signInWithGoogle: async () => {
+      console.warn('Authentication is disabled in the public web app');
+    },
+    signOut: async () => {
+      console.warn('Authentication is disabled in the public web app');
+    },
+    updateProfile: async () => {
+      console.warn('Authentication is disabled in the public web app');
+    },
+    authError: null,
+    isInitialized: true,
   };
 }

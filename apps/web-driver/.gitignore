@@ -15,6 +15,9 @@
 # production
 /build
 
+# build artifacts (prevent standalone output pollution)
+/apps
+
 # misc
 .DS_Store
 *.pem
