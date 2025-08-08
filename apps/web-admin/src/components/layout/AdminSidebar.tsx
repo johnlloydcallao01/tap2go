@@ -55,7 +55,7 @@ type NavigationCategory = {
 };
 
 // Type assertion helper for any icon component
-const asIconComponent = (icon: any): IconComponent => icon as IconComponent;
+const asIconComponent = (icon: React.ComponentType<React.SVGProps<SVGSVGElement>>): IconComponent => icon as IconComponent;
 
 // Professional menu categorization structure with category icons
 const navigationCategories: NavigationCategory[] = [
@@ -132,7 +132,7 @@ const navigationCategories: NavigationCategory[] = [
     icon: asIconComponent(TruckIcon),
     items: [
       { name: 'Delivery Zones', href: '/logistics/zones', icon: asIconComponent(MapPinIcon) },
-      { name: 'Delivery Times', href: '/logistics/times', icon: asIconComponent(ClockIcon) },
+      { name: 'Delivery Times', href: '/logistics/delivery-times', icon: asIconComponent(ClockIcon) },
       { name: 'Fleet Management', href: '/logistics/fleet', icon: asIconComponent(TruckIcon) },
     ]
   },
@@ -143,8 +143,8 @@ const navigationCategories: NavigationCategory[] = [
       { name: 'General Settings', href: '/settings', icon: asIconComponent(CogIcon) },
       { name: 'API Configuration', href: '/settings/api', icon: asIconComponent(AdjustmentsHorizontalIcon) },
       { name: 'Security', href: '/settings/security', icon: asIconComponent(ShieldCheckIcon) },
-      { name: 'Admin Accounts', href: '/settings/admins', icon: asIconComponent(UserCircleIcon) },
-      { name: 'Access Keys', href: '/settings/keys', icon: asIconComponent(KeyIcon) },
+      { name: 'Admin Accounts', href: '/settings/admin-accounts', icon: asIconComponent(UserCircleIcon) },
+      { name: 'Access Keys', href: '/settings/access-keys', icon: asIconComponent(KeyIcon) },
     ]
   }
 ];

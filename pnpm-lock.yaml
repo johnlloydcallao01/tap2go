@@ -520,6 +520,9 @@ importers:
 
   apps/web-admin:
     dependencies:
+      '@headlessui/react':
+        specifier: ^2.2.4
+        version: 2.2.4(react-dom@19.0.0)(react@19.0.0)
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.0.0)
@@ -538,6 +541,12 @@ importers:
       '@tap2go/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      echarts:
+        specifier: ^5.6.0
+        version: 5.6.0
+      echarts-for-react:
+        specifier: ^3.0.2
+        version: 3.0.2(echarts@5.6.0)(react@19.0.0)
       next:
         specifier: 15.3.5
         version: 15.3.5(react-dom@19.0.0)(react@19.0.0)
