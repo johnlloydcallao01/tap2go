@@ -40,12 +40,7 @@ const testCategories: TestCategory[] = [
         path: '/tests/pages/auth/test-auth-flow',
         description: 'Authentication integration across components'
       },
-      {
-        id: 'test-admin-login',
-        name: 'Admin Authentication',
-        path: '/tests/pages/auth/test-admin-login',
-        description: 'Admin panel authentication and authorization'
-      }
+
     ]
   },
   {
@@ -136,12 +131,7 @@ const testCategories: TestCategory[] = [
         path: '/tests/pages/utilities/test-simple',
         description: 'Basic functionality testing'
       },
-      {
-        id: 'test-admin',
-        name: 'Admin Tools',
-        path: '/tests/pages/utilities/test-admin',
-        description: 'Admin panel testing utilities'
-      }
+
     ]
   }
 ];
@@ -259,13 +249,7 @@ export default function TestDashboard() {
               <div className="text-green-500 text-xs mt-1">End-to-end business logic</div>
             </Link>
             
-            <Link
-              href="/api/admin/test"
-              className="p-4 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
-            >
-              <div className="text-purple-600 font-semibold text-sm">🔧 API Health Check</div>
-              <div className="text-purple-500 text-xs mt-1">Backend API testing</div>
-            </Link>
+
           </div>
         </div>
 

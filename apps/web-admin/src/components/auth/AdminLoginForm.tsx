@@ -21,7 +21,7 @@ interface AdminLoginFormProps {
 
 export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps) {
   const router = useRouter();
-  const { signIn, loading, authError, clearError } = useAdminAuth();
+  const { loading, authError, clearError } = useAdminAuth();
 
   // Form configuration
   const formConfig: AuthFormConfig = {
@@ -63,16 +63,11 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
     handleSubmit,
   } = useAuthForm(formConfig);
 
-  // Handle form submission
+  // Handle form submission - DISABLED (authentication removed)
   const onSubmit = async (data: { [key: string]: string }) => {
-    try {
-      await signIn(data.email, data.password);
-      // Redirect will be handled by auth context or route protection
-      router.push('/dashboard');
-    } catch (error) {
-      // Error is handled by auth context
-      console.error('Admin login error:', error);
-    }
+    // Authentication is disabled - redirect directly to dashboard
+    console.log('Login form submitted (auth disabled):', data.email);
+    router.push('/dashboard');
   };
 
   // Clear auth error when form data changes
@@ -157,6 +152,23 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
               <div className="hidden lg:block text-center mb-8">
                 <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
                 <p className="text-slate-300">Sign in to your admin dashboard</p>
+              </div>
+
+              {/* Development Notice */}
+              <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl p-4 backdrop-blur-sm mb-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <ShieldCheckIcon className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-200">
+                      Development Mode
+                    </h3>
+                    <div className="mt-1 text-sm text-blue-300">
+                      Authentication is disabled. Click &ldquo;Sign In&rdquo; to access the dashboard directly.
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">

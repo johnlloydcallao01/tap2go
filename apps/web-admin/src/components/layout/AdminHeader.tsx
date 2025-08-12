@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useAdminAuth } from '@/contexts/AuthContext';
 import {
   BellIcon,
   UserIcon,
@@ -20,15 +19,13 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ onMenuClick, sidebarCollapsed = false, onToggleCollapse }: AdminHeaderProps) {
-  const { signOut } = useAdminAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  // Sign out is disabled since authentication is removed
   const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    console.log('Sign out clicked (authentication disabled)');
+    // Redirect to login page for UI consistency
+    window.location.href = '/login';
   };
 
   return (

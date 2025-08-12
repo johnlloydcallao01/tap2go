@@ -6,8 +6,8 @@
  * This form is provided for development/initial setup purposes
  */
 
-import React from 'react';
-import { useAdminAuth } from '@/contexts/AuthContext';
+import React, { useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
 import {
   UserIcon,
@@ -22,7 +22,12 @@ interface AdminSignupFormProps {
 }
 
 export default function AdminSignupForm({ onSwitchToLogin }: AdminSignupFormProps) {
-  const { loading, authError, clearError } = useAdminAuth();
+  const router = useRouter();
+
+  // Authentication is disabled - provide placeholder values
+  const loading = false;
+  const authError = null;
+  const clearError = useCallback(() => {}, []);
 
   // Form configuration
   const formConfig: AuthFormConfig = {
@@ -105,34 +110,13 @@ export default function AdminSignupForm({ onSwitchToLogin }: AdminSignupFormProp
     isSubmitting,
     handleInputChange,
     handleSubmit,
-    setFieldError,
   } = useAuthForm(formConfig);
 
-  // Handle form submission
+  // Handle form submission - DISABLED (authentication removed)
   const onSubmit = async (data: { [key: string]: string }) => {
-    // Validate password confirmation
-    if (data.password !== data.confirmPassword) {
-      setFieldError('confirmPassword', 'Passwords do not match');
-      return;
-    }
-
-    try {
-      // Note: In a real application, admin creation would be handled differently
-      // This is just for demonstration purposes
-      console.log('Admin signup attempt:', {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-      });
-      
-      // For now, just redirect to login
-      alert('Admin account creation is restricted. Please contact your system administrator.');
-      if (onSwitchToLogin) {
-        onSwitchToLogin();
-      }
-    } catch (error) {
-      console.error('Admin signup error:', error);
-    }
+    // Authentication is disabled - redirect directly to dashboard
+    console.log('Signup form submitted (auth disabled):', data.email);
+    router.push('/dashboard');
   };
 
   // Clear auth error when form data changes

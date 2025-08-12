@@ -17,34 +17,7 @@ export interface TimeSeriesData {
   label?: string;
 }
 
-// Admin Panel Analytics Types
-export interface RevenueAnalytics {
-  totalRevenue: number;
-  platformRevenue: number;
-  vendorRevenue: number;
-  driverRevenue: number;
-  revenueByPeriod: TimeSeriesData[];
-  revenueBreakdown: {
-    platformFees: number;
-    commissions: number;
-    deliveryFees: number;
-  };
-}
 
-export interface OrderAnalytics {
-  totalOrders: number;
-  completedOrders: number;
-  cancelledOrders: number;
-  pendingOrders: number;
-  ordersByHour: ChartDataPoint[];
-  orderStatusDistribution: {
-    status: string;
-    count: number;
-    percentage: number;
-  }[];
-  averageOrderValue: number;
-  orderTrends: TimeSeriesData[];
-}
 
 export interface VendorPerformance {
   vendorId: string;

@@ -16,7 +16,7 @@
     "clear-db": "node scripts/clear-database.js --confirm",
     "deploy-rules": "firebase deploy --only firestore:rules",
     "db:test": "curl http://localhost:3000/api/database/test",
-    "cms:dashboard": "echo 'CMS Dashboard available at: http://localhost:3000/admin/cms-dashboard' && npm run dev",
+
     "email:setup": "node scripts/setup-resend-email.js",
     "email:test": "node scripts/setup-resend-email.js",
     "email:simple-test": "node src/tests/scripts/email/test-email-simple.js",

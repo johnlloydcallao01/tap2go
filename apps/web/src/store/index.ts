@@ -29,7 +29,6 @@ import analyticsSlice from './slices/analyticsSlice';
 import notificationsSlice from './slices/notificationsSlice';
 
 // Panel-specific slices
-import adminSlice from './slices/adminSlice';
 import vendorSlice from './slices/vendorSlice';
 
 // CMS slice
@@ -62,7 +61,6 @@ const rootReducer = combineReducers({
   notifications: notificationsSlice.reducer,
   
   // Panel-specific
-  admin: adminSlice.reducer,
   vendor: vendorSlice.reducer,
 
   // CMS
@@ -131,7 +129,6 @@ export type { CustomersState, Customer, CustomerPreferences } from './slices/cus
 export type { RealTimeState, OrderUpdate } from './slices/realTimeSlice';
 export type { AnalyticsState, AnalyticsMetrics, AnalyticsReport } from './slices/analyticsSlice';
 export type { NotificationsState, Notification as NotificationItem } from './slices/notificationsSlice';
-export type { AdminState } from './slices/adminSlice';
 export type { VendorState } from './slices/vendorSlice';
 
 // Store setup listener for RTK Query

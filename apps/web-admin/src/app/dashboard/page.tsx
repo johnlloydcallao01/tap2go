@@ -8,9 +8,6 @@ export const dynamic = 'force-dynamic';
  * Main dashboard for authenticated admin users
  */
 
-import { useAdminAuth } from '@/contexts/AuthContext';
-import { LoadingSpinner } from '@tap2go/shared-ui';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/layout/AdminLayout';
 import {
@@ -36,8 +33,6 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { user, loading } = useAdminAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalVendors: 0,
@@ -50,11 +45,7 @@ export default function DashboardPage() {
   });
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
+  // Authentication is disabled - no user checks needed
 
   useEffect(() => {
     // Simulate loading dashboard data
@@ -80,10 +71,9 @@ export default function DashboardPage() {
       }
     };
 
-    if (user) {
-      loadDashboardData();
-    }
-  }, [user]);
+    // Load dashboard data immediately since authentication is disabled
+    loadDashboardData();
+  }, []);
 
   const statCards = [
     {
@@ -136,17 +126,7 @@ export default function DashboardPage() {
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null; // Will redirect to login
-  }
+  // Authentication is disabled - no loading or user checks needed
 
   if (dashboardLoading) {
     return (

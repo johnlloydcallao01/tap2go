@@ -12,8 +12,6 @@ import React, { useState } from 'react';
 import { ChartBarIcon, CurrencyDollarIcon, TruckIcon, UserIcon, BuildingStorefrontIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
 
 // Import analytics components
-import AdminRevenueCharts from '@/components/analytics/admin/AdminRevenueCharts';
-import AdminOrderCharts from '@/components/analytics/admin/AdminOrderCharts';
 import VendorSalesCharts from '@/components/analytics/vendor/VendorSalesCharts';
 import DriverEarningsCharts from '@/components/analytics/driver/DriverEarningsCharts';
 import CustomerOrderCharts from '@/components/analytics/customer/CustomerOrderCharts';
@@ -21,8 +19,6 @@ import DirectChartsExamples from '@/components/analytics/DirectChartsExamples';
 
 // Import demo data generators
 import {
-  generateAdminRevenueData,
-  generateAdminOrderData,
   generateVendorSalesData,
   generateDriverEarningsData,
   generateDriverDeliveryData,
@@ -31,14 +27,12 @@ import {
   generateCustomerPreferences,
 } from '@/components/analytics/demoData';
 
-type DemoSection = 'admin-revenue' | 'admin-orders' | 'vendor' | 'driver' | 'customer' | 'direct-echarts';
+type DemoSection = 'vendor' | 'driver' | 'customer' | 'direct-echarts';
 
 export default function AnalyticsDemoPage() {
-  const [activeSection, setActiveSection] = useState<DemoSection>('admin-revenue');
+  const [activeSection, setActiveSection] = useState<DemoSection>('vendor');
 
   // Generate demo data
-  const adminRevenueData = generateAdminRevenueData();
-  const adminOrderData = generateAdminOrderData();
   const vendorSalesData = generateVendorSalesData();
   const driverEarningsData = generateDriverEarningsData();
   const driverDeliveryData = generateDriverDeliveryData();
@@ -47,20 +41,6 @@ export default function AnalyticsDemoPage() {
   const customerPreferences = generateCustomerPreferences();
 
   const sections = [
-    {
-      id: 'admin-revenue' as DemoSection,
-      title: 'Admin Revenue Analytics',
-      description: 'Comprehensive revenue tracking and financial analysis',
-      icon: CurrencyDollarIcon,
-      color: 'bg-orange-500',
-    },
-    {
-      id: 'admin-orders' as DemoSection,
-      title: 'Admin Order Analytics',
-      description: 'Order management and performance tracking',
-      icon: ChartBarIcon,
-      color: 'bg-blue-500',
-    },
     {
       id: 'vendor' as DemoSection,
       title: 'Vendor Sales Analytics',
@@ -93,34 +73,6 @@ export default function AnalyticsDemoPage() {
 
   const renderActiveSection = () => {
     switch (activeSection) {
-      case 'admin-revenue':
-        return (
-          <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900">Admin Revenue Analytics</h2>
-              <p className="text-gray-600 mt-2">
-                Comprehensive revenue tracking, financial analysis, and profit distribution across the platform.
-                Track platform fees, vendor commissions, and driver payments with detailed breakdowns.
-              </p>
-            </div>
-            <AdminRevenueCharts data={adminRevenueData} />
-          </div>
-        );
-
-      case 'admin-orders':
-        return (
-          <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900">Admin Order Analytics</h2>
-              <p className="text-gray-600 mt-2">
-                Monitor order volumes, completion rates, peak hours, and order status distribution.
-                Analyze order patterns and identify optimization opportunities.
-              </p>
-            </div>
-            <AdminOrderCharts data={adminOrderData} />
-          </div>
-        );
-
       case 'vendor':
         return (
           <div>

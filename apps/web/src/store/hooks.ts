@@ -72,17 +72,7 @@ export const useRealTimeState = () => {
   }));
 };
 
-// Admin panel state hook
-export const useAdminState = () => {
-  return useAppSelector((state) => ({
-    stats: state.admin.dashboardStats,
-    users: state.admin.users,
-    vendors: state.admin.vendors,
-    drivers: state.admin.drivers,
-    loading: state.admin.loading,
-    error: state.admin.error,
-  }));
-};
+
 
 // Vendor panel state hook
 export const useVendorState = () => {
@@ -195,7 +185,6 @@ const reduxHooks = {
   useUIState,
   useOrdersState,
   useRealTimeState,
-  useAdminState,
   useVendorState,
 
   useNotificationsState,

@@ -35,52 +35,7 @@ const randomFloat = (min: number, max: number): number => {
   return Math.random() * (max - min) + min;
 };
 
-// Generate Admin Revenue Analytics Data
-export const generateAdminRevenueData = (): RevenueAnalytics => {
-  const dates = generateDates(30);
-  
-  return {
-    totalRevenue: 2847650,
-    platformRevenue: 427148,
-    vendorRevenue: 1988755,
-    driverRevenue: 431747,
-    revenueByPeriod: dates.map(date => ({
-      date,
-      value: randomFloat(80000, 120000),
-    })),
-    revenueBreakdown: {
-      platformFees: 427148,
-      commissions: 284765,
-      deliveryFees: 142383,
-    },
-  };
-};
 
-// Generate Admin Order Analytics Data
-export const generateAdminOrderData = (): OrderAnalytics => {
-  const dates = generateDates(30);
-  
-  return {
-    totalOrders: 15847,
-    completedOrders: 13428,
-    cancelledOrders: 1267,
-    pendingOrders: 1152,
-    ordersByHour: Array.from({ length: 24 }, (_, i) => ({
-      x: i,
-      y: i >= 6 && i <= 22 ? randomBetween(200, 800) : randomBetween(50, 200),
-    })),
-    orderStatusDistribution: [
-      { status: 'Delivered', count: 13428, percentage: 84.7 },
-      { status: 'Cancelled', count: 1267, percentage: 8.0 },
-      { status: 'Pending', count: 1152, percentage: 7.3 },
-    ],
-    averageOrderValue: 485.50,
-    orderTrends: dates.map(date => ({
-      date,
-      value: randomBetween(400, 700),
-    })),
-  };
-};
 
 // Generate Vendor Sales Analytics Data
 export const generateVendorSalesData = (): VendorSalesAnalytics => {

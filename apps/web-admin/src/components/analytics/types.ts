@@ -26,6 +26,47 @@ export interface AnalyticsData {
   bounceRate: number;
 }
 
+// Time series data interface
+export interface TimeSeriesData {
+  date: string;
+  value: number;
+}
+
+// Chart data point interface
+export interface ChartDataPoint {
+  x: number;
+  y: number;
+}
+
+// Admin Panel Analytics Types
+export interface RevenueAnalytics {
+  totalRevenue: number;
+  platformRevenue: number;
+  vendorRevenue: number;
+  driverRevenue: number;
+  revenueByPeriod: TimeSeriesData[];
+  revenueBreakdown: {
+    platformFees: number;
+    commissions: number;
+    deliveryFees: number;
+  };
+}
+
+export interface OrderAnalytics {
+  totalOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  pendingOrders: number;
+  ordersByHour: ChartDataPoint[];
+  orderStatusDistribution: {
+    status: string;
+    count: number;
+    percentage: number;
+  }[];
+  averageOrderValue: number;
+  orderTrends: TimeSeriesData[];
+}
+
 export interface RevenueData {
   date: string;
   revenue: number;

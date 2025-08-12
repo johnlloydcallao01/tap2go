@@ -65,11 +65,6 @@ export interface UIState {
   lastActivity: number;
   
   // Panel-specific UI state
-  adminPanel: {
-    activeTab: string;
-    selectedItems: string[];
-    bulkActions: boolean;
-  };
   
   vendorPanel: {
     activeSection: string;
@@ -103,11 +98,7 @@ const initialState: UIState = {
   currentLocation: null,
   isOnline: true,
   lastActivity: Date.now(),
-  adminPanel: {
-    activeTab: 'dashboard',
-    selectedItems: [],
-    bulkActions: false,
-  },
+
   vendorPanel: {
     activeSection: 'dashboard',
     menuEditMode: false,
@@ -260,21 +251,7 @@ const uiSlice = createSlice({
       state.lastActivity = Date.now();
     },
     
-    // Admin panel
-    setAdminActiveTab: (state, action: PayloadAction<string>) => {
-      state.adminPanel.activeTab = action.payload;
-    },
-    
-    setAdminSelectedItems: (state, action: PayloadAction<string[]>) => {
-      state.adminPanel.selectedItems = action.payload;
-    },
-    
-    toggleAdminBulkActions: (state) => {
-      state.adminPanel.bulkActions = !state.adminPanel.bulkActions;
-      if (!state.adminPanel.bulkActions) {
-        state.adminPanel.selectedItems = [];
-      }
-    },
+
     
     // Vendor panel
     setVendorActiveSection: (state, action: PayloadAction<string>) => {
@@ -397,9 +374,6 @@ export const {
   setCurrentLocation,
   setOnlineStatus,
   updateLastActivity,
-  setAdminActiveTab,
-  setAdminSelectedItems,
-  toggleAdminBulkActions,
   setVendorActiveSection,
   setVendorMenuEditMode,
   setVendorSelectedOrders,

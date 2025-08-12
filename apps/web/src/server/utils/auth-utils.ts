@@ -31,7 +31,7 @@ export function hasRole(user: User | null, role: string | string[]): boolean {
 }
 
 export function isAdmin(user: User | null): boolean {
-  return false; // No admin privileges in public app
+  return false; // No admin functionality in customer app
 }
 
 export function isVendor(user: User | null): boolean {
