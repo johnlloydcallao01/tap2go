@@ -69,7 +69,7 @@
     "simple-swizzle": "^0.2.2",
     "typescript": "5.8.3"
   },
-  "packageManager": "pnpm@8.15.6",
+  "packageManager": "pnpm@9.12.3",
   "pnpm": {
     "shamefullyHoist": true,
     "hoistPattern": [
@@ -107,7 +107,7 @@
   "engines": {
     "node": "18.x || 20.x || 22.x",
     "npm": ">=8.0.0",
-    "pnpm": ">=8.0.0"
+    "pnpm": ">=9.0.0"
   },
   "dependencies": {
     "@babel/runtime": "^7.27.6",
