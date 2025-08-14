@@ -44,9 +44,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Quick validation against CMS
+    // Quick validation against CMS using the /users/me endpoint
     try {
-      const cmsResponse = await fetch(`${CMS_BASE_URL}/api/users/${payload.userId}`, {
+      const cmsResponse = await fetch(`${CMS_BASE_URL}/api/users/me`, {
         headers: {
           'Authorization': `JWT ${payload.cmsToken}`,
         },
@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const userData = await cmsResponse.json();
+      const cmsData = await cmsResponse.json();
+      const userData = cmsData.user;
 
       // Check if user still has admin role and is active
       if (userData.role !== 'admin') {

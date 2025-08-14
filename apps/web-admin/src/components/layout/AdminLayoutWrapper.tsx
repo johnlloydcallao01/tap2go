@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
+import ProtectedRoute from '../auth/ProtectedRoute';
 
 export default function AdminLayoutWrapper({
   children,
@@ -58,30 +59,32 @@ export default function AdminLayoutWrapper({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - Fixed at top, starts after sidebar on desktop */}
-      <AdminHeader
-        onMenuClick={() => setSidebarOpen(true)}
-        sidebarCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header - Fixed at top, starts after sidebar on desktop */}
+        <AdminHeader
+          onMenuClick={() => setSidebarOpen(true)}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
 
-      {/* Sidebar - Fixed on left, starts below header */}
-      <AdminSidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        isCollapsed={sidebarCollapsed}
-        onExpandAndNavigate={handleExpandAndNavigate}
-      />
+        {/* Sidebar - Fixed on left, starts below header */}
+        <AdminSidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          isCollapsed={sidebarCollapsed}
+          onExpandAndNavigate={handleExpandAndNavigate}
+        />
 
-      {/* Main Content - Positioned after header height and sidebar width */}
-      <main className={`transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-      } pt-14 lg:pt-16`}>
-        <div className="px-3 pt-8 pb-5 lg:p-4">
-          {children}
-        </div>
-      </main>
-    </div>
+        {/* Main Content - Positioned after header height and sidebar width */}
+        <main className={`transition-all duration-300 ${
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+        } pt-14 lg:pt-16`}>
+          <div className="px-3 pt-8 pb-5 lg:p-4">
+            {children}
+          </div>
+        </main>
+      </div>
+    </ProtectedRoute>
   );
 }

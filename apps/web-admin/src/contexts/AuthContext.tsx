@@ -50,7 +50,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         // Check if user is already authenticated
         const token = localStorage.getItem('admin-token');
         if (token) {
-          // Verify token and get user data
+          // Quick token verification without showing loading
           const response = await fetch('/api/auth/verify', {
             headers: {
               'Authorization': `Bearer ${token}`
@@ -78,6 +78,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Initialize immediately without delay
     initializeAuth();
   }, []);
 
