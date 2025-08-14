@@ -21,7 +21,7 @@ interface AdminLoginFormProps {
 
 export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps) {
   const router = useRouter();
-  const { loading, authError, clearError } = useAdminAuth();
+  const { loading, authError, clearError, signIn } = useAdminAuth();
 
   // Form configuration
   const formConfig: AuthFormConfig = {
@@ -63,11 +63,16 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
     handleSubmit,
   } = useAuthForm(formConfig);
 
-  // Handle form submission - DISABLED (authentication removed)
+  // Handle form submission
   const onSubmit = async (data: { [key: string]: string }) => {
-    // Authentication is disabled - redirect directly to dashboard
-    console.log('Login form submitted (auth disabled):', data.email);
-    router.push('/dashboard');
+    try {
+      await signIn(data.email, data.password);
+      // Redirect to dashboard on successful login
+      router.push('/dashboard');
+    } catch (error) {
+      // Error is already handled by the auth context
+      console.error('Login failed:', error);
+    }
   };
 
   // Clear auth error when form data changes
@@ -95,7 +100,7 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
             <div className="absolute top-1/2 left-1/3 w-24 h-24 bg-white/10 rounded-full blur-lg"></div>
           </div>
 
-          <div className="relative z-10 flex flex-col justify-center px-12 xl:px-20">
+          <div className="relative z-10 flex flex-col justify-start pt-16 px-12 xl:px-20">
             <div className="max-w-md">
               <div className="flex items-center mb-8">
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
@@ -154,22 +159,7 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
                 <p className="text-slate-300">Sign in to your admin dashboard</p>
               </div>
 
-              {/* Development Notice */}
-              <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl p-4 backdrop-blur-sm mb-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <ShieldCheckIcon className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-200">
-                      Development Mode
-                    </h3>
-                    <div className="mt-1 text-sm text-blue-300">
-                      Authentication is disabled. Click &ldquo;Sign In&rdquo; to access the dashboard directly.
-                    </div>
-                  </div>
-                </div>
-              </div>
+
 
               <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">
                 {/* Global Error Message */}

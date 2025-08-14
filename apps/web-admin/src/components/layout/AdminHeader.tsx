@@ -8,9 +8,11 @@ import {
   Cog6ToothIcon,
   Bars3Icon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { useAdminAuth } from '@/contexts/AuthContext';
 
 interface AdminHeaderProps {
   onMenuClick: () => void;
@@ -20,12 +22,15 @@ interface AdminHeaderProps {
 
 export default function AdminHeader({ onMenuClick, sidebarCollapsed = false, onToggleCollapse }: AdminHeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const { user, signOut } = useAdminAuth();
 
-  // Sign out is disabled since authentication is removed
   const handleSignOut = async () => {
-    console.log('Sign out clicked (authentication disabled)');
-    // Redirect to login page for UI consistency
-    window.location.href = '/login';
+    try {
+      await signOut();
+      // Redirect will be handled by the auth context
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
   };
 
   return (
@@ -108,7 +113,18 @@ export default function AdminHeader({ onMenuClick, sidebarCollapsed = false, onT
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                  {/* User Info */}
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">
+                      {user?.firstName} {user?.lastName}
+                    </p>
+                    <p className="text-sm text-gray-500">{user?.email}</p>
+                    <p className="text-xs text-orange-600 font-medium mt-1">
+                      {user?.role?.toUpperCase()}
+                    </p>
+                  </div>
+
                   <Link
                     href="/profile"
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -134,8 +150,9 @@ export default function AdminHeader({ onMenuClick, sidebarCollapsed = false, onT
                   <div className="border-t border-gray-100"></div>
                   <button
                     onClick={handleSignOut}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
+                    <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2" />
                     Sign Out
                   </button>
                 </div>
