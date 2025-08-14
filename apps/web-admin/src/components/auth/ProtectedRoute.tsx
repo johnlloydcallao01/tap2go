@@ -3,9 +3,10 @@
 /**
  * Protected Route Component for Admin App
  * Ensures only authenticated admin users can access protected pages
+ * Includes real-time user validation against CMS
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/contexts/AuthContext';
 
@@ -16,7 +17,75 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   const router = useRouter();
-  const { user, loading, isInitialized, authError } = useAdminAuth();
+  const { user, loading, isInitialized, authError, signOut } = useAdminAuth();
+  const [validatingUser, setValidatingUser] = useState(false);
+
+  // Real-time user validation against CMS
+  useEffect(() => {
+    const validateUserExists = async () => {
+      if (!user || !isInitialized || loading) return;
+
+      setValidatingUser(true);
+      try {
+        const token = localStorage.getItem('admin-token');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+
+        // Verify user still exists and has admin role (lightweight validation)
+        const response = await fetch('/api/auth/validate-user', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          // User no longer exists, is inactive, or lost admin privileges
+          const errorData = await response.json().catch(() => ({}));
+          console.log('User validation failed:', errorData.error || 'Unknown error');
+          await signOut();
+          router.push('/login');
+          return;
+        }
+
+        const data = await response.json();
+        if (!data.valid) {
+          // Additional check - user is not valid
+          console.log('User validation failed - user is not valid');
+          await signOut();
+          router.push('/login');
+          return;
+        }
+      } catch (error) {
+        console.error('User validation error:', error);
+        // On validation error, log out for security
+        await signOut();
+        router.push('/login');
+      } finally {
+        setValidatingUser(false);
+      }
+    };
+
+    // Validate immediately
+    validateUserExists();
+
+    // Set up periodic validation every 30 seconds
+    const validationInterval = setInterval(validateUserExists, 30000);
+
+    // Validate when user returns to the tab/window
+    const handleWindowFocus = () => {
+      validateUserExists();
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      clearInterval(validationInterval);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [user, isInitialized, loading, router, signOut]);
 
   useEffect(() => {
     // Only redirect after auth is initialized
@@ -25,13 +94,15 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
     }
   }, [user, loading, isInitialized, router]);
 
-  // Show loading while checking auth state
-  if (!isInitialized || loading) {
+  // Show loading while checking auth state or validating user
+  if (!isInitialized || loading || validatingUser) {
     return fallback || (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Verifying authentication...</p>
+          <p className="mt-4 text-gray-600">
+            {validatingUser ? 'Validating user permissions...' : 'Verifying authentication...'}
+          </p>
         </div>
       </div>
     );

@@ -87,37 +87,70 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     setAuthError(null);
 
     try {
+      // Client-side validation
+      if (!email || !password) {
+        throw new Error('Please enter both email and password');
+      }
+
+      if (!email.trim()) {
+        throw new Error('Please enter your email address');
+      }
+
+      if (!password.trim()) {
+        throw new Error('Please enter your password');
+      }
+
+      // Basic email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password: password
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+        // Use specific error message from API
+        throw new Error(data.error || 'Login failed. Please try again.');
       }
 
-      // Check if user has admin role
+      // Additional client-side checks (redundant but safe)
       if (data.user.role !== 'admin') {
-        throw new Error('Access denied. Admin privileges required.');
+        throw new Error('Access denied. This account does not have administrator privileges.');
       }
 
-      // Check if user is active
       if (data.user.isActive === false) {
-        throw new Error('Account is inactive. Please contact an administrator.');
+        throw new Error('Your account has been deactivated. Please contact an administrator.');
       }
 
       // Store token and user data
       localStorage.setItem('admin-token', data.token);
       setUser(data.user);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      let errorMessage = 'Login failed. Please try again.';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+
       setAuthError(errorMessage);
-      throw error;
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
