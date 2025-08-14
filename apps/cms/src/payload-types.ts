@@ -70,7 +70,6 @@ export interface Config {
     users: User;
     media: Media;
     posts: Post;
-    restaurants: Restaurant;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -80,7 +79,6 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
-    restaurants: RestaurantsSelect<false> | RestaurantsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -118,11 +116,91 @@ export interface UserAuthOperations {
   };
 }
 /**
+ * Manage all users in the Tap2Go platform (Admin, Driver, Vendor, Customer)
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
   id: number;
+  /**
+   * User role determines access permissions and features available
+   */
+  role: 'admin' | 'driver' | 'vendor' | 'customer';
+  firstName: string;
+  lastName: string;
+  /**
+   * Required for drivers and vendors
+   */
+  phone?: string | null;
+  /**
+   * Inactive users cannot log in or use the platform
+   */
+  isActive?: boolean | null;
+  /**
+   * Verified status for drivers and vendors
+   */
+  isVerified?: boolean | null;
+  driverProfile?: {
+    /**
+     * Required for driver verification
+     */
+    licenseNumber?: string | null;
+    vehicleType?: ('motorcycle' | 'car' | 'bicycle' | 'scooter') | null;
+    vehiclePlateNumber?: string | null;
+    bankAccount?: {
+      bankName?: string | null;
+      accountNumber?: string | null;
+      accountHolderName?: string | null;
+    };
+    /**
+     * Driver availability status
+     */
+    isOnline?: boolean | null;
+    /**
+     * Average customer rating (0-5)
+     */
+    rating?: number | null;
+    totalDeliveries?: number | null;
+  };
+  vendorProfile?: {
+    businessName: string;
+    /**
+     * Required for vendor verification
+     */
+    businessRegistrationNumber?: string | null;
+    businessType?: ('restaurant' | 'cafe' | 'fast-food' | 'bakery' | 'grocery' | 'other') | null;
+    businessAddress: {
+      street: string;
+      city: string;
+      state?: string | null;
+      zipCode?: string | null;
+      country?: string | null;
+    };
+    businessHours?:
+      | {
+          day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+          openTime?: string | null;
+          closeTime?: string | null;
+          isClosed?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+    bankAccount?: {
+      bankName?: string | null;
+      accountNumber?: string | null;
+      accountHolderName?: string | null;
+    };
+    /**
+     * Platform commission percentage
+     */
+    commissionRate?: number | null;
+    /**
+     * Average customer rating (0-5)
+     */
+    rating?: number | null;
+    totalOrders?: number | null;
+  };
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -189,94 +267,6 @@ export interface Post {
   createdAt: string;
 }
 /**
- * Manage restaurants and food vendors in the Tap2Go platform
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "restaurants".
- */
-export interface Restaurant {
-  id: number;
-  name: string;
-  /**
-   * Used for generating restaurant URLs
-   */
-  slug: string;
-  /**
-   * Brief description of the restaurant
-   */
-  description?: string | null;
-  cuisine:
-    | 'asian'
-    | 'italian'
-    | 'mexican'
-    | 'american'
-    | 'indian'
-    | 'chinese'
-    | 'thai'
-    | 'japanese'
-    | 'mediterranean'
-    | 'fast-food'
-    | 'desserts'
-    | 'other';
-  logo?: (number | null) | Media;
-  coverImage?: (number | null) | Media;
-  address: {
-    street: string;
-    city: string;
-    state?: string | null;
-    zipCode?: string | null;
-    country: string;
-  };
-  location: {
-    latitude: number;
-    longitude: number;
-  };
-  contact?: {
-    phone?: string | null;
-    email?: string | null;
-    website?: string | null;
-  };
-  operatingHours?:
-    | {
-        day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-        openTime?: string | null;
-        closeTime?: string | null;
-        isClosed?: boolean | null;
-        id?: string | null;
-      }[]
-    | null;
-  deliveryInfo?: {
-    deliveryFee?: number | null;
-    minimumOrder?: number | null;
-    estimatedDeliveryTime?: string | null;
-    deliveryRadius?: number | null;
-  };
-  /**
-   * Average customer rating (0-5)
-   */
-  rating?: number | null;
-  totalReviews?: number | null;
-  /**
-   * Whether the restaurant is currently accepting orders
-   */
-  isActive?: boolean | null;
-  /**
-   * Show this restaurant in featured sections
-   */
-  isFeatured?: boolean | null;
-  /**
-   * Tags for filtering and search (e.g., "halal", "vegetarian", "spicy")
-   */
-  tags?:
-    | {
-        tag: string;
-        id?: string | null;
-      }[]
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
@@ -294,10 +284,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'posts';
         value: number | Post;
-      } | null)
-    | ({
-        relationTo: 'restaurants';
-        value: number | Restaurant;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -346,6 +332,64 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  role?: T;
+  firstName?: T;
+  lastName?: T;
+  phone?: T;
+  isActive?: T;
+  isVerified?: T;
+  driverProfile?:
+    | T
+    | {
+        licenseNumber?: T;
+        vehicleType?: T;
+        vehiclePlateNumber?: T;
+        bankAccount?:
+          | T
+          | {
+              bankName?: T;
+              accountNumber?: T;
+              accountHolderName?: T;
+            };
+        isOnline?: T;
+        rating?: T;
+        totalDeliveries?: T;
+      };
+  vendorProfile?:
+    | T
+    | {
+        businessName?: T;
+        businessRegistrationNumber?: T;
+        businessType?: T;
+        businessAddress?:
+          | T
+          | {
+              street?: T;
+              city?: T;
+              state?: T;
+              zipCode?: T;
+              country?: T;
+            };
+        businessHours?:
+          | T
+          | {
+              day?: T;
+              openTime?: T;
+              closeTime?: T;
+              isClosed?: T;
+              id?: T;
+            };
+        bankAccount?:
+          | T
+          | {
+              bankName?: T;
+              accountNumber?: T;
+              accountHolderName?: T;
+            };
+        commissionRate?: T;
+        rating?: T;
+        totalOrders?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -391,69 +435,6 @@ export interface PostsSelect<T extends boolean = true> {
   excerpt?: T;
   content?: T;
   publishedAt?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "restaurants_select".
- */
-export interface RestaurantsSelect<T extends boolean = true> {
-  name?: T;
-  slug?: T;
-  description?: T;
-  cuisine?: T;
-  logo?: T;
-  coverImage?: T;
-  address?:
-    | T
-    | {
-        street?: T;
-        city?: T;
-        state?: T;
-        zipCode?: T;
-        country?: T;
-      };
-  location?:
-    | T
-    | {
-        latitude?: T;
-        longitude?: T;
-      };
-  contact?:
-    | T
-    | {
-        phone?: T;
-        email?: T;
-        website?: T;
-      };
-  operatingHours?:
-    | T
-    | {
-        day?: T;
-        openTime?: T;
-        closeTime?: T;
-        isClosed?: T;
-        id?: T;
-      };
-  deliveryInfo?:
-    | T
-    | {
-        deliveryFee?: T;
-        minimumOrder?: T;
-        estimatedDeliveryTime?: T;
-        deliveryRadius?: T;
-      };
-  rating?: T;
-  totalReviews?: T;
-  isActive?: T;
-  isFeatured?: T;
-  tags?:
-    | T
-    | {
-        tag?: T;
-        id?: T;
-      };
   updatedAt?: T;
   createdAt?: T;
 }
