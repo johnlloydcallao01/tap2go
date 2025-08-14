@@ -22,7 +22,7 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
 
   // Silent background user validation against CMS
   useEffect(() => {
-    const validateUserExists = async (showLoading = false) => {
+    const validateUserExists = async () => {
       if (!user || !isInitialized || loading) return;
 
       try {
@@ -72,16 +72,16 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
 
     // Only validate immediately on first load, not on every render
     if (initialLoad && user) {
-      validateUserExists(true);
+      validateUserExists();
       setInitialLoad(false);
     }
 
     // Set up periodic validation every 2 minutes (less frequent, more professional)
-    const validationInterval = setInterval(() => validateUserExists(false), 120000);
+    const validationInterval = setInterval(() => validateUserExists(), 120000);
 
     // Validate when user returns to the tab/window (silent)
     const handleWindowFocus = () => {
-      validateUserExists(false);
+      validateUserExists();
     };
 
     window.addEventListener('focus', handleWindowFocus);
