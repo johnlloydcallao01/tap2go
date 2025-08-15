@@ -1,39 +1,38 @@
 /**
- * Serialization utilities for Firebase data in Redux
- * Handles Firebase Timestamps and other non-serializable data
+ * Serialization utilities for Redux data
+ * Firestore Timestamp handling removed - use PayloadCMS collections instead
  */
 
-import { Timestamp } from 'firebase/firestore';
 import { User } from '@/types';
 
 /**
- * Serialize Firebase user data for Redux
+ * Serialize user data for Redux
  */
 export const serializeUser = (user: User | null): User | null => {
   if (!user) return null;
 
   return {
     ...user,
-    createdAt: user.createdAt instanceof Timestamp ? user.createdAt.toDate() : user.createdAt,
-    updatedAt: user.updatedAt instanceof Timestamp ? user.updatedAt.toDate() : user.updatedAt,
+    createdAt: user.createdAt instanceof Date ? user.createdAt : new Date(user.createdAt),
+    updatedAt: user.updatedAt instanceof Date ? user.updatedAt : new Date(user.updatedAt),
   } as User;
 };
 
 /**
- * Serialize Firebase document data for Redux
+ * Serialize document data for Redux
  */
-export const serializeFirebaseDoc = (doc: Record<string, unknown> | null): Record<string, unknown> | null => {
+export const serializeDoc = (doc: Record<string, unknown> | null): Record<string, unknown> | null => {
   if (!doc) return null;
-  
+
   const serialized = { ...doc };
-  
-  // Convert all Timestamp fields to ISO strings
+
+  // Convert all Date fields to ISO strings
   Object.keys(serialized).forEach(key => {
-    if (serialized[key] instanceof Timestamp) {
-      serialized[key] = serialized[key].toDate().toISOString();
+    if (serialized[key] instanceof Date) {
+      serialized[key] = (serialized[key] as Date).toISOString();
     }
   });
-  
+
   return serialized;
 };
 

@@ -130,77 +130,13 @@ export interface User {
   firstName: string;
   lastName: string;
   /**
-   * Required for drivers and vendors
-   */
-  phone?: string | null;
-  /**
    * Inactive users cannot log in or use the platform
    */
   isActive?: boolean | null;
   /**
-   * Verified status for drivers and vendors
+   * Verified status for users (used by admin interface)
    */
   isVerified?: boolean | null;
-  driverProfile?: {
-    /**
-     * Required for driver verification
-     */
-    licenseNumber?: string | null;
-    vehicleType?: ('motorcycle' | 'car' | 'bicycle' | 'scooter') | null;
-    vehiclePlateNumber?: string | null;
-    bankAccount?: {
-      bankName?: string | null;
-      accountNumber?: string | null;
-      accountHolderName?: string | null;
-    };
-    /**
-     * Driver availability status
-     */
-    isOnline?: boolean | null;
-    /**
-     * Average customer rating (0-5)
-     */
-    rating?: number | null;
-    totalDeliveries?: number | null;
-  };
-  vendorProfile?: {
-    businessName: string;
-    /**
-     * Required for vendor verification
-     */
-    businessRegistrationNumber?: string | null;
-    businessType?: ('restaurant' | 'cafe' | 'fast-food' | 'bakery' | 'grocery' | 'other') | null;
-    businessAddress: {
-      street: string;
-      city: string;
-      state?: string | null;
-      zipCode?: string | null;
-      country?: string | null;
-    };
-    businessHours?:
-      | {
-          day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-          openTime?: string | null;
-          closeTime?: string | null;
-          isClosed?: boolean | null;
-          id?: string | null;
-        }[]
-      | null;
-    bankAccount?: {
-      bankName?: string | null;
-      accountNumber?: string | null;
-      accountHolderName?: string | null;
-    };
-    /**
-     * Platform commission percentage
-     */
-    commissionRate?: number | null;
-    /**
-     * Average customer rating (0-5)
-     */
-    rating?: number | null;
-    totalOrders?: number | null;
-  };
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -335,61 +271,8 @@ export interface UsersSelect<T extends boolean = true> {
   role?: T;
   firstName?: T;
   lastName?: T;
-  phone?: T;
   isActive?: T;
   isVerified?: T;
-  driverProfile?:
-    | T
-    | {
-        licenseNumber?: T;
-        vehicleType?: T;
-        vehiclePlateNumber?: T;
-        bankAccount?:
-          | T
-          | {
-              bankName?: T;
-              accountNumber?: T;
-              accountHolderName?: T;
-            };
-        isOnline?: T;
-        rating?: T;
-        totalDeliveries?: T;
-      };
-  vendorProfile?:
-    | T
-    | {
-        businessName?: T;
-        businessRegistrationNumber?: T;
-        businessType?: T;
-        businessAddress?:
-          | T
-          | {
-              street?: T;
-              city?: T;
-              state?: T;
-              zipCode?: T;
-              country?: T;
-            };
-        businessHours?:
-          | T
-          | {
-              day?: T;
-              openTime?: T;
-              closeTime?: T;
-              isClosed?: T;
-              id?: T;
-            };
-        bankAccount?:
-          | T
-          | {
-              bankName?: T;
-              accountNumber?: T;
-              accountHolderName?: T;
-            };
-        commissionRate?: T;
-        rating?: T;
-        totalOrders?: T;
-      };
   updatedAt?: T;
   createdAt?: T;
   email?: T;

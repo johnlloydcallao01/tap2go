@@ -17,9 +17,7 @@ import {
   ArrowLeftIcon,
   HomeIcon
 } from '@heroicons/react/24/solid';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { transformRestaurantData } from '@/lib/transformers/restaurant';
+// Firestore imports removed - use PayloadCMS collections instead
 
 // Mock menu items data with professional slugs - replace with actual data fetching
 const getMenuItemsForRestaurant = (restaurantId: string): MenuItemType[] => {

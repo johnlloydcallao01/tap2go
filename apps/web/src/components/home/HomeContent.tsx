@@ -3,10 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import RestaurantCard from '@/components/RestaurantCard';
 import { Restaurant, Category } from '@/types';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { transformRestaurantsData } from '@/lib/transformers/restaurant';
 import ProfessionalMap from '@/components/ProfessionalMap';
+// Firestore imports removed - use PayloadCMS collections instead
 
 export default function HomeContent() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);

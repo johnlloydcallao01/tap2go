@@ -1,51 +1,13 @@
 // Firebase configuration for the Tap2Go application
 export * from './firebase-config';
 
-// Export SSR-safe functions
-export { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from './firebase-config';
+// Export SSR-safe functions for Firebase Auth, Storage, and Messaging
+// Firestore exports removed - use PayloadCMS with PostgreSQL/Supabase instead
+export { getFirebaseAuth, getFirebaseStorage } from './firebase-config';
 
-// Export ALL Firebase Firestore functions to ensure single SDK instance
+// Keep only Firebase Auth and Messaging exports for authentication and push notifications
 export {
-  // Document and Collection references
-  collection,
-  doc,
-
-  // Document operations
-  setDoc,
-  getDoc,
-  updateDoc,
-  addDoc,
-  deleteDoc,
-
-  // Query operations
-  query,
-  where,
-  getDocs,
-  orderBy,
-  limit,
-  startAt,
-  startAfter,
-  endAt,
-  endBefore,
-
-  // Batch operations
-  writeBatch,
-
-  // Utilities
-  serverTimestamp,
-  increment,
-  arrayUnion,
-  arrayRemove,
-
-  // Types
-  Timestamp,
-  type Firestore,
-  type QueryDocumentSnapshot,
-  type DocumentData,
-  type WhereFilterOp,
-  type Query,
-  type CollectionReference,
-  type DocumentReference,
-  type QuerySnapshot,
-  type DocumentSnapshot,
-} from 'firebase/firestore';
+  // Auth types and functions are still available through ./firebase-config
+  // Messaging types and functions are still available through ./firebase-config
+  // Firestore functions removed - use PayloadCMS collections instead
+} from 'firebase/auth';

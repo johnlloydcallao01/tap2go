@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { testBonsaiConnection, getBonsaiClusterInfo, initializeBonsaiIndices } from '@/lib/bonsai';
-import { syncAllRestaurantsToBonsai, checkSyncStatus } from '@/lib/sync/firestoreToBonsai';
+// Firestore sync removed - use PayloadCMS collections instead
 
 export async function POST(request: NextRequest) {
   try {

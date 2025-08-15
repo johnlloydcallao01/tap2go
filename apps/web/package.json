@@ -11,10 +11,8 @@
     "clean": "rm -rf .next",
     "patch-styled-jsx": "node scripts/patch-styled-jsx.js",
     "postinstall": "pnpm run patch-styled-jsx",
-    "update-system-docs": "node scripts/update-system-docs.js",
-    "add-restaurants": "node scripts/add-sample-restaurants.js",
-    "clear-db": "node scripts/clear-database.js --confirm",
-    "deploy-rules": "firebase deploy --only firestore:rules",
+    "cms:dev": "cd ../cms && pnpm dev",
+    "cms:build": "cd ../cms && pnpm build",
     "db:test": "curl http://localhost:3000/api/database/test",
 
     "email:setup": "node scripts/setup-resend-email.js",

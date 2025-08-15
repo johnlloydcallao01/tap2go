@@ -1,10 +1,9 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, deleteApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
-// Remove debug wrapper to avoid Firebase conflicts
+// Firestore import removed - use PayloadCMS with PostgreSQL/Supabase instead
 
 // Validate environment variables
 const requiredEnvVars = {
@@ -38,9 +37,9 @@ const firebaseConfig = {
 // GLOBAL Firebase instances - ONLY ONE INSTANCE ALLOWED
 let app: any = null;
 let auth: any = null;
-let db: any = null;
 let storage: any = null;
 let initializationPromise: Promise<void> | null = null;
+// Firestore instance removed - use PayloadCMS with PostgreSQL/Supabase instead
 
 /**
  * FORCE SINGLE Firebase instance across entire application
@@ -49,7 +48,7 @@ async function initializeFirebase(): Promise<void> {
   if (typeof window === 'undefined') return;
 
   // If already initialized, return immediately
-  if (app && auth && db && storage) return;
+  if (app && auth && storage) return;
 
   // If initialization is in progress, wait for it
   if (initializationPromise) {
@@ -73,15 +72,14 @@ async function initializeFirebase(): Promise<void> {
       // Create ONE and ONLY ONE Firebase app
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
-      db = getFirestore(app);
       storage = getStorage(app);
+      // Firestore initialization removed - use PayloadCMS with PostgreSQL/Supabase instead
 
-      console.log('✅ SINGLE Firebase app created successfully');
+      console.log('✅ SINGLE Firebase app created successfully (Auth, Storage, Messaging only)');
     } catch (error) {
       console.error('❌ Firebase initialization failed:', error);
       app = null;
       auth = null;
-      db = null;
       storage = null;
       initializationPromise = null; // Reset so we can retry
       throw error;
@@ -113,26 +111,9 @@ export async function getFirebaseAuth() {
 }
 
 /**
- * Get Firestore instance (SSR-safe)
+ * Firestore function removed - use PayloadCMS with PostgreSQL/Supabase instead
+ * For structured business data, use PayloadCMS collections in apps/cms/src/collections/
  */
-export async function getFirebaseDb() {
-  if (typeof window === 'undefined') {
-    throw new Error('Firebase Firestore can only be accessed on the client side');
-  }
-
-  try {
-    await initializeFirebase();
-  } catch (error) {
-    console.error('Firebase initialization failed:', error);
-    throw new Error('Firebase initialization failed. Please check your configuration.');
-  }
-
-  if (!db) {
-    throw new Error('Firebase Firestore is not initialized. Please check your Firebase configuration.');
-  }
-
-  return db;
-}
 
 /**
  * Get Firebase Storage instance (SSR-safe)
@@ -146,7 +127,8 @@ export function getFirebaseStorage() {
 }
 
 // Legacy exports for backward compatibility - these will be null during SSR
-export { auth, db, storage };
+// Firestore export removed - use PayloadCMS with PostgreSQL/Supabase instead
+export { auth, storage };
 
 // Initialize Firebase Cloud Messaging (only in browser environment)
 let messaging: unknown = null;

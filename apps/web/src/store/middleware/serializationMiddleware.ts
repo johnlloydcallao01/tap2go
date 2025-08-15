@@ -1,22 +1,16 @@
 /**
- * Serialization Middleware - Automatically handles Firebase Timestamps
- * Converts all Firebase Timestamps to ISO strings before they reach Redux
+ * Serialization Middleware - Handles Date objects
+ * Converts all Date objects to ISO strings before they reach Redux
  */
 
 import { Middleware, AnyAction } from '@reduxjs/toolkit';
-import { Timestamp } from 'firebase/firestore';
 
 /**
- * Recursively serialize Firebase Timestamps in any object
+ * Recursively serialize Date objects in any object
  */
-const serializeFirebaseData = (obj: unknown): unknown => {
+const serializeData = (obj: unknown): unknown => {
   if (obj === null || obj === undefined) {
     return obj;
-  }
-
-  // Handle Firebase Timestamp
-  if (obj instanceof Timestamp) {
-    return obj.toDate().toISOString();
   }
 
   // Handle Date objects

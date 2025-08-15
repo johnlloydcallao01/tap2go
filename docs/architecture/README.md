@@ -102,24 +102,26 @@ This folder contains all system architecture and design documentation for the Ta
 
 ### **Database Design**
 ```sql
--- Core Tables
-Users (Firebase Auth + Metadata)
-├── Customers (Customer-specific data)
-├── Vendors (Business accounts)
-├── Drivers (Delivery personnel)
-└── Admins (Platform administrators)
+-- PayloadCMS Collections (PostgreSQL/Supabase)
+Users (Multi-role: Admin, Driver, Vendor, Customer)
+├── Role-based fields (conditional)
+├── Driver profiles (vehicle, earnings, ratings)
+├── Vendor profiles (business info, bank details)
+└── Customer profiles (addresses, preferences)
 
-Restaurants (Business locations)
-├── MenuCategories
-├── MenuItems
-├── Promotions
-└── Reviews
+Media (File management)
+├── Images, documents, videos
+├── Alt text and metadata
+└── Upload tracking
 
-Orders (Transaction management)
-├── OrderItems
-├── OrderTracking
-├── Payments
-└── Deliveries
+Posts (Content management)
+├── Blog posts and articles
+├── SEO metadata
+└── Publishing workflow
+
+-- Additional PostgreSQL Tables
+Restaurants, Orders, Payments, Analytics
+(Structured business data in PostgreSQL)
 ```
 
 ### **State Management Structure**

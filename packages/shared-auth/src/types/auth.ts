@@ -1,11 +1,12 @@
 /**
  * Shared Authentication Types
- * Comprehensive type definitions for Firebase authentication across all apps
+ * Firebase authentication types (Firestore document types removed)
+ * Use PayloadCMS collections for structured user data instead
  */
 
 import { User as FirebaseUser } from 'firebase/auth';
-import { Timestamp } from 'firebase/firestore';
 import { User } from '@tap2go/shared-types';
+// Firestore Timestamp import removed - use PayloadCMS collections instead
 
 // Extended user types for authentication
 export interface AuthUser extends User {
@@ -140,51 +141,9 @@ export interface AuthServiceConfig {
   tokenRefreshInterval?: number;
 }
 
-// Database user data types (for Firestore)
-export interface UserDocumentData {
-  email: string;
-  role: User['role'];
-  isActive: boolean;
-  isVerified: boolean;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  lastLoginAt?: Timestamp;
-  fcmTokens?: string[];
-  preferredLanguage?: string;
-  timezone?: string;
-}
-
-export interface DriverDocumentData {
-  userRef: string; // Reference to users/{uid}
-  firstName: string;
-  lastName: string;
-  phoneNumber?: string;
-  profileImageUrl?: string;
-  status: 'pending_approval' | 'approved' | 'suspended' | 'rejected';
-  verificationStatus: 'pending' | 'verified' | 'rejected';
-  isOnline: boolean;
-  isAvailable: boolean;
-  currentLocation?: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  };
-  vehicleType?: 'bicycle' | 'motorcycle' | 'car' | 'scooter';
-  vehicleDetails?: {
-    make?: string;
-    model?: string;
-    year?: number;
-    licensePlate?: string;
-    color?: string;
-    insuranceExpiry?: Timestamp;
-  };
-  totalDeliveries: number;
-  totalEarnings: number;
-  rating?: number;
-  joinedAt: Timestamp;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
+// Firestore document data types removed - use PayloadCMS collections instead
+// For structured user data, use the Users collection in apps/cms/src/collections/Users.ts
+// This provides better type safety and structured data management
 
 // Auth provider props
 export interface AuthProviderProps {

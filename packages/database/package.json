@@ -18,10 +18,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "firebase": "^11.8.1",
-    "firebase-admin": "^13.4.0",
     "@tap2go/shared-types": "workspace:*",
-    "@tap2go/firebase-config": "workspace:*",
     "typescript": "^5.8.3"
   },
   "devDependencies": {

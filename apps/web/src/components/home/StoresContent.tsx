@@ -3,10 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import RestaurantCard from '@/components/RestaurantCard';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Restaurant } from '@/types';
-import { transformRestaurantsData } from '@/lib/transformers/restaurant';
+// Firestore imports removed - use PayloadCMS collections instead
 
 export default function StoresContent() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -19,15 +17,10 @@ export default function StoresContent() {
   useEffect(() => {
     const loadRestaurants = async () => {
       try {
-        // Load restaurants from Firestore
-        const restaurantsRef = collection(db, 'restaurants');
-        const restaurantsQuery = query(restaurantsRef, limit(20));
-        const restaurantsSnapshot = await getDocs(restaurantsQuery);
-
-        // Use centralized transformer for consistency
-        const restaurantsData = transformRestaurantsData(restaurantsSnapshot.docs);
-
-        setRestaurants(restaurantsData);
+        // TODO: Replace with PayloadCMS API call
+        // Use PayloadCMS collections for restaurant data
+        console.log('Firestore removed - implement PayloadCMS restaurant loading');
+        setRestaurants([]);
       } catch (error) {
         console.error('Error loading restaurants:', error);
         setRestaurants([]);
