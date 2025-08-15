@@ -1,10 +1,9 @@
 import { MigrateUpArgs, MigrateDownArgs } from '@payloadcms/db-postgres'
-import { sql } from 'drizzle-orm'
 
 export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
   // Safe migration to remove role-specific fields while preserving existing users
-  
-  await payload.db.drizzle.execute(sql`
+
+  await payload.db.drizzle.execute(`
     -- First, check if the columns exist before trying to drop them
     -- This prevents errors if the migration is run multiple times
     

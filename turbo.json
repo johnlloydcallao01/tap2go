@@ -68,7 +68,9 @@
     "VERCEL_GIT_REPO_SLUG",
     "VERCEL_GIT_REPO_OWNER",
     "VERCEL_GIT_REPO_ID",
-    "VERCEL_GIT_COMMIT_REF"
+    "VERCEL_GIT_COMMIT_REF",
+    "DATABASE_URI",
+    "PAYLOAD_SECRET"
   ],
   "tasks": {
     "build": {
@@ -81,7 +83,9 @@
         "CI",
         "VERCEL",
         "VERCEL_URL",
-        "VERCEL_ENV"
+        "VERCEL_ENV",
+        "DATABASE_URI",
+        "PAYLOAD_SECRET"
       ],
       "passThroughEnv": [
         "FIREBASE_ADMIN_PROJECT_ID",
