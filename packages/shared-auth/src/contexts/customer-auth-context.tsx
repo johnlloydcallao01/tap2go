@@ -8,7 +8,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { AuthService } from '../services/auth-service';
-import { UserDatabaseService } from '../services/user-database';
+// UserDatabaseService removed - use PayloadCMS collections instead
 import {
   CustomerUser,
   CustomerAuthContextType,
@@ -41,7 +41,7 @@ export function CustomerAuthProvider({ children }: AuthProviderProps) {
     enableMultiTabSync: true,
     tokenRefreshInterval: TOKEN_REFRESH_INTERVAL,
   }));
-  const userDbService = useRef<UserDatabaseService>(new UserDatabaseService());
+  // userDbService removed - use PayloadCMS collections instead
 
   // Refs for cleanup and token management
   const tokenRefreshInterval = useRef<NodeJS.Timeout | null>(null);
@@ -101,20 +101,22 @@ export function CustomerAuthProvider({ children }: AuthProviderProps) {
   // Handle customer user data loading with role validation
   const handleCustomerUserLoad = useCallback(async (firebaseUser: FirebaseUser): Promise<CustomerUser | null> => {
     try {
-      const userData = await userDbService.current!.getUser(firebaseUser.uid);
+      // TODO: Replace with PayloadCMS API call to get customer user data
+      console.log('Customer user loading - implement PayloadCMS integration');
 
-      if (!userData) {
-        console.error('Customer user data not found');
-        setAuthError('Customer account not found. Please contact support.');
-        return null;
-      }
-
-      // Validate customer role
-      if (userData.role !== 'customer') {
-        console.error('User is not a customer:', userData.role);
-        setAuthError('This app is for customers only. Please use the correct app for your role.');
-        return null;
-      }
+      // For now, return a basic customer user structure
+      const userData = {
+        id: firebaseUser.uid,
+        firebaseUid: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        role: 'customer' as const,
+        firstName: firebaseUser.displayName?.split(' ')[0] || '',
+        lastName: firebaseUser.displayName?.split(' ')[1] || '',
+        isActive: true,
+        isVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
       // Create customer user object
       const customerUser: CustomerUser = {
@@ -127,16 +129,12 @@ export function CustomerAuthProvider({ children }: AuthProviderProps) {
         isVerified: userData.isVerified,
         totalOrders: 0, // TODO: Get from customer profile
         totalSpent: 0, // TODO: Get from customer profile
-        createdAt: userData.createdAt.toDate(),
-        updatedAt: userData.updatedAt.toDate(),
-        lastLoginAt: userData.lastLoginAt?.toDate(),
-        fcmTokens: userData.fcmTokens,
-        preferredLanguage: userData.preferredLanguage,
-        timezone: userData.timezone,
+        createdAt: userData.createdAt,
+        updatedAt: userData.updatedAt,
       };
 
-      // Update last login time in background
-      userDbService.current!.updateUserLastLogin(firebaseUser.uid).catch(console.error);
+      // TODO: Update last login time via PayloadCMS API
+      console.log('Update last login time - implement PayloadCMS integration');
 
       return customerUser;
     } catch (error) {
@@ -233,8 +231,8 @@ export function CustomerAuthProvider({ children }: AuthProviderProps) {
     try {
       const firebaseUser = await authService.current!.signUp(email, password, name);
 
-      // Create customer user documents in Firestore
-      await userDbService.current!.createCustomerUser(firebaseUser.uid, email, name);
+      // TODO: Create customer user via PayloadCMS API
+      console.log('Create customer user - implement PayloadCMS integration');
 
       // Auth state change will handle the rest
     } catch (error) {
@@ -252,15 +250,8 @@ export function CustomerAuthProvider({ children }: AuthProviderProps) {
     try {
       const firebaseUser = await authService.current!.signInWithGoogle();
 
-      // Check if user already exists, if not create customer user
-      const existingUser = await userDbService.current!.getUser(firebaseUser.uid);
-      if (!existingUser) {
-        await userDbService.current!.createCustomerUser(
-          firebaseUser.uid, 
-          firebaseUser.email!, 
-          firebaseUser.displayName || ''
-        );
-      }
+      // TODO: Check if user exists and create via PayloadCMS API
+      console.log('Check/create Google user - implement PayloadCMS integration');
 
       // Auth state change will handle the rest
     } catch (error) {

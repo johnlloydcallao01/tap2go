@@ -8,7 +8,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { AuthService } from '../services/auth-service';
-import { UserDatabaseService } from '../services/user-database';
+// UserDatabaseService removed - use PayloadCMS collections instead
 import {
   DriverUser,
   DriverAuthContextType,
@@ -36,7 +36,7 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
 
   // Services - initialize once (client-side only)
   const authService = useRef<AuthService | null>(null);
-  const userDbService = useRef<UserDatabaseService | null>(null);
+  // userDbService removed - use PayloadCMS collections instead
 
   // Initialize services on client side only
   useEffect(() => {
@@ -47,7 +47,7 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
         enableMultiTabSync: true,
         tokenRefreshInterval: TOKEN_REFRESH_INTERVAL,
       });
-      userDbService.current = new UserDatabaseService();
+      // userDbService initialization removed - use PayloadCMS collections instead
     }
   }, []);
 
@@ -111,28 +111,29 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
   // Handle driver user data loading with role validation
   const handleDriverUserLoad = useCallback(async (firebaseUser: FirebaseUser): Promise<DriverUser | null> => {
     try {
-      if (!userDbService.current) {
-        throw new Error('Database service not initialized');
-      }
-      const driverUser = await userDbService.current.getDriverUser(firebaseUser.uid);
+      // TODO: Replace with PayloadCMS API call to get driver user data
+      console.log('Driver user loading - implement PayloadCMS integration');
 
-      if (!driverUser) {
-        console.error('Driver user data not found');
-        setAuthError('Driver account not found. Please contact support.');
-        return null;
-      }
-
-      // Validate driver role
-      if (driverUser.role !== 'driver') {
-        console.error('User is not a driver:', driverUser.role);
-        setAuthError('This app is for drivers only. Please use the correct app for your role.');
-        return null;
-      }
-
-      // Update last login time in background
-      if (userDbService.current) {
-        userDbService.current.updateUserLastLogin(firebaseUser.uid).catch(console.error);
-      }
+      // For now, return a basic driver user structure
+      const driverUser: DriverUser = {
+        id: firebaseUser.uid,
+        firebaseUid: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        role: 'driver',
+        firstName: firebaseUser.displayName?.split(' ')[0] || '',
+        lastName: firebaseUser.displayName?.split(' ')[1] || '',
+        isActive: true,
+        isVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        status: 'approved',
+        verificationStatus: 'verified',
+        isOnline: false,
+        isAvailable: false,
+        totalDeliveries: 0,
+        totalEarnings: 0,
+        joinedAt: new Date(),
+      };
 
       return driverUser;
     } catch (error) {
@@ -233,8 +234,8 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
 
   // Driver sign up
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
-    if (!authService.current || !userDbService.current) {
-      throw new Error('Services not initialized');
+    if (!authService.current) {
+      throw new Error('Auth service not initialized');
     }
     setLoading(true);
     setAuthError(null);
@@ -245,8 +246,8 @@ export function DriverAuthProvider({ children }: AuthProviderProps) {
         `${firstName} ${lastName}`
       );
 
-      // Create driver user documents in Firestore
-      await userDbService.current.createDriverUser(firebaseUser.uid, email, firstName, lastName);
+      // TODO: Create driver user via PayloadCMS API
+      console.log('Create driver user - implement PayloadCMS integration');
 
       // Auth state change will handle the rest
     } catch (error) {
