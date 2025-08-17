@@ -3,10 +3,13 @@ import { postgresAdapter } from '@payloadcms/db-postgres'
 import dotenv from 'dotenv'
 import { payloadCloudPlugin } from '@payloadcms/payload-cloud'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { cloudStoragePlugin } from '@payloadcms/plugin-cloud-storage'
 import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
+
+import { cloudinaryAdapter } from './storage/cloudinary-adapter'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
@@ -45,6 +48,18 @@ export default buildConfig({
   sharp,
   plugins: [
     payloadCloudPlugin(),
+    cloudStoragePlugin({
+      collections: {
+        media: {
+          adapter: cloudinaryAdapter({
+            cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!,
+            apiKey: process.env.CLOUDINARY_API_KEY!,
+            apiSecret: process.env.CLOUDINARY_API_SECRET!,
+            folder: 'main-uploads',
+          }),
+        },
+      },
+    }),
     // storage-adapter-placeholder
   ],
 })

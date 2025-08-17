@@ -11,6 +11,15 @@ export const Media: CollectionConfig = {
       type: 'text',
       required: true,
     },
+    {
+      name: 'caption',
+      type: 'text',
+    },
   ],
-  upload: true,
+  upload: {
+    staticDir: 'media',
+    // Remove imageSizes to only store original images
+    // imageSizes: [], // Empty array or remove entirely
+    mimeTypes: ['image/*', 'video/*', 'audio/*', 'application/pdf'],
+  },
 }
