@@ -9,6 +9,12 @@ export interface CloudinaryAdapterArgs {
   folder?: string
 }
 
+// Interface for document with Cloudinary fields
+interface CloudinaryDocument {
+  cloudinaryPublicId?: string
+  [key: string]: unknown
+}
+
 export const cloudinaryAdapter = ({
   cloudName,
   apiKey,
@@ -68,7 +74,8 @@ export const cloudinaryAdapter = ({
       // Handle file deletion
       handleDelete: async ({ doc, filename }) => {
         try {
-          const publicId = (doc as Record<string, unknown>).cloudinaryPublicId as string || filename
+          const cloudinaryDoc = doc as unknown as CloudinaryDocument
+          const publicId = cloudinaryDoc.cloudinaryPublicId || filename
           await cloudinary.uploader.destroy(publicId)
         } catch (error) {
           console.error('Cloudinary delete error:', error)

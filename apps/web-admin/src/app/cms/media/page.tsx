@@ -7,6 +7,8 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/layout/AdminLayout';
 import Image from 'next/image';
 import ImageViewModal from '@/components/media/ImageViewModal';
+import MediaEditModal from '@/components/media/MediaEditModal';
+import { mediaAPI, MediaFile, formatFileSize, getFileType } from '@/lib/api/media';
 import {
   PhotoIcon,
   FolderIcon,
@@ -21,24 +23,10 @@ import {
   TrashIcon,
   XMarkIcon,
   DocumentDuplicateIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
-interface MediaFile {
-  id: string;
-  filename: string;
-  file_url: string;
-  thumbnail_url?: string;
-  mime_type: string;
-  file_size: number;
-  width?: number;
-  height?: number;
-  alt_text?: string;
-  folder_name?: string;
-  uploaded_by: string;
-  created_at: string;
-  is_used: boolean;
-  usage_count: number;
-}
+// MediaFile interface is now imported from the API client
 
 interface Folder {
   id: number;
@@ -50,130 +38,41 @@ export default function MediaLibrary() {
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<number | 'all'>('all');
   const [selectedType, setSelectedType] = useState('all');
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const [hoveredFile, setHoveredFile] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
+  const [hoveredFile, setHoveredFile] = useState<number | null>(null);
   const [showImageViewModal, setShowImageViewModal] = useState(false);
   const [viewingFile, setViewingFile] = useState<MediaFile | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingFile, setEditingFile] = useState<MediaFile | null>(null);
 
   useEffect(() => {
     const loadMediaLibrary = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        setLoading(true);
+        setError(null);
 
+        // Load media files from CMS API
+        const mediaResponse = await mediaAPI.getMediaFiles({ limit: 100 });
+        setMediaFiles(mediaResponse.docs);
+
+        // For now, we'll use mock folders since PayloadCMS doesn't have folder structure by default
         const mockFolders: Folder[] = [
-          { id: 1, name: 'Restaurant Images', file_count: 45 },
-          { id: 2, name: 'Promotional Banners', file_count: 12 },
-          { id: 3, name: 'Food Categories', file_count: 28 },
-          { id: 4, name: 'User Avatars', file_count: 156 },
+          { id: 1, name: 'All Files', file_count: mediaResponse.totalDocs },
+          { id: 2, name: 'Images', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('image/')).length },
+          { id: 3, name: 'Videos', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('video/')).length },
+          { id: 4, name: 'Documents', file_count: mediaResponse.docs.filter(f => f.mimeType && !f.mimeType.startsWith('image/') && !f.mimeType.startsWith('video/')).length },
         ];
-
-        const mockFiles: MediaFile[] = [
-          {
-            id: '1',
-            filename: 'pizza-margherita.jpg',
-            file_url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
-            thumbnail_url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=200',
-            mime_type: 'image/jpeg',
-            file_size: 245760,
-            width: 800,
-            height: 600,
-            alt_text: 'Delicious Margherita Pizza',
-            folder_name: 'Restaurant Images',
-            uploaded_by: 'John Smith',
-            created_at: '2024-01-15T10:30:00Z',
-            is_used: true,
-            usage_count: 5,
-          },
-          {
-            id: '2',
-            filename: 'burger-special.jpg',
-            file_url: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=400',
-            thumbnail_url: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=200',
-            mime_type: 'image/jpeg',
-            file_size: 189432,
-            width: 800,
-            height: 600,
-            alt_text: 'Special Burger with Fries',
-            folder_name: 'Restaurant Images',
-            uploaded_by: 'Lisa Wilson',
-            created_at: '2024-01-14T14:20:00Z',
-            is_used: true,
-            usage_count: 3,
-          },
-          {
-            id: '3',
-            filename: 'sushi-platter.jpg',
-            file_url: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400',
-            thumbnail_url: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=200',
-            mime_type: 'image/jpeg',
-            file_size: 312890,
-            width: 800,
-            height: 600,
-            alt_text: 'Fresh Sushi Platter',
-            folder_name: 'Restaurant Images',
-            uploaded_by: 'Mike Johnson',
-            created_at: '2024-01-13T16:45:00Z',
-            is_used: false,
-            usage_count: 0,
-          },
-          {
-            id: '4',
-            filename: 'promo-banner-new-year.jpg',
-            file_url: 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=400',
-            thumbnail_url: 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=200',
-            mime_type: 'image/jpeg',
-            file_size: 456123,
-            width: 1200,
-            height: 400,
-            alt_text: 'New Year Promotion Banner',
-            folder_name: 'Promotional Banners',
-            uploaded_by: 'Sarah Davis',
-            created_at: '2024-01-12T11:15:00Z',
-            is_used: true,
-            usage_count: 8,
-          },
-          {
-            id: '5',
-            filename: 'pasta-carbonara.jpg',
-            file_url: 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?w=400',
-            thumbnail_url: 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?w=200',
-            mime_type: 'image/jpeg',
-            file_size: 278945,
-            width: 800,
-            height: 600,
-            alt_text: 'Creamy Pasta Carbonara',
-            folder_name: 'Restaurant Images',
-            uploaded_by: 'David Brown',
-            created_at: '2024-01-11T09:30:00Z',
-            is_used: true,
-            usage_count: 2,
-          },
-          {
-            id: '6',
-            filename: 'dessert-tiramisu.jpg',
-            file_url: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400',
-            thumbnail_url: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=200',
-            mime_type: 'image/jpeg',
-            file_size: 198765,
-            width: 800,
-            height: 600,
-            alt_text: 'Classic Tiramisu Dessert',
-            folder_name: 'Restaurant Images',
-            uploaded_by: 'Emily Rodriguez',
-            created_at: '2024-01-10T15:20:00Z',
-            is_used: false,
-            usage_count: 0,
-          },
-        ];
-
         setFolders(mockFolders);
-        setMediaFiles(mockFiles);
+
       } catch (error) {
         console.error('Error loading media library:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load media library');
       } finally {
         setLoading(false);
       }
@@ -183,20 +82,23 @@ export default function MediaLibrary() {
   }, []);
 
   const filteredFiles = mediaFiles.filter(file => {
-    const matchesSearch = file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (file.alt_text && file.alt_text.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFolder = selectedFolder === 'all' || file.folder_name === folders.find(f => f.id === selectedFolder)?.name;
+    const matchesSearch = (file.filename || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (file.alt && file.alt.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    // For now, ignore folder filtering since we don't have folder structure in PayloadCMS
+    const matchesFolder = selectedFolder === 'all' || selectedFolder === 1; // All Files
+
     const matchesType = selectedType === 'all' ||
-                       (selectedType === 'image' && file.mime_type.startsWith('image/')) ||
-                       (selectedType === 'video' && file.mime_type.startsWith('video/')) ||
-                       (selectedType === 'document' && !file.mime_type.startsWith('image/') && !file.mime_type.startsWith('video/'));
-    
+                       (selectedType === 'image' && file.mimeType?.startsWith('image/')) ||
+                       (selectedType === 'video' && file.mimeType?.startsWith('video/')) ||
+                       (selectedType === 'document' && file.mimeType && !file.mimeType.startsWith('image/') && !file.mimeType.startsWith('video/'));
+
     return matchesSearch && matchesFolder && matchesType;
   });
 
-  const handleSelectFile = (fileId: string) => {
-    setSelectedFiles(prev => 
-      prev.includes(fileId) 
+  const handleSelectFile = (fileId: number) => {
+    setSelectedFiles(prev =>
+      prev.includes(fileId)
         ? prev.filter(id => id !== fileId)
         : [...prev, fileId]
     );
@@ -209,6 +111,33 @@ export default function MediaLibrary() {
   const handleImageView = (file: MediaFile) => {
     setViewingFile(file);
     setShowImageViewModal(true);
+  };
+
+  const handleFileUpload = async (files: FileList) => {
+    if (!files.length) return;
+
+    setUploading(true);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        // Upload without alt text - let users add it later if needed
+        const metadata = {
+          caption: `Uploaded on ${new Date().toLocaleDateString()}`,
+        };
+        return await mediaAPI.uploadFile(file, metadata);
+      });
+
+      const uploadedFiles = await Promise.all(uploadPromises);
+
+      // Refresh the media library
+      await refreshMediaLibrary();
+
+      console.log(`Successfully uploaded ${uploadedFiles.length} files`);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setError(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handlePreviousImage = () => {
@@ -227,45 +156,85 @@ export default function MediaLibrary() {
     }
   };
 
-  const handleFileAction = (file: MediaFile, action: 'view' | 'copy' | 'delete') => {
+  const handleFileAction = async (file: MediaFile, action: 'view' | 'copy' | 'edit' | 'delete') => {
     switch (action) {
       case 'view':
         // Use image view modal for images, regular modal for other files
-        if (file.mime_type.startsWith('image/')) {
+        if (file.mimeType?.startsWith('image/')) {
           handleImageView(file);
         } else {
           // For non-images, just show a simple alert for now
-          alert(`Viewing ${file.filename}\nType: ${file.mime_type}\nSize: ${formatFileSize(file.file_size)}`);
+          alert(`Viewing ${file.filename}\nType: ${file.mimeType}\nSize: ${formatFileSize(file.filesize || 0)}`);
         }
         break;
       case 'copy':
-        navigator.clipboard.writeText(file.file_url);
-        // You could add a toast notification here
+        if (file.url) {
+          navigator.clipboard.writeText(file.url);
+          // You could add a toast notification here
+          console.log('URL copied to clipboard');
+        }
+        break;
+      case 'edit':
+        setEditingFile(file);
+        setShowEditModal(true);
         break;
       case 'delete':
-        // Just show confirmation for now
         if (confirm(`Are you sure you want to delete ${file.filename}?`)) {
-          console.log('Delete file:', file.id);
+          try {
+            await mediaAPI.deleteMediaFile(file.id);
+
+            // Refresh the media library
+            await refreshMediaLibrary();
+
+            console.log('File deleted successfully');
+          } catch (error) {
+            console.error('Delete failed:', error);
+            setError(error instanceof Error ? error.message : 'Delete failed');
+          }
         }
         break;
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const handleFileUpdate = (updatedFile: MediaFile) => {
+    setMediaFiles(prev =>
+      prev.map(file => file.id === updatedFile.id ? updatedFile : file)
+    );
   };
+
+  const refreshMediaLibrary = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const mediaResponse = await mediaAPI.getMediaFiles({ limit: 100 });
+      setMediaFiles(mediaResponse.docs);
+
+      // Update folder counts
+      const mockFolders: Folder[] = [
+        { id: 1, name: 'All Files', file_count: mediaResponse.totalDocs },
+        { id: 2, name: 'Images', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('image/')).length },
+        { id: 3, name: 'Videos', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('video/')).length },
+        { id: 4, name: 'Documents', file_count: mediaResponse.docs.filter(f => f.mimeType && !f.mimeType.startsWith('image/') && !f.mimeType.startsWith('video/')).length },
+      ];
+      setFolders(mockFolders);
+    } catch (error) {
+      console.error('Error refreshing media library:', error);
+      setError(error instanceof Error ? error.message : 'Failed to refresh media library');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // formatFileSize is imported from the API client
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
 
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return PhotoIcon;
-    if (mimeType.startsWith('video/')) return VideoCameraIcon;
+    if (mimeType?.startsWith('image/')) return PhotoIcon;
+    if (mimeType?.startsWith('video/')) return VideoCameraIcon;
     return DocumentIcon;
   };
 
@@ -309,72 +278,58 @@ export default function MediaLibrary() {
               multiple
               accept="image/*,video/*,.pdf,.doc,.docx"
               className="hidden"
+              id="file-upload"
+              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
             />
-            <button className="bg-orange-500 text-white px-3 lg:px-4 py-2 rounded-md hover:bg-orange-600 flex items-center text-sm lg:text-base">
+            <button
+              onClick={() => document.getElementById('file-upload')?.click()}
+              disabled={uploading}
+              className="bg-orange-500 text-white px-3 lg:px-4 py-2 rounded-md hover:bg-orange-600 disabled:bg-orange-300 flex items-center text-sm lg:text-base"
+            >
               <CloudArrowUpIcon className="h-4 w-4 lg:h-5 lg:w-5 mr-2" />
-              Upload Files
+              {uploading ? 'Uploading...' : 'Upload Files'}
             </button>
             <button className="bg-blue-500 text-white px-3 lg:px-4 py-2 rounded-md hover:bg-blue-600 flex items-center text-sm lg:text-base">
               <PlusIcon className="h-4 w-4 lg:h-5 lg:w-5 mr-2" />
               New Folder
             </button>
+            <button
+              onClick={refreshMediaLibrary}
+              disabled={loading}
+              className="bg-gray-500 text-white px-3 lg:px-4 py-2 rounded-md hover:bg-gray-600 disabled:bg-gray-300 flex items-center text-sm lg:text-base"
+              title="Refresh media library"
+            >
+              <ArrowPathIcon className={`h-4 w-4 lg:h-5 lg:w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <PhotoIcon className="h-6 w-6 text-blue-600" />
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <XMarkIcon className="h-5 w-5 text-red-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">Total Files</p>
-                <p className="text-lg font-semibold text-gray-900">{mediaFiles.length}</p>
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>{error}</p>
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="bg-red-100 px-2 py-1 rounded-md text-sm font-medium text-red-800 hover:bg-red-200"
+                    onClick={() => setError(null)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <FolderIcon className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">Folders</p>
-                <p className="text-lg font-semibold text-gray-900">{folders.length}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <VideoCameraIcon className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">Videos</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {mediaFiles.filter(f => f.mime_type.startsWith('video/')).length}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow border">
-            <div className="flex items-center">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <DocumentIcon className="h-6 w-6 text-orange-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">Documents</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {mediaFiles.filter(f => !f.mime_type.startsWith('image/') && !f.mime_type.startsWith('video/')).length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Filters or Selection Bar */}
         <div className="bg-white p-4 rounded-lg shadow border mb-6">
@@ -545,14 +500,27 @@ export default function MediaLibrary() {
                       </div>
                     </div>
 
-                    <Image
-                      src={file.file_url}
-                      alt={file.filename}
-                      width={300}
-                      height={160}
-                      className="w-full h-40 object-cover rounded"
-                      unoptimized
-                    />
+                    {file.mimeType?.startsWith('image/') ? (
+                      <Image
+                        src={file.url || ''}
+                        alt={file.alt || file.filename || 'Image'}
+                        width={300}
+                        height={160}
+                        className="w-full h-40 object-cover rounded"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-full h-40 bg-gray-100 rounded flex items-center justify-center">
+                        {(() => {
+                          const FileIcon = getFileIcon(file.mimeType || '');
+                          return <FileIcon className="h-12 w-12 text-gray-400" />;
+                        })()}
+                        <div className="ml-2 text-center">
+                          <p className="text-sm font-medium text-gray-900 truncate">{file.filename}</p>
+                          <p className="text-xs text-gray-500">{formatFileSize(file.filesize || 0)}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -560,7 +528,7 @@ export default function MediaLibrary() {
           ) : (
             <div className="divide-y divide-gray-200">
               {filteredFiles.map((file) => {
-                const FileIcon = getFileIcon(file.mime_type);
+                const FileIcon = getFileIcon(file.mimeType || '');
                 return (
                   <div
                     key={file.id}
@@ -577,10 +545,19 @@ export default function MediaLibrary() {
                       />
 
                       <div className="flex-shrink-0">
-                        {file.mime_type.startsWith('image/') && file.thumbnail_url ? (
+                        {file.mimeType?.startsWith('image/') && file.thumbnailURL ? (
                           <Image
-                            src={file.thumbnail_url}
-                            alt={file.alt_text || file.filename}
+                            src={file.thumbnailURL}
+                            alt={file.alt || file.filename || 'Image'}
+                            width={48}
+                            height={48}
+                            className="h-12 w-12 object-cover rounded-lg"
+                            unoptimized
+                          />
+                        ) : file.mimeType?.startsWith('image/') && file.url ? (
+                          <Image
+                            src={file.url}
+                            alt={file.alt || file.filename || 'Image'}
                             width={48}
                             height={48}
                             className="h-12 w-12 object-cover rounded-lg"
@@ -596,28 +573,29 @@ export default function MediaLibrary() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{file.filename}</p>
                         <div className="flex items-center space-x-4 text-xs text-gray-500">
-                          <span>{formatFileSize(file.file_size)}</span>
+                          <span>{formatFileSize(file.filesize || 0)}</span>
                           {file.width && file.height && (
                             <span>{file.width}×{file.height}</span>
                           )}
-                          <span>{file.folder_name || 'Root'}</span>
-                          <span>Uploaded by {file.uploaded_by}</span>
-                          <span>{formatDate(file.created_at)}</span>
+                          <span>All Files</span>
+                          <span>{formatDate(file.createdAt)}</span>
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        {file.is_used && (
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
-                            Used ({file.usage_count})
-                          </span>
-                        )}
                         <button
                           onClick={() => handleFileAction(file, 'view')}
                           className="p-1 text-gray-400 hover:text-gray-600"
                           title="View details"
                         >
                           <EyeIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleFileAction(file, 'edit')}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="Edit metadata"
+                        >
+                          <PencilIcon className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleFileAction(file, 'copy')}
@@ -665,6 +643,17 @@ export default function MediaLibrary() {
           onNext={handleNextImage}
           hasPrevious={viewingFile ? filteredFiles.findIndex(f => f.id === viewingFile.id) > 0 : false}
           hasNext={viewingFile ? filteredFiles.findIndex(f => f.id === viewingFile.id) < filteredFiles.length - 1 : false}
+        />
+
+        {/* Media Edit Modal */}
+        <MediaEditModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingFile(null);
+          }}
+          file={editingFile}
+          onUpdate={handleFileUpdate}
         />
       </div>
     </AdminLayout>
