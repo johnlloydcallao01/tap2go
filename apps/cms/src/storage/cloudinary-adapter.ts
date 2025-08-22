@@ -60,6 +60,9 @@ export const cloudinaryAdapter = ({
           data.cloudinaryPublicId = result.public_id
           data.cloudinaryURL = result.secure_url
 
+          // CRITICAL: Set the url field to the Cloudinary URL
+          data.url = result.secure_url
+
           // Store the Cloudinary public_id as filename for generateURL to work
           data.filename = result.public_id
           data.filesize = result.bytes
@@ -79,11 +82,7 @@ export const cloudinaryAdapter = ({
             })
           }
 
-          console.log('✅ Cloudinary upload successful:', {
-            publicId: result.public_id,
-            secureUrl: result.secure_url,
-            filename: data.filename
-          })
+
         } catch (error) {
           console.error('Cloudinary upload error:', error)
           throw error
@@ -95,7 +94,17 @@ export const cloudinaryAdapter = ({
         try {
           const cloudinaryDoc = doc as unknown as CloudinaryDocument
           const publicId = cloudinaryDoc.cloudinaryPublicId || filename
-          await cloudinary.uploader.destroy(publicId)
+
+          if (!publicId) {
+            throw new Error('No Cloudinary public ID found for deletion')
+          }
+
+          const result = await cloudinary.uploader.destroy(publicId)
+
+          if (result.result !== 'ok' && result.result !== 'not found') {
+            throw new Error(`Cloudinary deletion failed: ${result.result}`)
+          }
+
         } catch (error) {
           console.error('Cloudinary delete error:', error)
           throw error
@@ -104,20 +113,12 @@ export const cloudinaryAdapter = ({
 
       // Generate URL for file - Returns direct Cloudinary URL for enterprise performance
       generateURL: ({ filename }) => {
-        const cloudinaryURL = cloudinary.url(filename, {
+        return cloudinary.url(filename, {
           secure: true,
           fetch_format: 'auto',
           quality: 'auto',
-          // Add optimization flags for enterprise-level performance
           flags: 'progressive',
         })
-
-        console.log('🔗 generateURL called:', {
-          filename,
-          cloudinaryURL
-        })
-
-        return cloudinaryURL
       },
 
       // Handle static file requests

@@ -173,8 +173,26 @@ export async function DELETE(
       );
     }
 
-    // Forward request to CMS
-    const cmsResponse = await fetch(`${CMS_BASE_URL}/api/media/${params.id}`, {
+    // First, get the media file details to ensure it exists and get Cloudinary info
+    const getResponse = await fetch(`${CMS_BASE_URL}/api/media/${params.id}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `JWT ${payload.cmsToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!getResponse.ok) {
+      return NextResponse.json(
+        { error: 'Media file not found' },
+        { status: 404 }
+      );
+    }
+
+    const mediaFile = await getResponse.json();
+
+    // Delete from CMS (this will also trigger Cloudinary deletion via the adapter)
+    const deleteResponse = await fetch(`${CMS_BASE_URL}/api/media/${params.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `JWT ${payload.cmsToken}`,
@@ -182,17 +200,24 @@ export async function DELETE(
       },
     });
 
-    if (!cmsResponse.ok) {
-      const errorText = await cmsResponse.text();
+    if (!deleteResponse.ok) {
+      const errorText = await deleteResponse.text();
       console.error('CMS media delete error:', errorText);
       return NextResponse.json(
-        { error: 'Failed to delete media from CMS' },
-        { status: cmsResponse.status }
+        { error: 'Failed to delete media from CMS', details: errorText },
+        { status: deleteResponse.status }
       );
     }
 
-    // Return success response
-    return NextResponse.json({ message: 'Media deleted successfully' });
+    // Return success response with deleted file info
+    return NextResponse.json({
+      message: 'Media deleted successfully',
+      deletedFile: {
+        id: mediaFile.id,
+        filename: mediaFile.filename,
+        cloudinaryPublicId: mediaFile.cloudinaryPublicId
+      }
+    });
 
   } catch (error) {
     console.error('Media delete API error:', error);

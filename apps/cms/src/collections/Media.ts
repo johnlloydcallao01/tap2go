@@ -27,9 +27,14 @@ export const Media: CollectionConfig = {
       name: 'caption',
       type: 'text',
     },
+    // Cloud storage plugin will add these fields automatically:
+    // - cloudinaryPublicId
+    // - cloudinaryURL
   ],
   upload: {
     // No staticDir when using cloud storage - let Cloudinary handle file serving
     mimeTypes: ['image/*', 'video/*', 'audio/*', 'application/pdf'],
+    // Disable PayloadCMS's built-in file serving
+    disableLocalStorage: true,
   },
 }

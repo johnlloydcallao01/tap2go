@@ -4,26 +4,21 @@ import React from 'react';
 import { useEffect } from 'react';
 import Image from 'next/image';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 interface MediaFile {
-  id: string;
-  filename: string;
-  file_url: string;
-  thumbnail_url?: string;
-  mime_type: string;
-  file_size: number;
+  id: number;
+  filename?: string;
+  url?: string;
+  thumbnailURL?: string;
+  mimeType?: string;
+  filesize?: number;
   width?: number;
   height?: number;
-  alt_text?: string;
-  title?: string;
+  alt?: string;
   caption?: string;
-  description?: string;
-  folder_name?: string;
-  uploaded_by: string;
-  created_at: string;
-  is_used: boolean;
-  usage_count: number;
+  updatedAt: string;
+  createdAt: string;
 }
 
 interface ImageViewModalProps {
@@ -136,14 +131,23 @@ export default function ImageViewModal({
                   {/* Left Side - Image */}
                   <div className="flex-1 flex items-center justify-center bg-gray-50 p-6">
                     <div className="max-w-full max-h-full flex items-center justify-center">
-                      <Image
-                        src={file.file_url}
-                        alt={file.alt_text || file.filename}
-                        width={file.width || 800}
-                        height={file.height || 600}
-                        className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-                        unoptimized
-                      />
+                      {file.url ? (
+                        <Image
+                          src={file.url}
+                          alt={file.alt || file.filename || 'Image'}
+                          width={file.width || 800}
+                          height={file.height || 600}
+                          className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+                          <div className="text-center">
+                            <PhotoIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-500">No image available</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -191,7 +195,7 @@ export default function ImageViewModal({
                           Alternative Text
                         </label>
                         <textarea
-                          value={file.alt_text || ''}
+                          value={file.alt || ''}
                           placeholder="Leave empty if the image is purely decorative."
                           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
                           rows={3}
@@ -202,14 +206,14 @@ export default function ImageViewModal({
                         </p>
                       </div>
 
-                      {/* Title */}
+                      {/* Caption */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Title
+                          Caption
                         </label>
                         <input
                           type="text"
-                          value={file.title || file.filename}
+                          value={file.caption || ''}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
                           readOnly
                         />

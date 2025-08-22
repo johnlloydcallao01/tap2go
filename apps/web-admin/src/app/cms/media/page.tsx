@@ -116,27 +116,54 @@ export default function MediaLibrary() {
   const handleFileUpload = async (files: FileList) => {
     if (!files.length) return;
 
-    setUploading(true);
     try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        // Upload without alt text - let users add it later if needed
-        const metadata = {
-          caption: `Uploaded on ${new Date().toLocaleDateString()}`,
-        };
-        return await mediaAPI.uploadFile(file, metadata);
-      });
+      setError(null);
 
-      const uploadedFiles = await Promise.all(uploadPromises);
+      // Process files one by one for better UX
+      for (const file of Array.from(files)) {
+        try {
+          // Create temporary file object for immediate UI feedback
+          const tempFile: MediaFile = {
+            id: Date.now() + Math.random(), // Temporary ID
+            filename: file.name,
+            mimeType: file.type,
+            filesize: file.size,
+            url: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined, // Only create preview for images
+            alt: '',
+            caption: `Uploading...`,
+            updatedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+          };
 
-      // Refresh the media library
-      await refreshMediaLibrary();
+          // Add to UI immediately with uploading state
+          setMediaFiles(prev => [tempFile, ...prev]);
 
-      console.log(`Successfully uploaded ${uploadedFiles.length} files`);
+          // Upload the actual file
+          const metadata = {
+            caption: `Uploaded on ${new Date().toLocaleDateString()}`,
+          };
+          const uploadedFile = await mediaAPI.uploadFile(file, metadata);
+
+          // Replace temporary file with actual uploaded file
+          setMediaFiles(prev =>
+            prev.map(f => f.id === tempFile.id ? uploadedFile : f)
+          );
+
+          // Clean up temporary URL if it exists
+          if (tempFile.url) {
+            URL.revokeObjectURL(tempFile.url);
+          }
+
+        } catch (error) {
+          console.error('Upload failed for file:', file.name, error);
+          // Remove failed file from UI
+          setMediaFiles(prev => prev.filter(f => f.filename !== file.name));
+          setError(`Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('Upload process failed:', error);
       setError(error instanceof Error ? error.message : 'Upload failed');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -170,8 +197,6 @@ export default function MediaLibrary() {
       case 'copy':
         if (file.url) {
           navigator.clipboard.writeText(file.url);
-          // You could add a toast notification here
-          console.log('Cloudinary URL copied to clipboard');
         }
         break;
       case 'edit':
@@ -179,17 +204,19 @@ export default function MediaLibrary() {
         setShowEditModal(true);
         break;
       case 'delete':
-        if (confirm(`Are you sure you want to delete ${file.filename}?`)) {
+        if (confirm(`Are you sure you want to delete "${file.filename}"?\n\nThis will permanently remove the file from both the media library and Cloudinary storage.`)) {
           try {
+            // Optimistically remove from UI first
+            setMediaFiles(prev => prev.filter(f => f.id !== file.id));
+
+            // Then delete from server
             await mediaAPI.deleteMediaFile(file.id);
-
-            // Refresh the media library
-            await refreshMediaLibrary();
-
-            console.log('File deleted successfully');
           } catch (error) {
             console.error('Delete failed:', error);
-            setError(error instanceof Error ? error.message : 'Delete failed');
+            setError(error instanceof Error ? error.message : 'Failed to delete file');
+
+            // Restore file to UI if deletion failed
+            setMediaFiles(prev => [...prev, file].sort((a, b) => b.id - a.id));
           }
         }
         break;
@@ -200,6 +227,53 @@ export default function MediaLibrary() {
     setMediaFiles(prev =>
       prev.map(file => file.id === updatedFile.id ? updatedFile : file)
     );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedFiles.length === 0) return;
+
+    const fileNames = selectedFiles.map(id => {
+      const file = mediaFiles.find(f => f.id === id);
+      return file?.filename || `File ${id}`;
+    }).join(', ');
+
+    if (confirm(`Are you sure you want to delete ${selectedFiles.length} selected file(s)?\n\nFiles: ${fileNames}\n\nThis will permanently remove the files from both the media library and Cloudinary storage.`)) {
+      const errors: string[] = [];
+      const failedFiles: MediaFile[] = [];
+
+      try {
+        // Optimistically remove all selected files from UI first
+        const filesToDelete = mediaFiles.filter(f => selectedFiles.includes(f.id));
+        setMediaFiles(prev => prev.filter(f => !selectedFiles.includes(f.id)));
+        setSelectedFiles([]);
+
+        // Delete files one by one to handle individual errors
+        for (const fileId of selectedFiles) {
+          try {
+            await mediaAPI.deleteMediaFile(fileId);
+          } catch (error) {
+            const file = filesToDelete.find(f => f.id === fileId);
+            if (file) {
+              failedFiles.push(file);
+              errors.push(`${file.filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+          }
+        }
+
+        // Restore failed files to UI
+        if (failedFiles.length > 0) {
+          setMediaFiles(prev => [...failedFiles, ...prev].sort((a, b) => b.id - a.id));
+        }
+
+        // Show errors if any
+        if (errors.length > 0) {
+          setError(`Some files could not be deleted:\n${errors.join('\n')}`);
+        }
+
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Bulk delete failed');
+      }
+    }
   };
 
   const refreshMediaLibrary = async () => {
@@ -365,15 +439,9 @@ export default function MediaLibrary() {
                   <PencilIcon className="h-5 w-5" />
                 </button>
                 <button
-                  onClick={() => {
-                    if (selectedFiles.length > 0) {
-                      if (confirm(`Are you sure you want to delete ${selectedFiles.length} selected file(s)?`)) {
-                        console.log('Delete selected files:', selectedFiles);
-                        setSelectedFiles([]);
-                      }
-                    }
-                  }}
-                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md"
+                  onClick={handleBulkDelete}
+                  disabled={selectedFiles.length === 0 || loading}
+                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Delete selected"
                 >
                   <TrashIcon className="h-5 w-5" />
@@ -503,9 +571,9 @@ export default function MediaLibrary() {
                       </div>
                     </div>
 
-                    {file.mimeType?.startsWith('image/') ? (
+                    {file.mimeType?.startsWith('image/') && file.url ? (
                       <Image
-                        src={file.url || ''}
+                        src={file.url}
                         alt={file.alt || file.filename || 'Image'}
                         width={300}
                         height={160}
