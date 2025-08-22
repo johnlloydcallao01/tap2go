@@ -57,6 +57,8 @@ export default buildConfig({
             apiSecret: process.env.CLOUDINARY_API_SECRET!,
             folder: 'main-uploads',
           }),
+          // CRITICAL: Disable PayloadCMS access control to get direct Cloudinary URLs
+          disablePayloadAccessControl: true,
         },
       },
     }),
