@@ -59,12 +59,31 @@ export const cloudinaryAdapter = ({
           // Update data with Cloudinary information
           data.cloudinaryPublicId = result.public_id
           data.cloudinaryURL = result.secure_url
-          data.url = result.secure_url
+
+          // Store the Cloudinary public_id as filename for generateURL to work
           data.filename = result.public_id
           data.filesize = result.bytes
           data.width = result.width
           data.height = result.height
           data.mimeType = `${result.resource_type}/${result.format}`
+
+          // Ensure thumbnailURL also points to Cloudinary for consistency
+          if (result.resource_type === 'image') {
+            data.thumbnailURL = cloudinary.url(result.public_id, {
+              secure: true,
+              fetch_format: 'auto',
+              quality: 'auto',
+              width: 300,
+              height: 300,
+              crop: 'fill'
+            })
+          }
+
+          console.log('✅ Cloudinary upload successful:', {
+            publicId: result.public_id,
+            secureUrl: result.secure_url,
+            filename: data.filename
+          })
         } catch (error) {
           console.error('Cloudinary upload error:', error)
           throw error
@@ -83,13 +102,22 @@ export const cloudinaryAdapter = ({
         }
       },
 
-      // Generate URL for file
+      // Generate URL for file - Returns direct Cloudinary URL for enterprise performance
       generateURL: ({ filename }) => {
-        return cloudinary.url(filename, {
+        const cloudinaryURL = cloudinary.url(filename, {
           secure: true,
           fetch_format: 'auto',
           quality: 'auto',
+          // Add optimization flags for enterprise-level performance
+          flags: 'progressive',
         })
+
+        console.log('🔗 generateURL called:', {
+          filename,
+          cloudinaryURL
+        })
+
+        return cloudinaryURL
       },
 
       // Handle static file requests

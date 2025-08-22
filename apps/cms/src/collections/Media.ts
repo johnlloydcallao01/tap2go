@@ -29,9 +29,7 @@ export const Media: CollectionConfig = {
     },
   ],
   upload: {
-    staticDir: 'media',
-    // Remove imageSizes to only store original images
-    // imageSizes: [], // Empty array or remove entirely
+    // No staticDir when using cloud storage - let Cloudinary handle file serving
     mimeTypes: ['image/*', 'video/*', 'audio/*', 'application/pdf'],
   },
 }

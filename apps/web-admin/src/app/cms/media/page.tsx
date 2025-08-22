@@ -171,7 +171,7 @@ export default function MediaLibrary() {
         if (file.url) {
           navigator.clipboard.writeText(file.url);
           // You could add a toast notification here
-          console.log('URL copied to clipboard');
+          console.log('Cloudinary URL copied to clipboard');
         }
         break;
       case 'edit':
@@ -237,6 +237,9 @@ export default function MediaLibrary() {
     if (mimeType?.startsWith('video/')) return VideoCameraIcon;
     return DocumentIcon;
   };
+
+  // Enterprise approach: Backend provides correct Cloudinary URLs in file.url
+  // No complex URL resolution needed - just use the standard url field
 
   if (loading) {
     return (
@@ -545,18 +548,9 @@ export default function MediaLibrary() {
                       />
 
                       <div className="flex-shrink-0">
-                        {file.mimeType?.startsWith('image/') && file.thumbnailURL ? (
+                        {file.mimeType?.startsWith('image/') && file.url ? (
                           <Image
-                            src={file.thumbnailURL}
-                            alt={file.alt || file.filename || 'Image'}
-                            width={48}
-                            height={48}
-                            className="h-12 w-12 object-cover rounded-lg"
-                            unoptimized
-                          />
-                        ) : file.mimeType?.startsWith('image/') && file.url ? (
-                          <Image
-                            src={file.url}
+                            src={file.thumbnailURL || file.url}
                             alt={file.alt || file.filename || 'Image'}
                             width={48}
                             height={48}
