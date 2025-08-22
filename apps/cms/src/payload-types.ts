@@ -161,7 +161,7 @@ export interface User {
  */
 export interface Media {
   id: number;
-  alt: string;
+  alt?: string | null;
   caption?: string | null;
   cloudinaryPublicId?: string | null;
   cloudinaryURL?: string | null;
