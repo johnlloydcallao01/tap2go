@@ -8,7 +8,7 @@ import AdminLayout from '@/components/layout/AdminLayout';
 import Image from 'next/image';
 import ImageViewModal from '@/components/media/ImageViewModal';
 import MediaEditModal from '@/components/media/MediaEditModal';
-import { mediaAPI, MediaFile, formatFileSize, getFileType } from '@/lib/api/media';
+import { mediaAPI, MediaFile, formatFileSize } from '@/lib/api/media';
 import {
   PhotoIcon,
   FolderIcon,
@@ -108,6 +108,28 @@ export default function MediaLibrary() {
     setSelectedFiles([]);
   };
 
+  const handleSelectAll = () => {
+    // Check if all currently visible (filtered) files are selected
+    const filteredFileIds = filteredFiles.map(file => file.id);
+    const allFilteredSelected = filteredFileIds.every(id => selectedFiles.includes(id));
+
+    if (allFilteredSelected && filteredFileIds.length > 0) {
+      // If all filtered files are selected, deselect them
+      setSelectedFiles(prev => prev.filter(id => !filteredFileIds.includes(id)));
+    } else {
+      // Select all filtered files (merge with existing selection)
+      setSelectedFiles(prev => {
+        const newSelection = [...prev];
+        filteredFileIds.forEach(id => {
+          if (!newSelection.includes(id)) {
+            newSelection.push(id);
+          }
+        });
+        return newSelection;
+      });
+    }
+  };
+
   const handleImageView = (file: MediaFile) => {
     setViewingFile(file);
     setShowImageViewModal(true);
@@ -118,6 +140,7 @@ export default function MediaLibrary() {
 
     try {
       setError(null);
+      setUploading(true);
 
       // Process files one by one for better UX
       for (const file of Array.from(files)) {
@@ -164,6 +187,8 @@ export default function MediaLibrary() {
     } catch (error) {
       console.error('Upload process failed:', error);
       setError(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -417,8 +442,15 @@ export default function MediaLibrary() {
                 <span className="text-sm font-medium text-gray-900">
                   {selectedFiles.length} item{selectedFiles.length !== 1 ? 's' : ''} selected
                 </span>
-                <button className="text-sm text-orange-600 hover:text-orange-700">
-                  {selectedFiles.length === mediaFiles.length ? 'Deselect All' : 'Select All'}
+                <button
+                  onClick={handleSelectAll}
+                  className="text-sm text-orange-600 hover:text-orange-700"
+                >
+                  {(() => {
+                    const filteredFileIds = filteredFiles.map(file => file.id);
+                    const allFilteredSelected = filteredFileIds.every(id => selectedFiles.includes(id)) && filteredFileIds.length > 0;
+                    return allFilteredSelected ? 'Deselect All' : 'Select All';
+                  })()}
                 </button>
               </div>
 
@@ -686,8 +718,12 @@ export default function MediaLibrary() {
               <PhotoIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No files found</h3>
               <p className="text-gray-600 mb-4">Try adjusting your search or filter criteria, or upload your first file.</p>
-              <button className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">
-                Upload Your First File
+              <button
+                onClick={() => document.getElementById('file-upload')?.click()}
+                disabled={uploading}
+                className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600 disabled:bg-orange-300"
+              >
+                {uploading ? 'Uploading...' : 'Upload Your First File'}
               </button>
             </div>
           )}

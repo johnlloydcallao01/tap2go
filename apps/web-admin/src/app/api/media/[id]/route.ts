@@ -24,9 +24,12 @@ interface JWTPayload {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params first (Next.js 15 requirement)
+    const { id } = await params;
+
     // Get token from Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -50,7 +53,7 @@ export async function GET(
     }
 
     // Forward request to CMS
-    const cmsResponse = await fetch(`${CMS_BASE_URL}/api/media/${params.id}`, {
+    const cmsResponse = await fetch(`${CMS_BASE_URL}/api/media/${id}`, {
       method: 'GET',
       headers: {
         'Authorization': `JWT ${payload.cmsToken}`,
@@ -84,9 +87,12 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params first (Next.js 15 requirement)
+    const { id } = await params;
+
     // Get token from Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -113,7 +119,7 @@ export async function PATCH(
     const body = await request.json();
 
     // Forward request to CMS
-    const cmsResponse = await fetch(`${CMS_BASE_URL}/api/media/${params.id}`, {
+    const cmsResponse = await fetch(`${CMS_BASE_URL}/api/media/${id}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `JWT ${payload.cmsToken}`,
@@ -148,9 +154,12 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params first (Next.js 15 requirement)
+    const { id } = await params;
+
     // Get token from Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -174,7 +183,7 @@ export async function DELETE(
     }
 
     // First, get the media file details to ensure it exists and get Cloudinary info
-    const getResponse = await fetch(`${CMS_BASE_URL}/api/media/${params.id}`, {
+    const getResponse = await fetch(`${CMS_BASE_URL}/api/media/${id}`, {
       method: 'GET',
       headers: {
         'Authorization': `JWT ${payload.cmsToken}`,
@@ -192,7 +201,7 @@ export async function DELETE(
     const mediaFile = await getResponse.json();
 
     // Delete from CMS (this will also trigger Cloudinary deletion via the adapter)
-    const deleteResponse = await fetch(`${CMS_BASE_URL}/api/media/${params.id}`, {
+    const deleteResponse = await fetch(`${CMS_BASE_URL}/api/media/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `JWT ${payload.cmsToken}`,

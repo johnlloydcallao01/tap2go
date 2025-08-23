@@ -5,21 +5,7 @@ import { useEffect } from 'react';
 import Image from 'next/image';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, PhotoIcon } from '@heroicons/react/24/outline';
-
-interface MediaFile {
-  id: number;
-  filename?: string;
-  url?: string;
-  thumbnailURL?: string;
-  mimeType?: string;
-  filesize?: number;
-  width?: number;
-  height?: number;
-  alt?: string;
-  caption?: string;
-  updatedAt: string;
-  createdAt: string;
-}
+import { MediaFile } from '@/lib/api/media';
 
 interface ImageViewModalProps {
   file: MediaFile | null;
@@ -158,12 +144,12 @@ export default function ImageViewModal({
                       <div className="space-y-4">
                         <div>
                           <label className="text-sm font-medium text-gray-700">Uploaded on:</label>
-                          <p className="text-sm text-gray-600">{formatDate(file.created_at)}</p>
+                          <p className="text-sm text-gray-600">{formatDate(file.createdAt)}</p>
                         </div>
 
                         <div>
                           <label className="text-sm font-medium text-gray-700">Uploaded by:</label>
-                          <p className="text-sm text-gray-600">{file.uploaded_by}</p>
+                          <p className="text-sm text-gray-600">Admin User</p>
                         </div>
 
                         <div>
@@ -173,12 +159,12 @@ export default function ImageViewModal({
 
                         <div>
                           <label className="text-sm font-medium text-gray-700">File type:</label>
-                          <p className="text-sm text-gray-600">{file.mime_type}</p>
+                          <p className="text-sm text-gray-600">{file.mimeType}</p>
                         </div>
 
                         <div>
                           <label className="text-sm font-medium text-gray-700">File size:</label>
-                          <p className="text-sm text-gray-600">{formatFileSize(file.file_size)}</p>
+                          <p className="text-sm text-gray-600">{formatFileSize(file.filesize || 0)}</p>
                         </div>
 
                         {file.width && file.height && (
@@ -238,7 +224,7 @@ export default function ImageViewModal({
                           Description
                         </label>
                         <textarea
-                          value={file.description || ''}
+                          value={file.caption || ''}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
                           rows={4}
                           readOnly
@@ -252,7 +238,7 @@ export default function ImageViewModal({
                         </label>
                         <input
                           type="text"
-                          value={file.file_url}
+                          value={file.url || file.cloudinaryURL || ''}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500 bg-gray-50"
                           readOnly
                         />

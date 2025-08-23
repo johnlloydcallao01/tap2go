@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { MediaFile, mediaAPI } from '@/lib/api/media';
 
@@ -77,11 +78,14 @@ export default function MediaEditModal({ isOpen, onClose, file, onUpdate }: Medi
           <div className="mb-6">
             <div className="flex items-start space-x-4">
               {file.mimeType?.startsWith('image/') && file.url ? (
-                <img
-                  src={file.url}
-                  alt={file.alt || file.filename || 'Image'}
-                  className="w-32 h-32 object-cover rounded-lg border"
-                />
+                <div className="relative w-32 h-32 rounded-lg border overflow-hidden">
+                  <Image
+                    src={file.url}
+                    alt={file.alt || file.filename || 'Image'}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
               ) : (
                 <div className="w-32 h-32 bg-gray-100 rounded-lg border flex items-center justify-center">
                   <span className="text-gray-400 text-sm">Preview not available</span>
