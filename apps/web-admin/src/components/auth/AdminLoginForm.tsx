@@ -7,15 +7,11 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAdminAuth } from '@/contexts/AuthContext';
 import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
 import {
   UserIcon,
   KeyIcon,
   ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  XCircleIcon,
-  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface AdminLoginFormProps {
@@ -24,84 +20,11 @@ interface AdminLoginFormProps {
 
 export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps) {
   const router = useRouter();
-  const { loading, authError, clearError, signIn } = useAdminAuth();
-  const [errorDismissible, setErrorDismissible] = React.useState(true);
+  const [loading, setLoading] = React.useState(false);
 
-  // Make error dismissible after a minimum display time
-  React.useEffect(() => {
-    if (authError) {
-      setErrorDismissible(false);
-      const timer = setTimeout(() => {
-        setErrorDismissible(true);
-      }, 2000); // 2 seconds minimum display time
 
-      return () => clearTimeout(timer);
-    }
-  }, [authError]);
 
-  // Function to get error styling and icon based on error message
-  const getErrorDisplay = (error: string) => {
-    const errorLower = error.toLowerCase();
 
-    if (errorLower.includes('email') && errorLower.includes('valid')) {
-      return {
-        icon: ExclamationTriangleIcon,
-        title: 'Invalid Email',
-        bgColor: 'bg-amber-500/20',
-        borderColor: 'border-amber-500/30',
-        iconColor: 'text-amber-400',
-        titleColor: 'text-amber-200',
-        textColor: 'text-amber-300'
-      };
-    }
-
-    if (errorLower.includes('invalid') && (errorLower.includes('password') || errorLower.includes('credentials'))) {
-      return {
-        icon: XCircleIcon,
-        title: 'Invalid Credentials',
-        bgColor: 'bg-red-500/20',
-        borderColor: 'border-red-500/30',
-        iconColor: 'text-red-400',
-        titleColor: 'text-red-200',
-        textColor: 'text-red-300'
-      };
-    }
-
-    if (errorLower.includes('deactivated') || errorLower.includes('inactive')) {
-      return {
-        icon: InformationCircleIcon,
-        title: 'Account Inactive',
-        bgColor: 'bg-blue-500/20',
-        borderColor: 'border-blue-500/30',
-        iconColor: 'text-blue-400',
-        titleColor: 'text-blue-200',
-        textColor: 'text-blue-300'
-      };
-    }
-
-    if (errorLower.includes('privileges') || errorLower.includes('access denied')) {
-      return {
-        icon: ShieldCheckIcon,
-        title: 'Access Denied',
-        bgColor: 'bg-orange-500/20',
-        borderColor: 'border-orange-500/30',
-        iconColor: 'text-orange-400',
-        titleColor: 'text-orange-200',
-        textColor: 'text-orange-300'
-      };
-    }
-
-    // Default error styling
-    return {
-      icon: XCircleIcon,
-      title: 'Sign In Failed',
-      bgColor: 'bg-red-500/20',
-      borderColor: 'border-red-500/30',
-      iconColor: 'text-red-400',
-      titleColor: 'text-red-200',
-      textColor: 'text-red-300'
-    };
-  };
 
   // Form configuration
   const formConfig: AuthFormConfig = {
@@ -144,25 +67,12 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
   } = useAuthForm(formConfig);
 
   // Handle form submission
-  const onSubmit = async (data: { [key: string]: string }) => {
-    try {
-      // Note: signIn function will clear errors at the start of the attempt
-      await signIn(data.email, data.password);
-      // Redirect to dashboard on successful login
-      router.push('/dashboard');
-    } catch (error) {
-      // Error is already handled by the auth context and will be displayed
-      console.error('Login failed:', error);
-
-      // Focus back to email field for better UX after a short delay
-      setTimeout(() => {
-        const emailField = document.querySelector('input[name="email"]') as HTMLInputElement;
-        if (emailField) {
-          emailField.focus();
-          emailField.select(); // Select all text for easy correction
-        }
-      }, 100);
-    }
+  const onSubmit = async () => {
+    setLoading(true);
+    // Simulate login delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Redirect to dashboard
+    router.push('/dashboard');
   };
 
   // Only clear auth error when user manually dismisses it or starts a new login attempt
@@ -248,73 +158,6 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
 
 
               <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">
-                {/* Dynamic Error Message */}
-                {authError && (() => {
-                  const errorDisplay = getErrorDisplay(authError);
-                  const IconComponent = errorDisplay.icon;
-
-                  return (
-                    <div className={`${errorDisplay.bgColor} border ${errorDisplay.borderColor} rounded-xl p-4 backdrop-blur-sm animate-in slide-in-from-top-2 duration-300`}>
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                          <IconComponent className={`h-5 w-5 ${errorDisplay.iconColor}`} />
-                        </div>
-                        <div className="ml-3 flex-1">
-                          <h3 className={`text-sm font-medium ${errorDisplay.titleColor}`}>
-                            {errorDisplay.title}
-                          </h3>
-                          <div className={`mt-1 text-sm ${errorDisplay.textColor} leading-relaxed`}>
-                            {authError}
-                          </div>
-                          {/* Helpful hints based on error type */}
-                          {authError.toLowerCase().includes('invalid') && authError.toLowerCase().includes('credentials') && (
-                            <div className={`mt-2 text-xs ${errorDisplay.textColor} opacity-80`}>
-                              💡 Double-check your email and password, or contact your administrator if you continue having issues.
-                            </div>
-                          )}
-                          {authError.toLowerCase().includes('email') && authError.toLowerCase().includes('valid') && (
-                            <div className={`mt-2 text-xs ${errorDisplay.textColor} opacity-80`}>
-                              💡 Please enter a valid email address (e.g., admin@example.com)
-                            </div>
-                          )}
-                          {/* Try Again button for better UX */}
-                          <div className="mt-3 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={clearError}
-                              disabled={!errorDismissible}
-                              className={`text-xs px-3 py-1 rounded-md border ${errorDisplay.borderColor} ${errorDisplay.textColor} transition-colors ${
-                                errorDismissible
-                                  ? 'hover:bg-white/10 cursor-pointer'
-                                  : 'opacity-50 cursor-not-allowed'
-                              }`}
-                            >
-                              {errorDismissible ? 'Try Again' : 'Please wait...'}
-                            </button>
-                            <span className={`text-xs ${errorDisplay.textColor} opacity-60`}>
-                              {errorDismissible ? 'or click the × to dismiss' : 'Error will be dismissible in a moment'}
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={errorDismissible ? clearError : undefined}
-                          disabled={!errorDismissible}
-                          className={`ml-2 ${errorDisplay.iconColor} transition-opacity ${
-                            errorDismissible
-                              ? 'hover:opacity-70 cursor-pointer'
-                              : 'opacity-30 cursor-not-allowed'
-                          }`}
-                          aria-label={errorDismissible ? "Dismiss error" : "Please wait to dismiss error"}
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
 
                 {/* Email Field */}
                 <div>

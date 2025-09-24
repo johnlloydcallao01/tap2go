@@ -1,6 +1,6 @@
 'use client';
 
-// Force dynamic rendering to avoid SSR issues
+// Demo-only security settings page - no actual authentication functionality
 export const dynamic = 'force-dynamic';
 
 import React, { useState } from 'react';
@@ -223,13 +223,13 @@ export default function AdminSecurity() {
           <h3 className="text-lg font-medium text-gray-900 mb-6">Security Configuration</h3>
           
           <div className="space-y-6">
-            {/* Two-Factor Authentication */}
+            {/* Demo Two-Factor Authentication Settings */}
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <KeyIcon className="h-5 w-5 text-gray-400 mr-3" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Two-Factor Authentication</p>
-                  <p className="text-xs text-gray-500">Require 2FA for all admin accounts</p>
+                  <p className="text-sm font-medium text-gray-900">Two-Factor Authentication (Demo)</p>
+                  <p className="text-xs text-gray-500">Demo toggle - no actual 2FA functionality</p>
                 </div>
               </div>
               <button
@@ -246,13 +246,13 @@ export default function AdminSecurity() {
               </button>
             </div>
 
-            {/* Password Policy */}
+            {/* Demo Password Policy Settings */}
             <div>
               <div className="flex items-center mb-4">
                 <LockClosedIcon className="h-5 w-5 text-gray-400 mr-3" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Password Policy</p>
-                  <p className="text-xs text-gray-500">Configure password requirements</p>
+                  <p className="text-sm font-medium text-gray-900">Password Policy (Demo)</p>
+                  <p className="text-xs text-gray-500">Demo settings - no actual password enforcement</p>
                 </div>
               </div>
               
@@ -315,10 +315,11 @@ export default function AdminSecurity() {
           </div>
         </div>
 
-        {/* Security Events */}
+        {/* Demo Security Events */}
         <div className="bg-white rounded-lg shadow border">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Recent Security Events</h3>
+            <h3 className="text-lg font-medium text-gray-900">Recent Security Events (Demo)</h3>
+            <p className="text-sm text-gray-500 mt-1">Demo security events - no actual monitoring</p>
           </div>
 
           <div className="overflow-x-auto">

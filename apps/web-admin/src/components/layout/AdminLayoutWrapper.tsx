@@ -1,90 +1,74 @@
+/**
+ * Admin Layout Wrapper
+ * 
+ * This component provides the main layout structure for the admin application.
+ * It includes the header, sidebar, and main content area.
+ * Demo mode: No authentication protection is applied.
+ */
+
 'use client';
 
-import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import React, { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
-import ProtectedRoute from '../auth/ProtectedRoute';
 
-export default function AdminLayoutWrapper({
-  children,
-}: {
+interface AdminLayoutWrapperProps {
   children: React.ReactNode;
-}) {
+}
+
+export default function AdminLayoutWrapper({ children }: AdminLayoutWrapperProps) {
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const router = useRouter();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCollapsed] = useState(false);
+  
+  // Pages that should not show the admin layout (like login/signup)
+  const authPages = ['/login', '/signup', '/signin'];
+  const isAuthPage = authPages.some(page => pathname.startsWith(page));
 
-  // Persist sidebar state in localStorage
-  useEffect(() => {
-    const savedCollapsed = localStorage.getItem('admin-sidebar-collapsed');
-    if (savedCollapsed !== null) {
-      setSidebarCollapsed(JSON.parse(savedCollapsed));
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('admin-sidebar-collapsed', JSON.stringify(sidebarCollapsed));
-  }, [sidebarCollapsed]);
-
-  // Don't show header/sidebar on auth pages
-  const isAuthPage = pathname === '/login' || pathname === '/signup';
-
-  // Handle expand sidebar and navigate to specific page
-  // This function is only called when clicking on collapsed category icons
-  // Regular navigation uses Link components directly
-  const handleExpandAndNavigate = (href: string, categoryName: string) => {
-    // First expand the sidebar
-    setSidebarCollapsed(false);
-
-    // Use window.location.href for category expansion navigation
-    // This is consistent with how web-driver handles it
-    window.location.href = href;
-
-    // Close mobile sidebar if open
-    setSidebarOpen(false);
-
-    // Optional: Add a small delay to show the expansion animation
-    setTimeout(() => {
-      console.log(`Expanded sidebar and navigated to ${href} from ${categoryName} category`);
-    }, 300);
+  const handleMobileMenuToggle = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
+  const handleMobileMenuClose = () => {
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleExpandAndNavigate = (href: string) => {
+    router.push(href);
+    setIsMobileMenuOpen(false);
+  };
+
+  // If it's an auth page, render without layout
   if (isAuthPage) {
-    return (
-      <div className="min-h-screen">
-        {children}
-      </div>
-    );
+    return <>{children}</>;
   }
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        {/* Header - Fixed at top, starts after sidebar on desktop */}
-        <AdminHeader
-          onMenuClick={() => setSidebarOpen(true)}
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-
-        {/* Sidebar - Fixed on left, starts below header */}
-        <AdminSidebar
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          isCollapsed={sidebarCollapsed}
+    <div className="min-h-screen bg-gray-50">
+      {/* Admin Header */}
+      <AdminHeader 
+        onMenuToggle={handleMobileMenuToggle}
+        isMobileMenuOpen={isMobileMenuOpen}
+      />
+      
+      <div className="flex">
+        {/* Admin Sidebar */}
+        <AdminSidebar 
+          isOpen={isMobileMenuOpen}
+          onClose={handleMobileMenuClose}
+          isCollapsed={isCollapsed}
           onExpandAndNavigate={handleExpandAndNavigate}
         />
-
-        {/* Main Content - Positioned after header height and sidebar width */}
-        <main className={`transition-all duration-300 ${
-          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-        } pt-14 lg:pt-16`}>
-          <div className="px-3 pt-8 pb-5 lg:p-4">
+        
+        {/* Main Content */}
+        <main className="flex-1 ml-64 pt-16">
+          <div className="p-6">
             {children}
           </div>
         </main>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 }

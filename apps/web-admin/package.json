@@ -12,18 +12,24 @@
   "dependencies": {
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
+    "@radix-ui/react-avatar": "^1.1.10",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-slot": "^1.2.3",
     "@tap2go/database": "workspace:*",
     "@tap2go/firebase-config": "workspace:*",
     "@tap2go/shared-auth": "workspace:*",
     "@tap2go/shared-types": "workspace:*",
     "@tap2go/shared-ui": "workspace:*",
     "@types/jsonwebtoken": "^9.0.10",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.2",
     "jsonwebtoken": "^9.0.2",
     "next": "15.3.5",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

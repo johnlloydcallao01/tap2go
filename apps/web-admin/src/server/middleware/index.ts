@@ -1,14 +1,14 @@
 /**
- * Admin Middleware Index
+ * Admin Middleware Index (Demo Only)
  * 
- * This file exports all middleware for the Admin application.
- * Middleware handles authentication, authorization, and request processing.
+ * This file exports all admin-specific middleware functions.
+ * Note: This is a demo version with no actual middleware implementation.
  */
 
 // Export all admin middleware
-// TODO: Add admin-specific middleware here
+// TODO: Add admin-specific middleware here (demo purposes only)
 
-// Placeholder export to prevent TypeScript errors
+// Placeholder for admin middleware (demo only)
 export const adminMiddleware = {
-  // Admin middleware will be added here
+  // Demo middleware placeholder - no actual implementation
 };

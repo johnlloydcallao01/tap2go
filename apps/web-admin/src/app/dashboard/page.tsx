@@ -32,6 +32,44 @@ interface DashboardStats {
   pendingDrivers: number;
 }
 
+interface Activity {
+  id: string;
+  type: string;
+  description: string;
+  timestamp: string;
+}
+
+interface Route {
+  id: string;
+  name: string;
+  rides: number;
+}
+
+interface RevenueDataPoint {
+  month: string;
+  revenue: number;
+}
+
+interface UserGrowthDataPoint {
+  month: string;
+  users: number;
+}
+
+interface DashboardData {
+  totalUsers: number;
+  totalDrivers: number;
+  totalVendors: number;
+  totalRides: number;
+  totalRevenue: number;
+  activeRides: number;
+  pendingApprovals: number;
+  systemHealth: string;
+  recentActivities: Activity[];
+  popularRoutes: Route[];
+  revenueData: RevenueDataPoint[];
+  userGrowthData: UserGrowthDataPoint[];
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
@@ -45,13 +83,28 @@ export default function DashboardPage() {
   });
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
-  // Authentication is disabled - no user checks needed
+  // Demo data for dashboard metrics
+  const [_dashboardData] = useState<DashboardData>({
+    totalUsers: 0,
+    totalDrivers: 0,
+    totalVendors: 0,
+    totalRides: 0,
+    totalRevenue: 0,
+    activeRides: 0,
+    pendingApprovals: 0,
+    systemHealth: 'good',
+    recentActivities: [],
+    popularRoutes: [],
+    revenueData: [],
+    userGrowthData: [],
+  });
 
   useEffect(() => {
-    // Simulate loading dashboard data
     const loadDashboardData = async () => {
       try {
-        // In a real app, you would fetch this data from your database
+        setDashboardLoading(true);
+
+        // Demo mode - simulate loading dashboard data
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         setStats({
@@ -64,8 +117,10 @@ export default function DashboardPage() {
           pendingVendors: 5,
           pendingDrivers: 12,
         });
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
+
+        // Demo mode - dashboard data loaded successfully
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
       } finally {
         setDashboardLoading(false);
       }

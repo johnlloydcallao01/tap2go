@@ -1,80 +1,54 @@
-# Admin App Server Directory
+# Web Admin Server
 
-This directory contains the complete server-side architecture for the Admin application, organized for enterprise-level administration and management.
+This directory contains server-side utilities and configurations for the web admin application.
 
-## 🏗️ Architecture Overview
+## Structure
 
 ```
-src/server/
-├── actions/          # Admin Server Actions (Next.js App Router)
-├── middleware/       # Admin-specific middleware
-├── services/         # Admin business logic services
-├── types/           # Admin-specific TypeScript types
-├── utils/           # Admin utility functions
-└── validators/      # Admin input validation schemas
+server/
+├── config/          # Server configuration files
+├── middleware/      # Admin-specific middleware (demo only)
+├── utils/           # Server utility functions
+└── README.md        # This file
 ```
 
-## 📁 Directory Structure
+## Directories
 
-### `actions/` - Admin Server Actions
-Server Actions for administrative operations and form handling.
+### `config/` - Configuration
 
-### `middleware/` - Admin Middleware
-Cross-cutting concerns specific to admin operations.
+Contains server configuration files and environment-specific settings.
 
-### `services/` - Admin Business Logic Services
-Core administrative business logic and data operations.
+### `middleware/` - Admin Middleware (Demo Only)
 
-## When to Add Logic Here
+Contains admin-specific middleware functions. Note: This is a demo version with no actual middleware implementation.
 
-Add server-side logic to this directory when it is:
-- **Admin-specific**: Logic that only applies to administrative operations
-- **Server-side**: Requires server environment (API keys, database access, etc.)
-- **Not shared**: Logic that other apps (web, driver, vendor) don't need
+### `utils/` - Utilities
 
-## Examples of Admin-Specific Server Logic
+Contains server-side utility functions and helpers.
 
-- User management and moderation
-- Platform-wide analytics and reporting
-- System configuration management
-- Audit logging and compliance
-- Data export and import operations
-- Platform monitoring and health checks
-- Administrative notifications
-- Bulk operations and data management
+## Usage
 
-## Shared vs App-Specific
+This server directory provides the foundation for server-side functionality in the admin application. All components are designed for demonstration purposes only.
 
-**Use shared packages for:**
-- Common business logic (`packages/business-logic/`)
-- Database operations (`packages/database/`)
-- API clients (`packages/api-client/`)
-- Authentication (`packages/shared-auth/`)
+## Development
 
-**Use this directory for:**
-- Admin-only server operations
-- Administrative integrations
-- Platform management logic
+When adding new server-side functionality:
 
-## Architecture Benefits
+1. Place configuration files in `config/`
+2. Add middleware functions to `middleware/` (demo only)
+3. Create utility functions in `utils/`
+4. Update this README when adding new directories
 
-This structure provides:
-- **Separation of concerns**: Admin logic stays with admin app
-- **Independent deployment**: Admin app can be deployed separately
-- **Code organization**: Clear boundaries between shared and app-specific code
-- **Future scalability**: Easy to extract to microservices if needed
+## Dependencies
 
-## Getting Started
+This server setup is designed to work with:
 
-When you're ready to add admin-specific server logic:
+- Next.js App Router
+- TypeScript
+- Demo authentication system (no real authentication)
 
-1. Create the appropriate service file in `services/`
-2. Import shared utilities from packages as needed
-3. Export functions for use in API routes or server components
-4. Follow the same patterns established in `apps/web/src/server/`
+## Notes
 
-## Related Documentation
-
-- See `apps/web/src/server/` for implementation examples
-- See `packages/business-logic/` for shared business rules
-- See our monorepo architecture documentation
+- All authentication-related functionality has been removed
+- This is a demo version for UI demonstration purposes only
+- No actual server authentication or authorization is implemented
