@@ -5,19 +5,21 @@
   --foreground: #171717;
 }
 
-@theme inline {
+/* Custom CSS variables for theme */
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+/* Removed automatic dark mode - admin should have consistent light theme */
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
-}
+} */
 
 body {
   background: var(--background);
@@ -56,7 +58,16 @@ input:disabled, textarea:disabled, select:disabled {
 }
 
 .btn-secondary {
-  @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+  background-color: #e5e7eb;
+  color: #1f2937;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary:hover {
+  background-color: #d1d5db;
 }
 
 .btn-outline {
@@ -75,7 +86,10 @@ input:disabled, textarea:disabled, select:disabled {
 }
 
 .card {
-  @apply bg-white rounded-lg shadow-md overflow-hidden;
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 }
 
 .input-field {
@@ -93,13 +107,31 @@ input:disabled, textarea:disabled, select:disabled {
 }
 
 .input-field:focus {
-  ring: 2px solid #f3a823;
-  border-color: transparent;
-  box-shadow: 0 0 0 2px #f3a823;
+  border-color: #f3a823;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(243, 168, 35, 0.2);
 }
 
 .container-custom {
-  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container-custom {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-custom {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
 }
 
 /* Professional Scrollbar Styles for Admin Sidebar */

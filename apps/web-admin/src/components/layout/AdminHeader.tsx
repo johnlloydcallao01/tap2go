@@ -11,7 +11,6 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronDown,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -20,11 +19,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+} from '@radix-ui/react-dropdown-menu';
+
 
 interface AdminHeaderProps {
   onMenuToggle?: () => void;
@@ -32,7 +28,7 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ onMenuToggle, isMobileMenuOpen }: AdminHeaderProps) {
-  const { user, demoLogout } = useAdminAuth();
+  const { user: _user, demoLogout } = useAdminAuth();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -56,116 +52,93 @@ export default function AdminHeader({ onMenuToggle, isMobileMenuOpen }: AdminHea
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4">
-      <div className="flex items-center justify-between">
-        {/* Left Section - Mobile Menu + Logo */}
-        <div className="flex items-center space-x-4">
-          {/* Mobile Menu Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="lg:hidden"
-            onClick={onMenuToggle}
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
-          </Button>
-
-          {/* Logo - Hidden on mobile when menu is open */}
-          <div className={`flex items-center space-x-2 ${isMobileMenuOpen ? 'hidden' : 'block'} lg:block`}>
+    <header className="bg-white shadow-sm border-b border-gray-200 fixed top-0 right-0 left-0 z-40">
+      <div className="flex min-h-16">
+        {/* FIRST DIVISION: Logo + Tap2Go Admin + Mobile Menu (fixed width) */}
+        <div className="flex items-center justify-between px-4 lg:px-6 w-64">
+          {/* Logo and Tap2Go Admin */}
+          <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">T2G</span>
             </div>
-            <span className="font-semibold text-gray-900 hidden sm:block">
-              Tap2Go Admin
-            </span>
-            <Badge variant="secondary" className="hidden md:inline-flex">
-              Demo
-            </Badge>
+            <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
           </div>
+
+
         </div>
 
-        {/* Center Section - Search (Hidden on mobile) */}
-        <div className="hidden md:flex flex-1 max-w-md mx-8">
-          <form onSubmit={handleSearch} className="w-full">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                type="text"
-                placeholder="Search orders, restaurants, drivers..."
-                value={searchQuery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-          </form>
-        </div>
-
-        {/* Right Section - Notifications + User Menu */}
-        <div className="flex items-center space-x-3">
-          {/* Notifications */}
-          <Button variant="ghost" size="sm" className="relative">
-            <Bell className="h-5 w-5 text-gray-600" />
-            <Badge 
-              variant="destructive" 
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+        {/* SECOND DIVISION: Search + Right Icons */}
+        <div className="flex-1 flex items-center justify-between px-4">
+          {/* Left side - Mobile menu button and Search */}
+          <div className="flex items-center flex-1">
+            {/* Mobile menu button */}
+            <button
+              onClick={onMenuToggle}
+              className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 mr-4"
             >
-              3
-            </Badge>
-          </Button>
+              {isMobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
 
-          {/* Settings */}
-          <Button variant="ghost" size="sm">
-            <Settings className="h-5 w-5 text-gray-600" />
-          </Button>
+            {/* Search Bar */}
+            <div className="flex-1 max-w-lg">
+              <form onSubmit={handleSearch} className="w-full">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search orders, restaurants, drivers..."
+                    value={searchQuery}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder-gray-500"
+                  />
+                </div>
+              </form>
+            </div>
+          </div>
 
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center space-x-2 px-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="" alt={user?.name || 'Admin'} />
-                  <AvatarFallback className="bg-blue-100 text-blue-600">
-                    {user?.name?.charAt(0) || 'A'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-gray-900">
-                    {user?.name || 'Demo Admin'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {user?.role || 'Administrator'}
-                  </p>
-                </div>
-                <ChevronDown className="h-4 w-4 text-gray-500" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user?.name || 'Demo Admin'}</p>
-                  <p className="text-xs text-gray-500">{user?.email || 'admin@demo.com'}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleDemoLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Sign out (Demo)</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Right side - Notifications and User Menu */}
+          <div className="flex items-center space-x-2 lg:space-x-4">
+            {/* Notifications */}
+            <button className="relative p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full">
+              <Bell className="h-6 w-6" />
+              <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400 ring-2 ring-white"></span>
+            </button>
+
+            {/* Settings - Hidden on mobile */}
+            <button className="hidden sm:block p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full">
+              <Settings className="h-6 w-6" />
+            </button>
+
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                  <User className="h-5 w-5 text-white" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Admin Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Account Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleDemoLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
@@ -174,12 +147,12 @@ export default function AdminHeader({ onMenuToggle, isMobileMenuOpen }: AdminHea
         <form onSubmit={handleSearch}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
+            <input
               type="text"
               placeholder="Search..."
               value={searchQuery}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder-gray-500"
             />
           </div>
         </form>
