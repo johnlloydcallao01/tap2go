@@ -70,7 +70,6 @@
     "reselect": "^5.1.1",
     "resend": "^4.5.2",
     "@tap2go/shared-types": "workspace:*",
-    "@tap2go/shared-auth": "workspace:*",
     "@tap2go/shared-ui": "workspace:*",
     "@tap2go/shared-utils": "workspace:*",
     "ws": "^8.18.2"

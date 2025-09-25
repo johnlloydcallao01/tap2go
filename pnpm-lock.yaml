@@ -52,6 +52,9 @@ importers:
       simple-swizzle:
         specifier: ^0.2.2
         version: 0.2.2
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
     devDependencies:
       '@turbo/gen':
         specifier: ^2.0.0
@@ -62,9 +65,6 @@ importers:
       turbo:
         specifier: ^2.0.0
         version: 2.5.4
-      typescript:
-        specifier: 5.8.3
-        version: 5.8.3
 
   apps/cms:
     dependencies:
@@ -475,9 +475,6 @@ importers:
       '@tap2go/database':
         specifier: workspace:*
         version: link:../../packages/database
-      '@tap2go/shared-auth':
-        specifier: workspace:*
-        version: link:../../packages/shared-auth
       '@tap2go/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -611,9 +608,6 @@ importers:
       '@tap2go/database':
         specifier: workspace:*
         version: link:../../packages/database
-      '@tap2go/shared-auth':
-        specifier: workspace:*
-        version: link:../../packages/shared-auth
       '@tap2go/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -687,9 +681,6 @@ importers:
       '@tap2go/database':
         specifier: workspace:*
         version: link:../../packages/database
-      '@tap2go/shared-auth':
-        specifier: workspace:*
-        version: link:../../packages/shared-auth
       '@tap2go/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -838,28 +829,6 @@ importers:
       rimraf:
         specifier: ^6.0.1
         version: 6.0.1
-
-  packages/shared-auth:
-    dependencies:
-      '@tap2go/database':
-        specifier: workspace:*
-        version: link:../database
-      '@tap2go/shared-types':
-        specifier: workspace:*
-        version: link:../shared-types
-      react:
-        specifier: ^19.0.0
-        version: 19.0.0
-    devDependencies:
-      '@types/node':
-        specifier: ^20.19.2
-        version: 20.19.2
-      '@types/react':
-        specifier: ~19.0.10
-        version: 19.0.14
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
 
   packages/shared-types:
     dependencies:
