@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import AdminLayoutWrapper from '@/components/layout/AdminLayoutWrapper';
@@ -10,7 +10,11 @@ export const metadata: Metadata = {
   description: 'Administrative dashboard for Tap2Go transportation management system',
   keywords: 'admin, dashboard, transportation, management, tap2go',
   authors: [{ name: 'Tap2Go Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({

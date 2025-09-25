@@ -1,14 +1,19 @@
 /**
- * React Hook for Firebase Cloud Messaging
- * Handles FCM token generation, permission requests, and notification management
+ * React Hook for Push Notifications
+ * Handles notification permissions and management without Firebase
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { MessagePayload } from 'firebase/messaging';
-import FCMService from '@/lib/fcm';
 import { useAuth } from '@/hooks/useAuth';
 
-export interface FCMState {
+export interface NotificationPayload {
+  title?: string;
+  body?: string;
+  icon?: string;
+  data?: Record<string, any>;
+}
+
+export interface NotificationState {
   token: string | null;
   permission: NotificationPermission;
   isSupported: boolean;
@@ -16,18 +21,18 @@ export interface FCMState {
   error: string | null;
 }
 
-export interface FCMActions {
+export interface NotificationActions {
   requestPermission: () => Promise<boolean>;
   generateToken: () => Promise<string | null>;
-  setupForegroundListener: (callback: (payload: MessagePayload) => void) => void;
+  setupForegroundListener: (callback: (payload: NotificationPayload) => void) => void;
 }
 
 /**
- * Custom hook for Firebase Cloud Messaging
+ * Custom hook for Push Notifications (Non-Firebase)
  */
-export const useFCM = (): FCMState & FCMActions => {
+export const useFCM = (): NotificationState & NotificationActions => {
   const { user } = useAuth();
-  const [state, setState] = useState<FCMState>({
+  const [state, setState] = useState<NotificationState>({
     token: null,
     permission: 'default',
     isSupported: false,
@@ -35,17 +40,17 @@ export const useFCM = (): FCMState & FCMActions => {
     error: null,
   });
 
-  // Initialize FCM
+  // Initialize notification system
   useEffect(() => {
-    const initializeFCM = async () => {
+    const initializeNotifications = async () => {
       try {
         setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-        // Check if FCM is supported
-        const isSupported = await FCMService.initialize();
+        // Check if notifications are supported
+        const isSupported = 'Notification' in window && 'serviceWorker' in navigator;
         
         // Get current permission status
-        const permission = 'Notification' in window ? Notification.permission : 'denied';
+        const permission = isSupported ? Notification.permission : 'denied';
 
         setState(prev => ({
           ...prev,
@@ -56,22 +61,22 @@ export const useFCM = (): FCMState & FCMActions => {
 
         // If user is logged in and permission is granted, try to get existing token
         if (user && permission === 'granted') {
-          const existingToken = await FCMService.getStoredToken(user.uid);
+          const existingToken = localStorage.getItem(`notification_token_${user.uid}`);
           if (existingToken) {
             setState(prev => ({ ...prev, token: existingToken }));
           }
         }
       } catch (error) {
-        console.error('Error initializing FCM:', error);
+        console.error('Error initializing notifications:', error);
         setState(prev => ({
           ...prev,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'Failed to initialize FCM',
+          error: error instanceof Error ? error.message : 'Failed to initialize notifications',
         }));
       }
     };
 
-    initializeFCM();
+    initializeNotifications();
   }, [user]);
 
   // Request notification permission
@@ -79,7 +84,11 @@ export const useFCM = (): FCMState & FCMActions => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const permission = await FCMService.requestPermission();
+      if (!('Notification' in window)) {
+        throw new Error('This browser does not support notifications');
+      }
+
+      const permission = await Notification.requestPermission();
       
       setState(prev => ({ ...prev, permission, isLoading: false }));
 
@@ -95,21 +104,33 @@ export const useFCM = (): FCMState & FCMActions => {
     }
   }, []);
 
-  // Generate FCM token
+  // Generate notification token (mock implementation)
   const generateToken = useCallback(async (): Promise<string | null> => {
-    // For testing, we'll use a mock user ID if no user is authenticated
-    const userId = user?.uid || 'test_user_123';
+    const userId = user?.uid || 'anonymous_user';
 
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const token = await FCMService.generateToken(userId);
+      // Generate a mock token for demonstration
+      const token = `notification_token_${userId}_${Date.now()}`;
       
       setState(prev => ({ ...prev, token, isLoading: false }));
 
       // Store token locally for quick access
-      if (token) {
-        localStorage.setItem(`fcm_token_${userId}`, token);
+      localStorage.setItem(`notification_token_${userId}`, token);
+
+      // In a real implementation, you would register this token with your backend
+      try {
+        await fetch('/api/notifications/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          },
+          body: JSON.stringify({ token, userId })
+        });
+      } catch (apiError) {
+        console.warn('Failed to register token with backend:', apiError);
       }
 
       return token;
@@ -124,9 +145,24 @@ export const useFCM = (): FCMState & FCMActions => {
     }
   }, [user]);
 
-  // Setup foreground message listener
-  const setupForegroundListener = useCallback((callback: (payload: MessagePayload) => void) => {
-    FCMService.setupForegroundListener(callback);
+  // Setup foreground message listener (mock implementation)
+  const setupForegroundListener = useCallback((callback: (payload: NotificationPayload) => void) => {
+    // In a real implementation, this would set up a service worker listener
+    // For now, we'll just set up a basic event listener
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'notification') {
+        callback(event.data.payload);
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+      
+      // Return cleanup function
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleMessage);
+      };
+    }
   }, []);
 
   return {
@@ -141,9 +177,9 @@ export const useFCM = (): FCMState & FCMActions => {
  * Hook for notification display
  */
 export const useNotifications = () => {
-  const [notifications, setNotifications] = useState<MessagePayload[]>([]);
+  const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
 
-  const addNotification = useCallback((payload: MessagePayload) => {
+  const addNotification = useCallback((payload: NotificationPayload) => {
     setNotifications(prev => [payload, ...prev.slice(0, 9)]); // Keep last 10 notifications
   }, []);
 
@@ -155,11 +191,23 @@ export const useNotifications = () => {
     setNotifications([]);
   }, []);
 
+  const showNotification = useCallback((payload: NotificationPayload) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(payload.title || 'Notification', {
+        body: payload.body,
+        icon: payload.icon || '/favicon.ico',
+        data: payload.data
+      });
+    }
+    addNotification(payload);
+  }, [addNotification]);
+
   return {
     notifications,
     addNotification,
     removeNotification,
     clearNotifications,
+    showNotification,
   };
 };
 

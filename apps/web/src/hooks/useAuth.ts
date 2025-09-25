@@ -1,18 +1,16 @@
 /**
- * React Hook for Firebase Authentication
- * Handles user authentication state and operations
+ * React Hook for Authentication
+ * Handles user authentication state and operations without Firebase
  */
 
 import { useState, useEffect } from 'react';
-import { 
-  User,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  updateProfile,
-} from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+
+export interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
 
 export interface AuthState {
   user: User | null;
@@ -28,7 +26,7 @@ export interface AuthActions {
 }
 
 /**
- * Custom hook for Firebase Authentication
+ * Custom hook for Authentication (Non-Firebase)
  */
 export const useAuth = (): AuthState & AuthActions => {
   const [state, setState] = useState<AuthState>({
@@ -37,17 +35,41 @@ export const useAuth = (): AuthState & AuthActions => {
     error: null,
   });
 
-  // Listen to authentication state changes
+  // Check for existing session on mount
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setState(prev => ({
-        ...prev,
-        user,
-        loading: false,
-      }));
-    });
+    const checkAuthState = async () => {
+      try {
+        // Check for stored auth token or session
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          // Validate token with your backend API
+          const response = await fetch('/api/auth/validate', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const userData = await response.json();
+            setState(prev => ({
+              ...prev,
+              user: userData.user,
+              loading: false,
+            }));
+          } else {
+            localStorage.removeItem('auth_token');
+            setState(prev => ({ ...prev, loading: false }));
+          }
+        } else {
+          setState(prev => ({ ...prev, loading: false }));
+        }
+      } catch (error) {
+        console.error('Auth state check failed:', error);
+        setState(prev => ({ ...prev, loading: false }));
+      }
+    };
 
-    return unsubscribe;
+    checkAuthState();
   }, []);
 
   // Sign in with email and password
@@ -55,14 +77,28 @@ export const useAuth = (): AuthState & AuthActions => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
       
-      setState(prev => ({ ...prev, user, loading: false }));
-      return user;
+      if (response.ok) {
+        const data = await response.json();
+        const { user, token } = data;
+        
+        localStorage.setItem('auth_token', token);
+        setState(prev => ({ ...prev, user, loading: false }));
+        return user;
+      } else {
+        const errorData = await response.json();
+        setState(prev => ({ ...prev, loading: false, error: errorData.message || 'Failed to sign in' }));
+        return null;
+      }
     } catch (error: unknown) {
-      const authError = error as { message?: string };
-      const errorMessage = authError.message || 'Failed to sign in';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign in';
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       return null;
     }
@@ -73,19 +109,28 @@ export const useAuth = (): AuthState & AuthActions => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, displayName }),
+      });
       
-      // Update display name if provided
-      if (displayName) {
-        await updateProfile(user, { displayName });
+      if (response.ok) {
+        const data = await response.json();
+        const { user, token } = data;
+        
+        localStorage.setItem('auth_token', token);
+        setState(prev => ({ ...prev, user, loading: false }));
+        return user;
+      } else {
+        const errorData = await response.json();
+        setState(prev => ({ ...prev, loading: false, error: errorData.message || 'Failed to create account' }));
+        return null;
       }
-      
-      setState(prev => ({ ...prev, user, loading: false }));
-      return user;
     } catch (error: unknown) {
-      const authError = error as { message?: string };
-      const errorMessage = authError.message || 'Failed to create account';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create account';
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       return null;
     }
@@ -95,11 +140,19 @@ export const useAuth = (): AuthState & AuthActions => {
   const logout = async (): Promise<void> => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
-      await signOut(auth);
+      
+      // Call logout API endpoint
+      await fetch('/api/auth/signout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      localStorage.removeItem('auth_token');
       setState(prev => ({ ...prev, user: null, loading: false }));
     } catch (error: unknown) {
-      const authError = error as { message?: string };
-      const errorMessage = authError.message || 'Failed to sign out';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign out';
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
     }
   };

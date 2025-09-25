@@ -40,10 +40,7 @@
       "path": "./packages/config"
     },
     {
-      "path": "./packages/firebase-config"
-    },
-    {
-      "path": "./packages/shared-utils"
+      "path": "./packages/shared-auth"
     },
     {
       "path": "./packages/shared-auth"

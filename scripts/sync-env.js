@@ -108,10 +108,30 @@ class EnvSynchronizer {
     const envContent = this.readRootEnvFile();
     if (!envContent) return false;
 
+    // Core environment variables that should be synced across all apps
+    const coreEnvVars = [
+      'NODE_ENV',
+      'JWT_SECRET',
+      'DATABASE_URL',
+      'REDIS_URL',
+      'NEXT_PUBLIC_APP_URL',
+      'NEXT_PUBLIC_API_URL',
+      'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY',
+      'NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME',
+      'NEXT_PUBLIC_CLOUDINARY_API_KEY',
+      'CLOUDINARY_API_SECRET',
+      'PAYMONGO_PUBLIC_KEY_LIVE',
+      'PAYMONGO_SECRET_KEY_LIVE',
+      'RESEND_API_KEY',
+      'OPENAI_API_KEY',
+      'GOOGLE_GENERATIVE_AI_API_KEY',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'UPSTASH_REDIS_REST_URL',
+      'UPSTASH_REDIS_REST_TOKEN'
+    ];
+
     // Check for required variables
     const requiredVars = [
-      'NEXT_PUBLIC_FIREBASE_API_KEY',
-      'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
       'NEXT_PUBLIC_MAPS_FRONTEND_KEY'
     ];
 
