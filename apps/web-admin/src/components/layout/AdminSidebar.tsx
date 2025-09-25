@@ -7,34 +7,17 @@ import {
   HomeIcon,
   UsersIcon,
   BuildingStorefrontIcon,
-  TruckIcon,
-  ShoppingBagIcon,
   ChartBarIcon,
-  ExclamationTriangleIcon,
-  CogIcon,
-  BellIcon,
   DocumentTextIcon,
-  CurrencyDollarIcon,
   UserGroupIcon,
   XMarkIcon,
   PresentationChartLineIcon,
-  BanknotesIcon,
-  ShieldCheckIcon,
   MegaphoneIcon,
   PhotoIcon,
   PencilSquareIcon,
   TagIcon,
-  GiftIcon,
-  StarIcon,
-  ChatBubbleLeftRightIcon,
-  ClockIcon,
-  MapPinIcon,
-  CreditCardIcon,
   ChartPieIcon,
   DocumentChartBarIcon,
-  AdjustmentsHorizontalIcon,
-  KeyIcon,
-  UserCircleIcon,
 } from '@heroicons/react/24/outline';
 
 // Local types for navigation (independent from shared-types)
@@ -76,17 +59,6 @@ const navigationCategories: NavigationCategory[] = [
     ]
   },
   {
-    name: 'Operations',
-    icon: asIconComponent(ShoppingBagIcon),
-    items: [
-      { name: 'Orders', href: '/orders', icon: asIconComponent(ShoppingBagIcon) },
-      { name: 'Disputes', href: '/disputes', icon: asIconComponent(ExclamationTriangleIcon) },
-      { name: 'Notifications', href: '/notifications', icon: asIconComponent(BellIcon) },
-      { name: 'Reviews', href: '/reviews', icon: asIconComponent(StarIcon) },
-      { name: 'Support Chat', href: '/support', icon: asIconComponent(ChatBubbleLeftRightIcon) },
-    ]
-  },
-  {
     name: 'Content Management',
     icon: asIconComponent(PencilSquareIcon),
     items: [
@@ -94,16 +66,6 @@ const navigationCategories: NavigationCategory[] = [
       { name: 'Media Library', href: '/cms/media', icon: asIconComponent(PhotoIcon) },
       { name: 'Promotions', href: '/cms/promotions', icon: asIconComponent(MegaphoneIcon) },
       { name: 'Banners', href: '/cms/banners', icon: asIconComponent(TagIcon) },
-    ]
-  },
-  {
-    name: 'Marketing',
-    icon: asIconComponent(MegaphoneIcon),
-    items: [
-      { name: 'Campaigns', href: '/marketing/campaigns', icon: asIconComponent(MegaphoneIcon) },
-      { name: 'Coupons', href: '/marketing/coupons', icon: asIconComponent(GiftIcon) },
-      { name: 'Loyalty Program', href: '/marketing/loyalty', icon: asIconComponent(StarIcon) },
-      { name: 'Push Notifications', href: '/marketing/push', icon: asIconComponent(BellIcon) },
     ]
   },
   {
@@ -117,36 +79,8 @@ const navigationCategories: NavigationCategory[] = [
       { name: 'Custom Reports', href: '/reports/custom', icon: asIconComponent(DocumentTextIcon) },
     ]
   },
-  {
-    name: 'Financial',
-    icon: asIconComponent(CurrencyDollarIcon),
-    items: [
-      { name: 'Payouts', href: '/payouts', icon: asIconComponent(CurrencyDollarIcon) },
-      { name: 'Transactions', href: '/financial/transactions', icon: asIconComponent(CreditCardIcon) },
-      { name: 'Revenue', href: '/financial/revenue', icon: asIconComponent(BanknotesIcon) },
-      { name: 'Commissions', href: '/financial/commissions', icon: asIconComponent(ChartPieIcon) },
-    ]
-  },
-  {
-    name: 'Logistics',
-    icon: asIconComponent(TruckIcon),
-    items: [
-      { name: 'Delivery Zones', href: '/logistics/zones', icon: asIconComponent(MapPinIcon) },
-      { name: 'Delivery Times', href: '/logistics/delivery-times', icon: asIconComponent(ClockIcon) },
-      { name: 'Fleet Management', href: '/logistics/fleet', icon: asIconComponent(TruckIcon) },
-    ]
-  },
-  {
-    name: 'System',
-    icon: asIconComponent(CogIcon),
-    items: [
-      { name: 'General Settings', href: '/settings', icon: asIconComponent(CogIcon) },
-      { name: 'API Configuration', href: '/settings/api', icon: asIconComponent(AdjustmentsHorizontalIcon) },
-      { name: 'Security', href: '/settings/security', icon: asIconComponent(ShieldCheckIcon) },
-      { name: 'Admin Accounts', href: '/settings/admin-accounts', icon: asIconComponent(UserCircleIcon) },
-      { name: 'Access Keys', href: '/settings/access-keys', icon: asIconComponent(KeyIcon) },
-    ]
-  }
+
+
 ];
 
 interface AdminSidebarProps {

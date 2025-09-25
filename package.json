@@ -71,25 +71,6 @@
   },
   "packageManager": "pnpm@9.12.3",
   "pnpm": {
-    "shamefullyHoist": true,
-    "hoistPattern": [
-      "*"
-    ],
-    "publicHoistPattern": [
-      "*expo*",
-      "*react-native*",
-      "*@babel*",
-      "*metro*",
-      "*expo-modules-core*",
-      "scheduler",
-      "color-string",
-      "color",
-      "color-convert",
-      "color-name",
-      "simple-swizzle",
-      "hoist-non-react-statics",
-      "@babel/runtime"
-    ],
     "overrides": {
       "@react-native-async-storage/async-storage": "2.1.2",
       "@types/react": "~19.0.10",
@@ -102,26 +83,16 @@
       "ignoreMissing": [
         "@react-native-async-storage/async-storage"
       ]
-    }
+    },
+    "onlyBuiltDependencies": [
+      "sharp",
+      "esbuild",
+      "unrs-resolver"
+    ]
   },
   "engines": {
     "node": "18.x || 20.x || 22.x",
     "npm": ">=8.0.0",
     "pnpm": ">=9.0.0"
-  },
-  "dependencies": {
-    "@babel/runtime": "^7.27.6",
-    "@headlessui/react": "^2.2.4",
-    "color": "^4.2.3",
-    "color-convert": "^3.1.0",
-    "color-name": "^2.0.0",
-    "color-string": "^1.9.1",
-    "hoist-non-react-statics": "^3.3.2",
-    "nativewind": "2.0.11",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "redux-persist": "^6.0.0",
-    "scheduler": "^0.25.0",
-    "simple-swizzle": "^0.2.2"
   }
 }

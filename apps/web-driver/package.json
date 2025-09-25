@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "@tap2go/firebase-config": "workspace:*",
     "@tap2go/database": "workspace:*",
     "@tap2go/shared-types": "workspace:*",
     "@tap2go/shared-auth": "workspace:*",

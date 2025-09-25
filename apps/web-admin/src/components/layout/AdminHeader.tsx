@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAdminAuth } from '@/contexts/AuthContext';
+
 import {
   Bell,
   Search,
@@ -28,14 +28,13 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ onMenuToggle, isMobileMenuOpen }: AdminHeaderProps) {
-  const { user: _user, demoLogout } = useAdminAuth();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleDemoLogout = async () => {
     try {
-      await demoLogout();
-      // Navigation handled by demoLogout function
+      // Demo logout - redirect to login page
+      router.push('/login');
     } catch (error) {
       console.error('Demo logout error:', error);
       // Fallback navigation

@@ -52,7 +52,6 @@ COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/business-logic/package.json ./packages/business-logic/
 COPY packages/config/package.json ./packages/config/
 COPY packages/database/package.json ./packages/database/
-COPY packages/firebase-config/package.json ./packages/firebase-config/
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/shared-ui/package.json ./packages/shared-ui/
 COPY packages/shared-utils/package.json ./packages/shared-utils/
