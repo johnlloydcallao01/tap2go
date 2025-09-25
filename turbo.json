@@ -23,6 +23,8 @@
         "PAYLOAD_SECRET"
       ],
       "passThroughEnv": [
+        "NODE_VERSION",
+        "NEXT_TELEMETRY_DISABLED",
         "DATABASE_URI",
         "PAYLOAD_SECRET"
       ]

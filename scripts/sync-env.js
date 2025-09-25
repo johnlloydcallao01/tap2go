@@ -59,8 +59,8 @@ class EnvSynchronizer {
     }
 
     if (!fs.existsSync(this.rootEnvFile)) {
-      this.log('Root .env.local file not found!', 'error');
-      this.log('Please create .env.local in the root directory', 'error');
+      this.log('Root .env.local file not found - skipping sync for monorepo setup', 'warning');
+      this.log('Each app should manage its own environment variables', 'info');
       return false;
     }
     return true;
@@ -155,7 +155,8 @@ class EnvSynchronizer {
     // Check if root .env.local exists or if we're in EAS Build
     const envCheck = this.checkRootEnvFile();
     if (envCheck === false) {
-      process.exit(1);
+      this.log('✅ Monorepo setup - each app manages its own environment', 'success');
+      return;
     }
 
     // If we're in EAS Build, skip the sync process
