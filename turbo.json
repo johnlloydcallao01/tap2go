@@ -3,6 +3,7 @@
   "ui": "tui",
   "globalEnv": [
     "NODE_ENV",
+    "NODE_VERSION",
     "JWT_SECRET",
     "NEXT_TELEMETRY_DISABLED"
   ],
