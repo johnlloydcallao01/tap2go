@@ -396,3 +396,70 @@ export type NavigationCategory = {
 
 // Type assertion helper for any icon component
 export const asIconComponent = (icon: any): IconComponent => icon as IconComponent;
+
+// Media API Types - PayloadCMS Integration
+export interface MediaFile {
+  id: number;
+  alt?: string;
+  caption?: string;
+  cloudinaryPublicId?: string;
+  cloudinaryURL?: string;
+  url?: string;
+  thumbnailURL?: string;
+  filename?: string;
+  mimeType?: string;
+  filesize?: number;
+  width?: number;
+  height?: number;
+  focalX?: number;
+  focalY?: number;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface MediaFolder {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  parent_id?: number;
+  file_count: number;
+  total_size: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaUploadResponse {
+  doc: MediaFile;
+  message: string;
+}
+
+export interface MediaListResponse {
+  docs: MediaFile[];
+  totalDocs: number;
+  limit: number;
+  totalPages: number;
+  page: number;
+  pagingCounter: number;
+  hasPrevPage: boolean;
+  hasNextPage: boolean;
+  prevPage?: number;
+  nextPage?: number;
+}
+
+// Media API utility functions
+export const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+export const getFileType = (mimeType: string): 'image' | 'video' | 'document' => {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  return 'document';
+};

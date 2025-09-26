@@ -38,12 +38,6 @@
     },
     {
       "path": "./packages/config"
-    },
-    {
-      "path": "./packages/shared-auth"
-    },
-    {
-      "path": "./packages/shared-auth"
     }
   ],
   "files": [],

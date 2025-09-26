@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import ImageViewModal from '@/components/media/ImageViewModal';
 import MediaEditModal from '@/components/media/MediaEditModal';
-import { mediaAPI, MediaFile, formatFileSize } from '@/lib/api/media';
+import { mediaAPI, MediaFile, formatFileSize } from '@tap2go/shared-types';
 import {
   PhotoIcon,
   FolderIcon,

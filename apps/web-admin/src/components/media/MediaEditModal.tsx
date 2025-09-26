@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { MediaFile, mediaAPI } from '@/lib/api/media';
+import { MediaFile, mediaAPI } from '@tap2go/shared-types';
 
 interface MediaEditModalProps {
   isOpen: boolean;
