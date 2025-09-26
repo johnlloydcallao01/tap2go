@@ -7,8 +7,11 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@tap2go/shared-auth';
-import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   UserIcon,
   KeyIcon,
@@ -24,133 +27,68 @@ interface SignupFormProps {
 
 export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
   const router = useRouter();
-  const { signUp, loading, authError, clearError } = useDriverAuth();
-
-  // Form configuration using shared hook
-  const formConfig: AuthFormConfig = {
-    fields: [
-      {
-        name: 'firstName',
-        label: 'First Name',
-        type: 'text',
-        placeholder: 'First name',
-        autoComplete: 'given-name',
-        validation: {
-          required: true,
-          name: {
-            minLength: 2,
-            maxLength: 50,
-            allowSpaces: false,
-          },
-        },
-      },
-      {
-        name: 'lastName',
-        label: 'Last Name',
-        type: 'text',
-        placeholder: 'Last name',
-        autoComplete: 'family-name',
-        validation: {
-          required: true,
-          name: {
-            minLength: 2,
-            maxLength: 50,
-            allowSpaces: false,
-          },
-        },
-      },
-      {
-        name: 'email',
-        label: 'Email Address',
-        type: 'email',
-        placeholder: 'Enter your email address',
-        autoComplete: 'email',
-        validation: {
-          required: true,
-          email: true,
-        },
-      },
-      {
-        name: 'password',
-        label: 'Password',
-        type: 'password',
-        placeholder: 'Create a strong password',
-        autoComplete: 'new-password',
-        validation: {
-          required: true,
-          password: {
-            minLength: 8,
-            requireUppercase: true,
-            requireLowercase: true,
-            requireNumber: true,
-          },
-        },
-      },
-      {
-        name: 'confirmPassword',
-        label: 'Confirm Password',
-        type: 'password',
-        placeholder: 'Confirm your password',
-        autoComplete: 'new-password',
-        validation: {
-          required: true,
-        },
-      },
-    ],
-    submitButtonText: 'Create Driver Account',
-    loadingText: 'Creating Account...',
-  };
-
-  const {
-    formData,
-    errors,
-    isSubmitting,
-    handleInputChange,
-    handleSubmit,
-    setFieldError,
-    clearFieldError,
-  } = useAuthForm(formConfig);
-
-  // Additional state for terms and conditions and password visibility
-  const [acceptedTerms, setAcceptedTerms] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [formData, setFormData] = React.useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    phone: ''
+  });
+  const [errors, setErrors] = React.useState<{[key: string]: string}>({});
   const [showPassword, setShowPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
 
-  // Handle form submission
-  const onSubmit = async (data: { [key: string]: string }) => {
-    // Validate password confirmation
-    if (data.password !== data.confirmPassword) {
-      setFieldError('confirmPassword', 'Passwords do not match');
-      return;
+  // Handle input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
-
-    // Validate terms acceptance
-    if (!acceptedTerms) {
-      setFieldError('terms', 'You must accept the terms and conditions');
-      return;
-    }
-
-    try {
-      await signUp(
-        data.email.trim(),
-        data.password,
-        data.firstName.trim(),
-        data.lastName.trim()
-      );
-      // Redirect will be handled by auth context or route protection
-      router.push('/dashboard');
-    } catch (error) {
-      // Error is handled by auth context
-      console.error('Signup error:', error);
+    if (authError) {
+      setAuthError(null);
     }
   };
 
-  // Clear auth error when form data changes
-  React.useEffect(() => {
-    if (authError) {
-      clearError();
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Basic validation
+    const newErrors: {[key: string]: string} = {};
+    if (!formData.firstName) newErrors.firstName = 'First name is required';
+    if (!formData.lastName) newErrors.lastName = 'Last name is required';
+    if (!formData.email) newErrors.email = 'Email is required';
+    if (!formData.password) newErrors.password = 'Password is required';
+    if (!formData.confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
+    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
     }
-  }, [formData, authError, clearError]);
+
+    setLoading(true);
+    try {
+      // TODO: Implement actual registration
+      // await signUp(formData);
+      // Simulate signup delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      router.push('/dashboard');
+    } catch (error) {
+      // Handle error
+      console.error('Signup error:', error);
+      setAuthError('Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Additional state for terms and conditions
+  const [acceptedTerms, setAcceptedTerms] = React.useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900">
@@ -233,7 +171,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                 <p className="text-slate-300">Create your driver account</p>
               </div>
 
-              <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Global Error Message */}
                 {authError && (
                   <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 backdrop-blur-sm">
@@ -251,7 +189,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                       </div>
                       <button
                         type="button"
-                        onClick={clearError}
+                        onClick={() => setAuthError(null)}
                         className="ml-auto text-red-400 hover:text-red-300 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -456,10 +394,10 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting || loading}
+                  disabled={loading}
                   className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
-                  {isSubmitting || loading ? (
+                  {loading ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

@@ -20,26 +20,7 @@
     "noEmit": true,
     "jsx": "preserve"
   },
-  "references": [
-    {
-      "path": "./packages/shared-types"
-    },
-    {
-      "path": "./packages/shared-ui"
-    },
-    {
-      "path": "./packages/database"
-    },
-    {
-      "path": "./packages/api-client"
-    },
-    {
-      "path": "./packages/business-logic"
-    },
-    {
-      "path": "./packages/config"
-    }
-  ],
+  "references": [],
   "files": [],
   "include": [],
   "extends": "expo/tsconfig.base"

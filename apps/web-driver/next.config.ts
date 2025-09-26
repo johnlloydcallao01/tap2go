@@ -7,12 +7,7 @@ const nextConfig: NextConfig = {
   },
   // Standalone output for better deployment (outputs to .next/standalone)
   output: 'standalone',
-  transpilePackages: [
-    '@tap2go/database',
-    '@tap2go/shared-types',
-    '@tap2go/shared-ui',
-    '@tap2go/shared-utils'
-  ],
+  transpilePackages: [],
   experimental: {
     // Enable experimental features for better monorepo support
     externalDir: true,

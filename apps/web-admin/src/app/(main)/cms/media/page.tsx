@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import ImageViewModal from '@/components/media/ImageViewModal';
 import MediaEditModal from '@/components/media/MediaEditModal';
-import { mediaAPI, MediaFile, formatFileSize } from '@tap2go/shared-types';
 import {
   PhotoIcon,
   FolderIcon,
@@ -25,7 +24,24 @@ import {
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
-// MediaFile interface is now imported from the API client
+// MediaFile interface definition
+interface MediaFile {
+  id: string;
+  filename: string;
+  url?: string;
+  size?: number;
+  type?: string;
+  createdAt?: string;
+  alt?: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+  filesize?: number;
+  width?: number;
+  height?: number;
+  caption?: string;
+  thumbnailURL?: string;
+}
 
 interface Folder {
   id: number;
@@ -42,8 +58,8 @@ export default function MediaLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<number | 'all'>('all');
   const [selectedType, setSelectedType] = useState('all');
-  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
-  const [hoveredFile, setHoveredFile] = useState<number | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [hoveredFile, setHoveredFile] = useState<string | null>(null);
   const [showImageViewModal, setShowImageViewModal] = useState(false);
   const [viewingFile, setViewingFile] = useState<MediaFile | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -56,16 +72,17 @@ export default function MediaLibrary() {
         setLoading(true);
         setError(null);
 
-        // Load media files from CMS API
-        const mediaResponse = await mediaAPI.getMediaFiles({ limit: 100 });
-        setMediaFiles(mediaResponse.docs);
+        // TODO: Implement media loading from CMS
+        // const mediaResponse = await fetch('/api/media');
+        // const mediaData = await mediaResponse.json();
+        setMediaFiles([]);
 
-        // For now, we'll use mock folders since PayloadCMS doesn't have folder structure by default
+        // Mock folders for now
         const mockFolders: Folder[] = [
-          { id: 1, name: 'All Files', file_count: mediaResponse.totalDocs },
-          { id: 2, name: 'Images', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('image/')).length },
-          { id: 3, name: 'Videos', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('video/')).length },
-          { id: 4, name: 'Documents', file_count: mediaResponse.docs.filter(f => f.mimeType && !f.mimeType.startsWith('image/') && !f.mimeType.startsWith('video/')).length },
+          { id: 1, name: 'All Files', file_count: 0 },
+          { id: 2, name: 'Images', file_count: 0 },
+          { id: 3, name: 'Videos', file_count: 0 },
+          { id: 4, name: 'Documents', file_count: 0 },
         ];
         setFolders(mockFolders);
 
@@ -95,7 +112,7 @@ export default function MediaLibrary() {
     return matchesSearch && matchesFolder && matchesType;
   });
 
-  const handleSelectFile = (fileId: number) => {
+  const handleSelectFile = (fileId: string) => {
     setSelectedFiles(prev =>
       prev.includes(fileId)
         ? prev.filter(id => id !== fileId)
@@ -146,30 +163,32 @@ export default function MediaLibrary() {
         try {
           // Create temporary file object for immediate UI feedback
           const tempFile: MediaFile = {
-            id: Date.now() + Math.random(), // Temporary ID
+            id: `temp_${Date.now()}_${Math.random()}`, // Temporary ID as string
             filename: file.name,
             mimeType: file.type,
             filesize: file.size,
             url: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined, // Only create preview for images
             alt: '',
             caption: `Uploading...`,
-            updatedAt: new Date().toISOString(),
             createdAt: new Date().toISOString(),
           };
 
           // Add to UI immediately with uploading state
           setMediaFiles(prev => [tempFile, ...prev]);
 
-          // Upload the actual file
-          const metadata = {
-            caption: `Uploaded on ${new Date().toLocaleDateString()}`,
-          };
-          const uploadedFile = await mediaAPI.uploadFile(file, metadata);
+          // TODO: Implement actual file upload
+          // const metadata = {
+          //   caption: `Uploaded on ${new Date().toLocaleDateString()}`,
+          // };
+          // const uploadedFile = await fetch('/api/media/upload', {
+          //   method: 'POST',
+          //   body: formData
+          // });
 
-          // Replace temporary file with actual uploaded file
-          setMediaFiles(prev =>
-            prev.map(f => f.id === tempFile.id ? uploadedFile : f)
-          );
+          // For now, just keep the temporary file
+          // setMediaFiles(prev =>
+          //   prev.map(f => f.id === tempFile.id ? uploadedFile : f)
+          // );
 
           // Clean up temporary URL if it exists
           if (tempFile.url) {
@@ -215,7 +234,7 @@ export default function MediaLibrary() {
           handleImageView(file);
         } else {
           // For non-images, just show a simple alert for now
-          alert(`Viewing ${file.filename}\nType: ${file.mimeType}\nSize: ${formatFileSize(file.filesize || 0)}`);
+          alert(`Viewing ${file.filename}\nType: ${file.mimeType}\nSize: ${file.filesize || 0} bytes`);
         }
         break;
       case 'copy':
@@ -233,14 +252,14 @@ export default function MediaLibrary() {
             // Optimistically remove from UI first
             setMediaFiles(prev => prev.filter(f => f.id !== file.id));
 
-            // Then delete from server
-            await mediaAPI.deleteMediaFile(file.id);
+            // TODO: Implement actual delete API call
+            // await fetch(`/api/media/${file.id}`, { method: 'DELETE' });
           } catch (error) {
             console.error('Delete failed:', error);
             setError(error instanceof Error ? error.message : 'Failed to delete file');
 
             // Restore file to UI if deletion failed
-            setMediaFiles(prev => [...prev, file].sort((a, b) => b.id - a.id));
+            setMediaFiles(prev => [...prev, file].sort((a, b) => a.filename.localeCompare(b.filename)));
           }
         }
         break;
@@ -274,7 +293,8 @@ export default function MediaLibrary() {
         // Delete files one by one to handle individual errors
         for (const fileId of selectedFiles) {
           try {
-            await mediaAPI.deleteMediaFile(fileId);
+            // TODO: Implement actual delete API call
+            // await fetch(`/api/media/${fileId}`, { method: 'DELETE' });
           } catch (error) {
             const file = filesToDelete.find(f => f.id === fileId);
             if (file) {
@@ -286,7 +306,7 @@ export default function MediaLibrary() {
 
         // Restore failed files to UI
         if (failedFiles.length > 0) {
-          setMediaFiles(prev => [...failedFiles, ...prev].sort((a, b) => b.id - a.id));
+          setMediaFiles(prev => [...failedFiles, ...prev].sort((a, b) => a.filename.localeCompare(b.filename)));
         }
 
         // Show errors if any
@@ -305,15 +325,20 @@ export default function MediaLibrary() {
       setLoading(true);
       setError(null);
 
-      const mediaResponse = await mediaAPI.getMediaFiles({ limit: 100 });
-      setMediaFiles(mediaResponse.docs);
+      // TODO: Implement actual API call
+      // const mediaResponse = await fetch('/api/media');
+      // const data = await mediaResponse.json();
+      // setMediaFiles(data.docs);
 
-      // Update folder counts
+      // For now, just use empty array
+      setMediaFiles([]);
+
+      // Update folder counts with zeros
       const mockFolders: Folder[] = [
-        { id: 1, name: 'All Files', file_count: mediaResponse.totalDocs },
-        { id: 2, name: 'Images', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('image/')).length },
-        { id: 3, name: 'Videos', file_count: mediaResponse.docs.filter(f => f.mimeType?.startsWith('video/')).length },
-        { id: 4, name: 'Documents', file_count: mediaResponse.docs.filter(f => f.mimeType && !f.mimeType.startsWith('image/') && !f.mimeType.startsWith('video/')).length },
+        { id: 1, name: 'All Files', file_count: 0 },
+        { id: 2, name: 'Images', file_count: 0 },
+        { id: 3, name: 'Videos', file_count: 0 },
+        { id: 4, name: 'Documents', file_count: 0 },
       ];
       setFolders(mockFolders);
     } catch (error) {
@@ -323,8 +348,6 @@ export default function MediaLibrary() {
       setLoading(false);
     }
   };
-
-  // formatFileSize is imported from the API client
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
@@ -616,7 +639,7 @@ export default function MediaLibrary() {
                         })()}
                         <div className="ml-2 text-center">
                           <p className="text-sm font-medium text-gray-900 truncate">{file.filename}</p>
-                          <p className="text-xs text-gray-500">{formatFileSize(file.filesize || 0)}</p>
+                          <p className="text-xs text-gray-500">{file.filesize || 0} bytes</p>
                         </div>
                       </div>
                     )}
@@ -663,12 +686,12 @@ export default function MediaLibrary() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{file.filename}</p>
                         <div className="flex items-center space-x-4 text-xs text-gray-500">
-                          <span>{formatFileSize(file.filesize || 0)}</span>
+                          <span>{file.filesize || 0} bytes</span>
                           {file.width && file.height && (
                             <span>{file.width}×{file.height}</span>
                           )}
                           <span>All Files</span>
-                          <span>{formatDate(file.createdAt)}</span>
+                          <span>{file.createdAt ? formatDate(file.createdAt) : 'Unknown'}</span>
                         </div>
                       </div>
 

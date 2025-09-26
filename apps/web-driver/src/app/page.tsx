@@ -2,25 +2,17 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@tap2go/shared-auth';
 
 export default function Home() {
   const router = useRouter();
-  const { user, loading, isInitialized } = useDriverAuth();
 
   useEffect(() => {
-    if (isInitialized && !loading) {
-      if (user) {
-        // User is authenticated, redirect to dashboard
-        router.replace('/dashboard');
-      } else {
-        // User is not authenticated, redirect to auth page
-        router.replace('/auth');
-      }
-    }
-  }, [user, loading, isInitialized, router]);
+    // TODO: Implement actual auth check
+    // For now, always redirect to auth page
+    router.replace('/auth');
+  }, [router]);
 
-  // Show loading state while checking auth and redirecting
+  // Show loading state while redirecting
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="text-center">

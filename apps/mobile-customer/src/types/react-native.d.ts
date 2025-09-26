@@ -87,15 +87,6 @@ declare module 'react-native-maps' {
   export default MapView;
 }
 
-// Shared types compatibility
-declare module 'shared-types' {
-  export * from '../../../packages/shared-types/src/index';
-}
-
-declare module 'shared-ui' {
-  export * from '../../../packages/shared-ui/src/index';
-}
-
 // React Navigation types
 declare module '@react-navigation/native' {
   export function useNavigation(): any;

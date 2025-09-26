@@ -7,8 +7,11 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@tap2go/shared-auth';
-import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   UserIcon,
   KeyIcon,
@@ -23,69 +26,57 @@ interface LoginFormProps {
 
 export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
   const router = useRouter();
-  const { signIn, loading, authError, clearError } = useDriverAuth();
-
-  // Form configuration using shared hook
-  const formConfig: AuthFormConfig = {
-    fields: [
-      {
-        name: 'email',
-        label: 'Email Address',
-        type: 'email',
-        placeholder: 'Enter your email address',
-        autoComplete: 'email',
-        validation: {
-          required: true,
-          email: true,
-        },
-      },
-      {
-        name: 'password',
-        label: 'Password',
-        type: 'password',
-        placeholder: 'Enter your password',
-        autoComplete: 'current-password',
-        validation: {
-          required: true,
-          password: {
-            minLength: 6,
-          },
-        },
-      },
-    ],
-    submitButtonText: 'Sign In to Dashboard',
-    loadingText: 'Signing In...',
-  };
-
-  const {
-    formData,
-    errors,
-    isSubmitting,
-    handleInputChange,
-    handleSubmit,
-  } = useAuthForm(formConfig);
-
-  // Additional state for password visibility
+  const [loading, setLoading] = React.useState(false);
+  const [formData, setFormData] = React.useState({
+    email: '',
+    password: ''
+  });
+  const [errors, setErrors] = React.useState<{[key: string]: string}>({});
   const [showPassword, setShowPassword] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+
+  // Handle input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    if (authError) {
+      setAuthError(null);
+    }
+  };
 
   // Handle form submission
-  const onSubmit = async (data: { [key: string]: string }) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Basic validation
+    const newErrors: {[key: string]: string} = {};
+    if (!formData.email) newErrors.email = 'Email is required';
+    if (!formData.password) newErrors.password = 'Password is required';
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setLoading(true);
     try {
-      await signIn(data.email, data.password);
-      // Redirect will be handled by auth context or route protection
+      // TODO: Implement actual authentication
+      // await signIn(formData.email, formData.password);
+      // Simulate login delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
       router.push('/dashboard');
     } catch (error) {
-      // Error is handled by auth context
+      // Handle error
       console.error('Login error:', error);
+      setAuthError('Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
-
-  // Clear auth error when form data changes
-  React.useEffect(() => {
-    if (authError) {
-      clearError();
-    }
-  }, [formData, authError, clearError]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900">
@@ -168,7 +159,7 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                 <p className="text-slate-300">Sign in to your driver dashboard</p>
               </div>
 
-              <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Global Error Message */}
                 {authError && (
                   <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 backdrop-blur-sm">
@@ -186,7 +177,7 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                       </div>
                       <button
                         type="button"
-                        onClick={clearError}
+                        onClick={() => setAuthError(null)}
                         className="ml-auto text-red-400 hover:text-red-300 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -263,10 +254,10 @@ export default function LoginForm({ onSwitchToSignup }: LoginFormProps) {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting || loading}
+                  disabled={loading}
                   className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
-                  {isSubmitting || loading ? (
+                  {loading ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

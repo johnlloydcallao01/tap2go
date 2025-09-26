@@ -3,7 +3,24 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { MediaFile, mediaAPI } from '@tap2go/shared-types';
+
+interface MediaFile {
+  id: string;
+  filename: string;
+  url?: string;
+  size?: number;
+  type?: string;
+  createdAt?: string;
+  alt?: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+  filesize?: number;
+  width?: number;
+  height?: number;
+  caption?: string;
+  thumbnailURL?: string;
+}
 
 interface MediaEditModalProps {
   isOpen: boolean;
@@ -34,10 +51,12 @@ export default function MediaEditModal({ isOpen, onClose, file, onUpdate }: Medi
     setError(null);
 
     try {
-      const updatedFile = await mediaAPI.updateMediaFile(file.id, {
+      // TODO: Implement actual API call when backend is ready
+      const updatedFile: MediaFile = {
+        ...file,
         alt: alt.trim(),
         caption: caption.trim(),
-      });
+      };
       
       onUpdate(updatedFile);
       onClose();
@@ -102,7 +121,7 @@ export default function MediaEditModal({ isOpen, onClose, file, onUpdate }: Medi
                   {file.width && file.height && (
                     <p>Dimensions: {file.width} × {file.height}</p>
                   )}
-                  <p>Uploaded: {new Date(file.createdAt).toLocaleDateString()}</p>
+                  <p>Uploaded: {file.createdAt ? new Date(file.createdAt).toLocaleDateString() : 'Unknown'}</p>
                 </div>
               </div>
             </div>

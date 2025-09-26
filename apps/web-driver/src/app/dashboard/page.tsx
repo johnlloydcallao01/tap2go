@@ -6,7 +6,9 @@
  */
 
 import React from 'react';
-import { useDriverAuth } from '@tap2go/shared-auth';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import {
   TruckIcon,
@@ -15,11 +17,14 @@ import {
 } from '@heroicons/react/24/outline';
 
 function DashboardContent() {
-  const { user, signOut } = useDriverAuth();
+  const router = useRouter();
+  const [user, setUser] = React.useState<any>({ firstName: 'John', lastName: 'Doe' });
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      // TODO: Implement actual sign out
+      // await signOut();
+      router.push('/auth');
     } catch (error) {
       console.error('Sign out error:', error);
     }

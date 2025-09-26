@@ -46,13 +46,9 @@
     "@types/react-dom": "^19.1.0",
     "@types/ws": "^8.18.1",
     "@upstash/redis": "^1.35.0",
-    "@tap2go/api-client": "workspace:*",
     "axios": "^1.9.0",
-    "@tap2go/business-logic": "workspace:*",
     "cloudinary": "^2.6.1",
-    "@tap2go/config": "workspace:*",
     "crypto-js": "^4.2.0",
-    "@tap2go/database": "workspace:*",
     "dotenv": "^16.5.0",
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.2",
@@ -69,9 +65,6 @@
     "redux-persist": "^6.0.0",
     "reselect": "^5.1.1",
     "resend": "^4.5.2",
-    "@tap2go/shared-types": "workspace:*",
-    "@tap2go/shared-ui": "workspace:*",
-    "@tap2go/shared-utils": "workspace:*",
     "ws": "^8.18.2"
   },
   "devDependencies": {

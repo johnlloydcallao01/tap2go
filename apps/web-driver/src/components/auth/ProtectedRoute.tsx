@@ -7,7 +7,6 @@
 
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@tap2go/shared-auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -16,17 +15,23 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   const router = useRouter();
-  const { user, loading, isInitialized, authError } = useDriverAuth();
+  const [loading, setLoading] = React.useState(true);
+  const [user, setUser] = React.useState<any>(null);
 
   useEffect(() => {
-    // Only redirect after auth is initialized
-    if (isInitialized && !user && !loading) {
+    // TODO: Implement actual auth check
+    // For now, simulate loading and redirect to auth
+    const timer = setTimeout(() => {
+      setLoading(false);
+      // Simulate no user - redirect to auth
       router.push('/auth');
-    }
-  }, [user, loading, isInitialized, router]);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [router]);
 
   // Show loading while checking auth state
-  if (!isInitialized || loading) {
+  if (loading) {
     return fallback || (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -37,18 +42,17 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
     );
   }
 
-  // Show error state if there's an auth error
-  if (authError && !user) {
+  // If no user, redirect to auth (handled in useEffect)
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-red-800 mb-2">
-              Authentication Error
-            </h2>
-            <p className="text-red-700 mb-4">{authError}</p>
-            <button
-              onClick={() => router.push('/auth')}
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
             >
               Go to Sign In

@@ -48,14 +48,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Copy all package.json files to establish workspace structure
 # This creates the optimal caching layer for dependencies
-COPY packages/api-client/package.json ./packages/api-client/
-COPY packages/business-logic/package.json ./packages/business-logic/
-COPY packages/config/package.json ./packages/config/
-COPY packages/database/package.json ./packages/database/
-COPY packages/shared-types/package.json ./packages/shared-types/
-COPY packages/shared-ui/package.json ./packages/shared-ui/
-COPY packages/shared-utils/package.json ./packages/shared-utils/
-
 COPY apps/web/package.json ./apps/web/
 COPY apps/mobile/package.json ./apps/mobile/
 COPY functions/package.json ./functions/

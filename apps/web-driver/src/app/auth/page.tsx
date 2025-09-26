@@ -7,7 +7,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDriverAuth } from '@tap2go/shared-auth';
 import LoginForm from '@/components/auth/LoginForm';
 import SignupForm from '@/components/auth/SignupForm';
 
@@ -15,18 +14,25 @@ type AuthMode = 'login' | 'signup';
 
 export default function AuthPage() {
   const router = useRouter();
-  const { user, loading, isInitialized } = useDriverAuth();
+  const [loading, setLoading] = React.useState(true);
+  const [user, setUser] = React.useState<any>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
 
-  // Redirect if already authenticated
+  // Check auth state
   useEffect(() => {
-    if (isInitialized && user) {
-      router.push('/dashboard');
-    }
-  }, [user, isInitialized, router]);
+    // TODO: Implement actual auth check
+    // For now, simulate loading and no user
+    const timer = setTimeout(() => {
+      setLoading(false);
+      // If user exists, redirect to dashboard
+      // if (user) router.push('/dashboard');
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [router]);
 
   // Show loading while checking auth state
-  if (!isInitialized || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">

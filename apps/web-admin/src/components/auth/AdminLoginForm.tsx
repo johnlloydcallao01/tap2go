@@ -7,7 +7,6 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthForm, type AuthFormConfig } from '@tap2go/shared-ui';
 import {
   UserIcon,
   KeyIcon,
@@ -21,53 +20,36 @@ interface AdminLoginFormProps {
 export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps) {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
+  const [formData, setFormData] = React.useState({
+    email: '',
+    password: ''
+  });
+  const [errors, setErrors] = React.useState<{[key: string]: string}>({});
 
-
-
-
-
-  // Form configuration
-  const formConfig: AuthFormConfig = {
-    fields: [
-      {
-        name: 'email',
-        label: 'Email Address',
-        type: 'email',
-        placeholder: 'Enter your admin email',
-        autoComplete: 'email',
-        validation: {
-          required: true,
-          email: true,
-        },
-      },
-      {
-        name: 'password',
-        label: 'Password',
-        type: 'password',
-        placeholder: 'Enter your password',
-        autoComplete: 'current-password',
-        validation: {
-          required: true,
-          password: {
-            minLength: 6,
-          },
-        },
-      },
-    ],
-    submitButtonText: 'Sign In to Admin Panel',
-    loadingText: 'Signing in...',
+  // Handle input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
-  const {
-    formData,
-    errors,
-    isSubmitting,
-    handleInputChange,
-    handleSubmit,
-  } = useAuthForm(formConfig);
-
   // Handle form submission
-  const onSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Basic validation
+    const newErrors: {[key: string]: string} = {};
+    if (!formData.email) newErrors.email = 'Email is required';
+    if (!formData.password) newErrors.password = 'Password is required';
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     setLoading(true);
     // Simulate login delay
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -157,7 +139,7 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
 
 
 
-              <form onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
 
                 {/* Email Field */}
                 <div>
@@ -214,10 +196,10 @@ export default function AdminLoginForm({ onSwitchToSignup }: AdminLoginFormProps
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={loading || isSubmitting}
+                  disabled={loading}
                   className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
-                  {loading || isSubmitting ? (
+                  {loading ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
