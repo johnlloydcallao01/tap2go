@@ -2,9 +2,9 @@
   "version": 2,
   "framework": "nextjs",
   "buildCommand": "turbo run build",
-  "installCommand": "corepack enable && corepack prepare pnpm@9.12.3 --activate && pnpm install",
+  "installCommand": "npm install -g pnpm@9.12.3 && hash -r && pnpm install",
   "env": {
-    "NODE_VERSION": "20",
+    "NODE_VERSION": "18",
     "PNPM_VERSION": "9.12.3",
     "NEXT_TELEMETRY_DISABLED": "1",
     "COREPACK_ENABLE_STRICT": "0"
