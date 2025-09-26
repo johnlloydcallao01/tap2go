@@ -4,7 +4,7 @@
 
   "env": {
     "VERCEL": "1",
-    "NODE_VERSION": "18",
+    "NODE_VERSION": "22",
     "PNPM_VERSION": "9.12.3",
     "COREPACK_ENABLE_STRICT": "0"
   },
@@ -13,7 +13,7 @@
       "VERCEL": "1",
       "NEXT_TELEMETRY_DISABLED": "1",
       "COREPACK_ENABLE_STRICT": "0",
-      "NODE_VERSION": "18",
+      "NODE_VERSION": "22",
       "PNPM_VERSION": "9.12.3"
     }
   },
