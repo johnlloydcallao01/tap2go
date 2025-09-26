@@ -2,7 +2,7 @@
   "version": 2,
   "framework": "nextjs",
   "buildCommand": "turbo run build",
-  "installCommand": "pnpm install",
+  "installCommand": "npm install -g pnpm@9.12.3 && pnpm install",
   "env": {
     "NODE_VERSION": "20",
     "PNPM_VERSION": "9.12.3",
