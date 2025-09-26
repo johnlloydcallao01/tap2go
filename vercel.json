@@ -4,7 +4,8 @@
 
   "env": {
     "VERCEL": "1",
-    "NODE_VERSION": "20"
+    "NODE_VERSION": "20",
+    "PNPM_VERSION": "9.12.3"
   },
   "build": {
     "env": {
