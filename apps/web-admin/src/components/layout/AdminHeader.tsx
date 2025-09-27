@@ -1,25 +1,18 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 import {
   Bell,
   Search,
   Settings,
-  User,
-  LogOut,
   Menu,
   X,
+  User,
+  LogOut,
+  UserCircle,
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@radix-ui/react-dropdown-menu';
+
 
 
 interface AdminHeaderProps {
@@ -28,19 +21,8 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ onMenuToggle, isMobileMenuOpen }: AdminHeaderProps) {
-  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-
-  const handleDemoLogout = async () => {
-    try {
-      // Demo logout - redirect to login page
-      router.push('/login');
-    } catch (error) {
-      console.error('Demo logout error:', error);
-      // Fallback navigation
-      router.push('/login');
-    }
-  };
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,11 +39,11 @@ export default function AdminHeader({ onMenuToggle, isMobileMenuOpen }: AdminHea
         <div className="flex items-center justify-between px-4 lg:px-6 w-64">
           {/* Logo and Tap2Go Admin */}
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">T2G</span>
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">T2G</span>
+              </div>
+              <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">Tap2Go Admin</span>
-          </div>
 
 
         </div>
@@ -112,31 +94,37 @@ export default function AdminHeader({ onMenuToggle, isMobileMenuOpen }: AdminHea
               <Settings className="h-6 w-6" />
             </button>
 
-            {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-                  <User className="h-5 w-5 text-white" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Admin Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Account Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleDemoLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* User Profile */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              >
+                <User className="h-5 w-5 text-white" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isProfileOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
+                  <div className="px-4 py-2 text-sm font-medium text-gray-900 border-b border-gray-100">
+                    My Account
+                  </div>
+                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                    <User className="mr-2 h-4 w-4" />
+                    Admin Profile
+                  </button>
+                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Account Settings
+                  </button>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
