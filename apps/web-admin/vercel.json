@@ -3,7 +3,6 @@
   "framework": "nextjs",
   "buildCommand": "cd ../.. && npx pnpm@9.12.3 run build --filter=web-admin",
   "installCommand": "cd ../.. && npx pnpm@9.12.3 install",
-  "rootDirectory": "apps/web-admin",
   "env": {
     "NODE_VERSION": "22",
     "PNPM_VERSION": "9.12.3",
