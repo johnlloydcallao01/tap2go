@@ -53,20 +53,6 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
       </div>
     );
   }
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
-            >
-              Go to Sign In
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render children if user is not authenticated
-  if (!user) {
-    return null;
-  }
 
   // Render children if user is authenticated
   return <>{children}</>;

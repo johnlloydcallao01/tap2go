@@ -68,8 +68,17 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
+    instructors: Instructor;
+    trainees: Trainee;
+    admins: Admin;
+    'user-certifications': UserCertification;
+    'user-events': UserEvent;
+    'emergency-contacts': EmergencyContact;
     media: Media;
     posts: Post;
+    courses: Course;
+    'course-categories': CourseCategory;
+    'course-enrollments': CourseEnrollment;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -77,8 +86,17 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
+    instructors: InstructorsSelect<false> | InstructorsSelect<true>;
+    trainees: TraineesSelect<false> | TraineesSelect<true>;
+    admins: AdminsSelect<false> | AdminsSelect<true>;
+    'user-certifications': UserCertificationsSelect<false> | UserCertificationsSelect<true>;
+    'user-events': UserEventsSelect<false> | UserEventsSelect<true>;
+    'emergency-contacts': EmergencyContactsSelect<false> | EmergencyContactsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
+    courses: CoursesSelect<false> | CoursesSelect<true>;
+    'course-categories': CourseCategoriesSelect<false> | CourseCategoriesSelect<true>;
+    'course-enrollments': CourseEnrollmentsSelect<false> | CourseEnrollmentsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -116,29 +134,70 @@ export interface UserAuthOperations {
   };
 }
 /**
- * Manage all users in the Tap2Go platform (Admin, Driver, Vendor, Customer)
- *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
   id: number;
-  /**
-   * User role determines access permissions and features available
-   */
-  role: 'admin' | 'driver' | 'vendor' | 'customer';
   firstName: string;
   lastName: string;
   /**
-   * Inactive users cannot log in or use the platform
+   * Middle name (optional)
+   */
+  middleName?: string | null;
+  /**
+   * Name extension (e.g., Jr., Sr., III)
+   */
+  nameExtension?: string | null;
+  /**
+   * Unique username for login
+   */
+  username?: string | null;
+  /**
+   * Gender identity
+   */
+  gender?: ('male' | 'female' | 'other' | 'prefer_not_to_say') | null;
+  /**
+   * Civil status
+   */
+  civilStatus?: ('single' | 'married' | 'divorced' | 'widowed' | 'separated') | null;
+  /**
+   * Nationality
+   */
+  nationality?: string | null;
+  /**
+   * Date of birth
+   */
+  birthDate?: string | null;
+  /**
+   * Place of birth
+   */
+  placeOfBirth?: string | null;
+  /**
+   * Complete address
+   */
+  completeAddress?: string | null;
+  /**
+   * User role determines access permissions. Service accounts are for API key authentication.
+   */
+  role: 'admin' | 'instructor' | 'trainee' | 'service';
+  /**
+   * Inactive users cannot log in
    */
   isActive?: boolean | null;
   /**
-   * Verified status for users (used by admin interface)
+   * Last login timestamp
    */
-  isVerified?: boolean | null;
+  lastLogin?: string | null;
+  /**
+   * User profile picture
+   */
+  profilePicture?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
   email: string;
   resetPasswordToken?: string | null;
   resetPasswordExpiration?: string | null;
@@ -162,7 +221,6 @@ export interface User {
 export interface Media {
   id: number;
   alt?: string | null;
-  caption?: string | null;
   cloudinaryPublicId?: string | null;
   cloudinaryURL?: string | null;
   updatedAt: string;
@@ -179,14 +237,347 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instructors".
+ */
+export interface Instructor {
+  id: number;
+  /**
+   * Link to user account
+   */
+  user: number | User;
+  /**
+   * Teaching specialization or subject area
+   */
+  specialization: string;
+  /**
+   * Years of teaching experience
+   */
+  yearsExperience?: number | null;
+  /**
+   * Professional certifications and qualifications
+   */
+  certifications?: string | null;
+  /**
+   * Office hours schedule
+   */
+  officeHours?: string | null;
+  /**
+   * Professional contact email
+   */
+  contactEmail?: string | null;
+  /**
+   * Course management and teaching capabilities
+   */
+  teachingPermissions?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trainees".
+ */
+export interface Trainee {
+  id: number;
+  /**
+   * Link to user account
+   */
+  user: number | User;
+  /**
+   * Student Registration Number (unique identifier)
+   */
+  srn: string;
+  /**
+   * Marketing coupon code used during registration
+   */
+  couponCode?: string | null;
+  /**
+   * Date when trainee enrolled in the program
+   */
+  enrollmentDate?: string | null;
+  /**
+   * Current learning level
+   */
+  currentLevel?: ('beginner' | 'intermediate' | 'advanced') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "admins".
+ */
+export interface Admin {
+  id: number;
+  /**
+   * Link to user account
+   */
+  user: number | User;
+  /**
+   * Administrative access level
+   */
+  adminLevel: 'system' | 'department' | 'content';
+  /**
+   * System-level permissions and capabilities
+   */
+  systemPermissions?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "user-certifications".
+ */
+export interface UserCertification {
+  id: number;
+  /**
+   * User who holds this certification
+   */
+  user: number | User;
+  /**
+   * Name of the certification
+   */
+  certificationName: string;
+  /**
+   * Organization that issued the certification
+   */
+  issuingAuthority?: string | null;
+  /**
+   * Date when certification was issued
+   */
+  issueDate?: string | null;
+  /**
+   * Date when certification expires (if applicable)
+   */
+  expiryDate?: string | null;
+  /**
+   * URL to verify the certification
+   */
+  verificationUrl?: string | null;
+  /**
+   * Whether this certification is currently active/valid
+   */
+  isActive?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "user-events".
+ */
+export interface UserEvent {
+  id: number;
+  /**
+   * User this event relates to
+   */
+  user: number | User;
+  /**
+   * Type of event that occurred
+   */
+  eventType:
+    | 'USER_CREATED'
+    | 'ROLE_CHANGED'
+    | 'PROFILE_UPDATED'
+    | 'USER_DEACTIVATED'
+    | 'USER_REACTIVATED'
+    | 'LOGIN_SUCCESS'
+    | 'LOGIN_FAILED'
+    | 'PASSWORD_CHANGED';
+  /**
+   * Event-specific data and context
+   */
+  eventData:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * User who triggered this event (if applicable)
+   */
+  triggeredBy?: (number | null) | User;
+  /**
+   * When this event occurred
+   */
+  timestamp?: string | null;
+  /**
+   * IP address where event originated
+   */
+  ipAddress?: string | null;
+  /**
+   * User agent string from the request
+   */
+  userAgent?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emergency-contacts".
+ */
+export interface EmergencyContact {
+  id: number;
+  /**
+   * User this emergency contact belongs to
+   */
+  user: number | User;
+  /**
+   * Emergency contact first name
+   */
+  firstName: string;
+  /**
+   * Emergency contact middle name (optional)
+   */
+  middleName?: string | null;
+  /**
+   * Emergency contact last name
+   */
+  lastName: string;
+  /**
+   * Emergency contact phone number
+   */
+  contactNumber: string;
+  /**
+   * Relationship to the user
+   */
+  relationship: 'parent' | 'spouse' | 'sibling' | 'child' | 'guardian' | 'friend' | 'relative' | 'other';
+  /**
+   * Emergency contact complete address
+   */
+  completeAddress: string;
+  /**
+   * Mark as primary emergency contact
+   */
+  isPrimary?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts".
  */
 export interface Post {
   id: number;
+  /**
+   * The main title/heading for this content
+   */
   title: string;
+  /**
+   * URL-friendly version of the title (used in web addresses)
+   */
   slug: string;
+  /**
+   * Main content body with rich text formatting
+   */
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: string;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  /**
+   * Brief description for previews and SEO (recommended 150-160 characters)
+   */
   excerpt?: string | null;
-  content?: {
+  /**
+   * Main image displayed with this content
+   */
+  featuredImage?: (number | null) | Media;
+  /**
+   * Keywords and categories for organizing content
+   */
+  tags?:
+    | {
+        /**
+         * Tag name (e.g., "web development", "tutorial")
+         */
+        tag: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Publication status - only published content is visible to the public
+   */
+  status: 'draft' | 'published';
+  /**
+   * When this content was/will be published
+   */
+  publishedAt?: string | null;
+  /**
+   * The user who created this content
+   */
+  author: number | User;
+  /**
+   * Search engine optimization settings (all optional)
+   */
+  seo?: {
+    /**
+     * SEO title for search engines (leave empty to use main title) - Max 60 characters recommended
+     */
+    title?: string | null;
+    /**
+     * SEO description for search engines (leave empty to use excerpt) - Max 160 characters recommended
+     */
+    description?: string | null;
+    /**
+     * Primary keyword you want this content to rank for
+     */
+    focusKeyword?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * Manage courses, content, and learning paths
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "courses".
+ */
+export interface Course {
+  id: number;
+  /**
+   * The main title/heading for this content
+   */
+  title: string;
+  /**
+   * Unique course identifier (e.g., CS101, MATH201)
+   */
+  courseCode: string;
+  /**
+   * Brief description for previews and SEO (recommended 150-160 characters)
+   */
+  excerpt?: string | null;
+  /**
+   * Detailed course description with rich formatting
+   */
+  description?: {
     root: {
       type: string;
       children: {
@@ -201,7 +592,255 @@ export interface Post {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Primary instructor for this course
+   */
+  instructor: number | Instructor;
+  /**
+   * Additional instructors (optional)
+   */
+  coInstructors?: (number | Instructor)[] | null;
+  /**
+   * Course category for organization
+   */
+  category?: (number | null) | CourseCategory;
+  /**
+   * Course thumbnail image (original size from Cloudinary)
+   */
+  thumbnail?: (number | null) | Media;
+  /**
+   * Course banner image for course page header
+   */
+  bannerImage?: (number | null) | Media;
+  /**
+   * Course price (0 for free courses)
+   */
+  price?: number | null;
+  /**
+   * Discounted course price (leave empty if no discount applies)
+   */
+  discountedPrice?: number | null;
+  /**
+   * Maximum number of students (leave empty for unlimited)
+   */
+  maxStudents?: number | null;
+  /**
+   * When enrollment opens
+   */
+  enrollmentStartDate?: string | null;
+  /**
+   * When enrollment closes
+   */
+  enrollmentEndDate?: string | null;
+  /**
+   * When the course begins
+   */
+  courseStartDate?: string | null;
+  /**
+   * When the course ends
+   */
+  courseEndDate?: string | null;
+  /**
+   * Estimated course duration in hours
+   */
+  estimatedDuration?: number | null;
+  /**
+   * Course difficulty level
+   */
+  difficultyLevel?: ('beginner' | 'intermediate' | 'advanced') | null;
+  /**
+   * Course language
+   */
+  language?: ('en' | 'es' | 'fr' | 'de') | null;
+  /**
+   * Minimum grade required to pass (percentage)
+   */
+  passingGrade?: number | null;
+  /**
+   * What students will learn in this course
+   */
+  learningObjectives?:
+    | {
+        objective: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * What students need to know before taking this course
+   */
+  prerequisites?:
+    | {
+        prerequisite: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Publication status - only published content is visible to the public
+   */
+  status: 'draft' | 'published';
+  /**
+   * When this content was/will be published
+   */
   publishedAt?: string | null;
+  /**
+   * Additional course settings and configurations
+   */
+  settings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Organize courses into categories and hierarchies
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "course-categories".
+ */
+export interface CourseCategory {
+  id: number;
+  /**
+   * Category name (e.g., "Web Development", "Data Science")
+   */
+  name: string;
+  /**
+   * URL-friendly version (e.g., "web-development")
+   */
+  slug: string;
+  /**
+   * Brief description of this category
+   */
+  description?: string | null;
+  /**
+   * Parent category (for hierarchical organization)
+   */
+  parent?: (number | null) | CourseCategory;
+  /**
+   * Type of category for different organizational purposes
+   */
+  categoryType: 'course' | 'skill' | 'topic' | 'industry';
+  /**
+   * Category icon/image
+   */
+  icon?: (number | null) | Media;
+  /**
+   * Hex color code for category theming (e.g., #3B82F6)
+   */
+  colorCode?: string | null;
+  /**
+   * Order for displaying categories (lower numbers first)
+   */
+  displayOrder?: number | null;
+  /**
+   * Whether this category is active and visible
+   */
+  isActive?: boolean | null;
+  /**
+   * Additional category metadata and settings
+   */
+  metadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Manage student course enrollments and access
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "course-enrollments".
+ */
+export interface CourseEnrollment {
+  id: number;
+  /**
+   * Student enrolled in the course
+   */
+  student: number | Trainee;
+  /**
+   * Course the student is enrolled in
+   */
+  course: number | Course;
+  /**
+   * When the student enrolled
+   */
+  enrolledAt?: string | null;
+  /**
+   * Type of enrollment
+   */
+  enrollmentType: 'free' | 'paid' | 'scholarship' | 'trial' | 'corporate';
+  /**
+   * Current enrollment status
+   */
+  status: 'active' | 'suspended' | 'completed' | 'dropped' | 'expired' | 'pending';
+  /**
+   * Payment status for paid courses
+   */
+  paymentStatus?: ('completed' | 'pending' | 'failed' | 'refunded' | 'not_required') | null;
+  /**
+   * When access to the course expires (optional)
+   */
+  accessExpiresAt?: string | null;
+  /**
+   * Amount paid for the course (if applicable)
+   */
+  amountPaid?: number | null;
+  /**
+   * Overall course completion percentage
+   */
+  progressPercentage?: number | null;
+  /**
+   * When the student last accessed the course
+   */
+  lastAccessedAt?: string | null;
+  /**
+   * When the student completed the course
+   */
+  completedAt?: string | null;
+  /**
+   * Current overall grade percentage
+   */
+  currentGrade?: number | null;
+  /**
+   * Final course grade percentage
+   */
+  finalGrade?: number | null;
+  /**
+   * Whether a certificate has been issued
+   */
+  certificateIssued?: boolean | null;
+  /**
+   * Who enrolled the student (admin/instructor)
+   */
+  enrolledBy?: (number | null) | User;
+  /**
+   * Administrative notes about this enrollment
+   */
+  notes?: string | null;
+  displayTitle?: string | null;
+  /**
+   * Additional enrollment data and settings
+   */
+  metadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -217,12 +856,48 @@ export interface PayloadLockedDocument {
         value: number | User;
       } | null)
     | ({
+        relationTo: 'instructors';
+        value: number | Instructor;
+      } | null)
+    | ({
+        relationTo: 'trainees';
+        value: number | Trainee;
+      } | null)
+    | ({
+        relationTo: 'admins';
+        value: number | Admin;
+      } | null)
+    | ({
+        relationTo: 'user-certifications';
+        value: number | UserCertification;
+      } | null)
+    | ({
+        relationTo: 'user-events';
+        value: number | UserEvent;
+      } | null)
+    | ({
+        relationTo: 'emergency-contacts';
+        value: number | EmergencyContact;
+      } | null)
+    | ({
         relationTo: 'media';
         value: number | Media;
       } | null)
     | ({
         relationTo: 'posts';
         value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'courses';
+        value: number | Course;
+      } | null)
+    | ({
+        relationTo: 'course-categories';
+        value: number | CourseCategory;
+      } | null)
+    | ({
+        relationTo: 'course-enrollments';
+        value: number | CourseEnrollment;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -271,13 +946,26 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
-  role?: T;
   firstName?: T;
   lastName?: T;
+  middleName?: T;
+  nameExtension?: T;
+  username?: T;
+  gender?: T;
+  civilStatus?: T;
+  nationality?: T;
+  birthDate?: T;
+  placeOfBirth?: T;
+  completeAddress?: T;
+  role?: T;
   isActive?: T;
-  isVerified?: T;
+  lastLogin?: T;
+  profilePicture?: T;
   updatedAt?: T;
   createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
   email?: T;
   resetPasswordToken?: T;
   resetPasswordExpiration?: T;
@@ -295,11 +983,95 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instructors_select".
+ */
+export interface InstructorsSelect<T extends boolean = true> {
+  user?: T;
+  specialization?: T;
+  yearsExperience?: T;
+  certifications?: T;
+  officeHours?: T;
+  contactEmail?: T;
+  teachingPermissions?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trainees_select".
+ */
+export interface TraineesSelect<T extends boolean = true> {
+  user?: T;
+  srn?: T;
+  couponCode?: T;
+  enrollmentDate?: T;
+  currentLevel?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "admins_select".
+ */
+export interface AdminsSelect<T extends boolean = true> {
+  user?: T;
+  adminLevel?: T;
+  systemPermissions?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "user-certifications_select".
+ */
+export interface UserCertificationsSelect<T extends boolean = true> {
+  user?: T;
+  certificationName?: T;
+  issuingAuthority?: T;
+  issueDate?: T;
+  expiryDate?: T;
+  verificationUrl?: T;
+  isActive?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "user-events_select".
+ */
+export interface UserEventsSelect<T extends boolean = true> {
+  user?: T;
+  eventType?: T;
+  eventData?: T;
+  triggeredBy?: T;
+  timestamp?: T;
+  ipAddress?: T;
+  userAgent?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emergency-contacts_select".
+ */
+export interface EmergencyContactsSelect<T extends boolean = true> {
+  user?: T;
+  firstName?: T;
+  middleName?: T;
+  lastName?: T;
+  contactNumber?: T;
+  relationship?: T;
+  completeAddress?: T;
+  isPrimary?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
-  caption?: T;
   cloudinaryPublicId?: T;
   cloudinaryURL?: T;
   updatedAt?: T;
@@ -321,9 +1093,113 @@ export interface MediaSelect<T extends boolean = true> {
 export interface PostsSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
-  excerpt?: T;
   content?: T;
+  excerpt?: T;
+  featuredImage?: T;
+  tags?:
+    | T
+    | {
+        tag?: T;
+        id?: T;
+      };
+  status?: T;
   publishedAt?: T;
+  author?: T;
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        focusKeyword?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "courses_select".
+ */
+export interface CoursesSelect<T extends boolean = true> {
+  title?: T;
+  courseCode?: T;
+  excerpt?: T;
+  description?: T;
+  instructor?: T;
+  coInstructors?: T;
+  category?: T;
+  thumbnail?: T;
+  bannerImage?: T;
+  price?: T;
+  discountedPrice?: T;
+  maxStudents?: T;
+  enrollmentStartDate?: T;
+  enrollmentEndDate?: T;
+  courseStartDate?: T;
+  courseEndDate?: T;
+  estimatedDuration?: T;
+  difficultyLevel?: T;
+  language?: T;
+  passingGrade?: T;
+  learningObjectives?:
+    | T
+    | {
+        objective?: T;
+        id?: T;
+      };
+  prerequisites?:
+    | T
+    | {
+        prerequisite?: T;
+        id?: T;
+      };
+  status?: T;
+  publishedAt?: T;
+  settings?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "course-categories_select".
+ */
+export interface CourseCategoriesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  parent?: T;
+  categoryType?: T;
+  icon?: T;
+  colorCode?: T;
+  displayOrder?: T;
+  isActive?: T;
+  metadata?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "course-enrollments_select".
+ */
+export interface CourseEnrollmentsSelect<T extends boolean = true> {
+  student?: T;
+  course?: T;
+  enrolledAt?: T;
+  enrollmentType?: T;
+  status?: T;
+  paymentStatus?: T;
+  accessExpiresAt?: T;
+  amountPaid?: T;
+  progressPercentage?: T;
+  lastAccessedAt?: T;
+  completedAt?: T;
+  currentGrade?: T;
+  finalGrade?: T;
+  certificateIssued?: T;
+  enrolledBy?: T;
+  notes?: T;
+  displayTitle?: T;
+  metadata?: T;
   updatedAt?: T;
   createdAt?: T;
 }

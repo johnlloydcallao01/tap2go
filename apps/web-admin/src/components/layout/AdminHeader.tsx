@@ -10,7 +10,6 @@ import {
   X,
   User,
   LogOut,
-  UserCircle,
 } from 'lucide-react';
 
 

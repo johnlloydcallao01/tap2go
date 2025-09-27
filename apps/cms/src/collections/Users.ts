@@ -1,108 +1,253 @@
 import type { CollectionConfig } from 'payload'
+import { adminOnly } from '../access'
 
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
     useAsTitle: 'email',
-    description: 'Manage all users in the Tap2Go platform (Admin, Driver, Vendor, Customer)',
+    defaultColumns: ['email', 'firstName', 'lastName', 'role'],
   },
-  auth: true,
+  auth: {
+    tokenExpiration: 30 * 24 * 60 * 60, // 30 days in seconds (2,592,000 seconds)
+    maxLoginAttempts: 5,
+    lockTime: 600 * 1000, // 10 minutes in milliseconds
+    useAPIKey: true, // Enable API key generation for service accounts
+    depth: 2,
+    cookies: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Lax',
+      domain: process.env.NODE_ENV === 'production' 
+        ? process.env.COOKIE_DOMAIN 
+        : undefined,
+    },
+  },
   access: {
-    // Only admins can read all users
-    read: ({ req: { user } }) => {
-      if (user?.role === 'admin') return true
-      // Users can only read their own profile
-      return {
-        id: {
-          equals: user?.id,
-        },
-      }
-    },
-    // Only admins can create users, or allow public registration for customers
-    create: ({ req: { user } }) => {
-      if (user?.role === 'admin') return true
-      // Allow public registration (will be restricted to customer role)
-      return true
-    },
-    // Users can update their own profile, admins can update anyone
+    read: () => true, // Allow reading user data
+    create: adminOnly, // Only admins can create users
     update: ({ req: { user } }) => {
-      if (user?.role === 'admin') return true
-      return {
-        id: {
-          equals: user?.id,
-        },
-      }
+      // Users can update their own data, admins can update any
+      if (user?.role === 'admin') return true;
+      return { id: { equals: user?.id } };
     },
-    // Only admins can delete users
-    delete: ({ req: { user } }) => user?.role === 'admin',
+    delete: adminOnly, // Only admins can delete users
   },
+  hooks: {
+    beforeDelete: [
+      async ({ req, id }) => {
+        console.log(`🗑️ Attempting to delete user ${id}`);
+
+        // Delete related records first to avoid foreign key constraint errors
+        const payload = req.payload;
+
+        try {
+          // Delete related trainee records
+          const trainees = await payload.find({
+            collection: 'trainees',
+            where: { user: { equals: id } },
+          });
+
+          for (const trainee of trainees.docs) {
+            console.log(`🗑️ Deleting trainee record ${trainee.id}`);
+            await payload.delete({
+              collection: 'trainees',
+              id: trainee.id,
+            });
+          }
+
+          // Delete related emergency contacts
+          const emergencyContacts = await payload.find({
+            collection: 'emergency-contacts',
+            where: { user: { equals: id } },
+          });
+
+          for (const contact of emergencyContacts.docs) {
+            console.log(`🗑️ Deleting emergency contact ${contact.id}`);
+            await payload.delete({
+              collection: 'emergency-contacts',
+              id: contact.id,
+            });
+          }
+
+          // Delete related instructor records
+          const instructors = await payload.find({
+            collection: 'instructors',
+            where: { user: { equals: id } },
+          });
+
+          for (const instructor of instructors.docs) {
+            console.log(`🗑️ Deleting instructor record ${instructor.id}`);
+            await payload.delete({
+              collection: 'instructors',
+              id: instructor.id,
+            });
+          }
+
+          // Delete related admin records
+          const admins = await payload.find({
+            collection: 'admins',
+            where: { user: { equals: id } },
+          });
+
+          for (const admin of admins.docs) {
+            console.log(`🗑️ Deleting admin record ${admin.id}`);
+            await payload.delete({
+              collection: 'admins',
+              id: admin.id,
+            });
+          }
+
+          console.log(`✅ Successfully cleaned up related records for user ${id}`);
+        } catch (error) {
+          console.error(`❌ Error cleaning up related records for user ${id}:`, error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+          throw new Error(`Failed to delete user: ${errorMessage}`);
+        }
+      },
+    ],
+  },
+
   fields: [
+    // Email and password are added automatically by auth: true
+    {
+      name: 'firstName',
+      type: 'text',
+      required: true,
+    },
+    {
+      name: 'lastName',
+      type: 'text',
+      required: true,
+    },
+    {
+      name: 'middleName',
+      type: 'text',
+      admin: {
+        description: 'Middle name (optional)',
+      },
+    },
+    {
+      name: 'nameExtension',
+      type: 'text',
+      admin: {
+        description: 'Name extension (e.g., Jr., Sr., III)',
+      },
+    },
+    {
+      name: 'username',
+      type: 'text',
+      unique: true,
+      admin: {
+        description: 'Unique username for login',
+      },
+    },
+    {
+      name: 'gender',
+      type: 'select',
+      options: [
+        { label: 'Male', value: 'male' },
+        { label: 'Female', value: 'female' },
+        { label: 'Other', value: 'other' },
+        { label: 'Prefer not to say', value: 'prefer_not_to_say' },
+      ],
+      admin: {
+        description: 'Gender identity',
+      },
+    },
+    {
+      name: 'civilStatus',
+      type: 'select',
+      options: [
+        { label: 'Single', value: 'single' },
+        { label: 'Married', value: 'married' },
+        { label: 'Divorced', value: 'divorced' },
+        { label: 'Widowed', value: 'widowed' },
+        { label: 'Separated', value: 'separated' },
+      ],
+      admin: {
+        description: 'Civil status',
+      },
+    },
+    {
+      name: 'nationality',
+      type: 'text',
+      admin: {
+        description: 'Nationality',
+      },
+    },
+    {
+      name: 'birthDate',
+      type: 'date',
+      admin: {
+        description: 'Date of birth',
+      },
+    },
+    {
+      name: 'placeOfBirth',
+      type: 'text',
+      admin: {
+        description: 'Place of birth',
+      },
+    },
+    {
+      name: 'completeAddress',
+      type: 'textarea',
+      admin: {
+        description: 'Complete address',
+      },
+    },
+
     {
       name: 'role',
       type: 'select',
-      required: true,
       options: [
         {
           label: 'Admin',
           value: 'admin',
         },
         {
-          label: 'Driver',
-          value: 'driver',
+          label: 'Instructor',
+          value: 'instructor',
         },
         {
-          label: 'Vendor',
-          value: 'vendor',
+          label: 'Trainee',
+          value: 'trainee',
         },
         {
-          label: 'Customer',
-          value: 'customer',
+          label: 'Service Account', // Step 2: Add dedicated role for API key users
+          value: 'service',
         },
       ],
-      defaultValue: 'customer',
+      defaultValue: 'trainee',
+      required: true,
       admin: {
-        description: 'User role determines access permissions and features available',
+        description: 'User role determines access permissions. Service accounts are for API key authentication.',
       },
-    },
-    {
-      name: 'firstName',
-      type: 'text',
-      required: true,
-      label: 'First Name',
-    },
-    {
-      name: 'lastName',
-      type: 'text',
-      required: true,
-      label: 'Last Name',
     },
     {
       name: 'isActive',
       type: 'checkbox',
-      label: 'Account Active',
       defaultValue: true,
       admin: {
-        description: 'Inactive users cannot log in or use the platform',
-        condition: (_, __, { user }) => {
-          // Only admins can deactivate accounts
-          return user?.role === 'admin'
-        },
+        description: 'Inactive users cannot log in',
+      },
+    },
+
+    {
+      name: 'lastLogin',
+      type: 'date',
+      admin: {
+        readOnly: true,
+        description: 'Last login timestamp',
       },
     },
     {
-      name: 'isVerified',
-      type: 'checkbox',
-      label: 'Account Verified',
-      defaultValue: false,
+      name: 'profilePicture',
+      type: 'upload',
+      relationTo: 'media',
       admin: {
-        description: 'Verified status for users (used by admin interface)',
-        condition: (_, __, { user }) => {
-          // Only admins can verify accounts
-          return user?.role === 'admin'
-        },
+        description: 'User profile picture',
       },
     },
 
   ],
-  timestamps: true,
 }

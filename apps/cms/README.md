@@ -1,23 +1,52 @@
-# Payload Blank Template
+# Encreasl CMS
 
-This template comes configured with the bare minimum to get started on anything you need.
+Content Management System for Encreasl powered by PayloadCMS 3.0
 
-## Quick start
+## Overview
 
-This template can be deployed directly from our Cloud hosting and it will setup MongoDB and cloud S3 object storage for media.
+This is the dedicated CMS application for managing blog posts, services, and media content for the Encreasl platform.
 
-## Quick Start - local setup
+## Features
 
-To spin up this template locally, follow these steps:
+- **Blog Posts**: Rich text editor for creating and managing blog content
+- **Services**: Manage service offerings with pricing, features, and media
+- **Media Library**: Upload and organize images and files
+- **User Management**: Admin user authentication and roles
+- **SEO Support**: Built-in SEO fields for all content types
 
-### Clone
+## Quick Start
 
-After you click the `Deploy` button above, you'll want to have standalone copy of this repo on your machine. If you've already cloned this repo, skip to [Development](#development).
+### Prerequisites
 
-### Development
+- Node.js 18+ or 20+
+- pnpm package manager
+- PostgreSQL database (Supabase recommended)
 
-1. First [clone the repo](#clone) if you have not done so already
-2. `cd my-project && cp .env.example .env` to copy the example environment variables. You'll need to add the `MONGODB_URI` from your Cloud project to your `.env` if you want to use S3 storage and the MongoDB database that was created for you.
+### Setup
+
+1. **Environment Configuration**
+   ```bash
+   cp .env.example .env
+   ```
+   Update the `.env` file with your database connection string and other settings.
+
+2. **Install Dependencies**
+   ```bash
+   pnpm install
+   ```
+
+3. **Database Setup**
+   - Create a PostgreSQL database (or use Supabase)
+   - Update `DATABASE_URI` in `.env` with your connection string
+
+4. **Start Development Server**
+   ```bash
+   pnpm run dev
+   ```
+
+5. **Access Admin Panel**
+   - Open http://localhost:3001/admin
+   - Create your first admin user
 
 3. `pnpm install && pnpm dev` to install dependencies and start the dev server
 4. open `http://localhost:3000` to open the app in your browser

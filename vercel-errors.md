@@ -174,3 +174,29 @@
 17:40:16.297 Next.js build worker exited with code: 1 and signal: null
 17:40:16.307  ELIFECYCLE  Command failed with exit code 1.
 17:40:16.340 Error: Command "npx pnpm@9.12.3 run build" exited with 1
+
+
+
+
+
+# Database Configuration
+DATABASE_URI=postgresql://postgres.awfqwaihngcrivdemkiw:%40Iamachessgrandmaster23@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+
+# Payload CMS Configuration
+PAYLOAD_SECRET=5560cb3c7965840e6bef36b2
+
+# Environment Configuration
+NODE_ENV=development
+NODE_TLS_REJECT_UNAUTHORIZED=0
+
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://awfqwaihngcrivdemkiw.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3ZnF3YWlobmdjcml2ZGVta2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwNjc1MDIsImV4cCI6MjA3MDY0MzUwMn0.svLZns-mKXNGneTq0Y3ZJVVRVtJHNNyGmbT4cQ_pCeM
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3ZnF3YWlobmdjcml2ZGVta2l3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA2NzUwMiwiZXhwIjoyMDcwNjQzNTAyfQ.ZnW4-I2uUyj-L-PA2olbNtzWk0hl4rkfGm--bdFBM0w
+
+# Cloudinary Configuration (Client-side)
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=dpekh75yi
+
+# Cloudinary Configuration (Server-side)
+CLOUDINARY_API_KEY=191284661715922
+CLOUDINARY_API_SECRET=G-_izp68I2eJuZOCvAKOmPkTXdI

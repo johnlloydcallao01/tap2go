@@ -1,40 +1,22 @@
 import type { CollectionConfig } from 'payload'
+import { authenticatedUsers, adminOnly } from '../access'
 
 export const Media: CollectionConfig = {
   slug: 'media',
   access: {
-    read: () => true,
-    create: ({ req: { user } }) => {
-      // Allow authenticated users to create media
-      return !!user
-    },
-    update: ({ req: { user } }) => {
-      // Allow authenticated users to update media
-      return !!user
-    },
-    delete: ({ req: { user } }) => {
-      // Allow authenticated users to delete media
-      return !!user
-    },
+    read: () => true, // Public read access for media files
+    create: authenticatedUsers, // Only authenticated users can upload media
+    update: authenticatedUsers, // Only authenticated users can update media
+    delete: adminOnly, // Only admins can delete media
   },
   fields: [
     {
       name: 'alt',
       type: 'text',
-      required: false, // Make alt text optional for professional flexibility
+      required: false,
     },
-    {
-      name: 'caption',
-      type: 'text',
-    },
-    // Cloud storage plugin will add these fields automatically:
-    // - cloudinaryPublicId
-    // - cloudinaryURL
   ],
   upload: {
-    // No staticDir when using cloud storage - let Cloudinary handle file serving
-    mimeTypes: ['image/*', 'video/*', 'audio/*', 'application/pdf'],
-    // Disable PayloadCMS's built-in file serving
-    disableLocalStorage: true,
+    mimeTypes: ['image/*', 'video/*'],
   },
 }
