@@ -3,8 +3,12 @@
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-import { cn } from "@/lib/utils"
+function cn(...inputs: (string | undefined | null | boolean)[]) {
+  return twMerge(clsx(inputs))
+}
 
 const DropdownMenu = DropdownMenuPrimitive.Root
 

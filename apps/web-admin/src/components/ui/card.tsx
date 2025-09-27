@@ -1,6 +1,10 @@
 import * as React from "react"
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-import { cn } from "@/lib/utils"
+function cn(...inputs: (string | undefined | null | boolean)[]) {
+  return twMerge(clsx(inputs))
+}
 
 const Card = React.forwardRef<
   HTMLDivElement,
