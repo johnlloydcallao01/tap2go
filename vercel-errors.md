@@ -1,202 +1,151 @@
-17:38:18.249 Running build in Washington, D.C., USA (East) – iad1
-17:38:18.250 Build machine configuration: 2 cores, 8 GB
-17:38:18.265 Cloning github.com/johnlloydcallao01/tap2go (Branch: main, Commit: cda7077)
-17:38:18.441 Previous build caches not available
-17:38:18.993 Cloning completed: 728.000ms
-17:38:19.447 Running "vercel build"
-17:38:19.843 Vercel CLI 48.1.6
-17:38:20.010 > Detected Turbo. Adjusting default settings...
-17:38:20.178 Running "install" command: `npx pnpm@9.12.3 install`...
-17:38:21.286 npm warn exec The following package was not found and will be installed: pnpm@9.12.3
-17:38:22.632 Scope: all 7 workspace projects
-17:38:22.913 ../..                                    | Progress: resolved 1, reused 0, downloaded 0, added 0
-17:38:23.926 ../..                                    | Progress: resolved 24, reused 0, downloaded 16, added 0
-17:38:24.968 ../..                                    | Progress: resolved 47, reused 0, downloaded 31, added 0
-17:38:25.971 ../..                                    | Progress: resolved 75, reused 0, downloaded 42, added 0
-17:38:26.970 ../..                                    | Progress: resolved 86, reused 0, downloaded 46, added 0
-17:38:27.975 ../..                                    | Progress: resolved 94, reused 0, downloaded 75, added 0
-17:38:28.181 ../mobile-customer                       |  WARN  deprecated react-native-vector-icons@10.3.0
-17:38:28.990 ../..                                    | Progress: resolved 136, reused 0, downloaded 79, added 0
-17:38:29.991 ../..                                    | Progress: resolved 167, reused 0, downloaded 79, added 0
-17:38:30.994 ../..                                    | Progress: resolved 169, reused 0, downloaded 80, added 0
-17:38:31.996 ../..                                    | Progress: resolved 169, reused 0, downloaded 104, added 0
-17:38:32.997 ../..                                    | Progress: resolved 169, reused 0, downloaded 122, added 0
-17:38:33.998 ../..                                    | Progress: resolved 169, reused 0, downloaded 131, added 0
-17:38:34.998 ../..                                    | Progress: resolved 169, reused 0, downloaded 134, added 0
-17:38:36.009 ../..                                    | Progress: resolved 169, reused 0, downloaded 141, added 0
-17:38:37.023 ../..                                    | Progress: resolved 188, reused 0, downloaded 154, added 0
-17:38:38.030 ../..                                    | Progress: resolved 238, reused 0, downloaded 158, added 0
-17:38:39.040 ../..                                    | Progress: resolved 310, reused 0, downloaded 163, added 0
-17:38:40.100 ../..                                    | Progress: resolved 313, reused 0, downloaded 178, added 0
-17:38:41.096 ../..                                    | Progress: resolved 313, reused 0, downloaded 189, added 0
-17:38:42.096 ../..                                    | Progress: resolved 313, reused 0, downloaded 192, added 0
-17:38:43.100 ../..                                    | Progress: resolved 342, reused 0, downloaded 301, added 0
-17:38:44.134 ../..                                    | Progress: resolved 393, reused 0, downloaded 324, added 0
-17:38:45.129 ../..                                    | Progress: resolved 393, reused 0, downloaded 334, added 0
-17:38:46.129 ../..                                    | Progress: resolved 426, reused 0, downloaded 342, added 0
-17:38:47.130 ../..                                    | Progress: resolved 491, reused 0, downloaded 343, added 0
-17:38:48.137 ../..                                    | Progress: resolved 540, reused 0, downloaded 346, added 0
-17:38:49.139 ../..                                    | Progress: resolved 594, reused 0, downloaded 418, added 0
-17:38:50.143 ../..                                    | Progress: resolved 639, reused 0, downloaded 553, added 0
-17:38:51.168 ../..                                    | Progress: resolved 684, reused 0, downloaded 599, added 0
-17:38:52.175 ../..                                    | Progress: resolved 726, reused 0, downloaded 599, added 0
-17:38:53.175 ../..                                    | Progress: resolved 837, reused 0, downloaded 602, added 0
-17:38:54.177 ../..                                    | Progress: resolved 914, reused 0, downloaded 602, added 0
-17:38:55.178 ../..                                    | Progress: resolved 1024, reused 0, downloaded 612, added 0
-17:38:56.178 ../..                                    | Progress: resolved 1024, reused 0, downloaded 719, added 0
-17:38:57.178 ../..                                    | Progress: resolved 1024, reused 0, downloaded 874, added 0
-17:38:58.200 ../..                                    | Progress: resolved 1080, reused 0, downloaded 949, added 0
-17:38:59.202 ../..                                    | Progress: resolved 1195, reused 0, downloaded 1052, added 0
-17:39:00.203 ../..                                    | Progress: resolved 1309, reused 0, downloaded 1170, added 0
-17:39:01.203 ../..                                    | Progress: resolved 1426, reused 0, downloaded 1208, added 0
-17:39:02.206 ../..                                    | Progress: resolved 1465, reused 0, downloaded 1272, added 0
-17:39:03.205 ../..                                    | Progress: resolved 1589, reused 0, downloaded 1353, added 0
-17:39:04.206 ../..                                    | Progress: resolved 1725, reused 0, downloaded 1441, added 0
-17:39:05.210 ../..                                    | Progress: resolved 1816, reused 0, downloaded 1553, added 0
-17:39:06.211 ../..                                    | Progress: resolved 1967, reused 0, downloaded 1675, added 0
-17:39:07.649 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1775, added 0
-17:39:08.195  WARN  8 deprecated subdependencies found: @esbuild-kit/core-utils@3.3.2, @esbuild-kit/esm-loader@2.6.5, @types/minimatch@6.0.0, glob@7.2.3, inflight@1.0.6, lodash.get@4.4.2, q@1.5.1, rimraf@3.0.2
-17:39:08.298 ../..                                    |    +1905 ++++++++++++++++++++++++++++
-17:39:08.651 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1795, added 0
-17:39:09.652 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1796, added 0
-17:39:10.653 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 16
-17:39:11.653 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 154
-17:39:12.653 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 396
-17:39:13.654 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 664
-17:39:14.655 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 834
-17:39:15.657 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 956
-17:39:16.657 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 1304
-17:39:17.658 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 1532
-17:39:18.658 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 1621
-17:39:19.660 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 1695
-17:39:20.699 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1801, added 1797
-17:39:21.663 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1821, added 1829
-17:39:22.485 ../..                                    | Progress: resolved 2074, reused 0, downloaded 1882, added 1905, done
-17:39:22.913 .../esbuild@0.25.10/node_modules/esbuild postinstall$ node install.js
-17:39:22.914 .../sharp@0.34.2/node_modules/sharp install$ node install/check
-17:39:22.915 .../sharp@0.34.4/node_modules/sharp install$ node install/check.js
-17:39:22.932 .../esbuild@0.18.20/node_modules/esbuild postinstall$ node install.js
-17:39:22.997 .../node_modules/unrs-resolver postinstall$ napi-postinstall unrs-resolver 1.11.1 check
-17:39:23.104 .../esbuild@0.25.10/node_modules/esbuild postinstall: Done
-17:39:23.233 .../esbuild@0.23.1/node_modules/esbuild postinstall$ node install.js
-17:39:23.295 .../sharp@0.34.2/node_modules/sharp install: Done
-17:39:23.296 .../esbuild@0.18.20/node_modules/esbuild postinstall: Done
-17:39:23.306 .../sharp@0.34.4/node_modules/sharp install: Done
-17:39:23.373 .../node_modules/unrs-resolver postinstall: Done
-17:39:23.410 .../esbuild@0.23.1/node_modules/esbuild postinstall: Done
-17:39:26.238 ../.. postinstall$ node scripts/sync-env.js
-17:39:26.277 ../web postinstall$ pnpm run patch-styled-jsx
-17:39:26.304 ../.. postinstall: [36mℹ️ 🔄 Starting environment synchronization...[0m
-17:39:26.308 ../.. postinstall: [36mℹ️ Running in EAS Build/CI environment - skipping .env.local check[0m
-17:39:26.308 ../.. postinstall: [32m✅ 🚀 EAS Build detected - environment variables provided by EAS Dashboard[0m
-17:39:26.308 ../.. postinstall: [36mℹ️ ✅ Skipping local environment synchronization[0m
-17:39:26.308 ../.. postinstall: [32m✅ 🎉 Environment setup complete for EAS Build![0m
-17:39:26.314 ../.. postinstall: Done
-17:39:26.770 ../web postinstall: > web@0.1.0 patch-styled-jsx /vercel/path0/apps/web
-17:39:26.771 ../web postinstall: > node scripts/patch-styled-jsx.js
-17:39:26.808 ../web postinstall: 🔧 Applying styled-jsx React 19 compatibility patch...
-17:39:26.809 ../web postinstall: ✅ styled-jsx not found - no patching needed
-17:39:26.817 ../web postinstall: Done
-17:39:26.823 
-17:39:26.823 dependencies:
-17:39:26.824 + @headlessui/react 2.2.9
-17:39:26.824 + @heroicons/react 2.2.0
-17:39:26.825 + @radix-ui/react-avatar 1.1.10
-17:39:26.829 + @radix-ui/react-dropdown-menu 2.1.16
-17:39:26.830 + @radix-ui/react-slot 1.2.3
-17:39:26.830 + @types/jsonwebtoken 9.0.10
-17:39:26.831 + class-variance-authority 0.7.1
-17:39:26.831 + clsx 2.1.1
-17:39:26.831 + echarts 5.6.0 (6.0.0 is available)
-17:39:26.832 + echarts-for-react 3.0.2
-17:39:26.832 + jsonwebtoken 9.0.2
-17:39:26.832 + lucide-react 0.468.0 (0.544.0 is available)
-17:39:26.833 + next 15.3.5 (15.5.4 is available)
-17:39:26.833 + react 19.1.0 (19.1.1 is available)
-17:39:26.833 + react-dom 19.1.0 (19.1.1 is available)
-17:39:26.834 + tailwind-merge 3.3.1
-17:39:26.834 
-17:39:26.834 devDependencies:
-17:39:26.835 + @eslint/eslintrc 3.3.1
-17:39:26.835 + @tailwindcss/postcss 4.1.13
-17:39:26.837 + @types/node 20.19.17 (24.5.2 is available)
-17:39:26.837 + @types/react 19.0.14 (19.1.13 is available)
-17:39:26.837 + @types/react-dom 19.1.6 (19.1.9 is available)
-17:39:26.838 + eslint 9.36.0
-17:39:26.838 + eslint-config-next 15.3.5 (15.5.4 is available)
-17:39:26.838 + tailwindcss 4.1.13
-17:39:26.838 + typescript 5.8.3 (5.9.2 is available)
-17:39:26.839 
-17:39:26.841  WARN  Issues with peer dependencies found
-17:39:26.842 .
-17:39:26.842 └─┬ nativewind 2.0.11
-17:39:26.842   └── ✕ unmet peer tailwindcss@~3: found 4.1.13
-17:39:26.842 
-17:39:26.843 apps/cms
-17:39:26.843 ├─┬ @payloadcms/plugin-cloud-storage 3.57.0
-17:39:26.843 │ ├── ✕ unmet peer payload@3.57.0: found 3.50.0
-17:39:26.844 │ └─┬ @payloadcms/ui 3.57.0
-17:39:26.844 │   └── ✕ unmet peer payload@3.57.0: found 3.50.0
-17:39:26.844 └─┬ @payloadcms/richtext-lexical 3.50.0
-17:39:26.845   └── ✕ unmet peer @faceless-ui/modal@3.0.0-beta.2: found 3.0.0
-17:39:26.845 
-17:39:26.845 Done in 1m 4.6s
-17:39:26.952 Detected Next.js version: 15.3.5
-17:39:26.953 Running "npx pnpm@9.12.3 run build"
-17:39:35.441 
-17:39:35.442 > web-admin@0.1.0 build /vercel/path0/apps/web-admin
-17:39:35.442 > next build
-17:39:35.442 
-17:39:36.129 Attention: Next.js now collects completely anonymous telemetry regarding usage.
-17:39:36.130 This information is used to shape Next.js' roadmap and prioritize features.
-17:39:36.130 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
-17:39:36.131 https://nextjs.org/telemetry
-17:39:36.131 
-17:39:36.228    ▲ Next.js 15.3.5
-17:39:36.229    - Experiments (use with caution):
-17:39:36.229      ✓ externalDir
-17:39:36.229 
-17:39:36.258    Creating an optimized production build ...
-17:40:05.098  ✓ Compiled successfully in 25.0s
-17:40:05.103    Linting and checking validity of types ...
-17:40:16.271 Failed to compile.
-17:40:16.271 
-17:40:16.272 ./src/components/ui/avatar.tsx:6:20
-17:40:16.272 Type error: Cannot find module '@/lib' or its corresponding type declarations.
-17:40:16.272 
-17:40:16.272 [0m [90m 4 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mAvatarPrimitive[39m [36mfrom[39m [32m"@radix-ui/react-avatar"[39m[0m
-17:40:16.273 [0m [90m 5 |[39m[0m
-17:40:16.273 [0m[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { cn } [36mfrom[39m [32m"@/lib"[39m[0m
-17:40:16.273 [0m [90m   |[39m                    [31m[1m^[22m[39m[0m
-17:40:16.273 [0m [90m 7 |[39m[0m
-17:40:16.274 [0m [90m 8 |[39m [36mconst[39m [33mAvatar[39m [33m=[39m [33mReact[39m[33m.[39mforwardRef[33m<[39m[0m
-17:40:16.274 [0m [90m 9 |[39m   [33mHTMLDivElement[39m[33m,[39m[0m
-17:40:16.297 Next.js build worker exited with code: 1 and signal: null
-17:40:16.307  ELIFECYCLE  Command failed with exit code 1.
-17:40:16.340 Error: Command "npx pnpm@9.12.3 run build" exited with 1
-
-
-
-
-
-# Database Configuration
-DATABASE_URI=postgresql://postgres.awfqwaihngcrivdemkiw:%40Iamachessgrandmaster23@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
-
-# Payload CMS Configuration
-PAYLOAD_SECRET=5560cb3c7965840e6bef36b2
-
-# Environment Configuration
-NODE_ENV=development
-NODE_TLS_REJECT_UNAUTHORIZED=0
-
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://awfqwaihngcrivdemkiw.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3ZnF3YWlobmdjcml2ZGVta2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwNjc1MDIsImV4cCI6MjA3MDY0MzUwMn0.svLZns-mKXNGneTq0Y3ZJVVRVtJHNNyGmbT4cQ_pCeM
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3ZnF3YWlobmdjcml2ZGVta2l3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTA2NzUwMiwiZXhwIjoyMDcwNjQzNTAyfQ.ZnW4-I2uUyj-L-PA2olbNtzWk0hl4rkfGm--bdFBM0w
-
-# Cloudinary Configuration (Client-side)
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=dpekh75yi
-
-# Cloudinary Configuration (Server-side)
-CLOUDINARY_API_KEY=191284661715922
-CLOUDINARY_API_SECRET=G-_izp68I2eJuZOCvAKOmPkTXdI
+11:18:14.062 Running build in Washington, D.C., USA (East) – iad1
+11:18:14.063 Build machine configuration: 2 cores, 8 GB
+11:18:14.084 Cloning github.com/johnlloydcallao01/tap2go (Branch: main, Commit: 4a9c919)
+11:18:14.203 Previous build caches not available
+11:18:14.825 Cloning completed: 741.000ms
+11:18:15.639 Running "vercel build"
+11:18:16.038 Vercel CLI 48.1.6
+11:18:16.222 > Detected Turbo. Adjusting default settings...
+11:18:16.779 Detected `pnpm-lock.yaml` version 9 generated by pnpm@10.x with package.json#packageManager pnpm@9.12.3
+11:18:16.787 Running "install" command: `cd ../.. && pnpm install`...
+11:18:18.984 Scope: all 12 workspace projects
+11:18:19.122 Lockfile is up to date, resolution step is skipped
+11:18:19.303 Progress: resolved 1, reused 0, downloaded 0, added 0
+11:18:19.588 Packages: +1778
+11:18:19.589 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+11:18:20.305 Progress: resolved 1778, reused 0, downloaded 14, added 0
+11:18:21.307 Progress: resolved 1778, reused 0, downloaded 32, added 16
+11:18:22.308 Progress: resolved 1778, reused 0, downloaded 52, added 43
+11:18:23.309 Progress: resolved 1778, reused 0, downloaded 68, added 54
+11:18:24.310 Progress: resolved 1778, reused 0, downloaded 72, added 60
+11:18:25.310 Progress: resolved 1778, reused 0, downloaded 107, added 94
+11:18:26.311 Progress: resolved 1778, reused 0, downloaded 154, added 144
+11:18:27.314 Progress: resolved 1778, reused 0, downloaded 295, added 291
+11:18:28.315 Progress: resolved 1778, reused 0, downloaded 311, added 300
+11:18:29.316 Progress: resolved 1778, reused 0, downloaded 314, added 303
+11:18:30.318 Progress: resolved 1778, reused 0, downloaded 408, added 401
+11:18:31.680 Progress: resolved 1778, reused 0, downloaded 409, added 401
+11:18:32.682 Progress: resolved 1778, reused 0, downloaded 424, added 413
+11:18:33.890 Progress: resolved 1778, reused 0, downloaded 424, added 414
+11:18:34.892 Progress: resolved 1778, reused 0, downloaded 431, added 425
+11:18:35.892 Progress: resolved 1778, reused 0, downloaded 434, added 426
+11:18:36.892 Progress: resolved 1778, reused 0, downloaded 449, added 439
+11:18:37.893 Progress: resolved 1778, reused 0, downloaded 458, added 449
+11:18:38.894 Progress: resolved 1778, reused 0, downloaded 473, added 463
+11:18:39.895 Progress: resolved 1778, reused 0, downloaded 477, added 468
+11:18:40.896 Progress: resolved 1778, reused 0, downloaded 487, added 478
+11:18:41.897 Progress: resolved 1778, reused 0, downloaded 488, added 478
+11:18:42.900 Progress: resolved 1778, reused 0, downloaded 495, added 488
+11:18:43.900 Progress: resolved 1778, reused 0, downloaded 504, added 493
+11:18:44.900 Progress: resolved 1778, reused 0, downloaded 513, added 502
+11:18:45.900 Progress: resolved 1778, reused 0, downloaded 552, added 543
+11:18:46.899 Progress: resolved 1778, reused 0, downloaded 630, added 622
+11:18:47.900 Progress: resolved 1778, reused 0, downloaded 680, added 674
+11:18:48.901 Progress: resolved 1778, reused 0, downloaded 769, added 762
+11:18:49.902 Progress: resolved 1778, reused 0, downloaded 827, added 827
+11:18:50.903 Progress: resolved 1778, reused 0, downloaded 870, added 867
+11:18:51.903 Progress: resolved 1778, reused 0, downloaded 968, added 968
+11:18:52.904 Progress: resolved 1778, reused 0, downloaded 1059, added 1063
+11:18:53.906 Progress: resolved 1778, reused 0, downloaded 1092, added 1093
+11:18:54.907 Progress: resolved 1778, reused 0, downloaded 1108, added 1107
+11:18:55.907 Progress: resolved 1778, reused 0, downloaded 1175, added 1182
+11:18:56.915 Progress: resolved 1778, reused 0, downloaded 1313, added 1319
+11:18:57.916 Progress: resolved 1778, reused 0, downloaded 1361, added 1360
+11:18:58.916 Progress: resolved 1778, reused 0, downloaded 1471, added 1474
+11:18:59.923 Progress: resolved 1778, reused 0, downloaded 1503, added 1502
+11:19:00.924 Progress: resolved 1778, reused 0, downloaded 1520, added 1520
+11:19:01.925 Progress: resolved 1778, reused 0, downloaded 1544, added 1544
+11:19:02.935 Progress: resolved 1778, reused 0, downloaded 1573, added 1572
+11:19:03.937 Progress: resolved 1778, reused 0, downloaded 1583, added 1585
+11:19:04.937 Progress: resolved 1778, reused 0, downloaded 1584, added 1585
+11:19:05.937 Progress: resolved 1778, reused 0, downloaded 1588, added 1588
+11:19:06.938 Progress: resolved 1778, reused 0, downloaded 1598, added 1598
+11:19:07.938 Progress: resolved 1778, reused 0, downloaded 1600, added 1599
+11:19:08.941 Progress: resolved 1778, reused 0, downloaded 1604, added 1603
+11:19:09.941 Progress: resolved 1778, reused 0, downloaded 1617, added 1616
+11:19:10.941 Progress: resolved 1778, reused 0, downloaded 1682, added 1683
+11:19:11.942 Progress: resolved 1778, reused 0, downloaded 1683, added 1683
+11:19:12.942 Progress: resolved 1778, reused 0, downloaded 1699, added 1698
+11:19:13.943 Progress: resolved 1778, reused 0, downloaded 1715, added 1717
+11:19:14.864 Progress: resolved 1778, reused 0, downloaded 1762, added 1778, done
+11:19:15.669 .../sharp@0.34.2/node_modules/sharp install$ node install/check
+11:19:15.673 .../esbuild@0.25.10/node_modules/esbuild postinstall$ node install.js
+11:19:15.676 .../esbuild@0.18.20/node_modules/esbuild postinstall$ node install.js
+11:19:15.680 .../node_modules/unrs-resolver postinstall$ napi-postinstall unrs-resolver 1.11.1 check
+11:19:15.765 .../esbuild@0.23.1/node_modules/esbuild postinstall$ node install.js
+11:19:15.926 .../esbuild@0.18.20/node_modules/esbuild postinstall: Done
+11:19:15.980 .../sharp@0.34.2/node_modules/sharp install: Done
+11:19:15.988 .../esbuild@0.25.10/node_modules/esbuild postinstall: Done
+11:19:16.017 .../esbuild@0.23.1/node_modules/esbuild postinstall: Done
+11:19:16.027 .../sharp@0.33.5/node_modules/sharp install$ node install/check
+11:19:16.045 .../node_modules/unrs-resolver postinstall: Done
+11:19:16.048 .../sharp@0.34.4/node_modules/sharp install$ node install/check.js
+11:19:16.099 .../esbuild@0.21.5/node_modules/esbuild postinstall$ node install.js
+11:19:16.229 .../sharp@0.33.5/node_modules/sharp install: Done
+11:19:16.268 .../esbuild@0.21.5/node_modules/esbuild postinstall: Done
+11:19:16.286 .../sharp@0.34.4/node_modules/sharp install: Done
+11:19:16.300 The following dependencies have build scripts that were ignored: @tailwindcss/oxide, core-js-pure
+11:19:16.774 
+11:19:16.775 dependencies:
+11:19:16.775 + @babel/runtime 7.28.4
+11:19:16.776 + @headlessui/react 2.2.9
+11:19:16.776 + @payloadcms/db-postgres 3.49.0
+11:19:16.776 + color 4.2.3
+11:19:16.777 + color-convert 3.1.2
+11:19:16.777 + color-name 2.0.2
+11:19:16.777 + color-string 1.9.1
+11:19:16.778 + hoist-non-react-statics 3.3.2
+11:19:16.778 + nativewind 2.0.11
+11:19:16.779 + react 19.1.0
+11:19:16.779 + react-dom 19.1.0
+11:19:16.779 + redux-persist 6.0.0
+11:19:16.779 + scheduler 0.25.0
+11:19:16.780 + simple-swizzle 0.2.4
+11:19:16.780 + typescript 5.8.3
+11:19:16.780 
+11:19:16.780 devDependencies:
+11:19:16.780 + @turbo/gen 2.5.8
+11:19:16.780 + @types/minimatch 6.0.0
+11:19:16.780 + next 15.3.2
+11:19:16.780 + turbo 2.5.8
+11:19:16.780 
+11:19:16.861 . postinstall$ node scripts/sync-env.js
+11:19:16.901 . postinstall: [36mℹ️ 🔄 Starting environment synchronization...[0m
+11:19:16.901 . postinstall: [36mℹ️ Running in EAS Build/CI environment - skipping .env.local check[0m
+11:19:16.901 . postinstall: [32m✅ 🚀 EAS Build detected - environment variables provided by EAS Dashboard[0m
+11:19:16.902 . postinstall: [36mℹ️ ✅ Skipping local environment synchronization[0m
+11:19:16.902 . postinstall: [32m✅ 🎉 Environment setup complete for EAS Build![0m
+11:19:16.903 . postinstall: Done
+11:19:16.943 Done in 58.3s
+11:19:17.010 Detected Next.js version: 15.4.2
+11:19:17.011 Running "cd ../.. && npx turbo run build --filter=@encreasl/web-landing"
+11:19:17.963 
+11:19:17.964 Attention:
+11:19:17.964 Turborepo now collects completely anonymous telemetry regarding usage.
+11:19:17.965 This information is used to shape the Turborepo roadmap and prioritize features.
+11:19:17.966 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+11:19:17.966 https://turborepo.com/docs/telemetry
+11:19:17.966 
+11:19:18.049 • Packages in scope: @encreasl/web-landing
+11:19:18.049 • Running build in 1 packages
+11:19:18.049 • Remote caching enabled
+11:19:18.172 @encreasl/redux:build: cache miss, executing df39ff43623a6efc
+11:19:18.860 @encreasl/redux:build: 
+11:19:18.860 @encreasl/redux:build: > @encreasl/redux@0.1.0 build /vercel/path0/packages/redux
+11:19:18.861 @encreasl/redux:build: > tsc
+11:19:18.861 @encreasl/redux:build: 
+11:19:25.593 @encreasl/redux:build: error TS2688: Cannot find type definition file for 'minimatch'.
+11:19:25.594 @encreasl/redux:build:   The file is in the program because:
+11:19:25.594 @encreasl/redux:build:     Entry point for implicit type library 'minimatch'
+11:19:25.610 @encreasl/redux:build:  ELIFECYCLE  Command failed with exit code 2.
+11:19:25.624 @encreasl/redux:build: ERROR: command finished with error: command (/vercel/path0/packages/redux) /pnpm10/node_modules/.bin/pnpm run build exited (2)
+11:19:25.625 @encreasl/redux#build: command (/vercel/path0/packages/redux) /pnpm10/node_modules/.bin/pnpm run build exited (2)
+11:19:25.625 
+11:19:25.625   Tasks:    0 successful, 1 total
+11:19:25.626  Cached:    0 cached, 1 total
+11:19:25.626    Time:    7.655s 
+11:19:25.626 Summary:    /vercel/path0/.turbo/runs/33JK7J7KxS8PUaALMFSMFAr38sO.json
+11:19:25.626  Failed:    @encreasl/redux#build
+11:19:25.626 
+11:19:25.632  ERROR  run failed: command  exited (2)
+11:19:25.671 Error: Command "cd ../.. && npx turbo run build --filter=@encreasl/web-landing" exited with 2

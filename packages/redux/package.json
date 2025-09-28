@@ -18,7 +18,7 @@
     "./utils": "./src/utils/index.ts"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --skipLibCheck",
     "dev": "tsc --watch",
     "lint": "eslint . --max-warnings 0",
     "type-check": "tsc --noEmit",
@@ -37,11 +37,13 @@
   "devDependencies": {
     "@encreasl/eslint-config": "workspace:*",
     "@encreasl/typescript-config": "workspace:*",
+    "@types/minimatch": "^6.0.0",
+    "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "typescript": "^5",
-    "vitest": "^1.6.0",
+    "vitest": "^2",
     "@vitest/coverage-v8": "^1.6.0"
   },
   "peerDependencies": {
