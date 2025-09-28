@@ -31,9 +31,7 @@ export function Header({
   const { logout, isLoggingOut } = useLogout();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleMyPortalClick = () => {
-    router.push('/portal');
-  };
+
 
   const toggleProfileDropdown = () => {
     setIsProfileDropdownOpen(!isProfileDropdownOpen);
@@ -138,15 +136,15 @@ export function Header({
 
   return (
     <>
-    <header className={`lg:sticky lg:top-0 fixed top-0 left-0 right-0 bg-white z-50 lg:transition-none transition-transform duration-300 ease-in-out ${
+    <header className={`lg:sticky lg:top-0 fixed top-0 left-0 right-0 lg:bg-white z-50 lg:transition-none transition-transform duration-300 ease-in-out ${
       isHeaderVisible ? 'translate-y-0' : 'lg:translate-y-0 -translate-y-full'
-    }`}>
+    }`} style={{ backgroundColor: window.innerWidth < 1024 ? '#eba236' : 'white' }}>
       {/* Mobile Header - matches the exact design */}
-      <div className="lg:hidden flex items-center px-3 py-1.5 space-x-1 sm:space-x-2 h-14">
+      <div className="lg:hidden flex items-center px-3 py-1.5 space-x-1 sm:space-x-2 h-14" style={{ backgroundColor: '#eba236' }}>
         {/* Logo - 80% */}
         <div className="w-[80%] flex items-center justify-start">
           <Image
-            src="/calsiter-inc-logo.png"
+            src="/logo.png"
             alt="Calsiter Inc Logo"
             width={210}
             height={56}
@@ -158,14 +156,14 @@ export function Header({
         {/* Bell/Notifications Icon - 10% */}
         <button
           onClick={() => router.push('/notifications')}
-          className="w-[10%] h-10 bg-white rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors"
+          className="w-[10%] h-10 rounded-md flex items-center justify-center hover:bg-orange-400 transition-colors"
         >
-          <i className="fas fa-bell text-gray-600 text-lg"></i>
+          <i className="fas fa-bell text-white text-lg"></i>
         </button>
 
         {/* Search Icon - 10% */}
-        <div className="w-[10%] h-10 bg-white rounded-md flex items-center justify-center">
-          <i className="fa fa-search text-gray-600 text-lg"></i>
+        <div className="w-[10%] h-10 rounded-md flex items-center justify-center hover:bg-orange-400 transition-colors cursor-pointer">
+          <i className="fa fa-search text-white text-lg"></i>
         </div>
       </div>
 
@@ -187,7 +185,7 @@ export function Header({
             </svg>
           </button>
           <Image
-            src="/calsiter-inc-logo.png"
+            src="/logo.png"
             alt="Calsiter Inc Logo"
             width={270}
             height={72}
@@ -223,29 +221,14 @@ export function Header({
 
         {/* Right section - Desktop */}
         <div className="flex items-center space-x-4">
-          {/* My Portal Button - Hidden when on portal pages */}
-          {!pathname.startsWith('/portal') && (
-            <button
-              onClick={handleMyPortalClick}
-              className="px-6 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 hover:scale-105 hover:shadow-lg"
-              style={{
-                backgroundColor: '#fff',
-                color: '#201a7c',
-                boxShadow: '0 0 10px rgba(0, 0, 0, 0.15)'
-              }}
-              onMouseEnter={(e: any) => {
-                e.currentTarget.style.boxShadow = '0 0 15px rgba(32, 26, 124, 0.25)';
-              }}
-              onMouseLeave={(e: any) => {
-                e.currentTarget.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.15)';
-              }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              My Portal
-            </button>
-          )}
+          {/* Notification Bell Icon */}
+          <button
+            onClick={() => router.push('/notifications')}
+            className="p-2 hover:bg-gray-100 rounded-full text-gray-600 hover:text-gray-800 transition-colors"
+            aria-label="Notifications"
+          >
+            <i className="fas fa-bell text-lg"></i>
+          </button>
 
           {/* User Profile */}
           <div className="relative" ref={dropdownRef}>

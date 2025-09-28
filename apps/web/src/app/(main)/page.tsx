@@ -1,5 +1,5 @@
 import React from "react";
-import { CourseCategoryCarousel, HeroSection, CoursesGrid } from "@/components/sections";
+import { CourseCategoryCarousel, CoursesGrid } from "@/components/sections";
 import { getCourseCategories, getCourses } from "@/server";
 
 // ISR configuration - revalidate every 5 minutes
@@ -21,9 +21,6 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
-      {/* Hero Section */}
-      <HeroSection />
-
       {/* Course Category Carousel with ISR data */}
       <div className="bg-white border-b border-gray-200">
         <CourseCategoryCarousel

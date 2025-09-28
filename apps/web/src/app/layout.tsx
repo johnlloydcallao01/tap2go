@@ -57,7 +57,7 @@ export default function RootLayout({
                 <div className="facebook-logo">
                   {/* @ts-ignore -- Next.js Image component type issue with React 19 */}
                   <Image
-                    src="/calsiter-inc-logo.png"
+                    src="/logo.png"
                     alt="Calsiter Inc Logo"
                     width={48}
                     height={48}
