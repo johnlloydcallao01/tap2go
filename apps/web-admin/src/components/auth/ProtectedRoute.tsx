@@ -1,22 +1,76 @@
-'use client';
-
 /**
- * Protected Route Component (Demo Only)
- * 
- * This component would normally protect routes that require authentication.
- * In demo mode, it simply renders all children without any protection.
+ * @file apps/web-admin/src/components/auth/ProtectedRoute.tsx
+ * @description Protected route component for admin-only access
+ * Based on apps/web ProtectedRoute but adapted for admin-only access
  */
 
-import React from 'react';
+'use client';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useRouteProtection } from '@/hooks/useAuth';
+import { ProtectedRouteProps } from '@/types/auth';
 
-export default function ProtectedRoute({ 
-  children 
+/**
+ * ProtectedRoute component that ensures only authenticated admin users can access wrapped content
+ * Redirects non-admin users or unauthenticated users to the login page
+ */
+export function ProtectedRoute({ 
+  children, 
+  fallback,
+  redirectTo = '/signin' 
 }: ProtectedRouteProps) {
-  // Demo mode - always render children without protection
+  const router = useRouter();
+  const {
+    shouldRedirectToLogin,
+    isCheckingAuth
+  } = useRouteProtection();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (shouldRedirectToLogin) {
+      // Store the current path for redirect after login
+      const currentPath = window.location.pathname + window.location.search;
+      if (currentPath !== redirectTo) {
+        sessionStorage.setItem('auth:redirectAfterLogin', currentPath);
+      }
+
+      router.replace(redirectTo);
+    }
+  }, [shouldRedirectToLogin, redirectTo, router]);
+
+  // Show loading while checking authentication
+  if (isCheckingAuth) {
+    return fallback || null;
+  }
+
+  // Don't render anything if we should redirect
+  if (shouldRedirectToLogin) {
+    return null;
+  }
+
+  // No additional role validation needed - auth.ts already handles admin validation
+
+  // Render children if user is authenticated
   return <>{children}</>;
 }
+
+/**
+ * Higher-order component version of ProtectedRoute
+ */
+export function withProtectedRoute<P extends object>(
+  Component: React.ComponentType<P>,
+  options?: Omit<ProtectedRouteProps, 'children'>
+) {
+  const WrappedComponent = (props: P) => (
+    <ProtectedRoute fallback={options?.fallback} redirectTo={options?.redirectTo}>
+      <Component {...props} />
+    </ProtectedRoute>
+  );
+
+  WrappedComponent.displayName = `withProtectedRoute(${Component.displayName || Component.name})`;
+  
+  return WrappedComponent;
+}
+
+export default ProtectedRoute;

@@ -1,3 +1,2 @@
-export { default as AdminHeader } from './AdminHeader';
-export { default as AdminSidebar } from './AdminSidebar';
-export { default as AdminLayout } from './AdminLayout';
+export { Header } from './Header';
+export { Sidebar } from './Sidebar';

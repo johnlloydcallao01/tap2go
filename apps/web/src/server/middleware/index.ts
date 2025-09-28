@@ -1,15 +1,137 @@
 /**
- * Server Middleware Index
- * 
- * This file exports all middleware functions for the web application.
- * Middleware functions handle cross-cutting concerns like authentication,
- * logging, rate limiting, and request/response processing.
+ * @file apps/web/src/server/middleware/index.ts
+ * @description Middleware exports for the Web App server
  */
 
-// Export all middleware
-export * from './auth-middleware';
-export * from './cors-middleware';
-export * from './logging-middleware';
-export * from './rate-limit-middleware';
-export * from './validation-middleware';
-export * from './error-middleware';
+// ========================================
+// RATE LIMITING MIDDLEWARE
+// ========================================
+
+export {
+  withRateLimit,
+  withAdvancedRateLimit,
+  withRateLimitResult,
+  withContactFormRateLimit,
+  withNewsletterRateLimit,
+  withAnalyticsRateLimit,
+  withApiRateLimit,
+  withIpRateLimit,
+  withUserRateLimit,
+  withMultipleRateLimits,
+  type RateLimitOptions,
+} from './rate-limit-middleware';
+
+// ========================================
+// VALIDATION MIDDLEWARE
+// ========================================
+
+export {
+  withValidation,
+  withValidationResult,
+  withMultipleValidation,
+  withConditionalValidation,
+  withSanitization,
+  withStringSanitization,
+  validateData,
+  type ValidationOptions,
+  type ValidationResult,
+} from './validation-middleware';
+
+// ========================================
+// COMPOSITE MIDDLEWARE HELPERS
+// ========================================
+
+/**
+ * Compose multiple middleware functions
+ */
+export function compose<T extends unknown[], R>(
+  ...middlewares: Array<(fn: (...args: T) => Promise<R>) => (...args: T) => Promise<R>>
+) {
+  return (fn: (...args: T) => Promise<R>) => {
+    return middlewares.reduceRight((acc, middleware) => middleware(acc), fn);
+  };
+}
+
+/**
+ * Create a middleware pipeline
+ */
+export function createPipeline<T extends unknown[], R>(
+  middlewares: Array<(fn: (...args: T) => Promise<R>) => (...args: T) => Promise<R>>
+) {
+  return (fn: (...args: T) => Promise<R>) => {
+    return compose(...middlewares)(fn);
+  };
+}
+
+// ========================================
+// COMMON MIDDLEWARE COMBINATIONS
+// ========================================
+
+/**
+ * Standard web app middleware stack
+ * TODO: Implement missing middleware functions
+ */
+export function withWebAppDefaults<T extends unknown[], R>(
+  actionName: string,
+  rateLimitKey: string,
+  rateLimitConfig: { windowMs: number; maxRequests: number }
+) {
+  // Temporarily disabled until middleware functions are implemented
+  return (fn: (...args: T) => Promise<R>) => fn;
+  // return compose<T, R>(
+  //   withLogging(actionName),
+  //   withErrorHandling,
+  //   withStringSanitization,
+  //   withRateLimit(rateLimitKey, rateLimitConfig)
+  // );
+}
+
+/**
+ * Contact form middleware stack
+ * TODO: Implement missing middleware functions
+ */
+export function withContactFormDefaults<T extends unknown[], R>(
+  actionName: string = 'contact-form'
+) {
+  // Temporarily disabled until middleware functions are implemented
+  return (fn: (...args: T) => Promise<R>) => fn;
+  // return compose<T, R>(
+  //   withLogging(actionName),
+  //   withErrorHandling,
+  //   withStringSanitization,
+  //   withContactFormRateLimit
+  // );
+}
+
+/**
+ * Newsletter middleware stack
+ * TODO: Implement missing middleware functions
+ */
+export function withNewsletterDefaults<T extends unknown[], R>(
+  actionName: string = 'newsletter'
+) {
+  // Temporarily disabled until middleware functions are implemented
+  return (fn: (...args: T) => Promise<R>) => fn;
+  // return compose<T, R>(
+  //   withLogging(actionName),
+  //   withErrorHandling,
+  //   withStringSanitization,
+  //   withNewsletterRateLimit
+  // );
+}
+
+/**
+ * Analytics middleware stack
+ * TODO: Implement missing middleware functions
+ */
+export function withAnalyticsDefaults<T extends unknown[], R>(
+  actionName: string = 'analytics'
+) {
+  // Temporarily disabled until middleware functions are implemented
+  return (fn: (...args: T) => Promise<R>) => fn;
+  // return compose<T, R>(
+  //   withLogging(actionName),
+  //   withErrorHandling,
+  //   withAnalyticsRateLimit
+  // );
+}

@@ -1,380 +1,228 @@
 'use client';
 
-// Force dynamic rendering to avoid SSR issues
-export const dynamic = 'force-dynamic';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import {
-  DocumentChartBarIcon,
-  CurrencyDollarIcon,
-  UserGroupIcon,
-  CpuChipIcon,
-  DocumentTextIcon,
-  ArrowRightIcon,
-  CalendarIcon,
-  ClockIcon,
-  EyeIcon,
-  ArrowDownTrayIcon,
-} from '@heroicons/react/24/outline';
+import { FileText,
+  Download,
+  Calendar,
+  Filter,
+  BarChart3,
+  Users,
+  TrendingUp,
+  DollarSign,
+  Clock,
+  Eye } from '@/components/ui/IconWrapper';
 
-interface ReportCategory {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-  reportCount: number;
-  lastGenerated?: string;
-  href: string;
-}
+export default function ReportsPage() {
+  const reportTypes = [
+    {
+      title: 'Traffic Report',
+      description: 'Detailed analysis of website traffic and user behavior',
+      icon: TrendingUp,
+      lastGenerated: '2 hours ago',
+      status: 'ready'
+    },
+    {
+      title: 'User Engagement',
+      description: 'User interaction metrics and engagement patterns',
+      icon: Users,
+      lastGenerated: '1 day ago',
+      status: 'ready'
+    },
+    {
+      title: 'Content Performance',
+      description: 'Blog posts and page performance analytics',
+      icon: FileText,
+      lastGenerated: '3 hours ago',
+      status: 'ready'
+    },
+    {
+      title: 'Revenue Analytics',
+      description: 'Financial performance and conversion tracking',
+      icon: DollarSign,
+      lastGenerated: 'Generating...',
+      status: 'processing'
+    },
+    {
+      title: 'SEO Performance',
+      description: 'Search engine optimization metrics and rankings',
+      icon: Eye,
+      lastGenerated: '6 hours ago',
+      status: 'ready'
+    },
+    {
+      title: 'System Performance',
+      description: 'Server performance and uptime statistics',
+      icon: BarChart3,
+      lastGenerated: '30 minutes ago',
+      status: 'ready'
+    }
+  ];
 
-interface RecentReport {
-  id: string;
-  name: string;
-  type: string;
-  generatedAt: string;
-  generatedBy: string;
-  size: string;
-  downloads: number;
-}
-
-interface QuickStat {
-  label: string;
-  value: string;
-  change: string;
-  trend: 'up' | 'down' | 'stable';
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-}
-
-export default function ReportsOverview() {
-  const [reportCategories, setReportCategories] = useState<ReportCategory[]>([]);
-  const [recentReports, setRecentReports] = useState<RecentReport[]>([]);
-  const [quickStats, setQuickStats] = useState<QuickStat[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadReportsData = async () => {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const mockReportCategories: ReportCategory[] = [
-          {
-            id: 'sales',
-            name: 'Sales Reports',
-            description: 'Revenue, orders, and sales performance analytics',
-            icon: CurrencyDollarIcon,
-            color: 'bg-green-100 text-green-600',
-            reportCount: 12,
-            lastGenerated: '2024-01-15T09:00:00Z',
-            href: '/reports/sales',
-          },
-          {
-            id: 'users',
-            name: 'User Reports',
-            description: 'Customer analytics, retention, and user behavior',
-            icon: UserGroupIcon,
-            color: 'bg-blue-100 text-blue-600',
-            reportCount: 8,
-            lastGenerated: '2024-01-15T08:30:00Z',
-            href: '/reports/users',
-          },
-          {
-            id: 'performance',
-            name: 'Performance Reports',
-            description: 'System performance, uptime, and operational metrics',
-            icon: CpuChipIcon,
-            color: 'bg-purple-100 text-purple-600',
-            reportCount: 6,
-            lastGenerated: '2024-01-15T10:15:00Z',
-            href: '/reports/performance',
-          },
-          {
-            id: 'custom',
-            name: 'Custom Reports',
-            description: 'Build and schedule custom reports for specific needs',
-            icon: DocumentTextIcon,
-            color: 'bg-orange-100 text-orange-600',
-            reportCount: 15,
-            lastGenerated: '2024-01-15T07:45:00Z',
-            href: '/reports/custom',
-          },
-        ];
-
-        const mockRecentReports: RecentReport[] = [
-          {
-            id: '1',
-            name: 'Weekly Sales Summary',
-            type: 'Sales Report',
-            generatedAt: '2024-01-15T09:00:00Z',
-            generatedBy: 'John Smith',
-            size: '2.4 MB',
-            downloads: 12,
-          },
-          {
-            id: '2',
-            name: 'Customer Retention Analysis',
-            type: 'User Report',
-            generatedAt: '2024-01-15T08:30:00Z',
-            generatedBy: 'Lisa Wilson',
-            size: '1.8 MB',
-            downloads: 8,
-          },
-          {
-            id: '3',
-            name: 'System Performance Dashboard',
-            type: 'Performance Report',
-            generatedAt: '2024-01-15T10:15:00Z',
-            generatedBy: 'David Brown',
-            size: '3.2 MB',
-            downloads: 15,
-          },
-          {
-            id: '4',
-            name: 'Marketing Campaign ROI',
-            type: 'Custom Report',
-            generatedAt: '2024-01-15T07:45:00Z',
-            generatedBy: 'Emily Rodriguez',
-            size: '1.5 MB',
-            downloads: 6,
-          },
-          {
-            id: '5',
-            name: 'Monthly Financial Overview',
-            type: 'Sales Report',
-            generatedAt: '2024-01-14T16:30:00Z',
-            generatedBy: 'Mike Chen',
-            size: '4.1 MB',
-            downloads: 23,
-          },
-        ];
-
-        const mockQuickStats: QuickStat[] = [
-          {
-            label: 'Reports Generated',
-            value: '156',
-            change: '+12%',
-            trend: 'up',
-            icon: DocumentChartBarIcon,
-            color: 'text-blue-600',
-          },
-          {
-            label: 'Total Downloads',
-            value: '2,340',
-            change: '+8%',
-            trend: 'up',
-            icon: ArrowDownTrayIcon,
-            color: 'text-green-600',
-          },
-          {
-            label: 'Active Schedules',
-            value: '24',
-            change: '+3',
-            trend: 'up',
-            icon: CalendarIcon,
-            color: 'text-purple-600',
-          },
-          {
-            label: 'Avg Generation Time',
-            value: '2.3s',
-            change: '-0.5s',
-            trend: 'down',
-            icon: ClockIcon,
-            color: 'text-orange-600',
-          },
-        ];
-
-        setReportCategories(mockReportCategories);
-        setRecentReports(mockRecentReports);
-        setQuickStats(mockQuickStats);
-      } catch (error) {
-        console.error('Error loading reports data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadReportsData();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-300 rounded w-1/4 mb-6"></div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-white p-6 rounded-lg shadow">
-                  <div className="h-4 bg-gray-300 rounded w-1/2 mb-4"></div>
-                  <div className="h-8 bg-gray-300 rounded w-1/3"></div>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-48 bg-gray-300 rounded"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-    );
-  }
+  const recentReports = [
+    {
+      name: 'Monthly Traffic Summary - December 2024',
+      type: 'Traffic Report',
+      generatedAt: '2024-12-15 14:30',
+      size: '2.4 MB',
+      format: 'PDF'
+    },
+    {
+      name: 'User Engagement Analysis - Q4 2024',
+      type: 'User Engagement',
+      generatedAt: '2024-12-14 09:15',
+      size: '1.8 MB',
+      format: 'Excel'
+    },
+    {
+      name: 'Content Performance Report - November',
+      type: 'Content Performance',
+      generatedAt: '2024-12-13 16:45',
+      size: '3.1 MB',
+      format: 'PDF'
+    },
+    {
+      name: 'SEO Ranking Report - Weekly',
+      type: 'SEO Performance',
+      generatedAt: '2024-12-12 11:20',
+      size: '1.2 MB',
+      format: 'CSV'
+    }
+  ];
 
   return (
-    <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
-          <div className="mb-4 sm:mb-0">
-            <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Reports & Analytics</h1>
-            <p className="text-sm lg:text-base text-gray-600">Generate, schedule, and manage comprehensive business reports.</p>
+    <div className="p-6">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+            <p className="text-gray-600 mt-1">Generate and download comprehensive business reports</p>
           </div>
-          <div className="flex items-center space-x-3">
-            <Link
-              href="/reports/custom"
-              className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600 flex items-center text-sm"
-            >
-              <DocumentChartBarIcon className="h-4 w-4 mr-2" />
-              Create Custom Report
-            </Link>
+
+          {/* Quick Actions */}
+          <div className="mb-8 flex flex-wrap gap-4">
+            <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <Calendar className="w-4 h-4 mr-2" />
+              Schedule Report
+            </button>
+            <button className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+              <Filter className="w-4 h-4 mr-2" />
+              Custom Filter
+            </button>
+            <button className="flex items-center px-4 py-2 border-2 border-gray-400 text-gray-800 rounded-lg hover:bg-gray-100 hover:border-gray-500 transition-colors">
+              <Download className="w-4 h-4 mr-2 text-gray-700" />
+              Bulk Download
+            </button>
           </div>
-        </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          {quickStats.map((stat, index) => {
-            const IconComponent = stat.icon;
-            return (
-              <div key={index} className="bg-white p-4 rounded-lg shadow border">
-                <div className="flex items-center">
-                  <div className="p-2 bg-gray-100 rounded-lg">
-                    <IconComponent className={`h-6 w-6 ${stat.color}`} />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-                    <p className="text-lg font-semibold text-gray-900">{stat.value}</p>
-                    <p className={`text-xs ${
-                      stat.trend === 'up' ? 'text-green-600' : 
-                      stat.trend === 'down' ? 'text-red-600' : 
-                      'text-gray-600'
-                    }`}>
-                      {stat.change}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Report Categories */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          {reportCategories.map((category) => {
-            const IconComponent = category.icon;
-            return (
-              <Link key={category.id} href={category.href}>
-                <div className="bg-white rounded-lg shadow border p-6 hover:shadow-lg transition-shadow cursor-pointer">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-3 rounded-lg ${category.color}`}>
-                      <IconComponent className="h-8 w-8" />
+          {/* Report Types Grid */}
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Reports</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {reportTypes.map((report, index) => (
+                <div key={index} className="bg-white rounded-lg shadow border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <report.icon className="w-6 h-6 text-blue-600" />
+                      </div>
                     </div>
-                    <ArrowRightIcon className="h-5 w-5 text-gray-400" />
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      report.status === 'ready' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {report.status === 'ready' ? 'Ready' : 'Processing'}
+                    </span>
                   </div>
                   
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">{category.name}</h3>
-                  <p className="text-sm text-gray-600 mb-4">{category.description}</p>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{report.title}</h3>
+                  <p className="text-gray-600 text-sm mb-4">{report.description}</p>
                   
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">{category.reportCount} reports</span>
-                    {category.lastGenerated && (
-                      <span className="text-gray-500">
-                        Last: {new Date(category.lastGenerated).toLocaleDateString()}
-                      </span>
-                    )}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Clock className="w-4 h-4 mr-1" />
+                      {report.lastGenerated}
+                    </div>
+                    <button 
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        report.status === 'ready'
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                      disabled={report.status !== 'ready'}
+                    >
+                      {report.status === 'ready' ? 'Generate' : 'Processing...'}
+                    </button>
                   </div>
                 </div>
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Recent Reports */}
-        <div className="bg-white rounded-lg shadow border">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Recent Reports</h3>
-              <Link href="/reports/custom" className="text-orange-600 hover:text-orange-700 text-sm font-medium">
-                View All Reports
-              </Link>
+              ))}
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Report Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Generated
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Generated By
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Size
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Downloads
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {recentReports.map((report) => (
-                  <tr key={report.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{report.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {report.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(report.generatedAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.generatedBy}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.size}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.downloads}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button className="text-orange-600 hover:text-orange-900">
-                          <EyeIcon className="h-4 w-4" />
-                        </button>
-                        <button className="text-blue-600 hover:text-blue-900">
-                          <ArrowDownTrayIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+          {/* Recent Reports */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Recent Reports</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Report Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Generated
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Size
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Format
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {recentReports.map((report, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FileText className="w-5 h-5 text-gray-400 mr-3" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{report.name}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {report.type}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {report.generatedAt}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {report.size}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                          {report.format}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button className="text-blue-600 hover:text-blue-900 mr-4">
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </div>
+    </div>
   );
 }

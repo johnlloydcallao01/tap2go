@@ -1,317 +1,218 @@
 'use client';
 
-// Force dynamic rendering to avoid SSR issues
-export const dynamic = 'force-dynamic';
 
-/**
- * Admin Dashboard Page
- * Main dashboard for authenticated admin users
- */
+import { Users,
+  FileText,
+  TrendingUp,
+  BarChart3,
+  Eye,
+  MessageSquare,
+  Heart,
+  Share2 } from '@/components/ui/IconWrapper';
 
-import { useEffect, useState } from 'react';
-import {
-  UsersIcon,
-  BuildingStorefrontIcon,
-  TruckIcon,
-  ShoppingBagIcon,
-  CurrencyDollarIcon,
-  ChartBarIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-} from '@heroicons/react/24/outline';
-
-interface DashboardStats {
-  totalUsers: number;
-  totalVendors: number;
-  totalDrivers: number;
-  totalOrders: number;
-  totalRevenue: number;
-  activeOrders: number;
-  pendingVendors: number;
-  pendingDrivers: number;
-}
-
-interface Activity {
-  id: string;
-  type: string;
-  description: string;
-  timestamp: string;
-}
-
-interface Route {
-  id: string;
-  name: string;
-  rides: number;
-}
-
-interface RevenueDataPoint {
-  month: string;
-  revenue: number;
-}
-
-interface UserGrowthDataPoint {
-  month: string;
-  users: number;
-}
-
-interface DashboardData {
-  totalUsers: number;
-  totalDrivers: number;
-  totalVendors: number;
-  totalRides: number;
-  totalRevenue: number;
-  activeRides: number;
-  pendingApprovals: number;
-  systemHealth: string;
-  recentActivities: Activity[];
-  popularRoutes: Route[];
-  revenueData: RevenueDataPoint[];
-  userGrowthData: UserGrowthDataPoint[];
-}
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    totalVendors: 0,
-    totalDrivers: 0,
-    totalOrders: 0,
-    totalRevenue: 0,
-    activeOrders: 0,
-    pendingVendors: 0,
-    pendingDrivers: 0,
-  });
-  const [dashboardLoading, setDashboardLoading] = useState(true);
-
-  // Demo data for dashboard metrics
-  const [_dashboardData] = useState<DashboardData>({
-    totalUsers: 0,
-    totalDrivers: 0,
-    totalVendors: 0,
-    totalRides: 0,
-    totalRevenue: 0,
-    activeRides: 0,
-    pendingApprovals: 0,
-    systemHealth: 'good',
-    recentActivities: [],
-    popularRoutes: [],
-    revenueData: [],
-    userGrowthData: [],
-  });
-
-  useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setDashboardLoading(true);
-
-        // Demo mode - simulate loading dashboard data
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        setStats({
-          totalUsers: 1247,
-          totalVendors: 89,
-          totalDrivers: 156,
-          totalOrders: 3421,
-          totalRevenue: 125430.50,
-          activeOrders: 23,
-          pendingVendors: 5,
-          pendingDrivers: 12,
-        });
-
-        // Demo mode - dashboard data loaded successfully
-      } catch (err) {
-        console.error('Failed to load dashboard data:', err);
-      } finally {
-        setDashboardLoading(false);
-      }
-    };
-
-    // Load dashboard data immediately since authentication is disabled
-    loadDashboardData();
-  }, []);
-
-  const statCards = [
-    {
-      name: 'Total Users',
-      value: stats.totalUsers.toLocaleString(),
-      icon: UsersIcon,
-      change: '+12%',
-      changeType: 'increase',
-      color: 'bg-blue-500',
-    },
-    {
-      name: 'Total Vendors',
-      value: stats.totalVendors.toLocaleString(),
-      icon: BuildingStorefrontIcon,
-      change: '+8%',
-      changeType: 'increase',
-      color: 'bg-green-500',
-    },
-    {
-      name: 'Total Drivers',
-      value: stats.totalDrivers.toLocaleString(),
-      icon: TruckIcon,
-      change: '+15%',
-      changeType: 'increase',
-      color: 'bg-purple-500',
-    },
-    {
-      name: 'Total Orders',
-      value: stats.totalOrders.toLocaleString(),
-      icon: ShoppingBagIcon,
-      change: '+23%',
-      changeType: 'increase',
-      color: '#f3a823',
-    },
-    {
-      name: 'Total Revenue',
-      value: `$${stats.totalRevenue.toLocaleString()}`,
-      icon: CurrencyDollarIcon,
-      change: '+18%',
-      changeType: 'increase',
-      color: 'bg-emerald-500',
-    },
-    {
-      name: 'Active Orders',
-      value: stats.activeOrders.toLocaleString(),
-      icon: ChartBarIcon,
-      change: '-5%',
-      changeType: 'decrease',
-      color: 'bg-red-500',
-    },
-  ];
-
-  // Authentication is disabled - no loading or user checks needed
-
-  if (dashboardLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-300 rounded w-1/4 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white p-6 rounded-lg shadow">
-                <div className="h-4 bg-gray-300 rounded w-1/2 mb-4"></div>
-                <div className="h-8 bg-gray-300 rounded w-1/3"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Dashboard Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Welcome to your admin dashboard. Here&apos;s what&apos;s happening with your platform today.
-          </p>
-        </div>
-        <div className="mt-4 sm:mt-0">
-          <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            <ChartBarIcon className="h-4 w-4 mr-2" />
-            Generate Report
-          </button>
-        </div>
-      </div>
+    <div className="p-6">
+          {/* Page Header */}
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
+            <p className="text-gray-600 mt-1">Comprehensive overview of your platform performance</p>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-        {statCards.map((stat) => (
-          <div key={stat.name} className="bg-white rounded-lg shadow p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs lg:text-sm font-medium text-gray-600">{stat.name}</p>
-                <p className="text-xl lg:text-2xl font-bold text-gray-900">{stat.value}</p>
-              </div>
-              <div className={`p-2 lg:p-3 rounded-full ${stat.color}`}>
-                <stat.icon className="h-5 w-5 lg:h-6 lg:w-6 text-white" />
-              </div>
-            </div>
-            <div className="mt-3 lg:mt-4 flex items-center">
-              {stat.changeType === 'increase' ? (
-                <ArrowUpIcon className="h-3 w-3 lg:h-4 lg:w-4 text-green-500" />
-              ) : (
-                <ArrowDownIcon className="h-3 w-3 lg:h-4 lg:w-4 text-red-500" />
-              )}
-              <span
-                className={`text-xs lg:text-sm font-medium ml-1 ${
-                  stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {stat.change}
-              </span>
-              <span className="text-xs lg:text-sm text-gray-500 ml-1">from last month</span>
-            </div>
+
           </div>
-        ))}
-      </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-        {/* Pending Approvals */}
-        <div className="bg-white rounded-lg shadow p-4 lg:p-6">
-          <h3 className="text-base lg:text-lg font-medium text-gray-900 mb-4">Pending Approvals</h3>
-          <div className="space-y-3 lg:space-y-4">
-            <div className="flex items-center justify-between p-3 lg:p-4 bg-yellow-50 rounded-lg">
+
+
+
+
+          {/* Key Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center">
-                <BuildingStorefrontIcon className="h-4 w-4 lg:h-5 lg:w-5 text-yellow-600 mr-2 lg:mr-3" />
-                <span className="text-xs lg:text-sm font-medium text-gray-900">Vendor Applications</span>
+                <div className="flex-shrink-0">
+                  <Users className="h-8 w-8 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-500">Total Users</p>
+                  <p className="text-2xl font-bold text-gray-900">15,420</p>
+                  <p className="text-sm text-green-600">+12% from last month</p>
+                </div>
               </div>
-              <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 lg:px-2.5 py-0.5 rounded-full">
-                {stats.pendingVendors} pending
-              </span>
             </div>
-            <div className="flex items-center justify-between p-3 lg:p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center">
-                <TruckIcon className="h-4 w-4 lg:h-5 lg:w-5 text-blue-600 mr-2 lg:mr-3" />
-                <span className="text-xs lg:text-sm font-medium text-gray-900">Driver Applications</span>
-              </div>
-              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 lg:px-2.5 py-0.5 rounded-full">
-                {stats.pendingDrivers} pending
-              </span>
-            </div>
-          </div>
-        </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow p-4 lg:p-6">
-          <h3 className="text-base lg:text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
-          <div className="space-y-3 lg:space-y-4">
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs lg:text-sm text-gray-600 block">New vendor &quot;Pizza Palace&quot; approved</span>
-                <span className="text-xs text-gray-400">2 min ago</span>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <Eye className="h-8 w-8 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-500">Page Views</p>
+                  <p className="text-2xl font-bold text-gray-900">89.2K</p>
+                  <p className="text-sm text-green-600">+18% from last month</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-blue-400 rounded-full mt-2"></div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs lg:text-sm text-gray-600 block">Driver John D. completed verification</span>
-                <span className="text-xs text-gray-400">15 min ago</span>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <MessageSquare className="h-8 w-8 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-500">Engagement</p>
+                  <p className="text-2xl font-bold text-gray-900">4.2K</p>
+                  <p className="text-sm text-green-600">+25% from last month</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-orange-400 rounded-full mt-2"></div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs lg:text-sm text-gray-600 block">Order #1234 disputed by customer</span>
-                <span className="text-xs text-gray-400">1 hour ago</span>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-purple-400 rounded-full mt-2"></div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs lg:text-sm text-gray-600 block">System maintenance completed</span>
-                <span className="text-xs text-gray-400">3 hours ago</span>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <TrendingUp className="h-8 w-8 text-orange-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-500">Conversion Rate</p>
+                  <p className="text-2xl font-bold text-gray-900">3.8%</p>
+                  <p className="text-sm text-green-600">+0.5% from last month</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+
+          {/* Charts and Analytics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Traffic Chart */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Traffic Overview</h3>
+              </div>
+              <div className="p-6">
+                <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">Chart visualization would go here</p>
+                    <p className="text-sm text-gray-400">Integration with analytics service needed</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* User Activity */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">User Activity</h3>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Active Users (24h)</span>
+                    <span className="text-sm font-medium text-gray-900">1,234</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">New Registrations</span>
+                    <span className="text-sm font-medium text-gray-900">45</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Bounce Rate</span>
+                    <span className="text-sm font-medium text-gray-900">32.1%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Avg. Session Duration</span>
+                    <span className="text-sm font-medium text-gray-900">4m 32s</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Content Performance */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Top Performing Content</h3>
+            </div>
+            <div className="overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Content
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Views
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Engagement
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <FileText className="h-5 w-5 text-gray-400 mr-3" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            Getting Started with E-commerce Marketing
+                          </div>
+                          <div className="text-sm text-gray-500">Blog Post</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      12,450
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <Heart className="h-4 w-4 text-red-500 mr-1" />
+                        <span className="text-sm text-gray-900">234</span>
+                        <Share2 className="h-4 w-4 text-blue-500 ml-3 mr-1" />
+                        <span className="text-sm text-gray-900">89</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Published
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <FileText className="h-5 w-5 text-gray-400 mr-3" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            Advanced SEO Strategies for 2024
+                          </div>
+                          <div className="text-sm text-gray-500">Blog Post</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      8,920
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <Heart className="h-4 w-4 text-red-500 mr-1" />
+                        <span className="text-sm text-gray-900">156</span>
+                        <Share2 className="h-4 w-4 text-blue-500 ml-3 mr-1" />
+                        <span className="text-sm text-gray-900">67</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Published
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
     </div>
   );
 }

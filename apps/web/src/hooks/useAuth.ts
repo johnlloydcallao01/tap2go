@@ -1,174 +1,261 @@
 /**
- * React Hook for Authentication
- * Handles user authentication state and operations without Firebase
+ * @file apps/web/src/hooks/useAuth.ts
+ * @description Custom hook for accessing authentication state and methods
+ * Provides a simplified interface for components to interact with auth
  */
 
-import { useState, useEffect } from 'react';
+'use client';
 
-export interface User {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-  photoURL: string | null;
+import { useCallback, useEffect, useState } from 'react';
+import { useAuthContext } from '@/contexts/AuthContext';
+import type { UseAuthReturn, User, LoginCredentials } from '@/types/auth';
+import { getUserDisplayName } from '@/lib/auth';
+
+// ========================================
+// MAIN AUTH HOOK
+// ========================================
+
+export function useAuth(): UseAuthReturn {
+  const context = useAuthContext();
+  
+  return {
+    ...context,
+  };
 }
 
-export interface AuthState {
-  user: User | null;
-  loading: boolean;
-  error: string | null;
-}
+// ========================================
+// SPECIALIZED AUTH HOOKS
+// ========================================
 
-export interface AuthActions {
-  signIn: (email: string, password: string) => Promise<User | null>;
-  signUp: (email: string, password: string, displayName?: string) => Promise<User | null>;
-  logout: () => Promise<void>;
-  clearError: () => void;
+/**
+ * Hook for getting current user information
+ */
+export function useUser() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  
+  const displayName = user ? getUserDisplayName(user) : '';
+  const initials = user ? getInitials(user) : '';
+  
+  return {
+    user,
+    isAuthenticated,
+    isLoading,
+    displayName,
+    initials,
+  };
 }
 
 /**
- * Custom hook for Authentication (Non-Firebase)
+ * Hook for authentication actions
  */
-export const useAuth = (): AuthState & AuthActions => {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    loading: true,
-    error: null,
-  });
-
-  // Check for existing session on mount
-  useEffect(() => {
-    const checkAuthState = async () => {
-      try {
-        // Check for stored auth token or session
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          // Validate token with your backend API
-          const response = await fetch('/api/auth/validate', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          if (response.ok) {
-            const userData = await response.json();
-            setState(prev => ({
-              ...prev,
-              user: userData.user,
-              loading: false,
-            }));
-          } else {
-            localStorage.removeItem('auth_token');
-            setState(prev => ({ ...prev, loading: false }));
-          }
-        } else {
-          setState(prev => ({ ...prev, loading: false }));
-        }
-      } catch (error) {
-        console.error('Auth state check failed:', error);
-        setState(prev => ({ ...prev, loading: false }));
-      }
-    };
-
-    checkAuthState();
-  }, []);
-
-  // Sign in with email and password
-  const signIn = async (email: string, password: string): Promise<User | null> => {
-    try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-      
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const { user, token } = data;
-        
-        localStorage.setItem('auth_token', token);
-        setState(prev => ({ ...prev, user, loading: false }));
-        return user;
-      } else {
-        const errorData = await response.json();
-        setState(prev => ({ ...prev, loading: false, error: errorData.message || 'Failed to sign in' }));
-        return null;
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to sign in';
-      setState(prev => ({ ...prev, loading: false, error: errorMessage }));
-      return null;
-    }
-  };
-
-  // Sign up with email and password
-  const signUp = async (email: string, password: string, displayName?: string): Promise<User | null> => {
-    try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-      
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, displayName }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const { user, token } = data;
-        
-        localStorage.setItem('auth_token', token);
-        setState(prev => ({ ...prev, user, loading: false }));
-        return user;
-      } else {
-        const errorData = await response.json();
-        setState(prev => ({ ...prev, loading: false, error: errorData.message || 'Failed to create account' }));
-        return null;
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create account';
-      setState(prev => ({ ...prev, loading: false, error: errorMessage }));
-      return null;
-    }
-  };
-
-  // Sign out
-  const logout = async (): Promise<void> => {
-    try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-      
-      // Call logout API endpoint
-      await fetch('/api/auth/signout', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
-      });
-      
-      localStorage.removeItem('auth_token');
-      setState(prev => ({ ...prev, user: null, loading: false }));
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to sign out';
-      setState(prev => ({ ...prev, loading: false, error: errorMessage }));
-    }
-  };
-
-  // Clear error
-  const clearError = (): void => {
-    setState(prev => ({ ...prev, error: null }));
-  };
-
+export function useAuthActions() {
+  const { login, logout, refreshSession, clearError } = useAuth();
+  
   return {
-    ...state,
-    signIn,
-    signUp,
+    login,
     logout,
+    refreshSession,
     clearError,
   };
-};
+}
+
+/**
+ * Hook for authentication status
+ */
+export function useAuthStatus() {
+  const { isAuthenticated, isLoading, isInitialized, error } = useAuth();
+  
+  return {
+    isAuthenticated,
+    isLoading,
+    isInitialized,
+    error,
+    isReady: isInitialized && !isLoading,
+  };
+}
+
+/**
+ * Hook for login functionality with enhanced error handling
+ */
+export function useLogin() {
+  const { login, isLoading, error, clearError } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const handleLogin = useCallback(async (credentials: LoginCredentials) => {
+    setIsSubmitting(true);
+    clearError();
+    
+    try {
+      await login(credentials);
+    } catch (error) {
+      // Error is already handled by the context
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [login, clearError]);
+  
+  return {
+    login: handleLogin,
+    isLoading: isLoading || isSubmitting,
+    error,
+    clearError,
+  };
+}
+
+/**
+ * Hook for logout functionality
+ */
+export function useLogout() {
+  const { logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  
+  const handleLogout = useCallback(async () => {
+    setIsLoggingOut(true);
+    
+    try {
+      await logout();
+    } catch (error) {
+      // Logout should always succeed locally
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [logout]);
+  
+  return {
+    logout: handleLogout,
+    isLoggingOut,
+  };
+}
+
+/**
+ * Hook for session management
+ */
+export function useSession() {
+  const { user, isAuthenticated, refreshSession, checkAuthStatus } = useAuth();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    
+    try {
+      await refreshSession();
+    } catch (error) {
+      console.error('Session refresh failed:', error);
+      throw error;
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshSession]);
+  
+  return {
+    user,
+    isAuthenticated,
+    refreshSession: handleRefresh,
+    checkAuthStatus,
+    isRefreshing,
+  };
+}
+
+/**
+ * Hook for route protection logic
+ */
+export function useRouteProtection() {
+  const { isAuthenticated, isInitialized, isLoading } = useAuth();
+  
+  return {
+    isAuthenticated,
+    isInitialized,
+    isLoading,
+    shouldRedirectToLogin: isInitialized && !isLoading && !isAuthenticated,
+    shouldRedirectFromAuth: isInitialized && !isLoading && isAuthenticated,
+    isCheckingAuth: !isInitialized || isLoading,
+  };
+}
+
+/**
+ * Hook for authentication events
+ */
+export function useAuthEvents() {
+  const [events, setEvents] = useState<Array<{ type: string; data?: any; timestamp: Date }>>([]);
+  
+  useEffect(() => {
+    const handleAuthEvent = (e: CustomEvent) => {
+      const eventType = e.type.replace('auth:', '');
+      setEvents(prev => [...prev.slice(-9), {
+        type: eventType,
+        data: e.detail,
+        timestamp: new Date(),
+      }]);
+    };
+    
+    // Listen for all auth events
+    const eventTypes = ['login_success', 'login_failure', 'logout', 'session_expired', 'session_refreshed'];
+    
+    eventTypes.forEach(type => {
+      window.addEventListener(`auth:${type}`, handleAuthEvent as EventListener);
+    });
+    
+    return () => {
+      eventTypes.forEach(type => {
+        window.removeEventListener(`auth:${type}`, handleAuthEvent as EventListener);
+      });
+    };
+  }, []);
+  
+  return events;
+}
+
+// ========================================
+// UTILITY FUNCTIONS
+// ========================================
+
+/**
+ * Get user initials for avatar display
+ */
+function getInitials(user: User): string {
+  if (user.firstName && user.lastName) {
+    return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase();
+  }
+  
+  if (user.username) {
+    return user.username.substring(0, 2).toUpperCase();
+  }
+  
+  return user.email.substring(0, 2).toUpperCase();
+}
+
+// ========================================
+// PERMISSION HOOKS
+// ========================================
+
+/**
+ * Hook for checking user permissions/roles
+ */
+export function usePermissions() {
+  const { user, isAuthenticated } = useAuth();
+  
+  const hasRole = useCallback((role: string) => {
+    return isAuthenticated && user?.role === role;
+  }, [isAuthenticated, user?.role]);
+  
+  const hasAnyRole = useCallback((roles: string[]) => {
+    return isAuthenticated && user?.role && roles.includes(user.role);
+  }, [isAuthenticated, user?.role]);
+  
+  return {
+    hasRole,
+    hasAnyRole,
+    userRole: user?.role,
+    isTrainee: hasRole('trainee'),
+    isAdmin: hasRole('admin'),
+    isInstructor: hasRole('instructor'),
+  };
+}
+
+// ========================================
+// EXPORTS
+// ========================================
 
 export default useAuth;

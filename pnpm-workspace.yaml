@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "packages/*"
 
 # Peer dependency configuration for React 19 compatibility
 peerDependencyRules:

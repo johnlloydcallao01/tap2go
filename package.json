@@ -18,7 +18,7 @@
     "sync-env": "node scripts/sync-env.js",
     "postinstall": "node scripts/sync-env.js",
     "type-check": "turbo run type-check",
-    "type-check:packages": "turbo run type-check --filter=\"./packages/*\"",
+    "type-check:packages": "node scripts/type-check-packages.js",
     "type-check:apps": "turbo run type-check --filter=\"./apps/*\"",
     "type-check:web": "turbo run type-check --filter=web",
     "type-check:web-driver": "turbo run type-check --filter=web-driver",
@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@turbo/gen": "^2.0.0",
+    "@types/minimatch": "^6.0.0",
     "next": "15.3.2",
     "turbo": "^2.0.0",
     "typescript": "5.8.3"
@@ -63,8 +64,8 @@
     "color-string": "^1.9.1",
     "hoist-non-react-statics": "^3.3.2",
     "nativewind": "2.0.11",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "redux-persist": "^6.0.0",
     "scheduler": "^0.25.0",
     "simple-swizzle": "^0.2.2",
