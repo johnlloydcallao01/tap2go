@@ -30,7 +30,6 @@ web-build/
 # Production builds
 build/
 dist/
-lib/
 
 # Turborepo
 .turbo/
