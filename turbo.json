@@ -20,13 +20,15 @@
         "VERCEL_URL",
         "VERCEL_ENV",
         "DATABASE_URI",
-        "PAYLOAD_SECRET"
+        "PAYLOAD_SECRET",
+        "PAYLOAD_API_KEY"
       ],
       "passThroughEnv": [
         "NODE_VERSION",
         "NEXT_TELEMETRY_DISABLED",
         "DATABASE_URI",
-        "PAYLOAD_SECRET"
+        "PAYLOAD_SECRET",
+        "PAYLOAD_API_KEY"
       ]
     },
     "dev": {
