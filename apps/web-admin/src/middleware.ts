@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // For admin app with external PayloadCMS, we can't rely on cookie-based auth in middleware
-  // because cookies are domain-specific (cms.grandlinemaritime.com vs localhost:3000).
+  // because cookies are domain-specific (cms.grandlinemaritime.com vs localhost:3002).
   // Instead, we'll handle auth protection on the client side with ProtectedRoute components.
 
   // Handle auth routes (signin, etc.) - always allow access

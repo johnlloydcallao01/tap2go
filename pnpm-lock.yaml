@@ -698,6 +698,9 @@ importers:
       '@encreasl/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/minimatch':
+        specifier: ^6.0.0
+        version: 6.0.0
       '@types/node':
         specifier: ^20
         version: 20.19.17

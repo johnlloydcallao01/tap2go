@@ -11,7 +11,7 @@ import type { NextRequest } from 'next/server';
 // CONFIGURATION
 // ========================================
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://grandline-cms.vercel.app/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
 const COLLECTION_SLUG = 'users'; // Authentication is on users collection, not trainees
 
 // Routes that require authentication
@@ -107,7 +107,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // For development with external PayloadCMS, we can't rely on cookie-based auth in middleware
-  // because cookies are domain-specific (grandline-cms.vercel.app vs localhost:3000).
+  // because cookies are domain-specific (cms.tap2goph.com vs localhost:3000).
   // Instead, we'll handle auth protection on the client side with ProtectedRoute components.
 
   // Handle auth routes (signin, register, etc.) - always allow access
@@ -116,7 +116,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // For protected routes, let the client-side ProtectedRoute component handle the auth check
-  // This is necessary because PayloadCMS cookies are set for grandline-cms.vercel.app domain
+  // This is necessary because PayloadCMS cookies are set for cms.tap2goph.com domain
   // and cannot be accessed by localhost:3000 due to browser security policies
 
   return NextResponse.next();

@@ -5,7 +5,7 @@ import fetch from 'node-fetch';
  * This script tests both admin and service API keys to see what user data is returned
  */
 
-const API_BASE = 'https://cms.grandlinemaritime.com/api';
+const API_BASE = 'https://cms.tap2goph.com/api';
 
 // API Keys to test
 const ADMIN_API_KEY = '5c4a6003319c5c34cbe294bbf80ca501';

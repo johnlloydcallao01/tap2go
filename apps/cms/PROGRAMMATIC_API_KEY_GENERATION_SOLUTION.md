@@ -124,12 +124,12 @@ WHERE id = $2
 ### Verification Steps
 ```bash
 # Test PayloadCMS admin login
-# Visit: https://cms.grandlinemaritime.com/admin
+# Visit: https://cms.tap2goph.com/admin
 # Login with: johnlloydcallao@gmail.com / @Iamachessgrandmaster23
 
 # Test API authentication
 curl -H "Authorization: users API Key 5c4a6003319c5c34cbe294bbf80ca501" \
-     https://cms.grandlinemaritime.com/api/courses
+     https://cms.tap2goph.com/api/courses
 ```
 
 ### Future Considerations

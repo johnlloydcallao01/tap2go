@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     headers['Authorization'] = `users API-Key ${apiKey}`;
 
     // Fetch from PayloadCMS API
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://cms.grandlinemaritime.com/api';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
     const response = await fetch(`${apiUrl}/courses?${params}`, {
       headers,
       // Add cache control for better performance

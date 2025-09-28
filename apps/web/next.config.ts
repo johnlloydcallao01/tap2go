@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'cms.grandlinemaritime.com',
+        hostname: 'cms.tap2goph.com',
         port: '',
         pathname: '/**',
       },
@@ -51,7 +51,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/cms/:path*',
-        destination: 'https://grandline-cms.vercel.app/api/:path*',
+        destination: 'https://cms.tap2goph.com/api/:path*',
       },
     ];
   },
