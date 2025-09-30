@@ -110,18 +110,91 @@ async function makeAuthRequest<T>(endpoint: string, options: RequestInit = {}): 
 // CORE AUTHENTICATION FUNCTIONS
 // ========================================
 
+// ========================================
+// RETRY UTILITIES
+// ========================================
+
+interface RetryOptions {
+  maxAttempts: number;
+  delayMs: number;
+  backoffMultiplier: number;
+  retryableErrors: string[];
+}
+
+const DEFAULT_RETRY_OPTIONS: RetryOptions = {
+  maxAttempts: 3,
+  delayMs: 1000,
+  backoffMultiplier: 1.5,
+  retryableErrors: ['id', 'network', 'timeout', 'server error', '500', '502', '503', '504']
+};
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetryableError(error: any, retryableErrors: string[]): boolean {
+  const errorMessage = (error?.message || '').toLowerCase();
+  const errorString = JSON.stringify(error).toLowerCase();
+  
+  return retryableErrors.some(retryableError => 
+    errorMessage.includes(retryableError) || errorString.includes(retryableError)
+  );
+}
+
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: Partial<RetryOptions> = {}
+): Promise<T> {
+  const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
+  let lastError: any;
+  
+  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+    try {
+      console.log(`🔄 Attempt ${attempt}/${config.maxAttempts}`);
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      console.log(`❌ Attempt ${attempt} failed:`, error);
+      
+      // Don't retry on the last attempt or if error is not retryable
+      if (attempt === config.maxAttempts || !isRetryableError(error, config.retryableErrors)) {
+        break;
+      }
+      
+      const delay = config.delayMs * Math.pow(config.backoffMultiplier, attempt - 1);
+      console.log(`⏳ Waiting ${delay}ms before retry...`);
+      await sleep(delay);
+    }
+  }
+  
+  throw lastError;
+}
+
 /**
  * Login user with email and password
  * Uses PayloadCMS cookie strategy for secure session management
  * Only allows users with 'trainee' role to authenticate
+ * Includes retry logic for intermittent failures
  */
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   console.log('🔐 LOGIN ATTEMPT:', credentials.email);
 
+  // Clear any existing auth state before login to prevent conflicts
+  clearAuthState();
+  
+  // Add small delay to ensure state is cleared
+  await sleep(100);
+
   try {
-    const response = await makeAuthRequest<PayloadAuthResponse>('/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
+    const response = await withRetry(async () => {
+      return await makeAuthRequest<PayloadAuthResponse>('/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+    }, {
+      maxAttempts: 3,
+      delayMs: 1000,
+      retryableErrors: ['id', 'network', 'timeout', 'server error', '500', '502', '503', '504']
     });
 
     console.log('✅ LOGIN SUCCESS:', {
@@ -168,6 +241,16 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
     };
   } catch (error) {
     console.log('❌ LOGIN FAILED:', error);
+    
+    // Enhanced error logging for debugging
+    console.log('🔍 LOGIN ERROR DETAILS:', {
+      message: error?.message,
+      status: error?.status,
+      errors: error?.errors,
+      stack: error?.stack,
+      timestamp: new Date().toISOString()
+    });
+    
     const authError = handleApiError(error);
     throw new Error(authError.message);
   }
