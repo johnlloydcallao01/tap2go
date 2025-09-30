@@ -67,15 +67,7 @@ export const Courses: CollectionConfig = {
         description: 'Primary instructor for this course',
       },
     },
-    {
-      name: 'coInstructors',
-      type: 'relationship',
-      relationTo: 'instructors',
-      hasMany: true,
-      admin: {
-        description: 'Additional instructors (optional)',
-      },
-    },
+
     {
       name: 'category',
       type: 'relationship',
@@ -219,20 +211,6 @@ export const Courses: CollectionConfig = {
     },
 
     // === LEARNING OBJECTIVES & PREREQUISITES ===
-    {
-      name: 'learningObjectives',
-      type: 'array',
-      fields: [
-        {
-          name: 'objective',
-          type: 'text',
-          required: true,
-        },
-      ],
-      admin: {
-        description: 'What students will learn in this course',
-      },
-    },
     {
       name: 'prerequisites',
       type: 'array',

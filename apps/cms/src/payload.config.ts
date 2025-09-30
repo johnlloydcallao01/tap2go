@@ -16,7 +16,6 @@ import { Users } from './collections/Users'
 import { Instructors } from './collections/Instructors'
 import { Trainees } from './collections/Trainees'
 import { Admins } from './collections/Admins'
-import { UserCertifications } from './collections/UserCertifications'
 import { UserEvents } from './collections/UserEvents'
 import { EmergencyContacts } from './collections/EmergencyContacts'
 import { Media } from './collections/Media'
@@ -24,7 +23,12 @@ import { Posts } from './collections/Posts'
 // LMS Collections
 import { Courses } from './collections/Courses'
 import { CourseCategories } from './collections/CourseCategories'
-import { CourseEnrollments } from './collections/CourseEnrollments'
+
+// Food Delivery Collections
+import { Vendors } from './collections/Vendors'
+import { Merchants } from './collections/Merchants'
+import { ProductCategories } from './collections/ProductCategories'
+import { Products } from './collections/Products'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -42,7 +46,6 @@ export default buildConfig({
     Instructors,
     Trainees,
     Admins,
-    UserCertifications,
     UserEvents,
     EmergencyContacts,
 
@@ -53,7 +56,12 @@ export default buildConfig({
     // Learning Management System
     Courses,
     CourseCategories,
-    CourseEnrollments,
+
+    // Food Delivery System
+    Vendors,
+    Merchants,
+    ProductCategories,
+    Products,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

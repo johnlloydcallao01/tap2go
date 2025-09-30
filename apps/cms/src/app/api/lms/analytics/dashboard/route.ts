@@ -8,19 +8,18 @@ export async function GET(_request: NextRequest) {
     const payload = await getPayload({ config: configPromise })
 
     // Get basic counts from PayloadCMS
-    const [coursesResult, enrollmentsResult, studentsResult, instructorsResult] = await Promise.all([
+    const [coursesResult, studentsResult, instructorsResult] = await Promise.all([
       payload.find({ collection: 'courses', limit: 0 }),
-      payload.find({ collection: 'course-enrollments', limit: 0 }),
       payload.find({ collection: 'trainees', limit: 0 }),
       payload.find({ collection: 'instructors', limit: 0 }),
     ])
 
-    // Get recent enrollments
-    const recentEnrollments = await payload.find({
-      collection: 'course-enrollments',
+    // Get recent courses (since enrollments are no longer tracked)
+    const recentCourses = await payload.find({
+      collection: 'courses',
       limit: 5,
-      sort: '-enrolledAt',
-      depth: 2,
+      sort: '-createdAt',
+      depth: 1,
     })
 
     // Get popular courses (most enrollments)
@@ -34,14 +33,14 @@ export async function GET(_request: NextRequest) {
     const dashboardData = {
       overview: {
         totalCourses: coursesResult.totalDocs,
-        totalEnrollments: enrollmentsResult.totalDocs,
+        totalEnrollments: 0, // Enrollments no longer tracked
         totalStudents: studentsResult.totalDocs,
         totalInstructors: instructorsResult.totalDocs,
-        activeEnrollments: enrollmentsResult.totalDocs, // Simplified
+        activeEnrollments: 0, // Enrollments no longer tracked
         completionRate: 0, // Can be calculated later
       },
       recentActivity: {
-        recentEnrollments: recentEnrollments.docs,
+        recentCourses: recentCourses.docs,
         enrollmentTrends: [], // Can be added later
       },
       popularCourses: popularCourses.docs,

@@ -1,3 +1,5 @@
+import * as migration_20250101_drop_course_enrollments_table from './20250101_drop_course_enrollments_table';
+import * as migration_20250101_drop_courses_prerequisites_table from './20250101_drop_courses_prerequisites_table';
 import * as migration_20250811_093559_add_focus_keyword_to_posts from './20250811_093559_add_focus_keyword_to_posts';
 import * as migration_20250826_020303 from './20250826_020303';
 import * as migration_20250826_060505 from './20250826_060505';
@@ -22,12 +24,29 @@ import * as migration_20250832_fix_course_enrollments_amount_paid from './202508
 import * as migration_20250904_fix_emergency_contacts from './20250904_fix_emergency_contacts';
 import * as migration_20250904_fix_serial_type_error from './20250904_fix_serial_type_error';
 import * as migration_20250904_re_enable_trainee_trigger from './20250904_re_enable_trainee_trigger';
+import * as migration_20250911_020051 from './20250911_020051';
 import * as migration_20250911_add_service_role from './20250911_add_service_role';
 import * as migration_20250911_fix_service_role_trigger from './20250911_fix_service_role_trigger';
 import * as migration_20250914_115512 from './20250914_115512';
 import * as migration_20250916_103718 from './20250916_103718';
+import * as migration_20250930_035030 from './20250930_035030';
+import * as migration_20250930_040418 from './20250930_040418';
+import * as migration_20250930_051114 from './20250930_051114';
+import * as migration_20250930_061253 from './20250930_061253';
+import * as migration_20250930_062825 from './20250930_062825';
+import * as migration_20250930_065032 from './20250930_065032';
 
 export const migrations = [
+  {
+    up: migration_20250101_drop_course_enrollments_table.up,
+    down: migration_20250101_drop_course_enrollments_table.down,
+    name: '20250101_drop_course_enrollments_table',
+  },
+  {
+    up: migration_20250101_drop_courses_prerequisites_table.up,
+    down: migration_20250101_drop_courses_prerequisites_table.down,
+    name: '20250101_drop_courses_prerequisites_table',
+  },
   {
     up: migration_20250811_093559_add_focus_keyword_to_posts.up,
     down: migration_20250811_093559_add_focus_keyword_to_posts.down,
@@ -149,6 +168,11 @@ export const migrations = [
     name: '20250904_re_enable_trainee_trigger',
   },
   {
+    up: migration_20250911_020051.up,
+    down: migration_20250911_020051.down,
+    name: '20250911_020051',
+  },
+  {
     up: migration_20250911_add_service_role.up,
     down: migration_20250911_add_service_role.down,
     name: '20250911_add_service_role',
@@ -166,6 +190,36 @@ export const migrations = [
   {
     up: migration_20250916_103718.up,
     down: migration_20250916_103718.down,
-    name: '20250916_103718'
+    name: '20250916_103718',
+  },
+  {
+    up: migration_20250930_035030.up,
+    down: migration_20250930_035030.down,
+    name: '20250930_035030',
+  },
+  {
+    up: migration_20250930_040418.up,
+    down: migration_20250930_040418.down,
+    name: '20250930_040418',
+  },
+  {
+    up: migration_20250930_051114.up,
+    down: migration_20250930_051114.down,
+    name: '20250930_051114',
+  },
+  {
+    up: migration_20250930_061253.up,
+    down: migration_20250930_061253.down,
+    name: '20250930_061253',
+  },
+  {
+    up: migration_20250930_062825.up,
+    down: migration_20250930_062825.down,
+    name: '20250930_062825',
+  },
+  {
+    up: migration_20250930_065032.up,
+    down: migration_20250930_065032.down,
+    name: '20250930_065032'
   },
 ];

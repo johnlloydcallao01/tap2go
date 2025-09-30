@@ -71,14 +71,16 @@ export interface Config {
     instructors: Instructor;
     trainees: Trainee;
     admins: Admin;
-    'user-certifications': UserCertification;
     'user-events': UserEvent;
     'emergency-contacts': EmergencyContact;
     media: Media;
     posts: Post;
     courses: Course;
     'course-categories': CourseCategory;
-    'course-enrollments': CourseEnrollment;
+    vendors: Vendor;
+    merchants: Merchant;
+    'product-categories': ProductCategory;
+    products: Product;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -89,14 +91,16 @@ export interface Config {
     instructors: InstructorsSelect<false> | InstructorsSelect<true>;
     trainees: TraineesSelect<false> | TraineesSelect<true>;
     admins: AdminsSelect<false> | AdminsSelect<true>;
-    'user-certifications': UserCertificationsSelect<false> | UserCertificationsSelect<true>;
     'user-events': UserEventsSelect<false> | UserEventsSelect<true>;
     'emergency-contacts': EmergencyContactsSelect<false> | EmergencyContactsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     courses: CoursesSelect<false> | CoursesSelect<true>;
     'course-categories': CourseCategoriesSelect<false> | CourseCategoriesSelect<true>;
-    'course-enrollments': CourseEnrollmentsSelect<false> | CourseEnrollmentsSelect<true>;
+    vendors: VendorsSelect<false> | VendorsSelect<true>;
+    merchants: MerchantsSelect<false> | MerchantsSelect<true>;
+    'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
+    products: ProductsSelect<false> | ProductsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -340,43 +344,6 @@ export interface Admin {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "user-certifications".
- */
-export interface UserCertification {
-  id: number;
-  /**
-   * User who holds this certification
-   */
-  user: number | User;
-  /**
-   * Name of the certification
-   */
-  certificationName: string;
-  /**
-   * Organization that issued the certification
-   */
-  issuingAuthority?: string | null;
-  /**
-   * Date when certification was issued
-   */
-  issueDate?: string | null;
-  /**
-   * Date when certification expires (if applicable)
-   */
-  expiryDate?: string | null;
-  /**
-   * URL to verify the certification
-   */
-  verificationUrl?: string | null;
-  /**
-   * Whether this certification is currently active/valid
-   */
-  isActive?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "user-events".
  */
 export interface UserEvent {
@@ -597,10 +564,6 @@ export interface Course {
    */
   instructor: number | Instructor;
   /**
-   * Additional instructors (optional)
-   */
-  coInstructors?: (number | Instructor)[] | null;
-  /**
    * Course category for organization
    */
   category?: (number | null) | CourseCategory;
@@ -656,15 +619,6 @@ export interface Course {
    * Minimum grade required to pass (percentage)
    */
   passingGrade?: number | null;
-  /**
-   * What students will learn in this course
-   */
-  learningObjectives?:
-    | {
-        objective: string;
-        id?: string | null;
-      }[]
-    | null;
   /**
    * What students need to know before taking this course
    */
@@ -757,82 +711,141 @@ export interface CourseCategory {
   createdAt: string;
 }
 /**
- * Manage student course enrollments and access
+ * Manage business entities and vendor organizations
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "course-enrollments".
+ * via the `definition` "vendors".
  */
-export interface CourseEnrollment {
+export interface Vendor {
   id: number;
   /**
-   * Student enrolled in the course
+   * Business name (e.g., "Jollibee Corporation", "McDonald's Philippines")
    */
-  student: number | Trainee;
+  businessName: string;
   /**
-   * Course the student is enrolled in
+   * Legal business name as registered with government
    */
-  course: number | Course;
+  legalName: string;
   /**
-   * When the student enrolled
+   * Government business registration number (DTI/SEC)
    */
-  enrolledAt?: string | null;
+  businessRegistrationNumber: string;
   /**
-   * Type of enrollment
+   * Tax Identification Number (TIN)
    */
-  enrollmentType: 'free' | 'paid' | 'scholarship' | 'trial' | 'corporate';
+  taxIdentificationNumber?: string | null;
   /**
-   * Current enrollment status
+   * Primary business contact email
    */
-  status: 'active' | 'suspended' | 'completed' | 'dropped' | 'expired' | 'pending';
+  primaryContactEmail: string;
   /**
-   * Payment status for paid courses
+   * Primary business contact phone number
    */
-  paymentStatus?: ('completed' | 'pending' | 'failed' | 'refunded' | 'not_required') | null;
+  primaryContactPhone: string;
   /**
-   * When access to the course expires (optional)
+   * Official business website URL
    */
-  accessExpiresAt?: string | null;
+  websiteUrl?: string | null;
   /**
-   * Amount paid for the course (if applicable)
+   * Type of business operation
    */
-  amountPaid?: number | null;
+  businessType:
+    | 'restaurant'
+    | 'fast_food'
+    | 'grocery'
+    | 'pharmacy'
+    | 'convenience'
+    | 'bakery'
+    | 'coffee_shop'
+    | 'other';
   /**
-   * Overall course completion percentage
+   * Types of cuisine offered (for restaurants)
    */
-  progressPercentage?: number | null;
+  cuisineTypes?:
+    | {
+        cuisine?:
+          | (
+              | 'filipino'
+              | 'american'
+              | 'chinese'
+              | 'japanese'
+              | 'korean'
+              | 'italian'
+              | 'mexican'
+              | 'thai'
+              | 'indian'
+              | 'mediterranean'
+              | 'seafood'
+              | 'bbq'
+              | 'desserts'
+              | 'healthy'
+              | 'vegan'
+              | 'other'
+            )
+          | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
-   * When the student last accessed the course
+   * Whether the vendor is currently active
    */
-  lastAccessedAt?: string | null;
+  isActive?: boolean | null;
   /**
-   * When the student completed the course
+   * Business verification status
    */
-  completedAt?: string | null;
+  verificationStatus: 'pending' | 'verified' | 'rejected' | 'suspended';
   /**
-   * Current overall grade percentage
+   * Date when vendor was onboarded to the platform
    */
-  currentGrade?: number | null;
+  onboardingDate?: string | null;
   /**
-   * Final course grade percentage
+   * Average rating across all merchant locations
    */
-  finalGrade?: number | null;
+  averageRating?: number | null;
   /**
-   * Whether a certificate has been issued
+   * Total number of reviews across all locations
    */
-  certificateIssued?: boolean | null;
+  totalReviews?: number | null;
   /**
-   * Who enrolled the student (admin/instructor)
+   * Total orders processed across all locations
    */
-  enrolledBy?: (number | null) | User;
+  totalOrders?: number | null;
   /**
-   * Administrative notes about this enrollment
+   * Number of merchant locations under this vendor
    */
-  notes?: string | null;
-  displayTitle?: string | null;
+  totalMerchants?: number | null;
   /**
-   * Additional enrollment data and settings
+   * Business license document
    */
-  metadata?:
+  businessLicense?: (number | null) | Media;
+  /**
+   * Tax certificate document
+   */
+  taxCertificate?: (number | null) | Media;
+  /**
+   * Business logo
+   */
+  logo?: (number | null) | Media;
+  /**
+   * Bank account holder name
+   */
+  bankAccountName?: string | null;
+  /**
+   * Bank account number for payments
+   */
+  bankAccountNumber?: string | null;
+  /**
+   * Bank name
+   */
+  bankName?: string | null;
+  /**
+   * Business description and overview
+   */
+  description?: string | null;
+  /**
+   * Default operating hours (can be overridden by individual merchants)
+   */
+  operatingHours?:
     | {
         [k: string]: unknown;
       }
@@ -841,6 +854,965 @@ export interface CourseEnrollment {
     | number
     | boolean
     | null;
+  /**
+   * Social media and web presence
+   */
+  socialMediaLinks?: {
+    facebook?: string | null;
+    instagram?: string | null;
+    twitter?: string | null;
+    website?: string | null;
+  };
+  /**
+   * Compliance and certification information
+   */
+  complianceSettings?: {
+    /**
+     * Food safety license number
+     */
+    foodSafetyLicense?: string | null;
+    halaalCertified?: boolean | null;
+    organicCertified?: boolean | null;
+    /**
+     * Complies with allergen labeling requirements
+     */
+    allergenCompliance?: boolean | null;
+  };
+  /**
+   * Platform-specific settings and fees
+   */
+  platformSettings?: {
+    /**
+     * Platform commission rate percentage
+     */
+    commissionRate?: number | null;
+    /**
+     * Default minimum order amount (PHP)
+     */
+    minimumOrderAmount?: number | null;
+    /**
+     * Default delivery fee (PHP)
+     */
+    deliveryFee?: number | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Manage individual merchant locations and outlets
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchants".
+ */
+export interface Merchant {
+  id: number;
+  /**
+   * Parent vendor/business entity
+   */
+  vendor: number | Vendor;
+  /**
+   * Specific outlet name (e.g., "Jollibee Manila", "McDonald's Quezon City")
+   */
+  outletName: string;
+  /**
+   * Internal reference code for the outlet (e.g., JB-MNL-001)
+   */
+  outletCode: string;
+  /**
+   * Complete address information
+   */
+  address: {
+    /**
+     * Complete street address
+     */
+    streetAddress: string;
+    /**
+     * Barangay
+     */
+    barangay?: string | null;
+    /**
+     * City
+     */
+    city: string;
+    /**
+     * Province/State
+     */
+    province: string;
+    /**
+     * Postal/ZIP code
+     */
+    postalCode?: string | null;
+    /**
+     * Country
+     */
+    country?: string | null;
+  };
+  /**
+   * Geographic location and delivery coverage
+   */
+  location: {
+    /**
+     * Latitude coordinate for delivery radius calculations
+     */
+    latitude: number;
+    /**
+     * Longitude coordinate for delivery radius calculations
+     */
+    longitude: number;
+    /**
+     * Delivery radius in kilometers
+     */
+    deliveryRadiusKm?: number | null;
+  };
+  /**
+   * Contact information for this specific outlet
+   */
+  contactInfo?: {
+    /**
+     * Outlet contact phone number
+     */
+    phone?: string | null;
+    /**
+     * Outlet contact email
+     */
+    email?: string | null;
+    /**
+     * Store manager name
+     */
+    managerName?: string | null;
+    /**
+     * Store manager contact number
+     */
+    managerPhone?: string | null;
+  };
+  /**
+   * Whether the merchant is currently active
+   */
+  isActive?: boolean | null;
+  /**
+   * Whether the merchant is currently accepting new orders
+   */
+  isAcceptingOrders?: boolean | null;
+  /**
+   * Current operational status
+   */
+  operationalStatus?: ('open' | 'closed' | 'busy' | 'temp_closed' | 'maintenance') | null;
+  /**
+   * Weekly operating schedule (JSON format)
+   */
+  operatingHours?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Special operating hours for holidays or events
+   */
+  specialHours?:
+    | {
+        date: string;
+        openTime?: string | null;
+        closeTime?: string | null;
+        isClosed?: boolean | null;
+        /**
+         * Reason for special hours (holiday, maintenance, etc.)
+         */
+        reason?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Delivery policies and settings
+   */
+  deliverySettings?: {
+    /**
+     * Minimum order amount (PHP)
+     */
+    minimumOrderAmount?: number | null;
+    /**
+     * Base delivery fee (PHP)
+     */
+    deliveryFee?: number | null;
+    /**
+     * Order amount for free delivery (PHP)
+     */
+    freeDeliveryThreshold?: number | null;
+    /**
+     * Estimated delivery time in minutes
+     */
+    estimatedDeliveryTimeMinutes?: number | null;
+    /**
+     * Maximum delivery time promise
+     */
+    maxDeliveryTimeMinutes?: number | null;
+  };
+  /**
+   * Performance tracking and analytics
+   */
+  metrics?: {
+    /**
+     * Average customer rating
+     */
+    averageRating?: number | null;
+    /**
+     * Total number of customer reviews
+     */
+    totalReviews?: number | null;
+    /**
+     * Total orders processed
+     */
+    totalOrders?: number | null;
+    /**
+     * Average food preparation time
+     */
+    averagePreparationTimeMinutes?: number | null;
+    /**
+     * Percentage of orders accepted
+     */
+    orderAcceptanceRate?: number | null;
+    /**
+     * Percentage of on-time deliveries
+     */
+    onTimeDeliveryRate?: number | null;
+  };
+  /**
+   * Visual content for the merchant
+   */
+  media?: {
+    /**
+     * Store front photo
+     */
+    storeFrontImage?: (number | null) | Media;
+    /**
+     * Interior photos of the outlet
+     */
+    interiorImages?:
+      | {
+          image?: (number | null) | Media;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Menu board or promotional images
+     */
+    menuImages?:
+      | {
+          image?: (number | null) | Media;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Available features and amenities
+   */
+  features?: {
+    hasParking?: boolean | null;
+    hasDineIn?: boolean | null;
+    hasTakeout?: boolean | null;
+    hasDelivery?: boolean | null;
+    acceptsCash?: boolean | null;
+    acceptsCards?: boolean | null;
+    acceptsDigitalPayments?: boolean | null;
+    hasWifi?: boolean | null;
+    /**
+     * Wheelchair accessible
+     */
+    isAccessible?: boolean | null;
+  };
+  /**
+   * Regulatory compliance and certifications
+   */
+  compliance?: {
+    /**
+     * Local business permit number
+     */
+    businessPermitNumber?: string | null;
+    /**
+     * Food safety license number
+     */
+    foodSafetyLicense?: string | null;
+    /**
+     * Fire safety permit number
+     */
+    firePermitNumber?: string | null;
+    /**
+     * Sanitary permit number
+     */
+    sanitaryPermitNumber?: string | null;
+    /**
+     * Last health/safety inspection date
+     */
+    lastInspectionDate?: string | null;
+    /**
+     * Latest inspection score
+     */
+    inspectionScore?: number | null;
+  };
+  /**
+   * Outlet description and special features
+   */
+  description?: string | null;
+  /**
+   * Special delivery or pickup instructions
+   */
+  specialInstructions?: string | null;
+  /**
+   * Tags for search and categorization (e.g., "24/7", "drive-thru", "halal")
+   */
+  tags?:
+    | {
+        tag?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Organize products into hierarchical categories for easy browsing
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "product-categories".
+ */
+export interface ProductCategory {
+  id: number;
+  /**
+   * Category name (e.g., "Main Dishes", "Beverages", "Desserts")
+   */
+  name: string;
+  /**
+   * URL-friendly version of the name (auto-generated if empty)
+   */
+  slug: string;
+  /**
+   * Category description for customers
+   */
+  description?: string | null;
+  /**
+   * Parent category (leave empty for top-level categories)
+   */
+  parentCategory?: (number | null) | ProductCategory;
+  /**
+   * Hierarchy level (1 = top level, 2 = subcategory, etc.)
+   */
+  categoryLevel?: number | null;
+  /**
+   * Materialized path for efficient queries (auto-generated)
+   */
+  categoryPath?: string | null;
+  /**
+   * Order for displaying categories (lower numbers appear first)
+   */
+  displayOrder?: number | null;
+  /**
+   * Whether the category is currently active
+   */
+  isActive?: boolean | null;
+  /**
+   * Whether to feature this category prominently
+   */
+  isFeatured?: boolean | null;
+  /**
+   * Visual elements for the category
+   */
+  media?: {
+    /**
+     * Category icon (SVG preferred)
+     */
+    icon?: (number | null) | Media;
+    /**
+     * Banner image for category pages
+     */
+    bannerImage?: (number | null) | Media;
+    /**
+     * Thumbnail for category listings
+     */
+    thumbnailImage?: (number | null) | Media;
+  };
+  /**
+   * Visual styling options
+   */
+  styling?: {
+    /**
+     * Hex color code for category theme (e.g., #FF6B35)
+     */
+    colorTheme?: string | null;
+    /**
+     * Background color for category cards
+     */
+    backgroundColor?: string | null;
+    /**
+     * Text color for category elements
+     */
+    textColor?: string | null;
+    /**
+     * Colors for gradient backgrounds
+     */
+    gradientColors?:
+      | {
+          /**
+           * Gradient color (hex code)
+           */
+          color?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Category-specific attributes and restrictions
+   */
+  attributes?: {
+    /**
+     * Type of products in this category
+     */
+    categoryType?:
+      | (
+          | 'food'
+          | 'beverages'
+          | 'desserts'
+          | 'snacks'
+          | 'groceries'
+          | 'pharmacy'
+          | 'personal_care'
+          | 'household'
+          | 'other'
+        )
+      | null;
+    /**
+     * Dietary attributes commonly found in this category
+     */
+    dietaryTags?:
+      | {
+          tag?:
+            | (
+                | 'vegetarian'
+                | 'vegan'
+                | 'gluten_free'
+                | 'halal'
+                | 'kosher'
+                | 'organic'
+                | 'low_carb'
+                | 'keto'
+                | 'dairy_free'
+                | 'nut_free'
+                | 'spicy'
+                | 'healthy'
+              )
+            | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Age restriction for products in this category
+     */
+    ageRestriction?: ('none' | '18_plus' | '21_plus') | null;
+    /**
+     * Whether products in this category require prescription
+     */
+    requiresPrescription?: boolean | null;
+  };
+  /**
+   * Business rules and handling requirements
+   */
+  businessRules?: {
+    /**
+     * Whether products in this category can be customized
+     */
+    allowsCustomization?: boolean | null;
+    /**
+     * Whether products need special delivery handling
+     */
+    requiresSpecialHandling?: boolean | null;
+    /**
+     * Whether products in this category have expiration dates
+     */
+    hasExpirationDates?: boolean | null;
+    /**
+     * Whether products need refrigerated delivery
+     */
+    requiresRefrigeration?: boolean | null;
+    /**
+     * Maximum delivery time for products in this category (hours)
+     */
+    maxDeliveryTimeHours?: number | null;
+  };
+  /**
+   * SEO optimization settings
+   */
+  seo?: {
+    /**
+     * SEO meta title
+     */
+    metaTitle?: string | null;
+    /**
+     * SEO meta description
+     */
+    metaDescription?: string | null;
+    /**
+     * SEO keywords for this category
+     */
+    keywords?:
+      | {
+          keyword?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Canonical URL for SEO
+     */
+    canonicalUrl?: string | null;
+  };
+  /**
+   * Analytics and performance metrics
+   */
+  metrics?: {
+    /**
+     * Total number of products in this category
+     */
+    totalProducts?: number | null;
+    /**
+     * Total orders from this category
+     */
+    totalOrders?: number | null;
+    /**
+     * Average rating of products in this category
+     */
+    averageRating?: number | null;
+    /**
+     * Calculated popularity score
+     */
+    popularityScore?: number | null;
+    /**
+     * Number of times this category was viewed
+     */
+    viewCount?: number | null;
+  };
+  /**
+   * Promotional campaigns and discounts
+   */
+  promotions?: {
+    /**
+     * Whether this category is currently being promoted
+     */
+    isPromotional?: boolean | null;
+    /**
+     * Promotional text to display with the category
+     */
+    promotionalText?: string | null;
+    /**
+     * Category-wide discount percentage
+     */
+    discountPercentage?: number | null;
+    /**
+     * When the promotion starts
+     */
+    promotionStartDate?: string | null;
+    /**
+     * When the promotion ends
+     */
+    promotionEndDate?: string | null;
+  };
+  /**
+   * Availability and restriction settings
+   */
+  availability?: {
+    /**
+     * Hours when this category is available (JSON format)
+     */
+    availableHours?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Seasonal availability settings
+     */
+    seasonalAvailability?:
+      | {
+          season?: ('spring' | 'summer' | 'fall' | 'winter' | 'holiday' | 'special') | null;
+          available?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Regional availability restrictions
+     */
+    regionRestrictions?:
+      | {
+          region?: string | null;
+          restricted?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Manage individual food items and products
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products".
+ */
+export interface Product {
+  id: number;
+  /**
+   * Merchant/outlet that sells this product
+   */
+  merchant: number | Merchant;
+  /**
+   * Primary category for this product
+   */
+  primaryCategory: number | ProductCategory;
+  /**
+   * Product name (e.g., "Chicken Joy", "Big Mac", "Iced Coffee")
+   */
+  name: string;
+  /**
+   * URL-friendly version of the name (auto-generated if empty)
+   */
+  slug?: string | null;
+  /**
+   * Detailed product description for customers
+   */
+  description?: string | null;
+  /**
+   * Brief description for product listings
+   */
+  shortDescription?: string | null;
+  /**
+   * Pricing information and history
+   */
+  pricing: {
+    /**
+     * Base price in PHP
+     */
+    basePrice: number;
+    /**
+     * Discounted price (if on sale)
+     */
+    discountedPrice?: number | null;
+    /**
+     * Cost price for profit margin calculations
+     */
+    costPrice?: number | null;
+    /**
+     * Price change history for tracking
+     */
+    priceHistory?:
+      | {
+          price: number;
+          effectiveDate: string;
+          reason?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Product identification codes
+   */
+  identification?: {
+    /**
+     * Stock Keeping Unit (SKU)
+     */
+    sku?: string | null;
+    /**
+     * Product barcode
+     */
+    barcode?: string | null;
+    /**
+     * Internal product code
+     */
+    productCode?: string | null;
+  };
+  /**
+   * Physical product attributes
+   */
+  physicalAttributes?: {
+    /**
+     * Product weight in grams
+     */
+    weightGrams?: number | null;
+    dimensions?: {
+      /**
+       * Length in cm
+       */
+      length?: number | null;
+      /**
+       * Width in cm
+       */
+      width?: number | null;
+      /**
+       * Height in cm
+       */
+      height?: number | null;
+    };
+    /**
+     * Volume in ml (for beverages)
+     */
+    volume?: number | null;
+    /**
+     * Serving size description (e.g., "1 piece", "250ml")
+     */
+    servingSize?: string | null;
+  };
+  /**
+   * Nutritional information and facts
+   */
+  nutrition?: {
+    /**
+     * Calories per serving
+     */
+    calories?: number | null;
+    macronutrients?: {
+      /**
+       * Protein in grams
+       */
+      protein?: number | null;
+      /**
+       * Carbohydrates in grams
+       */
+      carbohydrates?: number | null;
+      /**
+       * Fat in grams
+       */
+      fat?: number | null;
+      /**
+       * Fiber in grams
+       */
+      fiber?: number | null;
+      /**
+       * Sugar in grams
+       */
+      sugar?: number | null;
+      /**
+       * Sodium in mg
+       */
+      sodium?: number | null;
+    };
+    /**
+     * Vitamin content information
+     */
+    vitamins?:
+      | {
+          vitamin?: string | null;
+          amount?: string | null;
+          dailyValuePercentage?: number | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Dietary restrictions and allergen information
+   */
+  dietary?: {
+    isVegetarian?: boolean | null;
+    isVegan?: boolean | null;
+    isGlutenFree?: boolean | null;
+    isHalal?: boolean | null;
+    isKosher?: boolean | null;
+    isOrganic?: boolean | null;
+    isDairyFree?: boolean | null;
+    isNutFree?: boolean | null;
+    spiceLevel?: ('none' | 'mild' | 'medium' | 'hot' | 'extra_hot') | null;
+    /**
+     * Known allergens in this product
+     */
+    allergens?:
+      | {
+          allergen?:
+            | ('milk' | 'eggs' | 'fish' | 'shellfish' | 'tree_nuts' | 'peanuts' | 'wheat' | 'soybeans' | 'sesame')
+            | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * List of ingredients
+     */
+    ingredients?:
+      | {
+          ingredient: string;
+          quantity?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Availability and inventory management
+   */
+  availability?: {
+    /**
+     * Whether the product is currently available
+     */
+    isAvailable?: boolean | null;
+    /**
+     * Current stock quantity
+     */
+    stockQuantity?: number | null;
+    /**
+     * Alert when stock falls below this number
+     */
+    lowStockThreshold?: number | null;
+    /**
+     * Maximum quantity per order
+     */
+    maxOrderQuantity?: number | null;
+    /**
+     * Hours when this product is available (JSON format)
+     */
+    availableHours?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    seasonalAvailability?:
+      | {
+          season?: string | null;
+          available?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Preparation and cooking information
+   */
+  preparation?: {
+    /**
+     * Time needed to prepare this item
+     */
+    preparationTimeMinutes?: number | null;
+    cookingMethod?: ('grilled' | 'fried' | 'baked' | 'steamed' | 'boiled' | 'raw' | 'no_cooking' | 'other') | null;
+    /**
+     * Special preparation or handling instructions
+     */
+    specialInstructions?: string | null;
+    requiresSpecialEquipment?: boolean | null;
+  };
+  /**
+   * Visual content for the product
+   */
+  media?: {
+    /**
+     * Main product image
+     */
+    primaryImage?: (number | null) | Media;
+    /**
+     * Additional product images
+     */
+    additionalImages?:
+      | {
+          image?: (number | null) | Media;
+          caption?: string | null;
+          isMainImage?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Product video (preparation, presentation)
+     */
+    video?: (number | null) | Media;
+  };
+  /**
+   * Product status and display settings
+   */
+  status?: {
+    /**
+     * Whether to feature this product prominently
+     */
+    isFeatured?: boolean | null;
+    /**
+     * Mark as new item
+     */
+    isNewItem?: boolean | null;
+    /**
+     * Mark as popular item
+     */
+    isPopular?: boolean | null;
+    /**
+     * Mark as recommended by chef/staff
+     */
+    isRecommended?: boolean | null;
+    /**
+     * Order for displaying products (lower numbers appear first)
+     */
+    displayOrder?: number | null;
+  };
+  /**
+   * Performance analytics and metrics
+   */
+  metrics?: {
+    /**
+     * Average customer rating
+     */
+    averageRating?: number | null;
+    /**
+     * Total number of reviews
+     */
+    totalReviews?: number | null;
+    /**
+     * Total times ordered
+     */
+    totalOrders?: number | null;
+    /**
+     * Number of times viewed
+     */
+    viewCount?: number | null;
+    /**
+     * Calculated popularity score
+     */
+    popularityScore?: number | null;
+    /**
+     * Percentage of customers who reorder this item
+     */
+    reorderRate?: number | null;
+  };
+  /**
+   * SEO optimization settings
+   */
+  seo?: {
+    /**
+     * SEO meta title
+     */
+    metaTitle?: string | null;
+    /**
+     * SEO meta description
+     */
+    metaDescription?: string | null;
+    /**
+     * SEO keywords for this product
+     */
+    keywords?:
+      | {
+          keyword?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Tags for search and categorization (e.g., "bestseller", "chef-special")
+   */
+  tags?:
+    | {
+        tag?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Internal notes about the product
+   */
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -868,10 +1840,6 @@ export interface PayloadLockedDocument {
         value: number | Admin;
       } | null)
     | ({
-        relationTo: 'user-certifications';
-        value: number | UserCertification;
-      } | null)
-    | ({
         relationTo: 'user-events';
         value: number | UserEvent;
       } | null)
@@ -896,8 +1864,20 @@ export interface PayloadLockedDocument {
         value: number | CourseCategory;
       } | null)
     | ({
-        relationTo: 'course-enrollments';
-        value: number | CourseEnrollment;
+        relationTo: 'vendors';
+        value: number | Vendor;
+      } | null)
+    | ({
+        relationTo: 'merchants';
+        value: number | Merchant;
+      } | null)
+    | ({
+        relationTo: 'product-categories';
+        value: number | ProductCategory;
+      } | null)
+    | ({
+        relationTo: 'products';
+        value: number | Product;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1022,21 +2002,6 @@ export interface AdminsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "user-certifications_select".
- */
-export interface UserCertificationsSelect<T extends boolean = true> {
-  user?: T;
-  certificationName?: T;
-  issuingAuthority?: T;
-  issueDate?: T;
-  expiryDate?: T;
-  verificationUrl?: T;
-  isActive?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "user-events_select".
  */
 export interface UserEventsSelect<T extends boolean = true> {
@@ -1126,7 +2091,6 @@ export interface CoursesSelect<T extends boolean = true> {
   excerpt?: T;
   description?: T;
   instructor?: T;
-  coInstructors?: T;
   category?: T;
   thumbnail?: T;
   bannerImage?: T;
@@ -1141,12 +2105,6 @@ export interface CoursesSelect<T extends boolean = true> {
   difficultyLevel?: T;
   language?: T;
   passingGrade?: T;
-  learningObjectives?:
-    | T
-    | {
-        objective?: T;
-        id?: T;
-      };
   prerequisites?:
     | T
     | {
@@ -1179,27 +2137,462 @@ export interface CourseCategoriesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "course-enrollments_select".
+ * via the `definition` "vendors_select".
  */
-export interface CourseEnrollmentsSelect<T extends boolean = true> {
-  student?: T;
-  course?: T;
-  enrolledAt?: T;
-  enrollmentType?: T;
-  status?: T;
-  paymentStatus?: T;
-  accessExpiresAt?: T;
-  amountPaid?: T;
-  progressPercentage?: T;
-  lastAccessedAt?: T;
-  completedAt?: T;
-  currentGrade?: T;
-  finalGrade?: T;
-  certificateIssued?: T;
-  enrolledBy?: T;
+export interface VendorsSelect<T extends boolean = true> {
+  businessName?: T;
+  legalName?: T;
+  businessRegistrationNumber?: T;
+  taxIdentificationNumber?: T;
+  primaryContactEmail?: T;
+  primaryContactPhone?: T;
+  websiteUrl?: T;
+  businessType?: T;
+  cuisineTypes?:
+    | T
+    | {
+        cuisine?: T;
+        id?: T;
+      };
+  isActive?: T;
+  verificationStatus?: T;
+  onboardingDate?: T;
+  averageRating?: T;
+  totalReviews?: T;
+  totalOrders?: T;
+  totalMerchants?: T;
+  businessLicense?: T;
+  taxCertificate?: T;
+  logo?: T;
+  bankAccountName?: T;
+  bankAccountNumber?: T;
+  bankName?: T;
+  description?: T;
+  operatingHours?: T;
+  socialMediaLinks?:
+    | T
+    | {
+        facebook?: T;
+        instagram?: T;
+        twitter?: T;
+        website?: T;
+      };
+  complianceSettings?:
+    | T
+    | {
+        foodSafetyLicense?: T;
+        halaalCertified?: T;
+        organicCertified?: T;
+        allergenCompliance?: T;
+      };
+  platformSettings?:
+    | T
+    | {
+        commissionRate?: T;
+        minimumOrderAmount?: T;
+        deliveryFee?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchants_select".
+ */
+export interface MerchantsSelect<T extends boolean = true> {
+  vendor?: T;
+  outletName?: T;
+  outletCode?: T;
+  address?:
+    | T
+    | {
+        streetAddress?: T;
+        barangay?: T;
+        city?: T;
+        province?: T;
+        postalCode?: T;
+        country?: T;
+      };
+  location?:
+    | T
+    | {
+        latitude?: T;
+        longitude?: T;
+        deliveryRadiusKm?: T;
+      };
+  contactInfo?:
+    | T
+    | {
+        phone?: T;
+        email?: T;
+        managerName?: T;
+        managerPhone?: T;
+      };
+  isActive?: T;
+  isAcceptingOrders?: T;
+  operationalStatus?: T;
+  operatingHours?: T;
+  specialHours?:
+    | T
+    | {
+        date?: T;
+        openTime?: T;
+        closeTime?: T;
+        isClosed?: T;
+        reason?: T;
+        id?: T;
+      };
+  deliverySettings?:
+    | T
+    | {
+        minimumOrderAmount?: T;
+        deliveryFee?: T;
+        freeDeliveryThreshold?: T;
+        estimatedDeliveryTimeMinutes?: T;
+        maxDeliveryTimeMinutes?: T;
+      };
+  metrics?:
+    | T
+    | {
+        averageRating?: T;
+        totalReviews?: T;
+        totalOrders?: T;
+        averagePreparationTimeMinutes?: T;
+        orderAcceptanceRate?: T;
+        onTimeDeliveryRate?: T;
+      };
+  media?:
+    | T
+    | {
+        storeFrontImage?: T;
+        interiorImages?:
+          | T
+          | {
+              image?: T;
+              id?: T;
+            };
+        menuImages?:
+          | T
+          | {
+              image?: T;
+              id?: T;
+            };
+      };
+  features?:
+    | T
+    | {
+        hasParking?: T;
+        hasDineIn?: T;
+        hasTakeout?: T;
+        hasDelivery?: T;
+        acceptsCash?: T;
+        acceptsCards?: T;
+        acceptsDigitalPayments?: T;
+        hasWifi?: T;
+        isAccessible?: T;
+      };
+  compliance?:
+    | T
+    | {
+        businessPermitNumber?: T;
+        foodSafetyLicense?: T;
+        firePermitNumber?: T;
+        sanitaryPermitNumber?: T;
+        lastInspectionDate?: T;
+        inspectionScore?: T;
+      };
+  description?: T;
+  specialInstructions?: T;
+  tags?:
+    | T
+    | {
+        tag?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "product-categories_select".
+ */
+export interface ProductCategoriesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  parentCategory?: T;
+  categoryLevel?: T;
+  categoryPath?: T;
+  displayOrder?: T;
+  isActive?: T;
+  isFeatured?: T;
+  media?:
+    | T
+    | {
+        icon?: T;
+        bannerImage?: T;
+        thumbnailImage?: T;
+      };
+  styling?:
+    | T
+    | {
+        colorTheme?: T;
+        backgroundColor?: T;
+        textColor?: T;
+        gradientColors?:
+          | T
+          | {
+              color?: T;
+              id?: T;
+            };
+      };
+  attributes?:
+    | T
+    | {
+        categoryType?: T;
+        dietaryTags?:
+          | T
+          | {
+              tag?: T;
+              id?: T;
+            };
+        ageRestriction?: T;
+        requiresPrescription?: T;
+      };
+  businessRules?:
+    | T
+    | {
+        allowsCustomization?: T;
+        requiresSpecialHandling?: T;
+        hasExpirationDates?: T;
+        requiresRefrigeration?: T;
+        maxDeliveryTimeHours?: T;
+      };
+  seo?:
+    | T
+    | {
+        metaTitle?: T;
+        metaDescription?: T;
+        keywords?:
+          | T
+          | {
+              keyword?: T;
+              id?: T;
+            };
+        canonicalUrl?: T;
+      };
+  metrics?:
+    | T
+    | {
+        totalProducts?: T;
+        totalOrders?: T;
+        averageRating?: T;
+        popularityScore?: T;
+        viewCount?: T;
+      };
+  promotions?:
+    | T
+    | {
+        isPromotional?: T;
+        promotionalText?: T;
+        discountPercentage?: T;
+        promotionStartDate?: T;
+        promotionEndDate?: T;
+      };
+  availability?:
+    | T
+    | {
+        availableHours?: T;
+        seasonalAvailability?:
+          | T
+          | {
+              season?: T;
+              available?: T;
+              id?: T;
+            };
+        regionRestrictions?:
+          | T
+          | {
+              region?: T;
+              restricted?: T;
+              id?: T;
+            };
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products_select".
+ */
+export interface ProductsSelect<T extends boolean = true> {
+  merchant?: T;
+  primaryCategory?: T;
+  name?: T;
+  slug?: T;
+  description?: T;
+  shortDescription?: T;
+  pricing?:
+    | T
+    | {
+        basePrice?: T;
+        discountedPrice?: T;
+        costPrice?: T;
+        priceHistory?:
+          | T
+          | {
+              price?: T;
+              effectiveDate?: T;
+              reason?: T;
+              id?: T;
+            };
+      };
+  identification?:
+    | T
+    | {
+        sku?: T;
+        barcode?: T;
+        productCode?: T;
+      };
+  physicalAttributes?:
+    | T
+    | {
+        weightGrams?: T;
+        dimensions?:
+          | T
+          | {
+              length?: T;
+              width?: T;
+              height?: T;
+            };
+        volume?: T;
+        servingSize?: T;
+      };
+  nutrition?:
+    | T
+    | {
+        calories?: T;
+        macronutrients?:
+          | T
+          | {
+              protein?: T;
+              carbohydrates?: T;
+              fat?: T;
+              fiber?: T;
+              sugar?: T;
+              sodium?: T;
+            };
+        vitamins?:
+          | T
+          | {
+              vitamin?: T;
+              amount?: T;
+              dailyValuePercentage?: T;
+              id?: T;
+            };
+      };
+  dietary?:
+    | T
+    | {
+        isVegetarian?: T;
+        isVegan?: T;
+        isGlutenFree?: T;
+        isHalal?: T;
+        isKosher?: T;
+        isOrganic?: T;
+        isDairyFree?: T;
+        isNutFree?: T;
+        spiceLevel?: T;
+        allergens?:
+          | T
+          | {
+              allergen?: T;
+              id?: T;
+            };
+        ingredients?:
+          | T
+          | {
+              ingredient?: T;
+              quantity?: T;
+              id?: T;
+            };
+      };
+  availability?:
+    | T
+    | {
+        isAvailable?: T;
+        stockQuantity?: T;
+        lowStockThreshold?: T;
+        maxOrderQuantity?: T;
+        availableHours?: T;
+        seasonalAvailability?:
+          | T
+          | {
+              season?: T;
+              available?: T;
+              id?: T;
+            };
+      };
+  preparation?:
+    | T
+    | {
+        preparationTimeMinutes?: T;
+        cookingMethod?: T;
+        specialInstructions?: T;
+        requiresSpecialEquipment?: T;
+      };
+  media?:
+    | T
+    | {
+        primaryImage?: T;
+        additionalImages?:
+          | T
+          | {
+              image?: T;
+              caption?: T;
+              isMainImage?: T;
+              id?: T;
+            };
+        video?: T;
+      };
+  status?:
+    | T
+    | {
+        isFeatured?: T;
+        isNewItem?: T;
+        isPopular?: T;
+        isRecommended?: T;
+        displayOrder?: T;
+      };
+  metrics?:
+    | T
+    | {
+        averageRating?: T;
+        totalReviews?: T;
+        totalOrders?: T;
+        viewCount?: T;
+        popularityScore?: T;
+        reorderRate?: T;
+      };
+  seo?:
+    | T
+    | {
+        metaTitle?: T;
+        metaDescription?: T;
+        keywords?:
+          | T
+          | {
+              keyword?: T;
+              id?: T;
+            };
+      };
+  tags?:
+    | T
+    | {
+        tag?: T;
+        id?: T;
+      };
   notes?: T;
-  displayTitle?: T;
-  metadata?: T;
   updatedAt?: T;
   createdAt?: T;
 }

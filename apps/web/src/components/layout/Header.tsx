@@ -138,32 +138,26 @@ export function Header({
     <>
     <header className={`lg:sticky lg:top-0 fixed top-0 left-0 right-0 lg:bg-white z-50 lg:transition-none transition-transform duration-300 ease-in-out ${
       isHeaderVisible ? 'translate-y-0' : 'lg:translate-y-0 -translate-y-full'
-    }`} style={{ backgroundColor: window.innerWidth < 1024 ? '#eba236' : 'white' }}>
-      {/* Mobile Header - matches the exact design */}
-      <div className="lg:hidden flex items-center px-3 py-1.5 space-x-1 sm:space-x-2 h-14" style={{ backgroundColor: '#eba236' }}>
-        {/* Logo - 80% */}
-        <div className="w-[80%] flex items-center justify-start">
-          <Image
-            src="/logo.png"
-            alt="Calsiter Inc Logo"
-            width={210}
-            height={56}
-            className="h-14 w-auto"
-            priority
-          />
-        </div>
+    }`} style={{ backgroundColor: '#fff' }}>
+      {/* Mobile Header - Professional mobile app layout */}
+      <div className="lg:hidden flex items-center justify-between px-4 py-2 h-14" style={{ backgroundColor: '#fff' }}>
+        {/* Left side - Empty space for future logo or menu if needed */}
+        <div className="flex-1"></div>
 
-        {/* Bell/Notifications Icon - 10% */}
-        <button
-          onClick={() => router.push('/notifications')}
-          className="w-[10%] h-10 rounded-md flex items-center justify-center hover:bg-orange-400 transition-colors"
-        >
-          <i className="fas fa-bell text-white text-lg"></i>
-        </button>
+        {/* Right side - Icons grouped together professionally */}
+        <div className="flex items-center space-x-3">
+          {/* Search Icon */}
+          <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+            <i className="fa fa-search text-gray-600 text-lg"></i>
+          </button>
 
-        {/* Search Icon - 10% */}
-        <div className="w-[10%] h-10 rounded-md flex items-center justify-center hover:bg-orange-400 transition-colors cursor-pointer">
-          <i className="fa fa-search text-white text-lg"></i>
+          {/* Bell/Notifications Icon */}
+          <button
+            onClick={() => router.push('/notifications')}
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <i className="fas fa-bell text-gray-600 text-lg"></i>
+          </button>
         </div>
       </div>
 
