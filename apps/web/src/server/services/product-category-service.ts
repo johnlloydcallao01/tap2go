@@ -1,32 +1,34 @@
 import 'server-only';
 
-export interface CourseCategory {
+export interface ProductCategory {
   id: number;
   name: string;
   slug: string;
-  icon?: {
-    id: number;
-    url: string;
-    cloudinaryURL?: string;
-    alt?: string;
+  media?: {
+    icon?: {
+      id: number;
+      url: string;
+      cloudinaryURL?: string;
+      alt?: string;
+    };
   };
 }
 
-export interface CourseCategoryResponse {
-  docs: CourseCategory[];
+export interface ProductCategoryResponse {
+  docs: ProductCategory[];
   totalDocs: number;
   limit: number;
   page: number;
 }
 
-export class CourseCategoryService {
+export class ProductCategoryService {
   private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
   
   /**
-   * Fetch course categories from CMS
+   * Fetch product categories from CMS
    * Optimized for server-side rendering with error handling
    */
-  static async getCourseCategories(limit: number = 50): Promise<CourseCategory[]> {
+  static async getProductCategories(limit: number = 50): Promise<ProductCategory[]> {
     try {
       // Build headers with API key authentication
       const headers: Record<string, string> = {
@@ -38,23 +40,23 @@ export class CourseCategoryService {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
 
-      const response = await fetch(`${CourseCategoryService.API_BASE}/course-categories?limit=${limit}`, {
+      const response = await fetch(`${ProductCategoryService.API_BASE}/product-categories?limit=${limit}`, {
         next: { revalidate: 300 }, // 5 minutes cache for ISR
         headers,
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch categories: ${response.status}`);
+        throw new Error(`Failed to fetch product categories: ${response.status}`);
       }
       
-      const data: CourseCategoryResponse = await response.json();
+      const data: ProductCategoryResponse = await response.json();
       return data.docs || [];
     } catch (error) {
-      console.error('Error fetching course categories:', error);
+      console.error('Error fetching product categories:', error);
       return []; // Graceful fallback
     }
   }
 }
 
 // Export convenience function
-export const getCourseCategories = CourseCategoryService.getCourseCategories;
+export const getProductCategories = ProductCategoryService.getProductCategories;

@@ -2,22 +2,22 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { CategoryCarouselProps } from '@/types';
-import { CourseCategoryCircle } from '@/components/ui/CourseCategoryCircle';
-import { CourseCategory } from '@/server';
+import { ProductCategoryCircle } from '@/components/ui/ProductCategoryCircle';
+import { ProductCategory } from '@/server';
 
 /**
- * Professional CourseCategoryCarousel with smooth momentum scrolling
+ * Professional ProductCategoryCarousel with smooth momentum scrolling
  * Implements physics-based scrolling similar to native mobile apps
  */
-export function CourseCategoryCarousel({
+export function ProductCategoryCarousel({
   categories: initialCategories,
   onCategoryChange
 }: {
-  categories: CourseCategory[];
+  categories: ProductCategory[];
   onCategoryChange?: (category: string) => void;
 }) {
   // Initialize with provided data (no loading state needed)
-  const [categories] = useState<CourseCategory[]>(initialCategories);
+  const [categories] = useState<ProductCategory[]>(initialCategories);
   const [activeCategory, setActiveCategory] = useState<string>(
     initialCategories[0]?.name || ''
   );
@@ -89,7 +89,7 @@ export function CourseCategoryCarousel({
     const itemWidth = 64; // Circle width
     const gapWidth = 48; // Gap between items
     const swipeDistance = (itemWidth + gapWidth) * 1.5; // Gentle swipe distance
-    const newPosition = Math.min(-maxTranslate, translateX - swipeDistance);
+    const newPosition = Math.min(-maxTranslate, translateX + swipeDistance);
     animateToPosition(newPosition, 400); // Smooth animation like normal swipe
   };
 
@@ -118,42 +118,50 @@ export function CourseCategoryCarousel({
   const handleMove = useCallback((clientX: number) => {
     if (!isDragging) return;
 
-    const now = Date.now();
-    const deltaTime = now - lastTime;
+    const currentTime = Date.now();
+    const deltaTime = currentTime - lastTime;
     const deltaX = clientX - currentX;
 
-    // Calculate velocity for momentum (pixels per millisecond)
+    // Calculate velocity for momentum
     if (deltaTime > 0) {
       setVelocityX(deltaX / deltaTime);
     }
 
-    // Direct 1:1 movement - finger follows exactly
-    // Add the drag distance to the starting position
+    setCurrentX(clientX);
+    setLastTime(currentTime);
+
+    // Calculate new position
     const dragDistance = clientX - startX;
     const newTranslateX = startTranslateX + dragDistance;
 
-    // Constrain to bounds
-    const constrainedX = Math.max(-maxTranslate, Math.min(0, newTranslateX));
+    // Apply bounds with elastic resistance
+    let boundedTranslateX = newTranslateX;
+    if (newTranslateX > 0) {
+      // Left boundary - elastic resistance
+      boundedTranslateX = newTranslateX * 0.3;
+    } else if (newTranslateX < -maxTranslate) {
+      // Right boundary - elastic resistance
+      const overflow = newTranslateX + maxTranslate;
+      boundedTranslateX = -maxTranslate + overflow * 0.3;
+    }
 
-    setTranslateX(constrainedX);
-    setCurrentX(clientX);
-    setLastTime(now);
-  }, [isDragging, currentX, startX, startTranslateX, maxTranslate, lastTime]);
+    setTranslateX(boundedTranslateX);
+  }, [isDragging, startX, startTranslateX, currentX, lastTime, maxTranslate]);
 
   const handleEnd = useCallback(() => {
     if (!isDragging) return;
 
     setIsDragging(false);
 
-    // Apply momentum based on velocity
-    const momentum = velocityX * 300; // Momentum multiplier
-    const targetX = translateX + momentum;
+    // Apply momentum with physics
+    const momentum = velocityX * 200; // Momentum factor
+    let finalPosition = translateX + momentum;
 
-    // Constrain to bounds
-    const constrainedX = Math.max(-maxTranslate, Math.min(0, targetX));
+    // Apply bounds
+    finalPosition = Math.max(-maxTranslate, Math.min(0, finalPosition));
 
-    // Animate to final position with momentum
-    animateToPosition(constrainedX, 600);
+    // Smooth animation to final position
+    animateToPosition(finalPosition, 400);
   }, [isDragging, velocityX, translateX, maxTranslate, animateToPosition]);
 
   // Mouse events
@@ -182,44 +190,48 @@ export function CourseCategoryCarousel({
     handleMove(e.touches[0].clientX);
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  const handleTouchEnd = () => {
     handleEnd();
   };
 
-  // Categories are now provided via props from ISR - no client-side fetching needed
-
-  // Calculate maxTranslate when categories are loaded and on resize
+  // Calculate bounds when categories change or component mounts
   useEffect(() => {
-    const updateMaxTranslate = () => {
-      // Only calculate when we have categories loaded
-      if (categories.length > 0) {
-        const newMaxTranslate = getMaxTranslate();
-        setMaxTranslate(newMaxTranslate);
-        boundsCalculatedRef.current = true;
+    const calculateBounds = () => {
+      const newMaxTranslate = getMaxTranslate();
+      setMaxTranslate(newMaxTranslate);
+      
+      // Reset position if current position is out of bounds
+      if (translateX < -newMaxTranslate) {
+        setTranslateX(-newMaxTranslate);
       }
+      
+      boundsCalculatedRef.current = true;
     };
 
-    updateMaxTranslate();
+    if (categories.length > 0) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(calculateBounds, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [categories.length, getMaxTranslate, translateX]);
 
+  // Handle window resize
+  useEffect(() => {
     const handleResize = () => {
-      // Allow recalculation on resize only if categories are loaded
-      if (categories.length > 0) {
-        boundsCalculatedRef.current = false;
-        updateMaxTranslate();
+      const newMaxTranslate = getMaxTranslate();
+      setMaxTranslate(newMaxTranslate);
+      
+      // Adjust position if needed
+      if (translateX < -newMaxTranslate) {
+        animateToPosition(-newMaxTranslate);
       }
     };
 
     window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [getMaxTranslate, translateX, animateToPosition]);
 
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [getMaxTranslate, categories]);
-
-  // Global mouse event listeners for smooth dragging
+  // Global mouse events for drag continuation
   useEffect(() => {
     if (isDragging) {
       const handleGlobalMouseMove = (e: MouseEvent) => {
@@ -301,7 +313,7 @@ export function CourseCategoryCarousel({
               className="flex-shrink-0"
               style={{ pointerEvents: 'auto' }} // Re-enable pointer events for clicking
             >
-              <CourseCategoryCircle
+              <ProductCategoryCircle
                 category={category}
                 active={activeCategory === category.name}
                 onClick={() => handleCategoryClick(category.name)}

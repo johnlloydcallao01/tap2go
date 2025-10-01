@@ -412,6 +412,14 @@ export const Merchants: CollectionConfig = {
       type: 'group',
       fields: [
         {
+          name: 'thumbnail',
+          type: 'upload',
+          relationTo: 'media',
+          admin: {
+            description: 'Merchant thumbnail image (original size from Cloudinary)',
+          },
+        },
+        {
           name: 'storeFrontImage',
           type: 'upload',
           relationTo: 'media',
@@ -453,64 +461,7 @@ export const Merchants: CollectionConfig = {
       },
     },
 
-    // === FEATURES AND AMENITIES ===
-    {
-      name: 'features',
-      type: 'group',
-      fields: [
-        {
-          name: 'hasParking',
-          type: 'checkbox',
-          defaultValue: false,
-        },
-        {
-          name: 'hasDineIn',
-          type: 'checkbox',
-          defaultValue: true,
-        },
-        {
-          name: 'hasTakeout',
-          type: 'checkbox',
-          defaultValue: true,
-        },
-        {
-          name: 'hasDelivery',
-          type: 'checkbox',
-          defaultValue: true,
-        },
-        {
-          name: 'acceptsCash',
-          type: 'checkbox',
-          defaultValue: true,
-        },
-        {
-          name: 'acceptsCards',
-          type: 'checkbox',
-          defaultValue: true,
-        },
-        {
-          name: 'acceptsDigitalPayments',
-          type: 'checkbox',
-          defaultValue: true,
-        },
-        {
-          name: 'hasWifi',
-          type: 'checkbox',
-          defaultValue: false,
-        },
-        {
-          name: 'isAccessible',
-          type: 'checkbox',
-          defaultValue: false,
-          admin: {
-            description: 'Wheelchair accessible',
-          },
-        },
-      ],
-      admin: {
-        description: 'Available features and amenities',
-      },
-    },
+
 
     // === COMPLIANCE AND CERTIFICATIONS ===
     {

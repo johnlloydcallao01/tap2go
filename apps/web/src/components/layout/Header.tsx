@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { HeaderProps } from '@/types';
 import { useUser, useLogout } from '@/hooks/useAuth';
 import { UserAvatar, UserInfo } from '@/components/auth';
+import { LocationSelector } from '@/components/location';
 
 /**
  * Header component with navigation, search, and user controls
@@ -185,6 +186,14 @@ export function Header({
             height={72}
             className="h-16 w-auto"
             priority
+          />
+          {/* Location Selector - Added after logo */}
+          <LocationSelector 
+            onLocationSelect={(location) => {
+              console.log('Selected location:', location);
+              // Handle location selection here
+            }}
+            className="ml-4"
           />
         </div>
 

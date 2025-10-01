@@ -1,5 +1,5 @@
 // Barrel exports for section components
 
-export { CourseCategoryCarousel } from './CourseCategoryCarousel';
+export { ProductCategoryCarousel } from './ProductCategoryCarousel';
 export { HeroSection } from './HeroSection';
 export { CoursesGrid } from './CoursesGrid';

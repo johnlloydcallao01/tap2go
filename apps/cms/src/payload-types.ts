@@ -1084,6 +1084,10 @@ export interface Merchant {
    */
   media?: {
     /**
+     * Merchant thumbnail image (original size from Cloudinary)
+     */
+    thumbnail?: (number | null) | Media;
+    /**
      * Store front photo
      */
     storeFrontImage?: (number | null) | Media;
@@ -1105,23 +1109,6 @@ export interface Merchant {
           id?: string | null;
         }[]
       | null;
-  };
-  /**
-   * Available features and amenities
-   */
-  features?: {
-    hasParking?: boolean | null;
-    hasDineIn?: boolean | null;
-    hasTakeout?: boolean | null;
-    hasDelivery?: boolean | null;
-    acceptsCash?: boolean | null;
-    acceptsCards?: boolean | null;
-    acceptsDigitalPayments?: boolean | null;
-    hasWifi?: boolean | null;
-    /**
-     * Wheelchair accessible
-     */
-    isAccessible?: boolean | null;
   };
   /**
    * Regulatory compliance and certifications
@@ -2264,6 +2251,7 @@ export interface MerchantsSelect<T extends boolean = true> {
   media?:
     | T
     | {
+        thumbnail?: T;
         storeFrontImage?: T;
         interiorImages?:
           | T
@@ -2277,19 +2265,6 @@ export interface MerchantsSelect<T extends boolean = true> {
               image?: T;
               id?: T;
             };
-      };
-  features?:
-    | T
-    | {
-        hasParking?: T;
-        hasDineIn?: T;
-        hasTakeout?: T;
-        hasDelivery?: T;
-        acceptsCash?: T;
-        acceptsCards?: T;
-        acceptsDigitalPayments?: T;
-        hasWifi?: T;
-        isAccessible?: T;
       };
   compliance?:
     | T

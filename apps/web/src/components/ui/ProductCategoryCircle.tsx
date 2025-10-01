@@ -1,25 +1,25 @@
 import React from 'react';
-import type { CourseCategory } from '@/types/course';
+import type { ProductCategory } from '@/server';
 
 // Component props interface
-interface CourseCategoryCircleProps {
-  category: CourseCategory;
+interface ProductCategoryCircleProps {
+  category: ProductCategory;
   active?: boolean;
   onClick?: () => void;
 }
 
 /**
- * CourseCategoryCircle component for course category selection with dynamic images
+ * ProductCategoryCircle component for product category selection with dynamic images
  * 
  * @param category - The category object with name and icon data
  * @param active - Whether the category is currently active/selected
  * @param onClick - Optional click handler
  */
-export function CourseCategoryCircle({ 
+export function ProductCategoryCircle({ 
   category, 
   active = false, 
   onClick 
-}: CourseCategoryCircleProps) {
+}: ProductCategoryCircleProps) {
   
   return (
     <div 
@@ -33,11 +33,11 @@ export function CourseCategoryCircle({
             : 'group-hover:scale-105'
         }`}
       >
-        {category.icon && (category.icon.cloudinaryURL || category.icon.url) ? (
+        {category.media?.icon && (category.media.icon.cloudinaryURL || category.media.icon.url) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-             src={category.icon.cloudinaryURL || category.icon.url}
-             alt={category.icon.alt || category.name}
+             src={category.media.icon.cloudinaryURL || category.media.icon.url}
+             alt={category.media.icon.alt || category.name}
              className="absolute inset-0 w-full h-full object-cover rounded-full"
            />
         ) : (

@@ -167,13 +167,13 @@ export {
 // SERVER SERVICES
 // ========================================
 
-// Course category service (ISR-optimized data fetching)
+// Product category service
 export {
-  CourseCategoryService,
-  getCourseCategories,
-  type CourseCategory,
-  type CourseCategoryResponse,
-} from './services/course-category-service';
+  ProductCategoryService,
+  getProductCategories,
+  type ProductCategory,
+  type ProductCategoryResponse,
+} from './services/product-category-service';
 
 // Course service (ISR-optimized data fetching)
 export {
