@@ -86,16 +86,12 @@ export default function SignInPage() {
       return;
     }
 
-    console.log('🔐 ATTEMPTING LOGIN:', formData.email);
-
     try {
       // Attempt login with PayloadCMS
       await login({
         email: formData.email,
         password: formData.password,
       });
-
-      console.log('✅ LOGIN SUCCESS - Authentication state will handle redirect');
 
       // Store the redirect URL for the PublicRoute component to use
       const urlParams = new URLSearchParams(window.location.search);

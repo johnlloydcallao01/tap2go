@@ -163,11 +163,8 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
   // ========================================
 
   const initializeAuth = useCallback(async () => {
-    console.log('🚀 INITIALIZING AUTH...');
-
     // Check for stored token first (quick check)
     const hasToken = hasValidStoredToken();
-    console.log('🔍 STORED TOKEN CHECK:', hasToken ? 'FOUND' : 'NOT FOUND');
 
     if (hasToken) {
       // Get cached user data from localStorage for immediate display
@@ -176,55 +173,45 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
       if (cachedUserData) {
         try {
           const cachedUser = JSON.parse(cachedUserData);
-          console.log('⚡ INSTANT AUTH: Using cached user data');
           // Set authenticated state immediately with cached data - no loading state
           dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: cachedUser } });
           
           // Validate token with server in background to ensure it's still valid
-          console.log('🔄 BACKGROUND: Validating token with server...');
           try {
             const user = await getCurrentUser();
             
             if (user) {
-              console.log('✅ SESSION VALIDATED:', user.email);
               // Update with fresh user data from server (silent update)
               dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user } });
               emitAuthEvent('session_restored', { user });
             } else {
-              console.log('❌ TOKEN INVALID - clearing state');
               dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
             }
           } catch (error) {
-            console.log('❌ BACKGROUND VALIDATION FAILED - keeping cached state');
             // Keep the cached user state even if background validation fails
             // This ensures the user stays logged in during network issues
           }
           
           return; // Exit early since we have cached data
         } catch (e) {
-          console.log('❌ Failed to parse cached user data');
+          // Failed to parse cached user data, continue with server validation
         }
       }
       
       // No cached data available, validate with server
-      console.log('🔄 NO CACHE: Validating token with server...');
       try {
         const user = await getCurrentUser();
         
         if (user) {
-          console.log('✅ SESSION RESTORED:', user.email);
           dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user } });
           emitAuthEvent('session_restored', { user });
         } else {
-          console.log('❌ TOKEN INVALID - clearing state');
           dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
         }
       } catch (error) {
-        console.log('❌ AUTH VALIDATION FAILED:', error);
         dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
       }
     } else {
-      console.log('❌ NO VALID TOKEN');
       dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
     }
   }, []);

@@ -150,11 +150,9 @@ async function withRetry<T>(
   
   for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
     try {
-      console.log(`🔄 Attempt ${attempt}/${config.maxAttempts}`);
       return await operation();
     } catch (error) {
       lastError = error;
-      console.log(`❌ Attempt ${attempt} failed:`, error);
       
       // Don't retry on the last attempt or if error is not retryable
       if (attempt === config.maxAttempts || !isRetryableError(error, config.retryableErrors)) {
@@ -162,7 +160,6 @@ async function withRetry<T>(
       }
       
       const delay = config.delayMs * Math.pow(config.backoffMultiplier, attempt - 1);
-      console.log(`⏳ Waiting ${delay}ms before retry...`);
       await sleep(delay);
     }
   }
@@ -174,16 +171,13 @@ async function withRetry<T>(
  * Login user with email and password
  * Uses PayloadCMS cookie strategy for secure session management
  * Only allows users with 'trainee' role to authenticate
- * Includes retry logic for intermittent failures
+ * Optimized for fast user experience with minimal retries
  */
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   console.log('🔐 LOGIN ATTEMPT:', credentials.email);
 
   // Clear any existing auth state before login to prevent conflicts
   clearAuthState();
-  
-  // Add small delay to ensure state is cleared
-  await sleep(100);
 
   try {
     const response = await withRetry(async () => {
@@ -192,9 +186,9 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
         body: JSON.stringify(credentials),
       });
     }, {
-      maxAttempts: 3,
-      delayMs: 1000,
-      retryableErrors: ['id', 'network', 'timeout', 'server error', '500', '502', '503', '504']
+      maxAttempts: 2, // Reduced from 3 to 2 for faster failure
+      delayMs: 500,   // Reduced from 1000ms to 500ms
+      retryableErrors: ['network', 'timeout', '500', '502', '503', '504'] // Removed 'id' and 'server error'
     });
 
     console.log('✅ LOGIN SUCCESS:', {
@@ -203,27 +197,13 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       id: response.user.id
     });
 
-    // Log the FULL response to see what PayloadCMS actually returns
-    console.log('📋 FULL PAYLOAD RESPONSE:', response);
-    console.log('🔑 TOKEN IN RESPONSE:', response.token);
-    console.log('⏰ EXP IN RESPONSE:', response.exp);
-
-    // Log cookies after login
-    if (typeof document !== 'undefined') {
-      console.log('🍪 CLIENT: All cookies after login:', document.cookie);
-    }
-
     // Check if user has trainee role
     if (response.user.role !== 'trainee') {
-      console.log('❌ ROLE DENIED:', response.user.role);
       throw new Error('Access denied. Only trainees can access this application.');
     }
 
-    console.log('✅ TRAINEE ROLE CONFIRMED');
-
     // Store token for persistent authentication (30 days)
     if (response.token) {
-      console.log('💾 STORING TOKEN for persistent auth');
       localStorage.setItem('grandline_auth_token', response.token);
 
       // Store expiration time (30 days from now)
@@ -232,8 +212,6 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       
       // Cache user data for instant authentication restoration
       localStorage.setItem('grandline_auth_user', JSON.stringify(response.user));
-
-      console.log('✅ TOKEN STORED for 30 days');
     }
 
     return {
@@ -243,17 +221,6 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       exp: response.exp,
     };
   } catch (error) {
-    console.log('❌ LOGIN FAILED:', error);
-    
-    // Enhanced error logging for debugging
-    console.log('🔍 LOGIN ERROR DETAILS:', {
-      message: error?.message,
-      status: error?.status,
-      errors: error?.errors,
-      stack: error?.stack,
-      timestamp: new Date().toISOString()
-    });
-    
     const authError = handleApiError(error);
     throw new Error(authError.message);
   }
@@ -282,28 +249,23 @@ export async function logout(): Promise<void> {
  * Get current authenticated user
  * Validates session using HTTP-only cookies
  * Only returns user if they have 'trainee' role
+ * Optimized for fast response with minimal logging
  */
 export async function getCurrentUser(): Promise<User | null> {
-  console.log('🔍 CHECKING CURRENT USER...');
-
   // Check if we have a stored token
   const storedToken = localStorage.getItem('grandline_auth_token');
   const storedExpires = localStorage.getItem('grandline_auth_expires');
 
   if (!storedToken || !storedExpires) {
-    console.log('❌ NO STORED TOKEN');
     return null;
   }
 
   // Check if token is expired
   const expirationTime = parseInt(storedExpires);
   if (Date.now() > expirationTime) {
-    console.log('❌ TOKEN EXPIRED');
     clearAuthState();
     return null;
   }
-
-  console.log('✅ VALID TOKEN FOUND, checking with PayloadCMS...');
 
   try {
     // Use token-based authentication instead of cookies
@@ -317,40 +279,21 @@ export async function getCurrentUser(): Promise<User | null> {
     });
 
     if (!response.ok) {
-      console.log('❌ TOKEN VALIDATION FAILED');
       clearAuthState();
       return null;
     }
 
     const data = await response.json();
 
-    if (data.user) {
-      console.log('✅ USER FOUND:', {
-        email: data.user.email,
-        role: data.user.role,
-        id: data.user.id
-      });
-
-      // Check if user exists and has trainee role
-      if (data.user.role === 'trainee') {
-        console.log('✅ TRAINEE ROLE CONFIRMED');
-        
-        // Update cached user data with fresh data from server
-        localStorage.setItem('grandline_auth_user', JSON.stringify(data.user));
-        
-        return data.user;
-      } else {
-        console.log('❌ ROLE DENIED:', data.user.role);
-        clearAuthState();
-        return null;
-      }
+    if (data.user && data.user.role === 'trainee') {
+      // Update cached user data with fresh data from server
+      localStorage.setItem('grandline_auth_user', JSON.stringify(data.user));
+      return data.user;
     } else {
-      console.log('❌ NO USER IN RESPONSE');
       clearAuthState();
       return null;
     }
   } catch (error) {
-    console.log('❌ GET USER FAILED:', error);
     clearAuthState();
     return null;
   }
@@ -488,29 +431,22 @@ export async function checkAuthStatus(): Promise<boolean> {
 
 /**
  * Check if we have a valid stored token (quick check)
+ * Optimized for performance with minimal logging
  */
 export function hasValidStoredToken(): boolean {
   if (typeof window === 'undefined') {
-    console.log('🔍 hasValidStoredToken: window undefined');
     return false;
   }
 
   const storedToken = localStorage.getItem('grandline_auth_token');
   const storedExpires = localStorage.getItem('grandline_auth_expires');
 
-  console.log('🔍 hasValidStoredToken: token exists?', !!storedToken);
-  console.log('🔍 hasValidStoredToken: expires exists?', !!storedExpires);
-
   if (!storedToken || !storedExpires) {
-    console.log('🔍 hasValidStoredToken: missing token or expires');
     return false;
   }
 
   const expirationTime = parseInt(storedExpires);
-  const isValid = Date.now() < expirationTime;
-  console.log('🔍 hasValidStoredToken: is valid?', isValid);
-
-  return isValid;
+  return Date.now() < expirationTime;
 }
 
 /**
@@ -536,6 +472,7 @@ export async function getSessionInfo(): Promise<SessionInfo> {
 /**
  * Clear local authentication state
  * Clears stored tokens and dispatches logout event
+ * Optimized for performance
  */
 export function clearAuthState(): void {
   // Clear stored authentication tokens
@@ -544,8 +481,6 @@ export function clearAuthState(): void {
     localStorage.removeItem('grandline_auth_expires');
     localStorage.removeItem('grandline_auth_user'); // Clear cached user data
     sessionStorage.removeItem('auth:redirectAfterLogin');
-
-    console.log('🧹 CLEARED AUTH STATE');
 
     // Dispatch custom event for auth state changes
     window.dispatchEvent(new CustomEvent('auth:logout'));
