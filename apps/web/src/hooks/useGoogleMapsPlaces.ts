@@ -89,7 +89,10 @@ export function useGoogleMapsPlaces(options: UseGoogleMapsPlacesOptions = {}): U
   const [searchQuery, setSearchQuery] = useState('');
   const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isMapsReady, setIsMapsReady] = useState(false);
+  // Initialize isMapsReady based on whether Google Maps is already loaded to prevent flash
+  const [isMapsReady, setIsMapsReady] = useState<boolean>(() => {
+    return !!(isGoogleMapsLoaded && typeof window !== 'undefined' && window.google && window.google.maps && window.google.maps.places);
+  });
 
   // Load Google Maps API
   useEffect(() => {

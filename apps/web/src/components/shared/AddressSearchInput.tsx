@@ -154,8 +154,8 @@ export function AddressSearchInput({
         )
       )}
 
-      {/* Loading Google Maps message - Conditional rendering based on fullPage prop */}
-      {!isMapsReady && (
+      {/* Loading Google Maps message - Only show if actively loading and user has started typing */}
+      {!isMapsReady && searchQuery.trim() && (
         fullPage ? (
           // Full page mode
           <div className="mt-4 px-4 py-3 text-sm text-gray-500 flex items-center space-x-2 border border-gray-200 rounded-lg">

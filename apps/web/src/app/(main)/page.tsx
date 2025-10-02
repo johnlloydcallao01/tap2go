@@ -1,6 +1,7 @@
 import React from "react";
-import { ProductCategoryCarousel, CoursesGrid } from "@/components/sections";
-import { getProductCategories, getCourses } from "@/server";
+import { ProductCategoryCarousel } from "@/components/sections";
+import { MerchantsGrid } from "@/components/sections/MerchantsGrid";
+import { getProductCategories, getMerchants } from "@/server";
 
 // ISR configuration - revalidate every 5 minutes
 export const revalidate = 300;
@@ -8,15 +9,15 @@ export const revalidate = 300;
 /**
  * Home page component - FULLY ISR OPTIMIZED
  * 
- * PERFORMANCE OPTIMIZED: Both categories and courses are pre-fetched 
+ * PERFORMANCE OPTIMIZED: Categories and merchants are pre-fetched 
  * server-side with ISR. This eliminates all client-side loading states 
  * and provides optimal SEO performance.
  */
 export default async function Home() {
-  // Fetch both product categories and courses server-side with ISR
-  const [productCategories, courses] = await Promise.all([
+  // Fetch product categories and merchants server-side with ISR
+  const [productCategories, merchants] = await Promise.all([
     getProductCategories(),
-    getCourses({ status: 'published', limit: 8 })
+    getMerchants({ isActive: true, limit: 8 })
   ]);
 
   return (
@@ -28,8 +29,8 @@ export default async function Home() {
         />
       </div>
 
-      {/* Courses Grid with ISR data - no client wrapper needed */}
-      <CoursesGrid courses={courses} />
+      {/* Merchants Grid with ISR data - second section after categories */}
+      <MerchantsGrid merchants={merchants} />
     </div>
   );
 }

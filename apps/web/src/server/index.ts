@@ -175,7 +175,7 @@ export {
   type ProductCategoryResponse,
 } from './services/product-category-service';
 
-// Course service (ISR-optimized data fetching)
+// Course service
 export {
   CourseService,
   getCourses,
@@ -190,6 +190,17 @@ export {
   type CourseServiceOptions,
   type CoursesResponse,
 } from './services/course-service';
+
+// Merchant service
+export {
+  MerchantService,
+  getMerchants,
+  getMerchantCount,
+  getMerchantById,
+  type Merchant,
+  type MerchantServiceOptions,
+  type MerchantsResponse,
+} from './services/merchant-service';
 
 // Lead qualification service (web-specific business logic)
 export {

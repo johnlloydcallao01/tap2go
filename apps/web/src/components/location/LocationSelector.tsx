@@ -174,13 +174,14 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
         </div>
 
         {/* Search Section */}
-        <div className={`${isMobile ? 'px-4 py-4 flex-1' : 'px-6 py-4'}`}>
+        <div className={`${isMobile ? 'px-4 py-4 flex-1' : 'px-6 py-4 flex-1'}`}>
           <AddressSearchInput
             placeholder="Search for an address"
             onAddressSelect={handleAddressSelect}
             autoFocus={true}
             inputClassName="w-full pl-12 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all"
             dropdownClassName={isMobile ? 'max-h-96' : 'max-h-64'}
+            fullPage={!isMobile}
           />
         </div>
       </div>
