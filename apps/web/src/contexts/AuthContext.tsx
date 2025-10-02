@@ -1,7 +1,6 @@
 /**
  * @file apps/web/src/contexts/AuthContext.tsx
- * @description Authentication Context Provider for PayloadCMS
- * Manages global authentication state with automatic session restoration
+ * @description Simplified Authentication Context Provider
  */
 
 'use client';
@@ -21,8 +20,6 @@ import {
   checkAuthStatus,
   clearAuthState,
   emitAuthEvent,
-  startSessionMonitoring,
-  monitorSessionExpiration,
   hasValidStoredToken,
 } from '@/lib/auth';
 
@@ -31,13 +28,10 @@ import {
 // ========================================
 
 type AuthAction =
-  | { type: 'AUTH_INIT_START' }
   | { type: 'AUTH_INIT_SUCCESS'; payload: { user: User | null } }
-  | { type: 'AUTH_INIT_ERROR'; payload: { error: string } }
   | { type: 'LOGIN_START' }
   | { type: 'LOGIN_SUCCESS'; payload: { user: User } }
   | { type: 'LOGIN_ERROR'; payload: { error: string } }
-  | { type: 'LOGOUT_START' }
   | { type: 'LOGOUT_SUCCESS' }
   | { type: 'REFRESH_SUCCESS'; payload: { user: User } }
   | { type: 'CLEAR_ERROR' }
@@ -46,20 +40,13 @@ type AuthAction =
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
-  isLoading: false, // Start as not loading for faster initial render
+  isLoading: false,
   isInitialized: false,
   error: null,
 };
 
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
-    case 'AUTH_INIT_START':
-      return {
-        ...state,
-        isLoading: true,
-        error: null,
-      };
-
     case 'AUTH_INIT_SUCCESS':
       return {
         ...state,
@@ -68,16 +55,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         isLoading: false,
         isInitialized: true,
         error: null,
-      };
-
-    case 'AUTH_INIT_ERROR':
-      return {
-        ...state,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        isInitialized: true,
-        error: action.payload.error,
       };
 
     case 'LOGIN_START':
@@ -105,15 +82,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: action.payload.error,
       };
 
-    case 'LOGOUT_START':
-      return {
-        ...state,
-        isLoading: true,
-        error: null,
-      };
-
     case 'LOGOUT_SUCCESS':
-    case 'SESSION_EXPIRED':
       return {
         ...state,
         user: null,
@@ -136,6 +105,15 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: null,
       };
 
+    case 'SESSION_EXPIRED':
+      return {
+        ...state,
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+      };
+
     default:
       return state;
   }
@@ -147,10 +125,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// ========================================
-// AUTH PROVIDER COMPONENT
-// ========================================
-
 interface AuthProviderProps {
   children: React.ReactNode;
 }
@@ -159,59 +133,33 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
   // ========================================
-  // INITIALIZATION
+  // SIMPLIFIED INITIALIZATION
   // ========================================
 
   const initializeAuth = useCallback(async () => {
-    // Check for stored token first (quick check)
-    const hasToken = hasValidStoredToken();
-
-    if (hasToken) {
-      // Get cached user data from localStorage for immediate display
+    // Simple check: if we have a valid token, get the user
+    if (hasValidStoredToken()) {
+      // Try to get cached user first for instant display
       const cachedUserData = localStorage.getItem('grandline_auth_user');
-      
       if (cachedUserData) {
         try {
           const cachedUser = JSON.parse(cachedUserData);
-          // Set authenticated state immediately with cached data - no loading state
           dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: cachedUser } });
-          
-          // Validate token with server in background to ensure it's still valid
-          try {
-            const user = await getCurrentUser();
-            
-            if (user) {
-              // Update with fresh user data from server (silent update)
-              dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user } });
-              emitAuthEvent('session_restored', { user });
-            } else {
-              dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
-            }
-          } catch (error) {
-            // Keep the cached user state even if background validation fails
-            // This ensures the user stays logged in during network issues
-          }
-          
-          return; // Exit early since we have cached data
+          return; // Use cached data, no API call needed
         } catch (e) {
-          // Failed to parse cached user data, continue with server validation
+          // Invalid cached data, fall through to API call
         }
       }
-      
-      // No cached data available, validate with server
+
+      // No valid cached data, make single API call
       try {
         const user = await getCurrentUser();
-        
-        if (user) {
-          dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user } });
-          emitAuthEvent('session_restored', { user });
-        } else {
-          dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
-        }
+        dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user } });
       } catch (error) {
         dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
       }
     } else {
+      // No token, user is not authenticated
       dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
     }
   }, []);
@@ -241,19 +189,15 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
   }, []);
 
   const logout = useCallback(async () => {
-    dispatch({ type: 'LOGOUT_START' });
-
     try {
       await authLogout();
-      clearAuthState();
-      dispatch({ type: 'LOGOUT_SUCCESS' });
-      emitAuthEvent('logout');
     } catch (error) {
-      // Always succeed logout locally even if server call fails
-      clearAuthState();
-      dispatch({ type: 'LOGOUT_SUCCESS' });
-      emitAuthEvent('logout');
+      // Continue with logout even if API call fails
     }
+    
+    clearAuthState();
+    dispatch({ type: 'LOGOUT_SUCCESS' });
+    emitAuthEvent('logout');
   }, []);
 
   const refreshSession = useCallback(async () => {
@@ -262,7 +206,6 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
       dispatch({ type: 'REFRESH_SUCCESS', payload: { user: response.user } });
       emitAuthEvent('session_refreshed', { user: response.user });
     } catch (error) {
-      // If refresh fails, treat as session expired
       dispatch({ type: 'SESSION_EXPIRED' });
       emitAuthEvent('session_expired');
       throw error;
@@ -274,49 +217,24 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
   }, []);
 
   // ========================================
-  // SESSION MONITORING
+  // SIMPLE EVENT HANDLING
   // ========================================
 
-  // Session monitoring and management
   useEffect(() => {
-    if (!state.isAuthenticated || !state.isInitialized) return;
-
-    const handleSessionExpired = () => {
-      dispatch({ type: 'SESSION_EXPIRED' });
-      // Don't emit event here to prevent infinite loop
-    };
-
-    // Listen for auth events from other tabs
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'auth:logout') {
-        handleSessionExpired();
-      }
-    };
-
-    // Listen for custom auth events
     const handleAuthEvent = (e: CustomEvent) => {
-      if (e.type === 'auth:logout') {
-        handleSessionExpired();
+      if (e.type === 'auth:logout' || e.type === 'auth:session_expired') {
+        dispatch({ type: 'SESSION_EXPIRED' });
       }
-      // Removed 'auth:session_expired' to prevent infinite loop
     };
 
-    // Start session monitoring
-    const stopSessionMonitoring = startSessionMonitoring();
-    const stopExpirationMonitoring = monitorSessionExpiration();
-
-    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('auth:logout', handleAuthEvent as EventListener);
     window.addEventListener('auth:session_expired', handleAuthEvent as EventListener);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('auth:logout', handleAuthEvent as EventListener);
       window.removeEventListener('auth:session_expired', handleAuthEvent as EventListener);
-      stopSessionMonitoring();
-      stopExpirationMonitoring();
     };
-  }, [state.isAuthenticated, state.isInitialized]);
+  }, []);
 
   // ========================================
   // CONTEXT VALUE
@@ -336,7 +254,7 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
     { value: contextValue },
     children
   );
-}
+};
 
 // ========================================
 // HOOK FOR USING AUTH CONTEXT

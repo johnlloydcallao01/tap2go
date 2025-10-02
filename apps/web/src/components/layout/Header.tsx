@@ -149,7 +149,7 @@ export function Header({
               console.log('Selected location:', location);
               // Handle location selection here
             }}
-            className="text-left"
+            className="text-left pl-0"
           />
         </div>
 
