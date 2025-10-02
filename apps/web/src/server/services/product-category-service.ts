@@ -41,7 +41,10 @@ export class ProductCategoryService {
       }
 
       const response = await fetch(`${ProductCategoryService.API_BASE}/product-categories?limit=${limit}`, {
-        next: { revalidate: 300 }, // 5 minutes cache for ISR
+        next: { 
+          revalidate: 300, // 5 minutes cache for ISR
+          tags: ['product-categories'] // Add cache tag for targeted revalidation
+        },
         headers,
       });
       

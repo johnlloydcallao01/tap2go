@@ -229,6 +229,9 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       // Store expiration time (30 days from now)
       const expirationTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
       localStorage.setItem('grandline_auth_expires', expirationTime.toString());
+      
+      // Cache user data for instant authentication restoration
+      localStorage.setItem('grandline_auth_user', JSON.stringify(response.user));
 
       console.log('✅ TOKEN STORED for 30 days');
     }
@@ -331,6 +334,10 @@ export async function getCurrentUser(): Promise<User | null> {
       // Check if user exists and has trainee role
       if (data.user.role === 'trainee') {
         console.log('✅ TRAINEE ROLE CONFIRMED');
+        
+        // Update cached user data with fresh data from server
+        localStorage.setItem('grandline_auth_user', JSON.stringify(data.user));
+        
         return data.user;
       } else {
         console.log('❌ ROLE DENIED:', data.user.role);
@@ -389,6 +396,9 @@ export async function refreshSession(): Promise<AuthResponse> {
     if (response.token) {
       console.log('💾 UPDATING STORED TOKEN...');
       localStorage.setItem('grandline_auth_token', response.token);
+      
+      // Update cached user data
+      localStorage.setItem('grandline_auth_user', JSON.stringify(response.user));
       
       // Update expiration time (30 days from now)
       const expirationTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
@@ -532,6 +542,7 @@ export function clearAuthState(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('grandline_auth_token');
     localStorage.removeItem('grandline_auth_expires');
+    localStorage.removeItem('grandline_auth_user'); // Clear cached user data
     sessionStorage.removeItem('auth:redirectAfterLogin');
 
     console.log('🧹 CLEARED AUTH STATE');

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface LocationSelectorProps {
   onLocationSelect?: (location: google.maps.places.PlaceResult) => void;
@@ -101,6 +102,18 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
   const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isMapsReady, setIsMapsReady] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if we're on mobile/tablet
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 1024); // Below lg breakpoint
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Load Google Maps API
   useEffect(() => {
@@ -201,31 +214,89 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
     }
   };
 
+  // Prevent body scroll when modal is open on mobile
+  useEffect(() => {
+    if (isOpen && isMobile) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    };
+  }, [isOpen, isMobile]);
+
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4">
-      {/* Modal - Pure popup without any backdrop */}
-      <div className="bg-white rounded-2xl shadow-2xl w-full transform transition-all">
+  const modalElement = (
+    <div 
+      className={isMobile ? '' : 'fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md px-4'}
+      style={isMobile ? { 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        width: '100vw', 
+        height: '100vh', 
+        backgroundColor: 'white', 
+        zIndex: 99999 
+      } : { position: 'fixed', zIndex: 9999 }}
+    >
+      {/* Modal - Responsive design */}
+      <div className={`${
+        isMobile 
+          ? 'w-full h-full flex flex-col bg-white' // Full height on mobile/tablet with solid white background
+          : 'bg-white rounded-2xl shadow-2xl w-full transform transition-all' // Popup style on desktop
+      }`} style={isMobile ? { width: '100%', height: '100%', backgroundColor: 'white' } : {}}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">
-              Addresses
-            </h3>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+        <div className={`${
+          isMobile 
+            ? 'px-4 py-3 border-b border-gray-100 flex items-center' // Mobile header with back button
+            : 'px-6 py-4 border-b border-gray-100' // Desktop header
+        }`}>
+          {isMobile ? (
+            // Mobile header with back button
+            <div className="flex items-center w-full">
+              <button
+                onClick={onClose}
+                className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors mr-3"
+              >
+                <svg className="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Addresses
+              </h3>
+            </div>
+          ) : (
+            // Desktop header with close button
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">
+                Addresses
+              </h3>
+              <button
+                onClick={onClose}
+                className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Search Section */}
-        <div className="px-6 py-4">
+        <div className={`${isMobile ? 'px-4 py-4' : 'px-6 py-4'}`}>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -243,12 +314,10 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
           </div>
         </div>
 
-
-
         {/* Search Results */}
         {predictions.length > 0 && (
-          <div className="px-6 pb-4">
-            <div className="max-h-64 overflow-y-auto">
+          <div className={`${isMobile ? 'px-4 pb-4 flex-1 overflow-y-auto' : 'px-6 pb-4'}`}>
+            <div className={`${isMobile ? 'h-full overflow-y-auto' : 'max-h-64 overflow-y-auto'}`}>
               {predictions.map((prediction) => (
                 <button
                   key={prediction.place_id}
@@ -277,14 +346,14 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
 
         {/* Loading States */}
         {isLoading && (
-          <div className="px-6 py-8 flex items-center justify-center">
+          <div className={`${isMobile ? 'px-4 py-8' : 'px-6 py-8'} flex items-center justify-center`}>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
             <span className="ml-3 text-gray-600">Loading location details...</span>
           </div>
         )}
 
         {isOpen && !isMapsReady && (
-          <div className="px-6 py-8 flex items-center justify-center">
+          <div className={`${isMobile ? 'px-4 py-8' : 'px-6 py-8'} flex items-center justify-center`}>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
             <span className="ml-3 text-gray-600">Loading Google Maps...</span>
           </div>
@@ -292,6 +361,8 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
       </div>
     </div>
   );
+
+  return createPortal(modalElement as React.ReactNode, document.body);
 }
 
 // Main Location Selector Component

@@ -38,8 +38,19 @@ export function LoadingProvider({ children }: LoadingProviderProps): JSX.Element
       navigationEntries[0].type === 'reload' ||
       navigationEntries[0].type === 'navigate';
 
-    // Show loading screen on all full page loads (authenticated AND non-authenticated)
+    // Only show loading screen for non-authenticated full page loads
+    // Skip loading screen if user is already authenticated (has cached data)
     if (isFullPageLoad) {
+      const hasAuthToken = localStorage.getItem('grandline_auth_token');
+      const hasCachedUser = localStorage.getItem('grandline_auth_user');
+      
+      // Skip loading screen if user has valid cached authentication
+      if (hasAuthToken && hasCachedUser) {
+        console.log('🔄 LOADING PROVIDER: Skipping loading screen - user has cached auth');
+        setIsLoading(false);
+        return;
+      }
+
       console.log('🔄 LOADING PROVIDER: Full page reload detected, showing loading screen');
       setIsLoading(true);
       setProgress(10); // Start with some progress
@@ -62,7 +73,7 @@ export function LoadingProvider({ children }: LoadingProviderProps): JSX.Element
           setIsLoading(false);
           setProgress(0);
         }, 500);
-      }, 3000); // 3 seconds max
+      }, 2000); // Reduced from 3 seconds to 2 seconds
 
       return () => {
         clearInterval(progressInterval);

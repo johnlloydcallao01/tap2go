@@ -142,8 +142,16 @@ export function Header({
     }`} style={{ backgroundColor: '#fff' }}>
       {/* Mobile Header - Professional mobile app layout */}
       <div className="lg:hidden flex items-center justify-between px-4 py-2 h-14" style={{ backgroundColor: '#fff' }}>
-        {/* Left side - Empty space for future logo or menu if needed */}
-        <div className="flex-1"></div>
+        {/* Left side - Location Selector */}
+        <div className="flex-1">
+          <LocationSelector 
+            onLocationSelect={(location) => {
+              console.log('Selected location:', location);
+              // Handle location selection here
+            }}
+            className="text-left"
+          />
+        </div>
 
         {/* Right side - Icons grouped together professionally */}
         <div className="flex items-center space-x-3">
