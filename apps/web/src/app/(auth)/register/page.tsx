@@ -206,7 +206,7 @@ export default function RegisterPage() {
       }
 
       // CORS is completely disabled on the CMS - use direct URL
-      const registrationUrl = 'https://cms.tap2goph.com/api/trainee-register';
+      const registrationUrl = 'https://cms.tap2goph.com/api/customer-register';
 
       const response = await fetch(registrationUrl, {
         method: 'POST',
@@ -224,7 +224,7 @@ export default function RegisterPage() {
         setFormData(getInitialFormData());
 
         // Show success state in UI instead of popup
-        setErrors({ success: result.message || 'Registration successful! Your trainee account has been created.' });
+        setErrors({ success: result.message || 'Registration successful! Your customer account has been created.' });
       } else {
         // Try to get the response text first, then parse as JSON
         const responseText = await response.text();

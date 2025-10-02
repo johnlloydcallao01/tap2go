@@ -21,7 +21,7 @@ import type {
 // ========================================
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-const COLLECTION_SLUG = 'users'; // Authentication is on users collection, not trainees
+const COLLECTION_SLUG = 'users'; // Authentication is on users collection, not customers
 
 // Request configuration for cookie-based authentication
 const REQUEST_CONFIG: RequestInit = {
@@ -170,7 +170,7 @@ async function withRetry<T>(
 /**
  * Login user with email and password
  * Uses PayloadCMS cookie strategy for secure session management
- * Only allows users with 'trainee' role to authenticate
+ * Only allows users with 'customer' role to authenticate
  * Optimized for fast user experience with minimal retries
  */
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
@@ -197,9 +197,9 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       id: response.user.id
     });
 
-    // Check if user has trainee role
-    if (response.user.role !== 'trainee') {
-      throw new Error('Access denied. Only trainees can access this application.');
+    // Check if user has customer role
+    if (response.user.role !== 'customer') {
+      throw new Error('Access denied. Only customers can access this application.');
     }
 
     // Store token for persistent authentication (30 days)
@@ -248,7 +248,7 @@ export async function logout(): Promise<void> {
 /**
  * Get current authenticated user
  * Validates session using HTTP-only cookies
- * Only returns user if they have 'trainee' role
+ * Only returns user if they have 'customer' role
  * Optimized for fast response with minimal logging
  */
 export async function getCurrentUser(): Promise<User | null> {
@@ -285,7 +285,7 @@ export async function getCurrentUser(): Promise<User | null> {
 
     const data = await response.json();
 
-    if (data.user && data.user.role === 'trainee') {
+    if (data.user && data.user.role === 'customer') {
       // Update cached user data with fresh data from server
       localStorage.setItem('grandline_auth_user', JSON.stringify(data.user));
       return data.user;
@@ -302,7 +302,7 @@ export async function getCurrentUser(): Promise<User | null> {
 /**
  * Refresh user session with enterprise-grade error handling and token management
  * Extends session duration using PayloadCMS custom refresh endpoint
- * Only allows users with 'trainee' role
+ * Only allows users with 'customer' role
  */
 export async function refreshSession(): Promise<AuthResponse> {
   const startTime = Date.now();
@@ -328,11 +328,11 @@ export async function refreshSession(): Promise<AuthResponse> {
       responseTime: `${Date.now() - startTime}ms`
     });
 
-    // Security validation: Check if user has trainee role
-    if (response.user.role !== 'trainee') {
+    // Security validation: Check if user has customer role
+    if (response.user.role !== 'customer') {
       console.log('❌ REFRESH DENIED: Invalid role', response.user.role);
       clearAuthState(); // Clear invalid session
-      throw new Error('Access denied. Only trainees can access this application.');
+      throw new Error('Access denied. Only customers can access this application.');
     }
 
     // Update localStorage with new token and expiration

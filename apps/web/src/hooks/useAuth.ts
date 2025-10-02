@@ -248,7 +248,7 @@ export function usePermissions() {
     hasRole,
     hasAnyRole,
     userRole: user?.role,
-    isTrainee: hasRole('trainee'),
+    isCustomer: hasRole('customer'),
     isAdmin: hasRole('admin'),
     isInstructor: hasRole('instructor'),
   };

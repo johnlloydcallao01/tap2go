@@ -12,7 +12,7 @@ import type { NextRequest } from 'next/server';
 // ========================================
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-const COLLECTION_SLUG = 'users'; // Authentication is on users collection, not trainees
+const COLLECTION_SLUG = 'users'; // Authentication is on users collection, not customers
 
 // Routes that require authentication
 const PROTECTED_ROUTES = [
