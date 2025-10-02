@@ -3,7 +3,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 
 // Type for the request body
-interface TraineeRegistrationBody {
+interface CustomerRegistrationBody {
   firstName: string
   lastName: string
   middleName?: string
@@ -41,10 +41,10 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
-  let body: TraineeRegistrationBody = {} as TraineeRegistrationBody // Declare body outside try block for error logging
+  let body: CustomerRegistrationBody = {} as CustomerRegistrationBody // Declare body outside try block for error logging
 
   try {
-    console.log('🚀 === TRAINEE REGISTRATION STARTED ===')
+    console.log('🚀 === CUSTOMER REGISTRATION STARTED ===')
 
     console.log('🔧 Initializing PayloadCMS...')
     const payload = await getPayload({ config: configPromise })
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       lastName: body.lastName,
       email: body.email,
       password: body.password,
-      role: 'trainee' as const,
+      role: 'customer' as const,
       // Optional fields that exist in the current schema
       ...(body.middleName && { middleName: body.middleName }),
       ...(body.nameExtension && { nameExtension: body.nameExtension }),
@@ -153,15 +153,15 @@ export async function POST(request: NextRequest) {
       throw new Error(`User creation failed: ${userCreationError instanceof Error ? userCreationError.message : String(userCreationError)}`)
     }
 
-    // Step 2: Check if trainee record was created by trigger, if not create manually
-    console.log('🎓 Checking/Creating trainee record...')
+    // Step 2: Check if customer record was created by trigger, if not create manually
+    console.log('🎓 Checking/Creating customer record...')
 
-    // First, check if trainee record was already created by the database trigger
-    let trainee;
+    // First, check if customer record was already created by the database trigger
+    let customer;
     try {
-      console.log('🔍 Checking if trainee record exists (created by trigger)...')
-      const existingTrainees = await payload.find({
-        collection: 'trainees',
+      console.log('🔍 Checking if customer record exists (created by trigger)...')
+      const existingCustomers = await payload.find({
+        collection: 'customers',
         where: {
           user: {
             equals: user.id
@@ -170,31 +170,31 @@ export async function POST(request: NextRequest) {
         limit: 1
       })
 
-      if (existingTrainees.docs.length > 0) {
-        trainee = existingTrainees.docs[0]
-        console.log('✅ Trainee record found (created by trigger):', {
-          id: trainee.id,
-          srn: trainee.srn,
-          userId: trainee.user
+      if (existingCustomers.docs.length > 0) {
+        customer = existingCustomers.docs[0]
+        console.log('✅ Customer record found (created by trigger):', {
+          id: customer.id,
+          srn: customer.srn,
+          userId: customer.user
         })
 
         // Update the SRN if it's different from what was provided
-        if (trainee.srn !== body.srn && body.srn) {
+        if (customer.srn !== body.srn && body.srn) {
           console.log('🔄 Updating SRN to match registration...')
-          trainee = await payload.update({
-            collection: 'trainees',
-            id: trainee.id,
+          customer = await payload.update({
+            collection: 'customers',
+            id: customer.id,
             data: {
               srn: body.srn,
               couponCode: body.couponCode || ''
             }
           })
-          console.log('✅ Trainee SRN updated')
+          console.log('✅ Customer SRN updated')
         }
       } else {
-        // No trainee record found, create manually
-        console.log('🔄 Creating trainee record manually...')
-        const traineeData = {
+        // No customer record found, create manually
+        console.log('🔄 Creating customer record manually...')
+        const customerData = {
           user: user.id,
           srn: body.srn,
           couponCode: body.couponCode || '',
@@ -202,22 +202,22 @@ export async function POST(request: NextRequest) {
           currentLevel: 'beginner' as const
         }
 
-        console.log('📋 Trainee data to create:', traineeData)
+        console.log('📋 Customer data to create:', customerData)
 
-        trainee = await payload.create({
-          collection: 'trainees',
-          data: traineeData
+        customer = await payload.create({
+          collection: 'customers',
+          data: customerData
         })
 
-        console.log('✅ Trainee created manually:', {
-          id: trainee.id,
-          srn: trainee.srn,
-          userId: trainee.user
+        console.log('✅ Customer created manually:', {
+          id: customer.id,
+          srn: customer.srn,
+          userId: customer.user
         })
       }
-    } catch (traineeError) {
-      console.error('💥 TRAINEE HANDLING FAILED:', traineeError)
-      throw new Error(`Trainee handling failed: ${traineeError instanceof Error ? traineeError.message : String(traineeError)}`)
+    } catch (customerError) {
+      console.error('💥 CUSTOMER HANDLING FAILED:', customerError)
+      throw new Error(`Customer handling failed: ${customerError instanceof Error ? customerError.message : String(customerError)}`)
     }
 
     // Step 3: Create emergency contact
@@ -279,11 +279,11 @@ export async function POST(request: NextRequest) {
       throw new Error(`Emergency contact creation failed: ${emergencyCreationError instanceof Error ? emergencyCreationError.message : String(emergencyCreationError)}`)
     }
 
-    console.log('🎉 === TRAINEE REGISTRATION COMPLETED SUCCESSFULLY ===')
+    console.log('🎉 === CUSTOMER REGISTRATION COMPLETED SUCCESSFULLY ===')
 
     const successResponse = {
       success: true,
-      message: 'Trainee registration successful! Welcome to Grandline Maritime Training Center.',
+      message: 'Customer registration successful! Welcome to Grandline Maritime Training Center.',
       data: {
         user: {
           id: user.id,
@@ -292,9 +292,9 @@ export async function POST(request: NextRequest) {
           lastName: user.lastName,
           role: user.role
         },
-        trainee: {
-          id: trainee.id,
-          srn: trainee.srn
+        customer: {
+          id: customer.id,
+          srn: customer.srn
         },
         emergencyContact: {
           id: emergencyContact.id,
@@ -309,8 +309,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(successResponse, { headers: corsHeaders })
 
   } catch (error: unknown) {
-    console.error('💥 === TRAINEE REGISTRATION ERROR ===')
-    console.error('❌ Trainee registration failed:', error)
+    console.error('💥 === CUSTOMER REGISTRATION ERROR ===')
+    console.error('❌ Customer registration failed:', error)
 
     // Log detailed error information for debugging
     if (error instanceof Error) {

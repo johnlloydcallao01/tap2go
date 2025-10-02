@@ -40,17 +40,17 @@ export const Users: CollectionConfig = {
         const payload = req.payload;
 
         try {
-          // Delete related trainee records
-          const trainees = await payload.find({
-            collection: 'trainees',
+          // Delete related customer records
+          const customers = await payload.find({
+            collection: 'customers',
             where: { user: { equals: id } },
           });
 
-          for (const trainee of trainees.docs) {
-            console.log(`🗑️ Deleting trainee record ${trainee.id}`);
+          for (const customer of customers.docs) {
+            console.log(`🗑️ Deleting customer record ${customer.id}`);
             await payload.delete({
-              collection: 'trainees',
-              id: trainee.id,
+              collection: 'customers',
+              id: customer.id,
             });
           }
 
@@ -209,15 +209,15 @@ export const Users: CollectionConfig = {
           value: 'instructor',
         },
         {
-          label: 'Trainee',
-          value: 'trainee',
-        },
+              label: 'Customer',
+              value: 'customer',
+            },
         {
           label: 'Service Account', // Step 2: Add dedicated role for API key users
           value: 'service',
         },
       ],
-      defaultValue: 'trainee',
+      defaultValue: 'customer',
       required: true,
       admin: {
         description: 'User role determines access permissions. Service accounts are for API key authentication.',

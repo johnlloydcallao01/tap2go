@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest) {
     // Get basic counts from PayloadCMS
     const [coursesResult, studentsResult, instructorsResult] = await Promise.all([
       payload.find({ collection: 'courses', limit: 0 }),
-      payload.find({ collection: 'trainees', limit: 0 }),
+      payload.find({ collection: 'customers', limit: 0 }),
       payload.find({ collection: 'instructors', limit: 0 }),
     ])
 

@@ -2,15 +2,15 @@ import type { Access, FieldAccess, AccessArgs } from 'payload'
 
 // LMS role hierarchy levels
 export const ROLE_LEVELS = {
-  TRAINEE: 1,
-  SERVICE: 3, // Step 2: Add service account role level (between trainee and instructor)
+  CUSTOMER: 1,
+  SERVICE: 3, // Step 2: Add service account role level (between customer and instructor)
   INSTRUCTOR: 5,
   ADMIN: 10,
 } as const
 
 // Legacy role mapping for backward compatibility
 export const LEGACY_ROLE_LEVELS = {
-  'trainee': ROLE_LEVELS.TRAINEE,
+  'customer': ROLE_LEVELS.CUSTOMER,
   'service': ROLE_LEVELS.SERVICE, // Step 2: Map service role for API key users
   'instructor': ROLE_LEVELS.INSTRUCTOR,
   'admin': ROLE_LEVELS.ADMIN,
@@ -123,7 +123,7 @@ export const courseContentAccess: Access = ({ req: { user } }) => {
     return true // Simplified for now
   }
 
-  // Trainees can only access published content
+  // Customers can only access published content
   return true // Simplified for now
 }
 
@@ -146,7 +146,7 @@ export const mediaAccess: Access = ({ req: { user } }) => {
     return true
   }
 
-  // Instructors and trainees can access media
+  // Instructors and customers can access media
   return true // Simplified for now
 }
 
@@ -161,7 +161,7 @@ export const dynamicRoleAccess = (resource: string, action: string): Access => {
       case 'create':
         return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.INSTRUCTOR)
       case 'read':
-        return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.TRAINEE)
+        return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.CUSTOMER)
       case 'update':
         return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.INSTRUCTOR)
       case 'delete':
@@ -202,7 +202,7 @@ export const lmsAccess = {
       return true
     }
 
-    // Trainees can see enrollments
+    // Customers can see enrollments
     return true
   },
 

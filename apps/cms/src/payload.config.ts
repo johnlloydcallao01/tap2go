@@ -14,7 +14,7 @@ import type { PayloadRequest, PayloadHandler } from 'payload'
 
 import { Users } from './collections/Users'
 import { Instructors } from './collections/Instructors'
-import { Trainees } from './collections/Trainees'
+import { Customers } from './collections/Customers'
 import { Admins } from './collections/Admins'
 import { UserEvents } from './collections/UserEvents'
 import { EmergencyContacts } from './collections/EmergencyContacts'
@@ -44,7 +44,7 @@ export default buildConfig({
     // User Management
     Users,
     Instructors,
-    Trainees,
+    Customers,
     Admins,
     UserEvents,
     EmergencyContacts,
@@ -144,14 +144,14 @@ export default buildConfig({
             );
           }
 
-          // Security Check 3: Verify user role (trainee access only for web app)
-          if (user.role !== 'trainee') {
+          // Security Check 3: Verify user role (customer access only for web app)
+          if (user.role !== 'customer') {
             const logContext = createAuthLogContext(requestId, req, user.id, user.email, user.role, Date.now() - startTime);
-            authLogger.logRoleViolation(logContext, 'trainee', user.role);
+            authLogger.logRoleViolation(logContext, 'customer', user.role);
             
             return new Response(
               JSON.stringify({ 
-                error: 'Access denied. Only trainees can access this application.',
+                error: 'Access denied. Only customers can access this application.',
                 code: 'ROLE_DENIED',
                 timestamp: new Date().toISOString(), 
                 requestId

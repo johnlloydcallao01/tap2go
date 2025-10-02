@@ -1,17 +1,17 @@
 import type { CollectionConfig } from 'payload'
 import { adminOnly, instructorOrAbove } from '../access'
 
-export const Trainees: CollectionConfig = {
-  slug: 'trainees',
+export const Customers: CollectionConfig = {
+  slug: 'customers',
   admin: {
     useAsTitle: 'user',
     defaultColumns: ['user', 'srn', 'enrollmentDate', 'currentLevel'],
   },
   access: {
-    read: instructorOrAbove, // Instructors and admins can read trainee data
-    create: adminOnly, // Only admins can create trainee records
-    update: adminOnly, // Only admins can update trainee records
-    delete: adminOnly, // Only admins can delete trainee records
+    read: instructorOrAbove, // Instructors and admins can read customer data
+    create: adminOnly, // Only admins can create customer records
+    update: adminOnly, // Only admins can update customer records
+    delete: adminOnly, // Only admins can delete customer records
   },
   fields: [
     {
@@ -25,7 +25,7 @@ export const Trainees: CollectionConfig = {
       },
     },
 
-    // ROLE-SPECIFIC FIELDS (trainee learning data)
+    // ROLE-SPECIFIC FIELDS (customer learning data)
     {
       name: 'srn',
       type: 'text',
@@ -46,7 +46,7 @@ export const Trainees: CollectionConfig = {
       name: 'enrollmentDate',
       type: 'date',
       admin: {
-        description: 'Date when trainee enrolled in the program',
+        description: 'Date when customer enrolled in the program',
       },
     },
     {

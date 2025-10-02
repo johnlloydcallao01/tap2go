@@ -69,7 +69,7 @@ export interface Config {
   collections: {
     users: User;
     instructors: Instructor;
-    trainees: Trainee;
+    customers: Customer;
     admins: Admin;
     'user-events': UserEvent;
     'emergency-contacts': EmergencyContact;
@@ -89,7 +89,7 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     instructors: InstructorsSelect<false> | InstructorsSelect<true>;
-    trainees: TraineesSelect<false> | TraineesSelect<true>;
+    customers: CustomersSelect<false> | CustomersSelect<true>;
     admins: AdminsSelect<false> | AdminsSelect<true>;
     'user-events': UserEventsSelect<false> | UserEventsSelect<true>;
     'emergency-contacts': EmergencyContactsSelect<false> | EmergencyContactsSelect<true>;
@@ -184,7 +184,7 @@ export interface User {
   /**
    * User role determines access permissions. Service accounts are for API key authentication.
    */
-  role: 'admin' | 'instructor' | 'trainee' | 'service';
+  role: 'admin' | 'instructor' | 'customer' | 'service';
   /**
    * Inactive users cannot log in
    */
@@ -286,9 +286,9 @@ export interface Instructor {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "trainees".
+ * via the `definition` "customers".
  */
-export interface Trainee {
+export interface Customer {
   id: number;
   /**
    * Link to user account
@@ -303,7 +303,7 @@ export interface Trainee {
    */
   couponCode?: string | null;
   /**
-   * Date when trainee enrolled in the program
+   * Date when customer enrolled in the program
    */
   enrollmentDate?: string | null;
   /**
@@ -1819,8 +1819,8 @@ export interface PayloadLockedDocument {
         value: number | Instructor;
       } | null)
     | ({
-        relationTo: 'trainees';
-        value: number | Trainee;
+        relationTo: 'customers';
+        value: number | Customer;
       } | null)
     | ({
         relationTo: 'admins';
@@ -1965,9 +1965,9 @@ export interface InstructorsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "trainees_select".
+ * via the `definition` "customers_select".
  */
-export interface TraineesSelect<T extends boolean = true> {
+export interface CustomersSelect<T extends boolean = true> {
   user?: T;
   srn?: T;
   couponCode?: T;
