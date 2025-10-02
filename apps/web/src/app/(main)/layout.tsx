@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { Header, Sidebar, MobileFooter } from '@/components/layout'
 import { ProtectedRoute } from '@/components/auth'
 
@@ -17,8 +18,12 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
+
+  // Check if we're on the addresses page (hide header/footer for full-page experience)
+  const isAddressesPage = pathname === '/addresses'
 
   // Hide instant loading screen when main app loads
   useEffect(() => {
@@ -73,33 +78,40 @@ export default function MainLayout({
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
-        {/* Header - Persistent across all pages */}
-        <Header
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={toggleSidebar}
-          onSearch={handleSearch}
-        />
+        {/* Header - Persistent across all pages except addresses */}
+        {!isAddressesPage && (
+          <Header
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={toggleSidebar}
+            onSearch={handleSearch}
+          />
+        )}
 
-        {/* Sidebar - Persistent across all pages */}
-        <Sidebar
-          isOpen={sidebarOpen}
-          onToggle={toggleSidebar}
-        />
+        {/* Sidebar - Persistent across all pages except addresses */}
+        {!isAddressesPage && (
+          <Sidebar
+            isOpen={sidebarOpen}
+            onToggle={toggleSidebar}
+          />
+        )}
 
         {/* Main Content Area - Only this changes during navigation */}
         <main
           className={`transition-all duration-300 bg-gray-50 ${
-            sidebarOpen ? 'lg:ml-60' : 'lg:ml-20'
+            isAddressesPage 
+              ? '' // No margin for addresses page (full screen)
+              : sidebarOpen ? 'lg:ml-60' : 'lg:ml-20'
           }`}
           style={{ backgroundColor: '#f9fafb' }}
+          data-addresses-page={isAddressesPage ? "true" : undefined}
         >
           <div className="min-h-full bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
             {children}
           </div>
         </main>
 
-        {/* Mobile Footer - Only for main app pages */}
-        <MobileFooter />
+        {/* Mobile Footer - Only for main app pages, hidden on addresses */}
+        {!isAddressesPage && <MobileFooter />}
       </div>
     </ProtectedRoute>
   )

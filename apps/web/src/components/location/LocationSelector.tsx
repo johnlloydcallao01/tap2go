@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 
 interface LocationSelectorProps {
   onLocationSelect?: (location: google.maps.places.PlaceResult) => void;
@@ -367,12 +368,66 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
 
 // Main Location Selector Component
 export function LocationSelector({ onLocationSelect, className = '' }: LocationSelectorProps) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<google.maps.places.PlaceResult | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if we're on mobile/tablet
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 1024); // Below lg breakpoint
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  // Listen for location selection from the addresses page
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const storedLocation = localStorage.getItem('selectedLocation');
+      if (storedLocation) {
+        try {
+          const location = JSON.parse(storedLocation);
+          setSelectedLocation(location);
+          onLocationSelect?.(location);
+          localStorage.removeItem('selectedLocation'); // Clean up
+        } catch (error) {
+          console.error('Error parsing stored location:', error);
+        }
+      }
+    };
+
+    // Check on component mount
+    handleStorageChange();
+
+    // Listen for storage changes (when user comes back from addresses page)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for focus events (when user navigates back)
+    window.addEventListener('focus', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleStorageChange);
+    };
+  }, [onLocationSelect]);
 
   const handleLocationSelect = (location: google.maps.places.PlaceResult) => {
     setSelectedLocation(location);
     onLocationSelect?.(location);
+  };
+
+  const handleClick = () => {
+    if (isMobile) {
+      // Navigate to addresses page on mobile/tablet
+      router.push('/addresses' as any);
+    } else {
+      // Open modal on desktop
+      setIsModalOpen(true);
+    }
   };
 
   const displayText = selectedLocation?.name || selectedLocation?.formatted_address || 'Enter Address';
@@ -380,18 +435,21 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
   return (
     <>
       <button
-        onClick={() => setIsModalOpen(true)}
+        onClick={handleClick}
         className={`flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors ${className}`}
       >
         <LocationIcon className="h-5 w-5 text-gray-500" />
         <span className="truncate max-w-32">{displayText}</span>
       </button>
 
-      <LocationModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onLocationSelect={handleLocationSelect}
-      />
+      {/* Only show modal on desktop */}
+      {!isMobile && (
+        <LocationModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onLocationSelect={handleLocationSelect}
+        />
+      )}
     </>
   );
 }
