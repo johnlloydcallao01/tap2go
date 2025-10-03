@@ -4,6 +4,8 @@
 
 // Re-export authentication types
 export * from './auth';
+export * from './merchant';
+export * from './product-category';
 
 export interface SidebarItemProps {
   icon: string;
