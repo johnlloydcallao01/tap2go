@@ -175,22 +175,6 @@ export {
   type ProductCategoryResponse,
 } from './services/product-category-service';
 
-// Course service
-export {
-  CourseService,
-  getCourses,
-  getCourseCount,
-  getCourseById,
-  getCourseByIdWithInstructor,
-  type Course,
-  type CourseWithInstructor,
-  type User,
-  type Instructor,
-  type Media,
-  type CourseServiceOptions,
-  type CoursesResponse,
-} from './services/course-service';
-
 // Merchant service
 export {
   MerchantService,

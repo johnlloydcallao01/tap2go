@@ -245,36 +245,9 @@ export const Merchants: CollectionConfig = {
     },
     {
       name: 'specialHours',
-      type: 'array',
-      fields: [
-        {
-          name: 'date',
-          type: 'date',
-          required: true,
-        },
-        {
-          name: 'openTime',
-          type: 'text',
-        },
-        {
-          name: 'closeTime',
-          type: 'text',
-        },
-        {
-          name: 'isClosed',
-          type: 'checkbox',
-          defaultValue: false,
-        },
-        {
-          name: 'reason',
-          type: 'text',
-          admin: {
-            description: 'Reason for special hours (holiday, maintenance, etc.)',
-          },
-        },
-      ],
+      type: 'json',
       admin: {
-        description: 'Special operating hours for holidays or events',
+        description: 'Special operating hours for holidays or events (JSON array of objects with date, openTime, closeTime, isClosed, reason)',
       },
     },
 
@@ -429,30 +402,16 @@ export const Merchants: CollectionConfig = {
         },
         {
           name: 'interiorImages',
-          type: 'array',
-          fields: [
-            {
-              name: 'image',
-              type: 'upload',
-              relationTo: 'media',
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'Interior photos of the outlet',
+            description: 'Interior photos of the outlet (JSON array of media IDs)',
           },
         },
         {
           name: 'menuImages',
-          type: 'array',
-          fields: [
-            {
-              name: 'image',
-              type: 'upload',
-              relationTo: 'media',
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'Menu board or promotional images',
+            description: 'Menu board or promotional images (JSON array of media IDs)',
           },
         },
       ],
@@ -535,15 +494,9 @@ export const Merchants: CollectionConfig = {
     },
     {
       name: 'tags',
-      type: 'array',
-      fields: [
-        {
-          name: 'tag',
-          type: 'text',
-        },
-      ],
+      type: 'json',
       admin: {
-        description: 'Tags for search and categorization (e.g., "24/7", "drive-thru", "halal")',
+        description: 'Tags for search and categorization (JSON array of strings)',
       },
     },
   ],

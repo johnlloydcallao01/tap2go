@@ -2,4 +2,3 @@
 
 export { ProductCategoryCarousel } from './ProductCategoryCarousel';
 export { HeroSection } from './HeroSection';
-export { CoursesGrid } from './CoursesGrid';

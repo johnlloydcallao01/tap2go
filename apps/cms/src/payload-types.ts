@@ -75,8 +75,6 @@ export interface Config {
     'emergency-contacts': EmergencyContact;
     media: Media;
     posts: Post;
-    courses: Course;
-    'course-categories': CourseCategory;
     vendors: Vendor;
     merchants: Merchant;
     'product-categories': ProductCategory;
@@ -95,8 +93,6 @@ export interface Config {
     'emergency-contacts': EmergencyContactsSelect<false> | EmergencyContactsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
-    courses: CoursesSelect<false> | CoursesSelect<true>;
-    'course-categories': CourseCategoriesSelect<false> | CourseCategoriesSelect<true>;
     vendors: VendorsSelect<false> | VendorsSelect<true>;
     merchants: MerchantsSelect<false> | MerchantsSelect<true>;
     'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
@@ -522,195 +518,6 @@ export interface Post {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Manage courses, content, and learning paths
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "courses".
- */
-export interface Course {
-  id: number;
-  /**
-   * The main title/heading for this content
-   */
-  title: string;
-  /**
-   * Unique course identifier (e.g., CS101, MATH201)
-   */
-  courseCode: string;
-  /**
-   * Brief description for previews and SEO (recommended 150-160 characters)
-   */
-  excerpt?: string | null;
-  /**
-   * Detailed course description with rich formatting
-   */
-  description?: {
-    root: {
-      type: string;
-      children: {
-        type: string;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  } | null;
-  /**
-   * Primary instructor for this course
-   */
-  instructor: number | Instructor;
-  /**
-   * Course category for organization
-   */
-  category?: (number | null) | CourseCategory;
-  /**
-   * Course thumbnail image (original size from Cloudinary)
-   */
-  thumbnail?: (number | null) | Media;
-  /**
-   * Course banner image for course page header
-   */
-  bannerImage?: (number | null) | Media;
-  /**
-   * Course price (0 for free courses)
-   */
-  price?: number | null;
-  /**
-   * Discounted course price (leave empty if no discount applies)
-   */
-  discountedPrice?: number | null;
-  /**
-   * Maximum number of students (leave empty for unlimited)
-   */
-  maxStudents?: number | null;
-  /**
-   * When enrollment opens
-   */
-  enrollmentStartDate?: string | null;
-  /**
-   * When enrollment closes
-   */
-  enrollmentEndDate?: string | null;
-  /**
-   * When the course begins
-   */
-  courseStartDate?: string | null;
-  /**
-   * When the course ends
-   */
-  courseEndDate?: string | null;
-  /**
-   * Estimated course duration in hours
-   */
-  estimatedDuration?: number | null;
-  /**
-   * Course difficulty level
-   */
-  difficultyLevel?: ('beginner' | 'intermediate' | 'advanced') | null;
-  /**
-   * Course language
-   */
-  language?: ('en' | 'es' | 'fr' | 'de') | null;
-  /**
-   * Minimum grade required to pass (percentage)
-   */
-  passingGrade?: number | null;
-  /**
-   * What students need to know before taking this course
-   */
-  prerequisites?:
-    | {
-        prerequisite: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Publication status - only published content is visible to the public
-   */
-  status: 'draft' | 'published';
-  /**
-   * When this content was/will be published
-   */
-  publishedAt?: string | null;
-  /**
-   * Additional course settings and configurations
-   */
-  settings?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Organize courses into categories and hierarchies
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "course-categories".
- */
-export interface CourseCategory {
-  id: number;
-  /**
-   * Category name (e.g., "Web Development", "Data Science")
-   */
-  name: string;
-  /**
-   * URL-friendly version (e.g., "web-development")
-   */
-  slug: string;
-  /**
-   * Brief description of this category
-   */
-  description?: string | null;
-  /**
-   * Parent category (for hierarchical organization)
-   */
-  parent?: (number | null) | CourseCategory;
-  /**
-   * Type of category for different organizational purposes
-   */
-  categoryType: 'course' | 'skill' | 'topic' | 'industry';
-  /**
-   * Category icon/image
-   */
-  icon?: (number | null) | Media;
-  /**
-   * Hex color code for category theming (e.g., #3B82F6)
-   */
-  colorCode?: string | null;
-  /**
-   * Order for displaying categories (lower numbers first)
-   */
-  displayOrder?: number | null;
-  /**
-   * Whether this category is active and visible
-   */
-  isActive?: boolean | null;
-  /**
-   * Additional category metadata and settings
-   */
-  metadata?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * Manage business entities and vendor organizations
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -759,32 +566,16 @@ export interface Vendor {
     | 'coffee_shop'
     | 'other';
   /**
-   * Types of cuisine offered (for restaurants)
+   * Types of cuisine offered (JSON array of strings)
    */
   cuisineTypes?:
     | {
-        cuisine?:
-          | (
-              | 'filipino'
-              | 'american'
-              | 'chinese'
-              | 'japanese'
-              | 'korean'
-              | 'italian'
-              | 'mexican'
-              | 'thai'
-              | 'indian'
-              | 'mediterranean'
-              | 'seafood'
-              | 'bbq'
-              | 'desserts'
-              | 'healthy'
-              | 'vegan'
-              | 'other'
-            )
-          | null;
-        id?: string | null;
-      }[]
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   /**
    * Whether the vendor is currently active
@@ -1010,20 +801,16 @@ export interface Merchant {
     | boolean
     | null;
   /**
-   * Special operating hours for holidays or events
+   * Special operating hours for holidays or events (JSON array of objects with date, openTime, closeTime, isClosed, reason)
    */
   specialHours?:
     | {
-        date: string;
-        openTime?: string | null;
-        closeTime?: string | null;
-        isClosed?: boolean | null;
-        /**
-         * Reason for special hours (holiday, maintenance, etc.)
-         */
-        reason?: string | null;
-        id?: string | null;
-      }[]
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   /**
    * Delivery policies and settings
@@ -1092,22 +879,28 @@ export interface Merchant {
      */
     storeFrontImage?: (number | null) | Media;
     /**
-     * Interior photos of the outlet
+     * Interior photos of the outlet (JSON array of media IDs)
      */
     interiorImages?:
       | {
-          image?: (number | null) | Media;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
     /**
-     * Menu board or promotional images
+     * Menu board or promotional images (JSON array of media IDs)
      */
     menuImages?:
       | {
-          image?: (number | null) | Media;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
   };
   /**
@@ -1148,13 +941,16 @@ export interface Merchant {
    */
   specialInstructions?: string | null;
   /**
-   * Tags for search and categorization (e.g., "24/7", "drive-thru", "halal")
+   * Tags for search and categorization (JSON array of strings)
    */
   tags?:
     | {
-        tag?: string | null;
-        id?: string | null;
-      }[]
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   updatedAt: string;
   createdAt: string;
@@ -1237,16 +1033,16 @@ export interface ProductCategory {
      */
     textColor?: string | null;
     /**
-     * Colors for gradient backgrounds
+     * Colors for gradient backgrounds (JSON array of hex color strings)
      */
     gradientColors?:
       | {
-          /**
-           * Gradient color (hex code)
-           */
-          color?: string | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
   };
   /**
@@ -1270,28 +1066,16 @@ export interface ProductCategory {
         )
       | null;
     /**
-     * Dietary attributes commonly found in this category
+     * Dietary attributes commonly found in this category (JSON array of strings)
      */
     dietaryTags?:
       | {
-          tag?:
-            | (
-                | 'vegetarian'
-                | 'vegan'
-                | 'gluten_free'
-                | 'halal'
-                | 'kosher'
-                | 'organic'
-                | 'low_carb'
-                | 'keto'
-                | 'dairy_free'
-                | 'nut_free'
-                | 'spicy'
-                | 'healthy'
-              )
-            | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
     /**
      * Age restriction for products in this category
@@ -1340,13 +1124,16 @@ export interface ProductCategory {
      */
     metaDescription?: string | null;
     /**
-     * SEO keywords for this category
+     * SEO keywords for this category (JSON array of strings)
      */
     keywords?:
       | {
-          keyword?: string | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
     /**
      * Canonical URL for SEO
@@ -1420,24 +1207,28 @@ export interface ProductCategory {
       | boolean
       | null;
     /**
-     * Seasonal availability settings
+     * Seasonal availability settings (JSON array of season objects)
      */
     seasonalAvailability?:
       | {
-          season?: ('spring' | 'summer' | 'fall' | 'winter' | 'holiday' | 'special') | null;
-          available?: boolean | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
     /**
-     * Regional availability restrictions
+     * Regional availability restrictions (JSON array of region objects)
      */
     regionRestrictions?:
       | {
-          region?: string | null;
-          restricted?: boolean | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
   };
   updatedAt: string;
@@ -1491,17 +1282,6 @@ export interface Product {
      * Cost price for profit margin calculations
      */
     costPrice?: number | null;
-    /**
-     * Price change history for tracking
-     */
-    priceHistory?:
-      | {
-          price: number;
-          effectiveDate: string;
-          reason?: string | null;
-          id?: string | null;
-        }[]
-      | null;
   };
   /**
    * Product identification codes
@@ -1585,17 +1365,6 @@ export interface Product {
        */
       sodium?: number | null;
     };
-    /**
-     * Vitamin content information
-     */
-    vitamins?:
-      | {
-          vitamin?: string | null;
-          amount?: string | null;
-          dailyValuePercentage?: number | null;
-          id?: string | null;
-        }[]
-      | null;
   };
   /**
    * Dietary restrictions and allergen information
@@ -1611,25 +1380,28 @@ export interface Product {
     isNutFree?: boolean | null;
     spiceLevel?: ('none' | 'mild' | 'medium' | 'hot' | 'extra_hot') | null;
     /**
-     * Known allergens in this product
+     * Known allergens present in this product (JSON array of strings)
      */
     allergens?:
       | {
-          allergen?:
-            | ('milk' | 'eggs' | 'fish' | 'shellfish' | 'tree_nuts' | 'peanuts' | 'wheat' | 'soybeans' | 'sesame')
-            | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
     /**
-     * List of ingredients
+     * List of ingredients in this product (JSON array of strings)
      */
     ingredients?:
       | {
-          ingredient: string;
-          quantity?: string | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
   };
   /**
@@ -1664,12 +1436,17 @@ export interface Product {
       | number
       | boolean
       | null;
+    /**
+     * Seasonal availability periods (JSON array of objects with season, startDate, endDate)
+     */
     seasonalAvailability?:
       | {
-          season?: string | null;
-          available?: boolean | null;
-          id?: string | null;
-        }[]
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
       | null;
   };
   /**
@@ -1695,17 +1472,6 @@ export interface Product {
      * Main product image
      */
     primaryImage?: (number | null) | Media;
-    /**
-     * Additional product images
-     */
-    additionalImages?:
-      | {
-          image?: (number | null) | Media;
-          caption?: string | null;
-          isMainImage?: boolean | null;
-          id?: string | null;
-        }[]
-      | null;
     /**
      * Product video (preparation, presentation)
      */
@@ -1777,24 +1543,18 @@ export interface Product {
      * SEO meta description
      */
     metaDescription?: string | null;
-    /**
-     * SEO keywords for this product
-     */
-    keywords?:
-      | {
-          keyword?: string | null;
-          id?: string | null;
-        }[]
-      | null;
   };
   /**
-   * Tags for search and categorization (e.g., "bestseller", "chef-special")
+   * Product tags for search and categorization (JSON array of strings)
    */
   tags?:
     | {
-        tag?: string | null;
-        id?: string | null;
-      }[]
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   /**
    * Internal notes about the product
@@ -1841,14 +1601,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'posts';
         value: number | Post;
-      } | null)
-    | ({
-        relationTo: 'courses';
-        value: number | Course;
-      } | null)
-    | ({
-        relationTo: 'course-categories';
-        value: number | CourseCategory;
       } | null)
     | ({
         relationTo: 'vendors';
@@ -2070,60 +1822,6 @@ export interface PostsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "courses_select".
- */
-export interface CoursesSelect<T extends boolean = true> {
-  title?: T;
-  courseCode?: T;
-  excerpt?: T;
-  description?: T;
-  instructor?: T;
-  category?: T;
-  thumbnail?: T;
-  bannerImage?: T;
-  price?: T;
-  discountedPrice?: T;
-  maxStudents?: T;
-  enrollmentStartDate?: T;
-  enrollmentEndDate?: T;
-  courseStartDate?: T;
-  courseEndDate?: T;
-  estimatedDuration?: T;
-  difficultyLevel?: T;
-  language?: T;
-  passingGrade?: T;
-  prerequisites?:
-    | T
-    | {
-        prerequisite?: T;
-        id?: T;
-      };
-  status?: T;
-  publishedAt?: T;
-  settings?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "course-categories_select".
- */
-export interface CourseCategoriesSelect<T extends boolean = true> {
-  name?: T;
-  slug?: T;
-  description?: T;
-  parent?: T;
-  categoryType?: T;
-  icon?: T;
-  colorCode?: T;
-  displayOrder?: T;
-  isActive?: T;
-  metadata?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "vendors_select".
  */
 export interface VendorsSelect<T extends boolean = true> {
@@ -2135,12 +1833,7 @@ export interface VendorsSelect<T extends boolean = true> {
   primaryContactPhone?: T;
   websiteUrl?: T;
   businessType?: T;
-  cuisineTypes?:
-    | T
-    | {
-        cuisine?: T;
-        id?: T;
-      };
+  cuisineTypes?: T;
   isActive?: T;
   verificationStatus?: T;
   onboardingDate?: T;
@@ -2219,16 +1912,7 @@ export interface MerchantsSelect<T extends boolean = true> {
   isAcceptingOrders?: T;
   operationalStatus?: T;
   operatingHours?: T;
-  specialHours?:
-    | T
-    | {
-        date?: T;
-        openTime?: T;
-        closeTime?: T;
-        isClosed?: T;
-        reason?: T;
-        id?: T;
-      };
+  specialHours?: T;
   deliverySettings?:
     | T
     | {
@@ -2253,18 +1937,8 @@ export interface MerchantsSelect<T extends boolean = true> {
     | {
         thumbnail?: T;
         storeFrontImage?: T;
-        interiorImages?:
-          | T
-          | {
-              image?: T;
-              id?: T;
-            };
-        menuImages?:
-          | T
-          | {
-              image?: T;
-              id?: T;
-            };
+        interiorImages?: T;
+        menuImages?: T;
       };
   compliance?:
     | T
@@ -2278,12 +1952,7 @@ export interface MerchantsSelect<T extends boolean = true> {
       };
   description?: T;
   specialInstructions?: T;
-  tags?:
-    | T
-    | {
-        tag?: T;
-        id?: T;
-      };
+  tags?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2314,23 +1983,13 @@ export interface ProductCategoriesSelect<T extends boolean = true> {
         colorTheme?: T;
         backgroundColor?: T;
         textColor?: T;
-        gradientColors?:
-          | T
-          | {
-              color?: T;
-              id?: T;
-            };
+        gradientColors?: T;
       };
   attributes?:
     | T
     | {
         categoryType?: T;
-        dietaryTags?:
-          | T
-          | {
-              tag?: T;
-              id?: T;
-            };
+        dietaryTags?: T;
         ageRestriction?: T;
         requiresPrescription?: T;
       };
@@ -2348,12 +2007,7 @@ export interface ProductCategoriesSelect<T extends boolean = true> {
     | {
         metaTitle?: T;
         metaDescription?: T;
-        keywords?:
-          | T
-          | {
-              keyword?: T;
-              id?: T;
-            };
+        keywords?: T;
         canonicalUrl?: T;
       };
   metrics?:
@@ -2378,20 +2032,8 @@ export interface ProductCategoriesSelect<T extends boolean = true> {
     | T
     | {
         availableHours?: T;
-        seasonalAvailability?:
-          | T
-          | {
-              season?: T;
-              available?: T;
-              id?: T;
-            };
-        regionRestrictions?:
-          | T
-          | {
-              region?: T;
-              restricted?: T;
-              id?: T;
-            };
+        seasonalAvailability?: T;
+        regionRestrictions?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -2413,14 +2055,6 @@ export interface ProductsSelect<T extends boolean = true> {
         basePrice?: T;
         discountedPrice?: T;
         costPrice?: T;
-        priceHistory?:
-          | T
-          | {
-              price?: T;
-              effectiveDate?: T;
-              reason?: T;
-              id?: T;
-            };
       };
   identification?:
     | T
@@ -2457,14 +2091,6 @@ export interface ProductsSelect<T extends boolean = true> {
               sugar?: T;
               sodium?: T;
             };
-        vitamins?:
-          | T
-          | {
-              vitamin?: T;
-              amount?: T;
-              dailyValuePercentage?: T;
-              id?: T;
-            };
       };
   dietary?:
     | T
@@ -2478,19 +2104,8 @@ export interface ProductsSelect<T extends boolean = true> {
         isDairyFree?: T;
         isNutFree?: T;
         spiceLevel?: T;
-        allergens?:
-          | T
-          | {
-              allergen?: T;
-              id?: T;
-            };
-        ingredients?:
-          | T
-          | {
-              ingredient?: T;
-              quantity?: T;
-              id?: T;
-            };
+        allergens?: T;
+        ingredients?: T;
       };
   availability?:
     | T
@@ -2500,13 +2115,7 @@ export interface ProductsSelect<T extends boolean = true> {
         lowStockThreshold?: T;
         maxOrderQuantity?: T;
         availableHours?: T;
-        seasonalAvailability?:
-          | T
-          | {
-              season?: T;
-              available?: T;
-              id?: T;
-            };
+        seasonalAvailability?: T;
       };
   preparation?:
     | T
@@ -2520,14 +2129,6 @@ export interface ProductsSelect<T extends boolean = true> {
     | T
     | {
         primaryImage?: T;
-        additionalImages?:
-          | T
-          | {
-              image?: T;
-              caption?: T;
-              isMainImage?: T;
-              id?: T;
-            };
         video?: T;
       };
   status?:
@@ -2554,19 +2155,8 @@ export interface ProductsSelect<T extends boolean = true> {
     | {
         metaTitle?: T;
         metaDescription?: T;
-        keywords?:
-          | T
-          | {
-              keyword?: T;
-              id?: T;
-            };
       };
-  tags?:
-    | T
-    | {
-        tag?: T;
-        id?: T;
-      };
+  tags?: T;
   notes?: T;
   updatedAt?: T;
   createdAt?: T;

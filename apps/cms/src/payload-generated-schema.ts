@@ -90,24 +90,6 @@ export const enum_course_categories_category_type = pgEnum('enum_course_categori
   'topic',
   'industry',
 ])
-export const enum_vendors_cuisine_types_cuisine = pgEnum('enum_vendors_cuisine_types_cuisine', [
-  'filipino',
-  'american',
-  'chinese',
-  'japanese',
-  'korean',
-  'italian',
-  'mexican',
-  'thai',
-  'indian',
-  'mediterranean',
-  'seafood',
-  'bbq',
-  'desserts',
-  'healthy',
-  'vegan',
-  'other',
-])
 export const enum_vendors_business_type = pgEnum('enum_vendors_business_type', [
   'restaurant',
   'fast_food',
@@ -131,27 +113,6 @@ export const enum_merchants_operational_status = pgEnum('enum_merchants_operatio
   'temp_closed',
   'maintenance',
 ])
-export const enum_prod_categories_attributes_dietary_tags_tag = pgEnum(
-  'enum_prod_categories_attributes_dietary_tags_tag',
-  [
-    'vegetarian',
-    'vegan',
-    'gluten_free',
-    'halal',
-    'kosher',
-    'organic',
-    'low_carb',
-    'keto',
-    'dairy_free',
-    'nut_free',
-    'spicy',
-    'healthy',
-  ],
-)
-export const enum_prod_categories_availability_seasonal_availability_season = pgEnum(
-  'enum_prod_categories_availability_seasonal_availability_season',
-  ['spring', 'summer', 'fall', 'winter', 'holiday', 'special'],
-)
 export const enum_prod_categories_attributes_category_type = pgEnum(
   'enum_prod_categories_attributes_category_type',
   [
@@ -169,10 +130,6 @@ export const enum_prod_categories_attributes_category_type = pgEnum(
 export const enum_prod_categories_attributes_age_restriction = pgEnum(
   'enum_prod_categories_attributes_age_restriction',
   ['none', '18_plus', '21_plus'],
-)
-export const enum_products_dietary_allergens_allergen = pgEnum(
-  'enum_products_dietary_allergens_allergen',
-  ['milk', 'eggs', 'fish', 'shellfish', 'tree_nuts', 'peanuts', 'wheat', 'soybeans', 'sesame'],
 )
 export const enum_products_dietary_spice_level = pgEnum('enum_products_dietary_spice_level', [
   'none',
@@ -590,25 +547,6 @@ export const _posts_v = pgTable(
   }),
 )
 
-export const courses_prerequisites = pgTable(
-  'courses_prerequisites',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    prerequisite: varchar('prerequisite').notNull(),
-  },
-  (columns) => ({
-    _orderIdx: index('courses_prerequisites_order_idx').on(columns._order),
-    _parentIDIdx: index('courses_prerequisites_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [courses.id],
-      name: 'courses_prerequisites_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
 export const courses = pgTable(
   'courses',
   {
@@ -658,6 +596,7 @@ export const courses = pgTable(
     difficultyLevel: enum_courses_difficulty_level('difficulty_level').default('beginner'),
     language: enum_courses_language('language').default('en'),
     passingGrade: numeric('passing_grade').default('70'),
+    prerequisites: jsonb('prerequisites'),
     status: enum_courses_status('status').notNull().default('draft'),
     publishedAt: timestamp('published_at', { mode: 'string', withTimezone: true, precision: 3 }),
     settings: jsonb('settings'),
@@ -717,25 +656,6 @@ export const course_categories = pgTable(
   }),
 )
 
-export const vendors_cuisine_types = pgTable(
-  'vendors_cuisine_types',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    cuisine: enum_vendors_cuisine_types_cuisine('cuisine'),
-  },
-  (columns) => ({
-    _orderIdx: index('vendors_cuisine_types_order_idx').on(columns._order),
-    _parentIDIdx: index('vendors_cuisine_types_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [vendors.id],
-      name: 'vendors_cuisine_types_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
 export const vendors = pgTable(
   'vendors',
   {
@@ -748,6 +668,7 @@ export const vendors = pgTable(
     primaryContactPhone: varchar('primary_contact_phone').notNull(),
     websiteUrl: varchar('website_url'),
     businessType: enum_vendors_business_type('business_type').notNull(),
+    cuisineTypes: jsonb('cuisine_types'),
     isActive: boolean('is_active').default(true),
     verificationStatus: enum_vendors_verification_status('verification_status')
       .notNull()
@@ -816,96 +737,6 @@ export const vendors = pgTable(
   }),
 )
 
-export const merchants_special_hours = pgTable(
-  'merchants_special_hours',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    date: timestamp('date', { mode: 'string', withTimezone: true, precision: 3 }).notNull(),
-    openTime: varchar('open_time'),
-    closeTime: varchar('close_time'),
-    isClosed: boolean('is_closed').default(false),
-    reason: varchar('reason'),
-  },
-  (columns) => ({
-    _orderIdx: index('merchants_special_hours_order_idx').on(columns._order),
-    _parentIDIdx: index('merchants_special_hours_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [merchants.id],
-      name: 'merchants_special_hours_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const merchants_media_interior_images = pgTable(
-  'merchants_media_interior_images',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    image: integer('image_id').references(() => media.id, {
-      onDelete: 'set null',
-    }),
-  },
-  (columns) => ({
-    _orderIdx: index('merchants_media_interior_images_order_idx').on(columns._order),
-    _parentIDIdx: index('merchants_media_interior_images_parent_id_idx').on(columns._parentID),
-    merchants_media_interior_images_image_idx: index(
-      'merchants_media_interior_images_image_idx',
-    ).on(columns.image),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [merchants.id],
-      name: 'merchants_media_interior_images_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const merchants_media_menu_images = pgTable(
-  'merchants_media_menu_images',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    image: integer('image_id').references(() => media.id, {
-      onDelete: 'set null',
-    }),
-  },
-  (columns) => ({
-    _orderIdx: index('merchants_media_menu_images_order_idx').on(columns._order),
-    _parentIDIdx: index('merchants_media_menu_images_parent_id_idx').on(columns._parentID),
-    merchants_media_menu_images_image_idx: index('merchants_media_menu_images_image_idx').on(
-      columns.image,
-    ),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [merchants.id],
-      name: 'merchants_media_menu_images_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const merchants_tags = pgTable(
-  'merchants_tags',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    tag: varchar('tag'),
-  },
-  (columns) => ({
-    _orderIdx: index('merchants_tags_order_idx').on(columns._order),
-    _parentIDIdx: index('merchants_tags_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [merchants.id],
-      name: 'merchants_tags_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
 export const merchants = pgTable(
   'merchants',
   {
@@ -934,6 +765,7 @@ export const merchants = pgTable(
     isAcceptingOrders: boolean('is_accepting_orders').default(true),
     operationalStatus: enum_merchants_operational_status('operational_status').default('open'),
     operatingHours: jsonb('operating_hours'),
+    specialHours: jsonb('special_hours'),
     deliverySettings_minimumOrderAmount: numeric('delivery_settings_minimum_order_amount').default(
       '0',
     ),
@@ -959,6 +791,8 @@ export const merchants = pgTable(
     media_storeFrontImage: integer('media_store_front_image_id').references(() => media.id, {
       onDelete: 'set null',
     }),
+    media_interiorImages: jsonb('media_interior_images'),
+    media_menuImages: jsonb('media_menu_images'),
     compliance_businessPermitNumber: varchar('compliance_business_permit_number'),
     compliance_foodSafetyLicense: varchar('compliance_food_safety_license'),
     compliance_firePermitNumber: varchar('compliance_fire_permit_number'),
@@ -971,6 +805,7 @@ export const merchants = pgTable(
     compliance_inspectionScore: numeric('compliance_inspection_score'),
     description: varchar('description'),
     specialInstructions: varchar('special_instructions'),
+    tags: jsonb('tags'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -989,115 +824,6 @@ export const merchants = pgTable(
     ).on(columns.media_storeFrontImage),
     merchants_updated_at_idx: index('merchants_updated_at_idx').on(columns.updatedAt),
     merchants_created_at_idx: index('merchants_created_at_idx').on(columns.createdAt),
-  }),
-)
-
-export const prod_categories_styling_gradient_colors = pgTable(
-  'prod_categories_styling_gradient_colors',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    color: varchar('color'),
-  },
-  (columns) => ({
-    _orderIdx: index('prod_categories_styling_gradient_colors_order_idx').on(columns._order),
-    _parentIDIdx: index('prod_categories_styling_gradient_colors_parent_id_idx').on(
-      columns._parentID,
-    ),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [prod_categories.id],
-      name: 'prod_categories_styling_gradient_colors_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const prod_categories_attributes_dietary_tags = pgTable(
-  'prod_categories_attributes_dietary_tags',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    tag: enum_prod_categories_attributes_dietary_tags_tag('tag'),
-  },
-  (columns) => ({
-    _orderIdx: index('prod_categories_attributes_dietary_tags_order_idx').on(columns._order),
-    _parentIDIdx: index('prod_categories_attributes_dietary_tags_parent_id_idx').on(
-      columns._parentID,
-    ),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [prod_categories.id],
-      name: 'prod_categories_attributes_dietary_tags_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const prod_categories_seo_keywords = pgTable(
-  'prod_categories_seo_keywords',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    keyword: varchar('keyword'),
-  },
-  (columns) => ({
-    _orderIdx: index('prod_categories_seo_keywords_order_idx').on(columns._order),
-    _parentIDIdx: index('prod_categories_seo_keywords_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [prod_categories.id],
-      name: 'prod_categories_seo_keywords_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const prod_categories_availability_seasonal_availability = pgTable(
-  'prod_categories_availability_seasonal_availability',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    season: enum_prod_categories_availability_seasonal_availability_season('season'),
-    available: boolean('available').default(true),
-  },
-  (columns) => ({
-    _orderIdx: index('prod_categories_availability_seasonal_availability_order_idx').on(
-      columns._order,
-    ),
-    _parentIDIdx: index('prod_categories_availability_seasonal_availability_parent_id_idx').on(
-      columns._parentID,
-    ),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [prod_categories.id],
-      name: 'prod_categories_availability_seasonal_availability_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const prod_categories_availability_region_restrictions = pgTable(
-  'prod_categories_availability_region_restrictions',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    region: varchar('region'),
-    restricted: boolean('restricted').default(false),
-  },
-  (columns) => ({
-    _orderIdx: index('prod_categories_availability_region_restrictions_order_idx').on(
-      columns._order,
-    ),
-    _parentIDIdx: index('prod_categories_availability_region_restrictions_parent_id_idx').on(
-      columns._parentID,
-    ),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [prod_categories.id],
-      name: 'prod_categories_availability_region_restrictions_parent_id_fk',
-    }).onDelete('cascade'),
   }),
 )
 
@@ -1131,9 +857,11 @@ export const prod_categories = pgTable(
     styling_colorTheme: varchar('styling_color_theme'),
     styling_backgroundColor: varchar('styling_background_color'),
     styling_textColor: varchar('styling_text_color'),
+    styling_gradientColors: jsonb('styling_gradient_colors'),
     attributes_categoryType: enum_prod_categories_attributes_category_type(
       'attributes_category_type',
     ),
+    attributes_dietaryTags: jsonb('attributes_dietary_tags'),
     attributes_ageRestriction: enum_prod_categories_attributes_age_restriction(
       'attributes_age_restriction',
     ).default('none'),
@@ -1149,6 +877,7 @@ export const prod_categories = pgTable(
     businessRules_maxDeliveryTimeHours: numeric('business_rules_max_delivery_time_hours'),
     seo_metaTitle: varchar('seo_meta_title'),
     seo_metaDescription: varchar('seo_meta_description'),
+    seo_keywords: jsonb('seo_keywords'),
     seo_canonicalUrl: varchar('seo_canonical_url'),
     metrics_totalProducts: numeric('metrics_total_products').default('0'),
     metrics_totalOrders: numeric('metrics_total_orders').default('0'),
@@ -1169,6 +898,8 @@ export const prod_categories = pgTable(
       precision: 3,
     }),
     availability_availableHours: jsonb('availability_available_hours'),
+    availability_seasonalAvailability: jsonb('availability_seasonal_availability'),
+    availability_regionRestrictions: jsonb('availability_region_restrictions'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1241,67 +972,6 @@ export const products_nutrition_vitamins = pgTable(
   }),
 )
 
-export const products_dietary_allergens = pgTable(
-  'products_dietary_allergens',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    allergen: enum_products_dietary_allergens_allergen('allergen'),
-  },
-  (columns) => ({
-    _orderIdx: index('products_dietary_allergens_order_idx').on(columns._order),
-    _parentIDIdx: index('products_dietary_allergens_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_dietary_allergens_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const products_dietary_ingredients = pgTable(
-  'products_dietary_ingredients',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    ingredient: varchar('ingredient').notNull(),
-    quantity: varchar('quantity'),
-  },
-  (columns) => ({
-    _orderIdx: index('products_dietary_ingredients_order_idx').on(columns._order),
-    _parentIDIdx: index('products_dietary_ingredients_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_dietary_ingredients_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const products_availability_seasonal_availability = pgTable(
-  'products_availability_seasonal_availability',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    season: varchar('season'),
-    available: boolean('available').default(true),
-  },
-  (columns) => ({
-    _orderIdx: index('products_availability_seasonal_availability_order_idx').on(columns._order),
-    _parentIDIdx: index('products_availability_seasonal_availability_parent_id_idx').on(
-      columns._parentID,
-    ),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_availability_seasonal_availability_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
 export const products_media_additional_images = pgTable(
   'products_media_additional_images',
   {
@@ -1343,25 +1013,6 @@ export const products_seo_keywords = pgTable(
       columns: [columns['_parentID']],
       foreignColumns: [products.id],
       name: 'products_seo_keywords_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const products_tags = pgTable(
-  'products_tags',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    tag: varchar('tag'),
-  },
-  (columns) => ({
-    _orderIdx: index('products_tags_order_idx').on(columns._order),
-    _parentIDIdx: index('products_tags_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_tags_parent_id_fk',
     }).onDelete('cascade'),
   }),
 )
@@ -1412,11 +1063,14 @@ export const products = pgTable(
     dietary_isDairyFree: boolean('dietary_is_dairy_free').default(false),
     dietary_isNutFree: boolean('dietary_is_nut_free').default(false),
     dietary_spiceLevel: enum_products_dietary_spice_level('dietary_spice_level').default('none'),
+    dietary_allergens: jsonb('dietary_allergens'),
+    dietary_ingredients: jsonb('dietary_ingredients'),
     availability_isAvailable: boolean('availability_is_available').default(true),
     availability_stockQuantity: numeric('availability_stock_quantity'),
     availability_lowStockThreshold: numeric('availability_low_stock_threshold').default('5'),
     availability_maxOrderQuantity: numeric('availability_max_order_quantity'),
     availability_availableHours: jsonb('availability_available_hours'),
+    availability_seasonalAvailability: jsonb('availability_seasonal_availability'),
     preparation_preparationTimeMinutes: numeric('preparation_preparation_time_minutes').default(
       '15',
     ),
@@ -1446,6 +1100,7 @@ export const products = pgTable(
     metrics_reorderRate: numeric('metrics_reorder_rate').default('0'),
     seo_metaTitle: varchar('seo_meta_title'),
     seo_metaDescription: varchar('seo_meta_description'),
+    tags: jsonb('tags'),
     notes: varchar('notes'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
@@ -1826,14 +1481,7 @@ export const relations__posts_v = relations(_posts_v, ({ one, many }) => ({
     relationName: 'version_author',
   }),
 }))
-export const relations_courses_prerequisites = relations(courses_prerequisites, ({ one }) => ({
-  _parentID: one(courses, {
-    fields: [courses_prerequisites._parentID],
-    references: [courses.id],
-    relationName: 'prerequisites',
-  }),
-}))
-export const relations_courses = relations(courses, ({ one, many }) => ({
+export const relations_courses = relations(courses, ({ one }) => ({
   instructor: one(instructors, {
     fields: [courses.instructor],
     references: [instructors.id],
@@ -1854,9 +1502,6 @@ export const relations_courses = relations(courses, ({ one, many }) => ({
     references: [media.id],
     relationName: 'bannerImage',
   }),
-  prerequisites: many(courses_prerequisites, {
-    relationName: 'prerequisites',
-  }),
 }))
 export const relations_course_categories = relations(course_categories, ({ one }) => ({
   parent: one(course_categories, {
@@ -1870,17 +1515,7 @@ export const relations_course_categories = relations(course_categories, ({ one }
     relationName: 'icon',
   }),
 }))
-export const relations_vendors_cuisine_types = relations(vendors_cuisine_types, ({ one }) => ({
-  _parentID: one(vendors, {
-    fields: [vendors_cuisine_types._parentID],
-    references: [vendors.id],
-    relationName: 'cuisineTypes',
-  }),
-}))
-export const relations_vendors = relations(vendors, ({ one, many }) => ({
-  cuisineTypes: many(vendors_cuisine_types, {
-    relationName: 'cuisineTypes',
-  }),
+export const relations_vendors = relations(vendors, ({ one }) => ({
   businessLicense: one(media, {
     fields: [vendors.businessLicense],
     references: [media.id],
@@ -1897,58 +1532,11 @@ export const relations_vendors = relations(vendors, ({ one, many }) => ({
     relationName: 'logo',
   }),
 }))
-export const relations_merchants_special_hours = relations(merchants_special_hours, ({ one }) => ({
-  _parentID: one(merchants, {
-    fields: [merchants_special_hours._parentID],
-    references: [merchants.id],
-    relationName: 'specialHours',
-  }),
-}))
-export const relations_merchants_media_interior_images = relations(
-  merchants_media_interior_images,
-  ({ one }) => ({
-    _parentID: one(merchants, {
-      fields: [merchants_media_interior_images._parentID],
-      references: [merchants.id],
-      relationName: 'media_interiorImages',
-    }),
-    image: one(media, {
-      fields: [merchants_media_interior_images.image],
-      references: [media.id],
-      relationName: 'image',
-    }),
-  }),
-)
-export const relations_merchants_media_menu_images = relations(
-  merchants_media_menu_images,
-  ({ one }) => ({
-    _parentID: one(merchants, {
-      fields: [merchants_media_menu_images._parentID],
-      references: [merchants.id],
-      relationName: 'media_menuImages',
-    }),
-    image: one(media, {
-      fields: [merchants_media_menu_images.image],
-      references: [media.id],
-      relationName: 'image',
-    }),
-  }),
-)
-export const relations_merchants_tags = relations(merchants_tags, ({ one }) => ({
-  _parentID: one(merchants, {
-    fields: [merchants_tags._parentID],
-    references: [merchants.id],
-    relationName: 'tags',
-  }),
-}))
-export const relations_merchants = relations(merchants, ({ one, many }) => ({
+export const relations_merchants = relations(merchants, ({ one }) => ({
   vendor: one(vendors, {
     fields: [merchants.vendor],
     references: [vendors.id],
     relationName: 'vendor',
-  }),
-  specialHours: many(merchants_special_hours, {
-    relationName: 'specialHours',
   }),
   media_thumbnail: one(media, {
     fields: [merchants.media_thumbnail],
@@ -1960,67 +1548,8 @@ export const relations_merchants = relations(merchants, ({ one, many }) => ({
     references: [media.id],
     relationName: 'media_storeFrontImage',
   }),
-  media_interiorImages: many(merchants_media_interior_images, {
-    relationName: 'media_interiorImages',
-  }),
-  media_menuImages: many(merchants_media_menu_images, {
-    relationName: 'media_menuImages',
-  }),
-  tags: many(merchants_tags, {
-    relationName: 'tags',
-  }),
 }))
-export const relations_prod_categories_styling_gradient_colors = relations(
-  prod_categories_styling_gradient_colors,
-  ({ one }) => ({
-    _parentID: one(prod_categories, {
-      fields: [prod_categories_styling_gradient_colors._parentID],
-      references: [prod_categories.id],
-      relationName: 'styling_gradientColors',
-    }),
-  }),
-)
-export const relations_prod_categories_attributes_dietary_tags = relations(
-  prod_categories_attributes_dietary_tags,
-  ({ one }) => ({
-    _parentID: one(prod_categories, {
-      fields: [prod_categories_attributes_dietary_tags._parentID],
-      references: [prod_categories.id],
-      relationName: 'attributes_dietaryTags',
-    }),
-  }),
-)
-export const relations_prod_categories_seo_keywords = relations(
-  prod_categories_seo_keywords,
-  ({ one }) => ({
-    _parentID: one(prod_categories, {
-      fields: [prod_categories_seo_keywords._parentID],
-      references: [prod_categories.id],
-      relationName: 'seo_keywords',
-    }),
-  }),
-)
-export const relations_prod_categories_availability_seasonal_availability = relations(
-  prod_categories_availability_seasonal_availability,
-  ({ one }) => ({
-    _parentID: one(prod_categories, {
-      fields: [prod_categories_availability_seasonal_availability._parentID],
-      references: [prod_categories.id],
-      relationName: 'availability_seasonalAvailability',
-    }),
-  }),
-)
-export const relations_prod_categories_availability_region_restrictions = relations(
-  prod_categories_availability_region_restrictions,
-  ({ one }) => ({
-    _parentID: one(prod_categories, {
-      fields: [prod_categories_availability_region_restrictions._parentID],
-      references: [prod_categories.id],
-      relationName: 'availability_regionRestrictions',
-    }),
-  }),
-)
-export const relations_prod_categories = relations(prod_categories, ({ one, many }) => ({
+export const relations_prod_categories = relations(prod_categories, ({ one }) => ({
   parentCategory: one(prod_categories, {
     fields: [prod_categories.parentCategory],
     references: [prod_categories.id],
@@ -2041,21 +1570,6 @@ export const relations_prod_categories = relations(prod_categories, ({ one, many
     references: [media.id],
     relationName: 'media_thumbnailImage',
   }),
-  styling_gradientColors: many(prod_categories_styling_gradient_colors, {
-    relationName: 'styling_gradientColors',
-  }),
-  attributes_dietaryTags: many(prod_categories_attributes_dietary_tags, {
-    relationName: 'attributes_dietaryTags',
-  }),
-  seo_keywords: many(prod_categories_seo_keywords, {
-    relationName: 'seo_keywords',
-  }),
-  availability_seasonalAvailability: many(prod_categories_availability_seasonal_availability, {
-    relationName: 'availability_seasonalAvailability',
-  }),
-  availability_regionRestrictions: many(prod_categories_availability_region_restrictions, {
-    relationName: 'availability_regionRestrictions',
-  }),
 }))
 export const relations_products_pricing_price_history = relations(
   products_pricing_price_history,
@@ -2074,36 +1588,6 @@ export const relations_products_nutrition_vitamins = relations(
       fields: [products_nutrition_vitamins._parentID],
       references: [products.id],
       relationName: 'nutrition_vitamins',
-    }),
-  }),
-)
-export const relations_products_dietary_allergens = relations(
-  products_dietary_allergens,
-  ({ one }) => ({
-    _parentID: one(products, {
-      fields: [products_dietary_allergens._parentID],
-      references: [products.id],
-      relationName: 'dietary_allergens',
-    }),
-  }),
-)
-export const relations_products_dietary_ingredients = relations(
-  products_dietary_ingredients,
-  ({ one }) => ({
-    _parentID: one(products, {
-      fields: [products_dietary_ingredients._parentID],
-      references: [products.id],
-      relationName: 'dietary_ingredients',
-    }),
-  }),
-)
-export const relations_products_availability_seasonal_availability = relations(
-  products_availability_seasonal_availability,
-  ({ one }) => ({
-    _parentID: one(products, {
-      fields: [products_availability_seasonal_availability._parentID],
-      references: [products.id],
-      relationName: 'availability_seasonalAvailability',
     }),
   }),
 )
@@ -2129,13 +1613,6 @@ export const relations_products_seo_keywords = relations(products_seo_keywords, 
     relationName: 'seo_keywords',
   }),
 }))
-export const relations_products_tags = relations(products_tags, ({ one }) => ({
-  _parentID: one(products, {
-    fields: [products_tags._parentID],
-    references: [products.id],
-    relationName: 'tags',
-  }),
-}))
 export const relations_products = relations(products, ({ one, many }) => ({
   merchant: one(merchants, {
     fields: [products.merchant],
@@ -2153,15 +1630,6 @@ export const relations_products = relations(products, ({ one, many }) => ({
   nutrition_vitamins: many(products_nutrition_vitamins, {
     relationName: 'nutrition_vitamins',
   }),
-  dietary_allergens: many(products_dietary_allergens, {
-    relationName: 'dietary_allergens',
-  }),
-  dietary_ingredients: many(products_dietary_ingredients, {
-    relationName: 'dietary_ingredients',
-  }),
-  availability_seasonalAvailability: many(products_availability_seasonal_availability, {
-    relationName: 'availability_seasonalAvailability',
-  }),
   media_primaryImage: one(media, {
     fields: [products.media_primaryImage],
     references: [media.id],
@@ -2177,9 +1645,6 @@ export const relations_products = relations(products, ({ one, many }) => ({
   }),
   seo_keywords: many(products_seo_keywords, {
     relationName: 'seo_keywords',
-  }),
-  tags: many(products_tags, {
-    relationName: 'tags',
   }),
 }))
 export const relations_payload_locked_documents_rels = relations(
@@ -2306,15 +1771,11 @@ type DatabaseSchema = {
   enum_courses_language: typeof enum_courses_language
   enum_courses_status: typeof enum_courses_status
   enum_course_categories_category_type: typeof enum_course_categories_category_type
-  enum_vendors_cuisine_types_cuisine: typeof enum_vendors_cuisine_types_cuisine
   enum_vendors_business_type: typeof enum_vendors_business_type
   enum_vendors_verification_status: typeof enum_vendors_verification_status
   enum_merchants_operational_status: typeof enum_merchants_operational_status
-  enum_prod_categories_attributes_dietary_tags_tag: typeof enum_prod_categories_attributes_dietary_tags_tag
-  enum_prod_categories_availability_seasonal_availability_season: typeof enum_prod_categories_availability_seasonal_availability_season
   enum_prod_categories_attributes_category_type: typeof enum_prod_categories_attributes_category_type
   enum_prod_categories_attributes_age_restriction: typeof enum_prod_categories_attributes_age_restriction
-  enum_products_dietary_allergens_allergen: typeof enum_products_dietary_allergens_allergen
   enum_products_dietary_spice_level: typeof enum_products_dietary_spice_level
   enum_products_preparation_cooking_method: typeof enum_products_preparation_cooking_method
   users_sessions: typeof users_sessions
@@ -2329,30 +1790,15 @@ type DatabaseSchema = {
   posts: typeof posts
   _posts_v_version_tags: typeof _posts_v_version_tags
   _posts_v: typeof _posts_v
-  courses_prerequisites: typeof courses_prerequisites
   courses: typeof courses
   course_categories: typeof course_categories
-  vendors_cuisine_types: typeof vendors_cuisine_types
   vendors: typeof vendors
-  merchants_special_hours: typeof merchants_special_hours
-  merchants_media_interior_images: typeof merchants_media_interior_images
-  merchants_media_menu_images: typeof merchants_media_menu_images
-  merchants_tags: typeof merchants_tags
   merchants: typeof merchants
-  prod_categories_styling_gradient_colors: typeof prod_categories_styling_gradient_colors
-  prod_categories_attributes_dietary_tags: typeof prod_categories_attributes_dietary_tags
-  prod_categories_seo_keywords: typeof prod_categories_seo_keywords
-  prod_categories_availability_seasonal_availability: typeof prod_categories_availability_seasonal_availability
-  prod_categories_availability_region_restrictions: typeof prod_categories_availability_region_restrictions
   prod_categories: typeof prod_categories
   products_pricing_price_history: typeof products_pricing_price_history
   products_nutrition_vitamins: typeof products_nutrition_vitamins
-  products_dietary_allergens: typeof products_dietary_allergens
-  products_dietary_ingredients: typeof products_dietary_ingredients
-  products_availability_seasonal_availability: typeof products_availability_seasonal_availability
   products_media_additional_images: typeof products_media_additional_images
   products_seo_keywords: typeof products_seo_keywords
-  products_tags: typeof products_tags
   products: typeof products
   payload_locked_documents: typeof payload_locked_documents
   payload_locked_documents_rels: typeof payload_locked_documents_rels
@@ -2371,30 +1817,15 @@ type DatabaseSchema = {
   relations_posts: typeof relations_posts
   relations__posts_v_version_tags: typeof relations__posts_v_version_tags
   relations__posts_v: typeof relations__posts_v
-  relations_courses_prerequisites: typeof relations_courses_prerequisites
   relations_courses: typeof relations_courses
   relations_course_categories: typeof relations_course_categories
-  relations_vendors_cuisine_types: typeof relations_vendors_cuisine_types
   relations_vendors: typeof relations_vendors
-  relations_merchants_special_hours: typeof relations_merchants_special_hours
-  relations_merchants_media_interior_images: typeof relations_merchants_media_interior_images
-  relations_merchants_media_menu_images: typeof relations_merchants_media_menu_images
-  relations_merchants_tags: typeof relations_merchants_tags
   relations_merchants: typeof relations_merchants
-  relations_prod_categories_styling_gradient_colors: typeof relations_prod_categories_styling_gradient_colors
-  relations_prod_categories_attributes_dietary_tags: typeof relations_prod_categories_attributes_dietary_tags
-  relations_prod_categories_seo_keywords: typeof relations_prod_categories_seo_keywords
-  relations_prod_categories_availability_seasonal_availability: typeof relations_prod_categories_availability_seasonal_availability
-  relations_prod_categories_availability_region_restrictions: typeof relations_prod_categories_availability_region_restrictions
   relations_prod_categories: typeof relations_prod_categories
   relations_products_pricing_price_history: typeof relations_products_pricing_price_history
   relations_products_nutrition_vitamins: typeof relations_products_nutrition_vitamins
-  relations_products_dietary_allergens: typeof relations_products_dietary_allergens
-  relations_products_dietary_ingredients: typeof relations_products_dietary_ingredients
-  relations_products_availability_seasonal_availability: typeof relations_products_availability_seasonal_availability
   relations_products_media_additional_images: typeof relations_products_media_additional_images
   relations_products_seo_keywords: typeof relations_products_seo_keywords
-  relations_products_tags: typeof relations_products_tags
   relations_products: typeof relations_products
   relations_payload_locked_documents_rels: typeof relations_payload_locked_documents_rels
   relations_payload_locked_documents: typeof relations_payload_locked_documents

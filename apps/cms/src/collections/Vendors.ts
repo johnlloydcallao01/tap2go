@@ -117,33 +117,9 @@ export const Vendors: CollectionConfig = {
     },
     {
       name: 'cuisineTypes',
-      type: 'array',
-      fields: [
-        {
-          name: 'cuisine',
-          type: 'select',
-          options: [
-            { label: 'Filipino', value: 'filipino' },
-            { label: 'American', value: 'american' },
-            { label: 'Chinese', value: 'chinese' },
-            { label: 'Japanese', value: 'japanese' },
-            { label: 'Korean', value: 'korean' },
-            { label: 'Italian', value: 'italian' },
-            { label: 'Mexican', value: 'mexican' },
-            { label: 'Thai', value: 'thai' },
-            { label: 'Indian', value: 'indian' },
-            { label: 'Mediterranean', value: 'mediterranean' },
-            { label: 'Seafood', value: 'seafood' },
-            { label: 'BBQ', value: 'bbq' },
-            { label: 'Desserts', value: 'desserts' },
-            { label: 'Healthy', value: 'healthy' },
-            { label: 'Vegan', value: 'vegan' },
-            { label: 'Other', value: 'other' },
-          ],
-        },
-      ],
+      type: 'json',
       admin: {
-        description: 'Types of cuisine offered (for restaurants)',
+        description: 'Types of cuisine offered (JSON array of strings)',
       },
     },
 

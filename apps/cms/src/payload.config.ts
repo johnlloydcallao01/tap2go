@@ -20,9 +20,7 @@ import { UserEvents } from './collections/UserEvents'
 import { EmergencyContacts } from './collections/EmergencyContacts'
 import { Media } from './collections/Media'
 import { Posts } from './collections/Posts'
-// LMS Collections
-import { Courses } from './collections/Courses'
-import { CourseCategories } from './collections/CourseCategories'
+// LMS Collections (removed)
 
 // Food Delivery Collections
 import { Vendors } from './collections/Vendors'
@@ -53,9 +51,7 @@ export default buildConfig({
     Media,
     Posts,
 
-    // Learning Management System
-    Courses,
-    CourseCategories,
+    // Learning Management System (removed)
 
     // Food Delivery System
     Vendors,

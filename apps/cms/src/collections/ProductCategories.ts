@@ -180,18 +180,9 @@ export const ProductCategories: CollectionConfig = {
         },
         {
           name: 'gradientColors',
-          type: 'array',
-          fields: [
-            {
-              name: 'color',
-              type: 'text',
-              admin: {
-                description: 'Gradient color (hex code)',
-              },
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'Colors for gradient backgrounds',
+            description: 'Colors for gradient backgrounds (JSON array of hex color strings)',
           },
         },
       ],
@@ -225,29 +216,9 @@ export const ProductCategories: CollectionConfig = {
         },
         {
           name: 'dietaryTags',
-          type: 'array',
-          fields: [
-            {
-              name: 'tag',
-              type: 'select',
-              options: [
-                { label: 'Vegetarian', value: 'vegetarian' },
-                { label: 'Vegan', value: 'vegan' },
-                { label: 'Gluten-Free', value: 'gluten_free' },
-                { label: 'Halal', value: 'halal' },
-                { label: 'Kosher', value: 'kosher' },
-                { label: 'Organic', value: 'organic' },
-                { label: 'Low-Carb', value: 'low_carb' },
-                { label: 'Keto', value: 'keto' },
-                { label: 'Dairy-Free', value: 'dairy_free' },
-                { label: 'Nut-Free', value: 'nut_free' },
-                { label: 'Spicy', value: 'spicy' },
-                { label: 'Healthy', value: 'healthy' },
-              ],
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'Dietary attributes commonly found in this category',
+            description: 'Dietary attributes commonly found in this category (JSON array of strings)',
           },
         },
         {
@@ -351,15 +322,9 @@ export const ProductCategories: CollectionConfig = {
         },
         {
           name: 'keywords',
-          type: 'array',
-          fields: [
-            {
-              name: 'keyword',
-              type: 'text',
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'SEO keywords for this category',
+            description: 'SEO keywords for this category (JSON array of strings)',
           },
         },
         {
@@ -502,46 +467,16 @@ export const ProductCategories: CollectionConfig = {
         },
         {
           name: 'seasonalAvailability',
-          type: 'array',
-          fields: [
-            {
-              name: 'season',
-              type: 'select',
-              options: [
-                { label: 'Spring', value: 'spring' },
-                { label: 'Summer', value: 'summer' },
-                { label: 'Fall', value: 'fall' },
-                { label: 'Winter', value: 'winter' },
-                { label: 'Holiday', value: 'holiday' },
-                { label: 'Special', value: 'special' },
-              ],
-            },
-            {
-              name: 'available',
-              type: 'checkbox',
-              defaultValue: true,
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'Seasonal availability settings',
+            description: 'Seasonal availability settings (JSON array of season objects)',
           },
         },
         {
           name: 'regionRestrictions',
-          type: 'array',
-          fields: [
-            {
-              name: 'region',
-              type: 'text',
-            },
-            {
-              name: 'restricted',
-              type: 'checkbox',
-              defaultValue: false,
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'Regional availability restrictions',
+            description: 'Regional availability restrictions (JSON array of region objects)',
           },
         },
       ],

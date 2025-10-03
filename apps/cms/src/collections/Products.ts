@@ -122,29 +122,7 @@ export const Products: CollectionConfig = {
             step: 0.01,
           },
         },
-        {
-          name: 'priceHistory',
-          type: 'array',
-          fields: [
-            {
-              name: 'price',
-              type: 'number',
-              required: true,
-            },
-            {
-              name: 'effectiveDate',
-              type: 'date',
-              required: true,
-            },
-            {
-              name: 'reason',
-              type: 'text',
-            },
-          ],
-          admin: {
-            description: 'Price change history for tracking',
-          },
-        },
+
       ],
       admin: {
         description: 'Pricing information and history',
@@ -321,29 +299,7 @@ export const Products: CollectionConfig = {
             },
           ],
         },
-        {
-          name: 'vitamins',
-          type: 'array',
-          fields: [
-            {
-              name: 'vitamin',
-              type: 'text',
-            },
-            {
-              name: 'amount',
-              type: 'text',
-            },
-            {
-              name: 'dailyValuePercentage',
-              type: 'number',
-              min: 0,
-              max: 1000,
-            },
-          ],
-          admin: {
-            description: 'Vitamin content information',
-          },
-        },
+
       ],
       admin: {
         description: 'Nutritional information and facts',
@@ -409,44 +365,16 @@ export const Products: CollectionConfig = {
         },
         {
           name: 'allergens',
-          type: 'array',
-          fields: [
-            {
-              name: 'allergen',
-              type: 'select',
-              options: [
-                { label: 'Milk', value: 'milk' },
-                { label: 'Eggs', value: 'eggs' },
-                { label: 'Fish', value: 'fish' },
-                { label: 'Shellfish', value: 'shellfish' },
-                { label: 'Tree Nuts', value: 'tree_nuts' },
-                { label: 'Peanuts', value: 'peanuts' },
-                { label: 'Wheat', value: 'wheat' },
-                { label: 'Soybeans', value: 'soybeans' },
-                { label: 'Sesame', value: 'sesame' },
-              ],
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'Known allergens in this product',
+            description: 'Known allergens present in this product (JSON array of strings)',
           },
         },
         {
           name: 'ingredients',
-          type: 'array',
-          fields: [
-            {
-              name: 'ingredient',
-              type: 'text',
-              required: true,
-            },
-            {
-              name: 'quantity',
-              type: 'text',
-            },
-          ],
+          type: 'json',
           admin: {
-            description: 'List of ingredients',
+            description: 'List of ingredients in this product (JSON array of strings)',
           },
         },
       ],
@@ -502,18 +430,10 @@ export const Products: CollectionConfig = {
         },
         {
           name: 'seasonalAvailability',
-          type: 'array',
-          fields: [
-            {
-              name: 'season',
-              type: 'text',
-            },
-            {
-              name: 'available',
-              type: 'checkbox',
-              defaultValue: true,
-            },
-          ],
+          type: 'json',
+          admin: {
+            description: 'Seasonal availability periods (JSON array of objects with season, startDate, endDate)',
+          },
         },
       ],
       admin: {
@@ -580,29 +500,7 @@ export const Products: CollectionConfig = {
             description: 'Main product image',
           },
         },
-        {
-          name: 'additionalImages',
-          type: 'array',
-          fields: [
-            {
-              name: 'image',
-              type: 'upload',
-              relationTo: 'media',
-            },
-            {
-              name: 'caption',
-              type: 'text',
-            },
-            {
-              name: 'isMainImage',
-              type: 'checkbox',
-              defaultValue: false,
-            },
-          ],
-          admin: {
-            description: 'Additional product images',
-          },
-        },
+
         {
           name: 'video',
           type: 'upload',
@@ -762,19 +660,7 @@ export const Products: CollectionConfig = {
             description: 'SEO meta description',
           },
         },
-        {
-          name: 'keywords',
-          type: 'array',
-          fields: [
-            {
-              name: 'keyword',
-              type: 'text',
-            },
-          ],
-          admin: {
-            description: 'SEO keywords for this product',
-          },
-        },
+
       ],
       admin: {
         description: 'SEO optimization settings',
@@ -784,15 +670,9 @@ export const Products: CollectionConfig = {
     // === ADDITIONAL METADATA ===
     {
       name: 'tags',
-      type: 'array',
-      fields: [
-        {
-          name: 'tag',
-          type: 'text',
-        },
-      ],
+      type: 'json',
       admin: {
-        description: 'Tags for search and categorization (e.g., "bestseller", "chef-special")',
+        description: 'Product tags for search and categorization (JSON array of strings)',
       },
     },
     {
