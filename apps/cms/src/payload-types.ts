@@ -654,38 +654,6 @@ export interface Vendor {
     twitter?: string | null;
     website?: string | null;
   };
-  /**
-   * Compliance and certification information
-   */
-  complianceSettings?: {
-    /**
-     * Food safety license number
-     */
-    foodSafetyLicense?: string | null;
-    halaalCertified?: boolean | null;
-    organicCertified?: boolean | null;
-    /**
-     * Complies with allergen labeling requirements
-     */
-    allergenCompliance?: boolean | null;
-  };
-  /**
-   * Platform-specific settings and fees
-   */
-  platformSettings?: {
-    /**
-     * Platform commission rate percentage
-     */
-    commissionRate?: number | null;
-    /**
-     * Default minimum order amount (PHP)
-     */
-    minimumOrderAmount?: number | null;
-    /**
-     * Default delivery fee (PHP)
-     */
-    deliveryFee?: number | null;
-  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1856,21 +1824,6 @@ export interface VendorsSelect<T extends boolean = true> {
         instagram?: T;
         twitter?: T;
         website?: T;
-      };
-  complianceSettings?:
-    | T
-    | {
-        foodSafetyLicense?: T;
-        halaalCertified?: T;
-        organicCertified?: T;
-        allergenCompliance?: T;
-      };
-  platformSettings?:
-    | T
-    | {
-        commissionRate?: T;
-        minimumOrderAmount?: T;
-        deliveryFee?: T;
       };
   updatedAt?: T;
   createdAt?: T;

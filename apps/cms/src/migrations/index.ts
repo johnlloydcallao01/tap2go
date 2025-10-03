@@ -9,6 +9,7 @@ import * as migration_20251003_020243_fix_array_to_json_conversion from './20251
 import * as migration_20251003_022408 from './20251003_022408';
 import * as migration_20251003_023634 from './20251003_023634';
 import * as migration_20251003_031741 from './20251003_031741';
+import * as migration_20251003_114004 from './20251003_114004';
 import * as migration_20251202_delete_extra_tables from './20251202_delete_extra_tables';
 
 export const migrations = [
@@ -66,6 +67,11 @@ export const migrations = [
     up: migration_20251003_031741.up,
     down: migration_20251003_031741.down,
     name: '20251003_031741',
+  },
+  {
+    up: migration_20251003_114004.up,
+    down: migration_20251003_114004.down,
+    name: '20251003_114004',
   },
   {
     up: migration_20251202_delete_extra_tables.up,

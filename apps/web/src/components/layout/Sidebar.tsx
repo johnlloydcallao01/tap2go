@@ -47,20 +47,6 @@ export function Sidebar({ isOpen, onToggle, onScroll }: SidebarProps) {
 
           {isOpen && <hr className="my-3 border-gray-200" />}
 
-          {/* Account section */}
-          <div className="space-y-1">
-            {isOpen && <div className="px-3 py-2 text-sm font-medium text-gray-900">Account</div>}
-            <SidebarItem
-              icon="user"
-              label="Login Status"
-              active={pathname === '/login-status'}
-              collapsed={!isOpen}
-              href="/login-status"
-            />
-          </div>
-
-          {isOpen && <hr className="my-3 border-gray-200" />}
-
           {/* Explore section */}
           <div className="space-y-1">
             {isOpen && <div className="px-3 py-2 text-sm font-medium text-gray-900">Explore</div>}
