@@ -46,30 +46,32 @@ function MerchantCard({ merchant }: MerchantCardProps) {
 
   return (
     <div className="group cursor-pointer">
-      <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden mb-3 group-hover:shadow-lg transition-shadow duration-200">
+      <div className="relative aspect-video bg-gray-100 rounded-lg overflow-visible mb-6 group-hover:shadow-lg transition-shadow duration-200">
         {thumbnailImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={thumbnailImageUrl}
-            alt={altText}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-            loading="lazy"
-            onError={(e) => {
-              // Fallback to placeholder on error
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              const parent = target.parentElement;
-              if (parent) {
-                parent.innerHTML = `
-                  <div class="w-full h-full bg-gray-200 flex items-center justify-center">
-                    <svg class="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
-                    </svg>
-                  </div>
-                `;
-              }
-            }}
-          />
+          <div className="w-full h-full overflow-hidden rounded-lg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={thumbnailImageUrl}
+              alt={altText}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              loading="lazy"
+              onError={(e) => {
+                // Fallback to placeholder on error
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.innerHTML = `
+                    <div class="w-full h-full bg-gray-200 flex items-center justify-center">
+                      <svg class="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                      </svg>
+                    </div>
+                  `;
+                }
+              }}
+            />
+          </div>
         ) : (
           <div className="w-full h-full bg-gray-200 flex items-center justify-center">
             <svg className="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -78,9 +80,9 @@ function MerchantCard({ merchant }: MerchantCardProps) {
           </div>
         )}
         
-        {/* Vendor Logo Overlay */}
+        {/* Vendor Logo Overlay - Professional delivery platform style */}
         {vendorLogoUrl && (
-          <div className="absolute bottom-2 left-2 w-8 h-8 bg-white rounded-full p-1 shadow-md">
+          <div className="absolute -bottom-4 left-0 w-16 h-16 bg-white rounded-full shadow-lg border-2 border-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={vendorLogoUrl}

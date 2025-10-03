@@ -25,17 +25,17 @@ export function MobileFooter() {
       path: '/wishlists',
     },
     {
-      id: 'portal',
-      label: 'Portal', // Portal label for LMS
-      icon: <i className="fa fa-book text-lg text-white"></i>,
-      path: '/portal',
+      id: 'cart',
+      label: 'Cart', // Cart label for shopping
+      icon: <i className="fa fa-shopping-cart text-lg text-gray-600"></i>,
+      path: '/cart',
       isHelp: true,
     },
     {
-      id: 'blogs',
-      label: 'Blogs',
-      icon: <i className="fa fa-edit text-lg"></i>,
-      path: '/trending',
+      id: 'orders',
+      label: 'Orders',
+      icon: <i className="fa fa-receipt text-lg"></i>,
+      path: '/orders',
     },
     {
       id: 'menu',
@@ -71,9 +71,9 @@ export function MobileFooter() {
             aria-label={item.label || 'Help'}
           >
             {item.isHelp ? (
-              // Brand color circle for help icon with Portal text
+              // White circle for cart icon
               <div className="flex flex-col items-center justify-center -mt-2">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: '#201a7c' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb' }}>
                   {item.icon}
                 </div>
                 <span className="text-xs font-medium leading-none text-gray-600 mt-1">
