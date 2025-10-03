@@ -322,11 +322,11 @@ export default function RegisterPage() {
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
                   <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    <i className="fa fa-graduation-cap text-sm"></i>
+                    <i className="fa fa-shopping-cart text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Professional Training</h3>
-                    <p className="text-blue-100 text-sm">IMO certified courses designed by industry experts</p>
+                    <h3 className="font-semibold mb-1">Quality Products</h3>
+                    <p className="text-blue-100 text-sm">Curated selection from trusted merchants</p>
                   </div>
                 </div>
 
@@ -359,7 +359,7 @@ export default function RegisterPage() {
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">50+</div>
-                  <div className="text-blue-100 text-sm">Courses</div>
+                  <div className="text-blue-100 text-sm">Merchants</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">98%</div>

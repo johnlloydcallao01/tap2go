@@ -1,36 +1,50 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import { ProductCategoryCarousel } from "@/components/sections";
 import { MerchantsGrid } from "@/components/sections/MerchantsGrid";
-import { getProductCategories, getMerchants } from "@/server";
-
-// ISR configuration - revalidate every 5 minutes
-export const revalidate = 300;
+import { getMerchantsClient } from "@/lib/client-services/merchant-client-service";
+import type { Merchant } from "@/types/merchant";
 
 /**
- * Home page component - FULLY ISR OPTIMIZED
+ * Home page component - 100% CSR (Client-Side Rendering)
  * 
- * PERFORMANCE OPTIMIZED: Categories and merchants are pre-fetched 
- * server-side with ISR. This eliminates all client-side loading states 
- * and provides optimal SEO performance.
+ * Product Categories: 100% CSR (Client-Side Rendering)
+ * Merchants: 100% CSR (Client-Side Rendering) - now matches carousel approach
  */
-export default async function Home() {
-  // Fetch product categories and merchants server-side with ISR
-  const [productCategories, merchants] = await Promise.all([
-    getProductCategories(),
-    getMerchants({ isActive: true, limit: 8 })
-  ]);
+export default function Home() {
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch merchants client-side to match CSR approach
+  useEffect(() => {
+    const fetchMerchants = async () => {
+      try {
+        setLoading(true);
+        const fetchedMerchants = await getMerchantsClient({ 
+          isActive: true, 
+          limit: 8 
+        });
+        setMerchants(fetchedMerchants);
+      } catch (error) {
+        console.error('Failed to fetch merchants:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMerchants();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
-      {/* Product Category Carousel with ISR data */}
+      {/* Product Category Carousel - 100% CSR */}
       <div className="bg-white border-b border-gray-200">
-        <ProductCategoryCarousel
-          categories={productCategories}
-        />
+        <ProductCategoryCarousel />
       </div>
 
-      {/* Merchants Grid with ISR data - second section after categories */}
-      <MerchantsGrid merchants={merchants} />
+      {/* Merchants Grid with CSR data and loading state */}
+      <MerchantsGrid merchants={merchants} isLoading={loading} />
     </div>
   );
 }

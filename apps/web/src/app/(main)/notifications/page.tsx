@@ -12,61 +12,61 @@ import Image from 'next/image';
 const mockNotifications = [
   {
     id: 1,
-    type: 'course_completion',
-    title: 'Course Completed!',
-    message: 'Congratulations! You have successfully completed "STCW Basic Safety Training"',
+    type: 'order_completed',
+    title: 'Order Delivered!',
+    message: 'Your order from Alvin\'s Pizza has been successfully delivered',
     timestamp: '2 hours ago',
     read: false,
-    icon: 'fa-graduation-cap',
+    icon: 'fa-check-circle',
     iconColor: 'text-green-600',
     iconBg: 'bg-green-100',
-    actionText: 'View Certificate',
-    actionPath: '/certificates'
+    actionText: 'View Order',
+    actionPath: '/orders'
   },
   {
     id: 2,
-    type: 'assignment_due',
-    title: 'Assignment Due Soon',
-    message: 'Your assignment for "Advanced Bridge Management" is due in 2 days',
+    type: 'promotion',
+    title: 'Special Offer!',
+    message: 'Get 20% off your next order from participating merchants',
     timestamp: '4 hours ago',
     read: false,
-    icon: 'fa-clock',
+    icon: 'fa-tag',
     iconColor: 'text-orange-600',
     iconBg: 'bg-orange-100',
-    actionText: 'Complete Assignment',
-    actionPath: '/assignments'
+    actionText: 'View Offers',
+    actionPath: '/promotions'
   },
   {
     id: 3,
-    type: 'new_course',
-    title: 'New Course Available',
-    message: 'Check out the new "Maritime Cybersecurity" course now available',
+    type: 'new_merchant',
+    title: 'New Merchant Available',
+    message: 'Check out the new "Fresh Seafood Market" now available in your area',
     timestamp: '1 day ago',
     read: true,
-    icon: 'fa-plus-circle',
+    icon: 'fa-store',
     iconColor: 'text-blue-600',
     iconBg: 'bg-blue-100',
-    actionText: 'View Course',
-    actionPath: '/courses'
+    actionText: 'Browse Products',
+    actionPath: '/merchants'
   },
   {
     id: 4,
-    type: 'certificate_issued',
-    title: 'Certificate Issued',
-    message: 'Your IMO certificate for "Maritime Security Awareness" has been issued',
+    type: 'order_update',
+    title: 'Order Update',
+    message: 'Your order is being prepared and will be ready for pickup soon',
     timestamp: '2 days ago',
     read: true,
-    icon: 'fa-certificate',
+    icon: 'fa-clock',
     iconColor: 'text-purple-600',
     iconBg: 'bg-purple-100',
-    actionText: 'Download Certificate',
-    actionPath: '/certificates'
+    actionText: 'Track Order',
+    actionPath: '/orders'
   },
   {
     id: 5,
     type: 'system_update',
-    title: 'System Update',
-    message: 'New features have been added to improve your learning experience',
+    title: 'App Update',
+    message: 'New features have been added to improve your shopping experience',
     timestamp: '3 days ago',
     read: true,
     icon: 'fa-sync-alt',
@@ -78,34 +78,34 @@ const mockNotifications = [
   {
     id: 6,
     type: 'reminder',
-    title: 'Study Reminder',
-    message: 'Don\'t forget to continue your "Engine Room Operations" course',
+    title: 'Cart Reminder',
+    message: 'You have items in your cart waiting to be ordered',
     timestamp: '5 days ago',
     read: true,
-    icon: 'fa-bell',
+    icon: 'fa-shopping-cart',
     iconColor: 'text-yellow-600',
     iconBg: 'bg-yellow-100',
-    actionText: 'Continue Learning',
-    actionPath: '/portal'
+    actionText: 'Complete Order',
+    actionPath: '/cart'
   },
   {
     id: 7,
     type: 'achievement',
-    title: 'Achievement Unlocked!',
-    message: 'You\'ve earned the "Safety Expert" badge for completing 5 safety courses',
+    title: 'Loyalty Milestone!',
+    message: 'You\'ve earned the "Frequent Shopper" badge for placing 10 orders',
     timestamp: '1 week ago',
     read: true,
     icon: 'fa-trophy',
     iconColor: 'text-yellow-600',
     iconBg: 'bg-yellow-100',
-    actionText: 'View Achievements',
-    actionPath: '/achievements'
+    actionText: 'View Rewards',
+    actionPath: '/rewards'
   },
   {
     id: 8,
     type: 'payment',
     title: 'Payment Successful',
-    message: 'Your payment for "Cargo Handling & Stowage" course has been processed',
+    message: 'Your payment for order #12345 has been processed successfully',
     timestamp: '1 week ago',
     read: true,
     icon: 'fa-credit-card',
@@ -119,8 +119,8 @@ const mockNotifications = [
 const notificationTypes = [
   { id: 'all', label: 'All', count: mockNotifications.length },
   { id: 'unread', label: 'Unread', count: mockNotifications.filter(n => !n.read).length },
-  { id: 'course_completion', label: 'Courses', count: mockNotifications.filter(n => n.type === 'course_completion').length },
-  { id: 'assignment_due', label: 'Assignments', count: mockNotifications.filter(n => n.type === 'assignment_due').length },
+  { id: 'order_completed', label: 'Orders', count: mockNotifications.filter(n => n.type === 'order_completed').length },
+  { id: 'promotion', label: 'Promotions', count: mockNotifications.filter(n => n.type === 'promotion').length },
   { id: 'system_update', label: 'Updates', count: mockNotifications.filter(n => n.type === 'system_update').length }
 ];
 

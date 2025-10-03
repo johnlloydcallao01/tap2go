@@ -3,24 +3,22 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { CategoryCarouselProps } from '@/types';
 import { ProductCategoryCircle } from '@/components/ui/ProductCategoryCircle';
-import { ProductCategory } from '@/server';
+import { ProductCategory, getProductCategoriesClient } from '@/lib/client-services/product-category-client-service';
 
 /**
  * Professional ProductCategoryCarousel with smooth momentum scrolling
  * Implements physics-based scrolling similar to native mobile apps
+ * NOW 100% CSR - fetches data client-side
  */
 export function ProductCategoryCarousel({
-  categories: initialCategories,
   onCategoryChange
 }: {
-  categories: ProductCategory[];
   onCategoryChange?: (category: string) => void;
 }) {
-  // Initialize with provided data (no loading state needed)
-  const [categories] = useState<ProductCategory[]>(initialCategories);
-  const [activeCategory, setActiveCategory] = useState<string>(
-    initialCategories[0]?.name || ''
-  );
+  // CSR state management
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
@@ -31,6 +29,26 @@ export function ProductCategoryCarousel({
   const carouselRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
   const boundsCalculatedRef = useRef(false);
+
+  // Fetch categories client-side
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoading(true);
+        const fetchedCategories = await getProductCategoriesClient();
+        setCategories(fetchedCategories);
+        if (fetchedCategories.length > 0) {
+          setActiveCategory(fetchedCategories[0].name);
+        }
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   // Calculate proper maxTranslate to ensure last item is fully visible
   const getMaxTranslate = useCallback(() => {
@@ -254,76 +272,90 @@ export function ProductCategoryCarousel({
 
   return (
     <div className="relative">
-      {/* Left Arrow - Hidden on mobile/tablet, visible on desktop */}
-      {translateX < 0 && (
-        <button
-          onClick={scrollLeft}
-          className="hidden lg:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white shadow-lg rounded-full items-center justify-center hover:bg-gray-50 transition-colors"
-          aria-label="Scroll left"
-        >
-          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-      )}
-
-      {/* Right Arrow - Hidden on mobile/tablet, visible on desktop */}
-      {translateX > -maxTranslate && (
-        <button
-          onClick={scrollRight}
-          className="hidden lg:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white shadow-lg rounded-full items-center justify-center hover:bg-gray-50 transition-colors"
-          aria-label="Scroll right"
-        >
-          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      )}
-
-      {/* Carousel Container */}
-      <div
-        className="overflow-hidden px-6"
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseMove={isDragging ? handleMouseMove : undefined}
-        onMouseUp={isDragging ? handleMouseUp : undefined}
-        style={{
-          touchAction: 'pan-x',
-          cursor: isDragging ? 'grabbing' : 'grab'
-        }}
-      >
-        <div
-          ref={carouselRef}
-          className="flex py-2.5 select-none"
-          style={{
-            transform: `translateX(${translateX}px)`,
-            gap: '48px',
-            WebkitUserSelect: 'none',
-            userSelect: 'none',
-            transition: 'none', // Using requestAnimationFrame for smooth animations
-            willChange: 'transform',
-            pointerEvents: 'none' // Prevent individual items from blocking events
-          }}
-        >
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="flex-shrink-0"
-              style={{ pointerEvents: 'auto' }} // Re-enable pointer events for clicking
-            >
-              <ProductCategoryCircle
-                category={category}
-                active={activeCategory === category.name}
-                onClick={() => handleCategoryClick(category.name)}
-              />
-            </div>
-          ))}
+      {/* Loading state - show skeleton while fetching data */}
+      {loading ? (
+        <div className="overflow-hidden px-6">
+          <div className="flex py-2.5" style={{ gap: '48px' }}>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="flex-shrink-0">
+                <div className="w-16 h-16 bg-gray-200 rounded-full animate-pulse"></div>
+                <div className="w-12 h-3 bg-gray-200 rounded mt-2 mx-auto animate-pulse"></div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Left Arrow - Hidden on mobile/tablet, visible on desktop */}
+          {translateX < 0 && (
+            <button
+              onClick={scrollLeft}
+              className="hidden lg:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white shadow-lg rounded-full items-center justify-center hover:bg-gray-50 transition-colors"
+              aria-label="Scroll left"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
 
+          {/* Right Arrow - Hidden on mobile/tablet, visible on desktop */}
+          {translateX > -maxTranslate && (
+            <button
+              onClick={scrollRight}
+              className="hidden lg:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white shadow-lg rounded-full items-center justify-center hover:bg-gray-50 transition-colors"
+              aria-label="Scroll right"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
 
+          {/* Carousel Container */}
+          <div
+            className="overflow-hidden px-6"
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMouseMove={isDragging ? handleMouseMove : undefined}
+            onMouseUp={isDragging ? handleMouseUp : undefined}
+            style={{
+              touchAction: 'pan-x',
+              cursor: isDragging ? 'grabbing' : 'grab'
+            }}
+          >
+            <div
+              ref={carouselRef}
+              className="flex py-2.5 select-none"
+              style={{
+                transform: `translateX(${translateX}px)`,
+                gap: '48px',
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+                transition: 'none', // Using requestAnimationFrame for smooth animations
+                willChange: 'transform',
+                pointerEvents: 'none' // Prevent individual items from blocking events
+              }}
+            >
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  className="flex-shrink-0"
+                  style={{ pointerEvents: 'auto' }} // Re-enable pointer events for clicking
+                >
+                  <ProductCategoryCircle
+                    category={category}
+                    active={activeCategory === category.name}
+                    onClick={() => handleCategoryClick(category.name)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

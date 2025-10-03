@@ -39,21 +39,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Handle course changes (if they affect the home page)
-    if (collection === 'courses') {
-      // Revalidate courses cache and home page
-      revalidateTag('courses');
-      revalidatePath('/');
-      
-      console.log('Revalidated courses and home page');
-      
-      return NextResponse.json({ 
-        revalidated: true, 
-        collection,
-        operation,
-        timestamp: new Date().toISOString()
-      });
-    }
+
 
     // Handle other collections that might affect the home page
     if (['merchants', 'posts', 'media'].includes(collection)) {

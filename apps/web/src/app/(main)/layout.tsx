@@ -22,8 +22,8 @@ export default function MainLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
 
-  // Check if we're on the addresses page (hide header/footer for full-page experience)
-  const isAddressesPage = pathname === '/addresses'
+  // No longer need to check for addresses page since it's been removed
+  const isAddressesPage = false
 
   // Hide instant loading screen when main app loads
   useEffect(() => {

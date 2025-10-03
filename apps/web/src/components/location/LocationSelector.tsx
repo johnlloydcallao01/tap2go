@@ -174,14 +174,13 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
         </div>
 
         {/* Search Section */}
-        <div className={`${isMobile ? 'px-4 py-4 flex-1' : 'px-6 py-4 flex-1'}`}>
+        <div className={`${isMobile ? 'px-4 py-4 flex-1 overflow-y-auto' : 'px-6 py-4 flex-1 overflow-y-auto max-h-96'}`}>
           <AddressSearchInput
             placeholder="Search for an address"
             onAddressSelect={handleAddressSelect}
             autoFocus={true}
             inputClassName="w-full pl-12 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all"
-            dropdownClassName={isMobile ? 'max-h-96' : 'max-h-64'}
-            fullPage={!isMobile}
+            fullPage={true}
           />
         </div>
       </div>
@@ -209,36 +208,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Listen for location selection from the addresses page
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const storedLocation = localStorage.getItem('selectedLocation');
-      if (storedLocation) {
-        try {
-          const location = JSON.parse(storedLocation);
-          setSelectedLocation(location);
-          onLocationSelect?.(location);
-          localStorage.removeItem('selectedLocation'); // Clean up
-        } catch (error) {
-          console.error('Error parsing stored location:', error);
-        }
-      }
-    };
 
-    // Check on component mount
-    handleStorageChange();
-
-    // Listen for storage changes (when user comes back from addresses page)
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also listen for focus events (when user navigates back)
-    window.addEventListener('focus', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('focus', handleStorageChange);
-    };
-  }, [onLocationSelect]);
 
   const handleLocationSelect = (location: google.maps.places.PlaceResult) => {
     setSelectedLocation(location);
@@ -246,13 +216,8 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
   };
 
   const handleClick = () => {
-    if (isMobile) {
-      // Navigate to addresses page on mobile/tablet
-      router.push('/addresses' as any);
-    } else {
-      // Open modal on desktop
-      setIsModalOpen(true);
-    }
+    // Always open modal (full-screen on mobile, popup on desktop)
+    setIsModalOpen(true);
   };
 
   const displayText = selectedLocation?.name || selectedLocation?.formatted_address || 'Enter Address';
@@ -267,14 +232,12 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
         <span className="truncate max-w-32">{displayText}</span>
       </button>
 
-      {/* Only show modal on desktop */}
-      {!isMobile && (
-        <LocationModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onLocationSelect={handleLocationSelect}
-        />
-      )}
+      {/* Always show modal */}
+      <LocationModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onLocationSelect={handleLocationSelect}
+      />
     </>
   );
 }

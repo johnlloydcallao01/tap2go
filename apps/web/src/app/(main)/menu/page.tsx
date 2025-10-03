@@ -12,26 +12,26 @@ import { useLogout } from '@/hooks/useAuth';
 
 // Mock user data
 const mockUser = {
-  name: 'Alex Maritime',
-  email: 'alex.maritime@example.com',
-  rank: 'Third Officer',
-  company: 'Global Shipping Ltd.',
+  name: 'Alex Customer',
+  email: 'alex.customer@example.com',
+  rank: 'Premium Member',
+  company: 'Tap2Go Customer',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
   memberSince: '2023',
-  coursesCompleted: 8,
-  certificatesEarned: 6
+  ordersCompleted: 8,
+  rewardsEarned: 6
 };
 
 // Menu sections data
 const menuSections = [
   {
-    title: 'Learning',
+    title: 'Shopping',
     items: [
-      { icon: 'fa-graduation-cap', label: 'My Courses', path: '/portal', badge: '3' },
-      { icon: 'fa-certificate', label: 'Certificates', path: '/certificates', badge: null },
-      { icon: 'fa-chart-line', label: 'Progress', path: '/progress', badge: null },
-      { icon: 'fa-bookmark', label: 'Saved Courses', path: '/saved', badge: '12' },
-      { icon: 'fa-history', label: 'Learning History', path: '/history', badge: null }
+      { icon: 'fa-shopping-bag', label: 'My Orders', path: '/orders', badge: '3' },
+      { icon: 'fa-heart', label: 'Wishlist', path: '/wishlist', badge: null },
+      { icon: 'fa-shopping-cart', label: 'Cart', path: '/cart', badge: null },
+      { icon: 'fa-store', label: 'Browse Merchants', path: '/merchants', badge: '12' },
+      { icon: 'fa-history', label: 'Order History', path: '/history', badge: null }
     ]
   },
   {
@@ -108,12 +108,12 @@ export default function MenuPage() {
           {/* Quick Stats */}
           <div className="mt-4 grid grid-cols-3 gap-4">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-lg font-bold text-[#201a7c]">{mockUser.coursesCompleted}</div>
-              <div className="text-xs text-gray-600">Courses</div>
+              <div className="text-lg font-bold text-[#201a7c]">{mockUser.ordersCompleted}</div>
+              <div className="text-xs text-gray-600">Orders</div>
             </div>
             <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-lg font-bold text-green-600">{mockUser.certificatesEarned}</div>
-              <div className="text-xs text-gray-600">Certificates</div>
+              <div className="text-lg font-bold text-green-600">{mockUser.rewardsEarned}</div>
+              <div className="text-xs text-gray-600">Rewards</div>
             </div>
             <div className="text-center p-3 bg-purple-50 rounded-lg">
               <div className="text-lg font-bold text-purple-600">{mockUser.memberSince}</div>
