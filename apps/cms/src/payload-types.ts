@@ -72,6 +72,7 @@ export interface Config {
     admins: Admin;
     'user-events': UserEvent;
     'emergency-contacts': EmergencyContact;
+    addresses: Address;
     media: Media;
     posts: Post;
     vendors: Vendor;
@@ -89,6 +90,7 @@ export interface Config {
     admins: AdminsSelect<false> | AdminsSelect<true>;
     'user-events': UserEventsSelect<false> | UserEventsSelect<true>;
     'emergency-contacts': EmergencyContactsSelect<false> | EmergencyContactsSelect<true>;
+    addresses: AddressesSelect<false> | AddressesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     vendors: VendorsSelect<false> | VendorsSelect<true>;
@@ -382,6 +384,89 @@ export interface EmergencyContact {
    * Mark as primary emergency contact
    */
   isPrimary?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Manage user addresses with Google Maps integration
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "addresses".
+ */
+export interface Address {
+  id: number;
+  /**
+   * User who owns this address
+   */
+  user: number | User;
+  /**
+   * Complete Google-formatted address (unedited from Google Maps)
+   */
+  formatted_address: string;
+  /**
+   * Google Place ID for reference and validation
+   */
+  google_place_id?: string | null;
+  /**
+   * Street number (from address_components: street_number)
+   */
+  street_number?: string | null;
+  /**
+   * Street name (from address_components: route)
+   */
+  route?: string | null;
+  /**
+   * Unit/apartment number (from address_components: subpremise)
+   */
+  subpremise?: string | null;
+  /**
+   * Barangay (from address_components: sublocality_level_1)
+   */
+  barangay?: string | null;
+  /**
+   * City/municipality (from address_components: locality)
+   */
+  locality?: string | null;
+  /**
+   * Province subdivision (from address_components: administrative_area_level_2)
+   */
+  administrative_area_level_2?: string | null;
+  /**
+   * Province/state (from address_components: administrative_area_level_1)
+   */
+  administrative_area_level_1?: string | null;
+  /**
+   * Country (from address_components: country)
+   */
+  country?: string | null;
+  /**
+   * ZIP/postal code (from address_components: postal_code)
+   */
+  postal_code?: string | null;
+  /**
+   * Latitude coordinate (from geometry.location.lat)
+   */
+  latitude?: number | null;
+  /**
+   * Longitude coordinate (from geometry.location.lng)
+   */
+  longitude?: number | null;
+  /**
+   * Type of address for categorization
+   */
+  address_type: 'home' | 'work' | 'billing' | 'shipping' | 'pickup' | 'delivery';
+  /**
+   * Mark as default address for this user
+   */
+  is_default?: boolean | null;
+  /**
+   * Address has been verified through Google Maps
+   */
+  is_verified?: boolean | null;
+  /**
+   * Additional notes or delivery instructions
+   */
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1512,6 +1597,10 @@ export interface PayloadLockedDocument {
         value: number | EmergencyContact;
       } | null)
     | ({
+        relationTo: 'addresses';
+        value: number | Address;
+      } | null)
+    | ({
         relationTo: 'media';
         value: number | Media;
       } | null)
@@ -1669,6 +1758,32 @@ export interface EmergencyContactsSelect<T extends boolean = true> {
   relationship?: T;
   completeAddress?: T;
   isPrimary?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "addresses_select".
+ */
+export interface AddressesSelect<T extends boolean = true> {
+  user?: T;
+  formatted_address?: T;
+  google_place_id?: T;
+  street_number?: T;
+  route?: T;
+  subpremise?: T;
+  barangay?: T;
+  locality?: T;
+  administrative_area_level_2?: T;
+  administrative_area_level_1?: T;
+  country?: T;
+  postal_code?: T;
+  latitude?: T;
+  longitude?: T;
+  address_type?: T;
+  is_default?: T;
+  is_verified?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -17,6 +17,7 @@ import { Customers } from './collections/Customers'
 import { Admins } from './collections/Admins'
 import { UserEvents } from './collections/UserEvents'
 import { EmergencyContacts } from './collections/EmergencyContacts'
+import { Addresses } from './collections/Addresses'
 import { Media } from './collections/Media'
 import { Posts } from './collections/Posts'
 // LMS Collections (removed)
@@ -44,6 +45,7 @@ export default buildConfig({
     Admins,
     UserEvents,
     EmergencyContacts,
+    Addresses,
 
     // Content & Media
     Media,
