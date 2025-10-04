@@ -218,22 +218,76 @@ export class AddressService {
   
   // Set user's active address (truly persistent)
   static async setActiveAddress(userId: string | number, addressId: string | number | null): Promise<AddressResponse> {
+    const requestId = Math.random().toString(36).substr(2, 9);
+    console.log(`🔄 [${requestId}] === SET ACTIVE ADDRESS REQUEST STARTED ===`);
+    console.log(`📋 [${requestId}] Request Details:`, {
+      userId,
+      addressId,
+      userIdType: typeof userId,
+      addressIdType: typeof addressId,
+      endpoint: `/api/users/${userId}/active-address`
+    });
+
     try {
-      const response = await fetch(`/api/users/${userId}/active-address`, {
-        method: 'PATCH',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ addressId }),
+      const headers = this.getHeaders();
+      console.log(`📤 [${requestId}] Request Headers:`, {
+        hasAuth: !!headers['Authorization'],
+        contentType: headers['Content-Type'],
+        authPreview: headers['Authorization'] ? `${headers['Authorization'].substring(0, 20)}...` : 'None'
       });
 
-      const data: AddressResponse = await response.json();
+      const requestBody = { addressId };
+      console.log(`📦 [${requestId}] Request Body:`, requestBody);
+
+      const startTime = Date.now();
+      const response = await fetch(`/api/users/${userId}/active-address`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseTime = Date.now() - startTime;
+      console.log(`📡 [${requestId}] Response received:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        responseTime: `${responseTime}ms`,
+        url: response.url,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      let data: AddressResponse;
+      try {
+        data = await response.json();
+        console.log(`📄 [${requestId}] Response Data:`, data);
+      } catch (parseError) {
+        console.error(`❌ [${requestId}] Failed to parse response JSON:`, parseError);
+        const responseText = await response.text();
+        console.error(`📄 [${requestId}] Raw Response Text:`, responseText);
+        throw new Error(`Failed to parse response: ${parseError}`);
+      }
 
       if (!response.ok) {
+        console.error(`❌ [${requestId}] Request failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: data.error,
+          data
+        });
         throw new Error(data.error || `HTTP error! status: ${response.status}`);
       }
 
+      console.log(`✅ [${requestId}] === SET ACTIVE ADDRESS SUCCESS ===`);
       return data;
     } catch (error) {
-      console.error('Error setting active address:', error);
+      console.error(`💥 [${requestId}] === SET ACTIVE ADDRESS ERROR ===`);
+      console.error(`❌ [${requestId}] Error Details:`, {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        userId,
+        addressId
+      });
       throw error;
     }
   }

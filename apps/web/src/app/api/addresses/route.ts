@@ -154,7 +154,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userData = await userResponse.json();
+    let userData;
+    try {
+      const responseText = await userResponse.text();
+      if (!responseText.trim()) {
+        console.error('❌ Empty response from user API');
+        return NextResponse.json(
+          { error: 'Invalid response from user service' },
+          { status: 502 }
+        );
+      }
+      userData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse user response:', parseError);
+      const responseText = await userResponse.text();
+      console.error('❌ Raw user response:', responseText);
+      return NextResponse.json(
+        { error: 'Invalid response from user service' },
+        { status: 502 }
+      );
+    }
     console.log('👤 User data received:', {
       hasUser: !!userData.user,
       userId: userData.user?.id,
@@ -224,7 +243,14 @@ export async function POST(request: NextRequest) {
 
     if (!createResponse.ok) {
       console.error('❌ Failed to create address:', createResponse.status);
-      const errorData = await createResponse.json();
+      let errorData;
+      try {
+        const errorText = await createResponse.text();
+        errorData = errorText ? JSON.parse(errorText) : { error: 'Unknown error' };
+      } catch (parseError) {
+        console.error('❌ Failed to parse error response:', parseError);
+        errorData = { error: 'Invalid error response' };
+      }
       console.error('❌ Create address error response:', errorData);
       return NextResponse.json(
         { error: 'Failed to create address', details: errorData },
@@ -232,7 +258,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const createdAddress = await createResponse.json();
+    let createdAddress;
+    try {
+      const responseText = await createResponse.text();
+      if (!responseText.trim()) {
+        console.error('❌ Empty response from create address API');
+        return NextResponse.json(
+          { error: 'Invalid response from address service' },
+          { status: 502 }
+        );
+      }
+      createdAddress = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse create address response:', parseError);
+      const responseText = await createResponse.text();
+      console.error('❌ Raw create address response:', responseText);
+      return NextResponse.json(
+        { error: 'Invalid response from address service' },
+        { status: 502 }
+      );
+    }
     console.log('✅ Address created successfully:', {
       id: createdAddress.doc?.id,
       formatted_address: createdAddress.doc?.formatted_address
@@ -316,13 +361,35 @@ export async function GET(request: NextRequest) {
     });
 
     if (!addressesResponse.ok) {
+      const errorText = await addressesResponse.text();
+      console.error('Failed to fetch addresses:', errorText);
       return NextResponse.json(
         { error: 'Failed to fetch addresses' },
         { status: addressesResponse.status }
       );
     }
 
-    const addressesData = await addressesResponse.json();
+    let addressesData;
+    try {
+      const responseText = await addressesResponse.text();
+      if (!responseText.trim()) {
+        console.warn('Empty response from addresses API');
+        return NextResponse.json({
+          success: true,
+          addresses: [],
+          total: 0,
+        });
+      }
+      addressesData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse addresses response:', parseError);
+      const responseText = await addressesResponse.text();
+      console.error('Raw response:', responseText);
+      return NextResponse.json(
+        { error: 'Invalid response from backend service' },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

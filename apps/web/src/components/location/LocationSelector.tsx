@@ -167,13 +167,32 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
   };
 
   const handleAddressSwitch = async (address: any) => {
+    const requestId = Math.random().toString(36).substr(2, 9);
+    console.log(`🏠 [${requestId}] === ADDRESS SWITCH STARTED ===`);
+    console.log(`📋 [${requestId}] Address Switch Details:`, {
+      addressId: address.id,
+      userId: user?.id,
+      userExists: !!user,
+      addressData: {
+        formatted_address: address.formatted_address,
+        google_place_id: address.google_place_id,
+        latitude: address.latitude,
+        longitude: address.longitude
+      }
+    });
+
     try {
       // Set as active address in backend
       if (user?.id) {
+        console.log(`🔄 [${requestId}] Calling AddressService.setActiveAddress...`);
         await AddressService.setActiveAddress(user.id, address.id);
+        console.log(`✅ [${requestId}] AddressService.setActiveAddress completed successfully`);
+      } else {
+        console.warn(`⚠️ [${requestId}] No user ID available, skipping backend update`);
       }
       
       // Convert API address back to Google Places format
+      console.log(`🗺️ [${requestId}] Converting to Google Places format...`);
       const googlePlaceFormat: google.maps.places.PlaceResult = {
         formatted_address: address.formatted_address,
         place_id: address.google_place_id,
@@ -186,14 +205,29 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
         } : undefined
       };
       
+      console.log(`💾 [${requestId}] Updating local state and localStorage...`);
       setActiveAddressId(address.id);
       // Update localStorage for backward compatibility
       localStorage.setItem('selected_address', JSON.stringify(googlePlaceFormat));
+      
+      console.log(`📞 [${requestId}] Calling onLocationSelect callback...`);
       onLocationSelect?.(googlePlaceFormat);
+      
+      console.log(`🎉 [${requestId}] Showing success toast and closing modal...`);
       toast.success('Address set as active!');
       onClose();
+      
+      console.log(`✅ [${requestId}] === ADDRESS SWITCH COMPLETED SUCCESSFULLY ===`);
     } catch (error) {
-      console.error('Error setting active address:', error);
+      console.error(`💥 [${requestId}] === ADDRESS SWITCH ERROR ===`);
+      console.error(`❌ [${requestId}] Error Details:`, {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        addressId: address.id,
+        userId: user?.id,
+        address: address
+      });
       toast.error('Failed to set active address');
     }
   };
