@@ -22,7 +22,7 @@ export interface ProductCategoryServiceOptions {
 }
 
 export class ProductCategoryClientService {
-  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.grandlinemaritime.com/api';
+  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
   
   /**
    * Fetch product categories from CMS (Client-side) with caching
