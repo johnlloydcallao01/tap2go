@@ -14,10 +14,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_CMS_URL || 'https://cms.grandlinema
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = params;
+    const { userId } = await params;
 
     // Get user token from Authorization header
     const authHeader = request.headers.get('authorization');
@@ -69,10 +69,10 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = params;
+    const { userId } = await params;
     const body = await request.json();
 
     // Get user token from Authorization header
