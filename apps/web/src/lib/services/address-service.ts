@@ -189,6 +189,78 @@ export class AddressService {
       throw error;
     }
   }
+
+  /**
+   * Update an address
+   */
+  static async updateAddress(addressId: string, updates: Partial<AddressCreateRequest>): Promise<AddressResponse> {
+    try {
+      const response = await fetch(`${this.API_BASE}/${addressId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(updates),
+      });
+
+      const data: AddressResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error updating address:', error);
+      throw error;
+    }
+  }
+
+  // === ACTIVE ADDRESS MANAGEMENT ===
+  
+  // Set user's active address (truly persistent)
+  static async setActiveAddress(userId: string | number, addressId: string | number | null): Promise<AddressResponse> {
+    try {
+      const response = await fetch(`/api/users/${userId}/active-address`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ addressId }),
+      });
+
+      const data: AddressResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error setting active address:', error);
+      throw error;
+    }
+  }
+
+  // Get user's active address (from database, not localStorage)
+  static async getActiveAddress(userId: string | number): Promise<AddressResponse> {
+    try {
+      const response = await fetch(`/api/users/${userId}/active-address`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return { success: true, address: null }; // User has no active address
+        }
+        const data: AddressResponse = await response.json();
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data: AddressResponse = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error getting active address:', error);
+      throw error;
+    }
+  }
 }
 
 export default AddressService;

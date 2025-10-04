@@ -235,5 +235,15 @@ export const Users: CollectionConfig = {
       },
     },
 
+    // === ACTIVE ADDRESS RELATIONSHIP ===
+    {
+      name: 'activeAddress',
+      type: 'relationship',
+      relationTo: 'addresses',
+      admin: {
+        description: 'Currently selected active address for this user (for food delivery)',
+      },
+    },
+
   ],
 }

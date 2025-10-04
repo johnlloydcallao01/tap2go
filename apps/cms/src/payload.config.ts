@@ -260,6 +260,242 @@ export default buildConfig({
         }
       }) as PayloadHandler,
     },
+
+    // ========================================
+    // ACTIVE ADDRESS MANAGEMENT ENDPOINTS
+    // ========================================
+    {
+      path: '/users/:userId/active-address',
+      method: 'patch',
+      handler: (async (req: PayloadRequest) => {
+        const startTime = Date.now();
+        const requestId = crypto.randomUUID();
+        
+        try {
+          const { payload, user } = req;
+          const userId = req.routeParams?.userId;
+          const body = await req.json?.();
+          const { addressId } = body;
+
+          // Security Check: Verify user authentication
+          if (!user) {
+            return new Response(
+              JSON.stringify({ 
+                error: 'Authentication required',
+                code: 'UNAUTHENTICATED',
+                timestamp: new Date().toISOString(),
+                requestId 
+              }),
+              { status: 401, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Security Check: Verify user can update this user's data
+          if (user.role !== 'admin' && user.role !== 'service' && user.id.toString() !== userId) {
+            return new Response(
+              JSON.stringify({ 
+                error: 'Access denied. You can only update your own active address.',
+                code: 'ACCESS_DENIED',
+                timestamp: new Date().toISOString(),
+                requestId
+              }),
+              { status: 403, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Validate that the address exists and belongs to the user
+          if (addressId) {
+            const address = await payload.findByID({
+              collection: 'addresses',
+              id: addressId,
+            });
+
+            if (!address) {
+              return new Response(
+                JSON.stringify({ 
+                  error: 'Address not found',
+                  code: 'ADDRESS_NOT_FOUND',
+                  timestamp: new Date().toISOString(),
+                  requestId
+                }),
+                { status: 404, headers: { 'Content-Type': 'application/json' } }
+              );
+            }
+
+            // Verify address belongs to the user (unless admin/service)
+            if (user.role !== 'admin' && user.role !== 'service' && address.user.toString() !== userId) {
+              return new Response(
+                JSON.stringify({ 
+                  error: 'Address does not belong to this user',
+                  code: 'ADDRESS_OWNERSHIP_ERROR',
+                  timestamp: new Date().toISOString(),
+                  requestId
+                }),
+                { status: 403, headers: { 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+
+          // Update user's active address
+          const updatedUser = await payload.update({
+            collection: 'users',
+            id: userId as string,
+            data: {
+              activeAddress: addressId || null,
+            },
+          });
+
+          console.log(`✅ [${requestId}] ACTIVE ADDRESS UPDATED:`, {
+            userId,
+            addressId: addressId || 'null',
+            updatedBy: user.id,
+            responseTime: `${Date.now() - startTime}ms`
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: 'Active address updated successfully',
+              data: {
+                userId: updatedUser.id,
+                activeAddress: updatedUser.activeAddress,
+              },
+              requestId,
+              responseTime: Date.now() - startTime
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+
+        } catch (error) {
+          const responseTime = Date.now() - startTime;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          
+          console.error(`🚨 [${requestId}] ACTIVE ADDRESS UPDATE ERROR:`, {
+            error: errorMessage,
+            responseTime: `${responseTime}ms`,
+            userId: req.routeParams?.userId,
+            updatedBy: req.user?.id,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Failed to update active address',
+              code: 'INTERNAL_SERVER_ERROR',
+              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+              timestamp: new Date().toISOString(),
+              requestId,
+              responseTime
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }) as PayloadHandler,
+    },
+
+    {
+      path: '/users/:userId/active-address',
+      method: 'get',
+      handler: (async (req: PayloadRequest) => {
+        const startTime = Date.now();
+        const requestId = crypto.randomUUID();
+        
+        try {
+          const { payload, user } = req;
+          const userId = req.routeParams?.userId;
+
+          // Security Check: Verify user authentication
+          if (!user) {
+            return new Response(
+              JSON.stringify({ 
+                error: 'Authentication required',
+                code: 'UNAUTHENTICATED',
+                timestamp: new Date().toISOString(),
+                requestId 
+              }),
+              { status: 401, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Security Check: Verify user can read this user's data
+          if (user.role !== 'admin' && user.role !== 'service' && user.id.toString() !== userId) {
+            return new Response(
+              JSON.stringify({ 
+                error: 'Access denied. You can only view your own active address.',
+                code: 'ACCESS_DENIED',
+                timestamp: new Date().toISOString(),
+                requestId
+              }),
+              { status: 403, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Get user with active address populated
+          const userWithAddress = await payload.findByID({
+            collection: 'users',
+            id: userId as string,
+            depth: 2, // Populate the activeAddress relationship
+          });
+
+          if (!userWithAddress) {
+            return new Response(
+              JSON.stringify({ 
+                error: 'User not found',
+                code: 'USER_NOT_FOUND',
+                timestamp: new Date().toISOString(),
+                requestId
+              }),
+              { status: 404, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          console.log(`✅ [${requestId}] ACTIVE ADDRESS RETRIEVED:`, {
+            userId,
+            hasActiveAddress: !!userWithAddress.activeAddress,
+            requestedBy: user.id,
+            responseTime: `${Date.now() - startTime}ms`
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: 'Active address retrieved successfully',
+              data: {
+                userId: userWithAddress.id,
+                activeAddress: userWithAddress.activeAddress,
+              },
+              requestId,
+              responseTime: Date.now() - startTime
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+
+        } catch (error) {
+          const responseTime = Date.now() - startTime;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          
+          console.error(`🚨 [${requestId}] ACTIVE ADDRESS RETRIEVAL ERROR:`, {
+            error: errorMessage,
+            responseTime: `${responseTime}ms`,
+            userId: req.routeParams?.userId,
+            requestedBy: req.user?.id,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Failed to retrieve active address',
+              code: 'INTERNAL_SERVER_ERROR',
+              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+              timestamp: new Date().toISOString(),
+              requestId,
+              responseTime
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }) as PayloadHandler,
+    },
   ],
 
   // sharp,
