@@ -17,6 +17,7 @@ interface LocationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLocationSelect?: (location: google.maps.places.PlaceResult) => void;
+  onAddressesChanged?: () => void; // New callback for when addresses are modified
 }
 
 // Location Icon Component
@@ -46,13 +47,14 @@ function LocationIcon({ className }: { className?: string }) {
 }
 
 // Location Modal Component
-function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps) {
+function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }: LocationModalProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
+  const [userAddresses, setUserAddresses] = useState<any[]>([]);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
+  const [settingActiveId, setSettingActiveId] = useState<string | null>(null);
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
-  const [editingAddress, setEditingAddress] = useState<any | null>(null);
   const { user } = useUser();
 
   // Check if we're on mobile/tablet
@@ -66,73 +68,113 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  const loadSavedAddresses = useCallback(async () => {
+  const loadUserAddresses = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingAddresses(true);
     try {
-      setIsLoadingAddresses(true);
-      const response = await AddressService.getUserAddresses();
+      // Load user addresses with caching
+      const response = await AddressService.getUserAddresses(user.id);
       if (response.success && response.addresses) {
-        setSavedAddresses(response.addresses);
-        
-        // Load active address from backend (persistent)
-        if (user?.id) {
-          try {
-            const activeAddressResponse = await AddressService.getActiveAddress(user.id);
-            if (activeAddressResponse.success && activeAddressResponse.address) {
-              setActiveAddressId(activeAddressResponse.address.id);
-            } else {
-              // No active address set, try to migrate from localStorage
-              const localAddress = localStorage.getItem('selected_address');
-              if (localAddress) {
-                try {
-                  const parsedAddress = JSON.parse(localAddress);
-                  const matchingAddress = response.addresses.find((addr: any) => 
-                    addr.google_place_id === parsedAddress.place_id
-                  );
-                  if (matchingAddress) {
-                    // Set this as the active address in the backend
-                    await AddressService.setActiveAddress(user.id, matchingAddress.id);
-                    setActiveAddressId(matchingAddress.id);
-                    console.log('Migrated localStorage address to backend active address');
-                  }
-                } catch (error) {
-                  console.warn('Failed to parse stored address:', error);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error loading active address:', error);
-            // Fallback to localStorage behavior
-            const localAddress = localStorage.getItem('selected_address');
-            if (localAddress) {
-              try {
-                const parsedAddress = JSON.parse(localAddress);
-                const activeAddress = response.addresses.find((addr: any) => 
-                  addr.google_place_id === parsedAddress.place_id
-                );
-                if (activeAddress) {
-                  setActiveAddressId(activeAddress.id);
-                }
-              } catch (error) {
-                console.warn('Failed to parse stored address:', error);
-              }
-            }
-          }
+        setUserAddresses(response.addresses);
+      } else {
+        console.error('Failed to load addresses:', response.error);
+        setUserAddresses([]);
+      }
+
+      // Load active address to show which one is currently active (with caching)
+      try {
+        const activeResponse = await AddressService.getActiveAddress(user.id);
+        if (activeResponse.success && activeResponse.address) {
+          setActiveAddressId(activeResponse.address.id);
+        } else {
+          setActiveAddressId(null);
         }
+      } catch (error) {
+        console.error('Error loading active address:', error);
+        setActiveAddressId(null);
       }
     } catch (error) {
-      console.error('Error loading saved addresses:', error);
-      toast.error('Failed to load saved addresses');
+      console.error('Error loading addresses:', error);
+      setUserAddresses([]);
+      setActiveAddressId(null);
     } finally {
       setIsLoadingAddresses(false);
     }
   }, [user?.id]);
 
-  // Load saved addresses when modal opens
+  // Load user addresses when modal opens
   useEffect(() => {
-    if (isOpen) {
-      loadSavedAddresses();
+    if (isOpen && user?.id) {
+      loadUserAddresses();
     }
-  }, [isOpen, loadSavedAddresses]);
+  }, [isOpen, user?.id, loadUserAddresses]);
+
+  const handleDeleteAddress = async (addressId: string) => {
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to delete this address? This action cannot be undone.');
+    
+    if (!confirmed) return;
+
+    setDeletingAddressId(addressId);
+    try {
+      const response = await AddressService.deleteAddress(addressId);
+      
+      if (response.success) {
+        toast.success('Address deleted successfully!');
+        
+        // Optimistically update UI state - remove the deleted address
+        setUserAddresses(prev => prev.filter(addr => addr.id !== addressId));
+        
+        // If the deleted address was the active one, clear active address
+        if (activeAddressId === addressId) {
+          setActiveAddressId(null);
+        }
+        
+        // Notify parent component that addresses have changed
+        onAddressesChanged?.();
+      } else {
+        throw new Error(response.error || 'Failed to delete address');
+      }
+    } catch (error) {
+      console.error('Error deleting address:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete address');
+      
+      // On error, reload to ensure UI is in sync
+      await loadUserAddresses();
+    } finally {
+      setDeletingAddressId(null);
+    }
+  };
+
+  const handleSetActiveAddress = async (addressId: string) => {
+    if (!user?.id) return;
+    
+    setSettingActiveId(addressId);
+    try {
+      const response = await AddressService.setActiveAddress(user.id, addressId);
+      
+      if (response.success) {
+        toast.success('Active address updated successfully!');
+        
+        // Optimistically update UI state - set the new active address
+        setActiveAddressId(addressId);
+        
+        // Notify parent component that addresses have changed
+        onAddressesChanged?.();
+      } else {
+        throw new Error(response.error || 'Failed to set active address');
+      }
+    } catch (error) {
+      console.error('Error setting active address:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to set active address');
+      
+      // On error, reload to ensure UI is in sync
+      await loadUserAddresses();
+    } finally {
+      setSettingActiveId(null);
+    }
+  };
 
   const handleAddressSelect = async (place: google.maps.places.PlaceResult) => {
     setIsSaving(true);
@@ -148,8 +190,6 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
       if (response.success) {
         toast.success('Address saved successfully!');
         onLocationSelect?.(place);
-        // Reload addresses to show the new one
-        await loadSavedAddresses();
         onClose();
       } else {
         throw new Error(response.error || 'Failed to save address');
@@ -163,131 +203,6 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
       onClose();
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleAddressSwitch = async (address: any) => {
-    const requestId = Math.random().toString(36).substr(2, 9);
-    console.log(`🏠 [${requestId}] === ADDRESS SWITCH STARTED ===`);
-    console.log(`📋 [${requestId}] Address Switch Details:`, {
-      addressId: address.id,
-      userId: user?.id,
-      userExists: !!user,
-      addressData: {
-        formatted_address: address.formatted_address,
-        google_place_id: address.google_place_id,
-        latitude: address.latitude,
-        longitude: address.longitude
-      }
-    });
-
-    try {
-      // Set as active address in backend
-      if (user?.id) {
-        console.log(`🔄 [${requestId}] Calling AddressService.setActiveAddress...`);
-        await AddressService.setActiveAddress(user.id, address.id);
-        console.log(`✅ [${requestId}] AddressService.setActiveAddress completed successfully`);
-      } else {
-        console.warn(`⚠️ [${requestId}] No user ID available, skipping backend update`);
-      }
-      
-      // Convert API address back to Google Places format
-      console.log(`🗺️ [${requestId}] Converting to Google Places format...`);
-      const googlePlaceFormat: google.maps.places.PlaceResult = {
-        formatted_address: address.formatted_address,
-        place_id: address.google_place_id,
-        name: address.formatted_address,
-        geometry: address.latitude && address.longitude ? {
-          location: {
-            lat: () => address.latitude,
-            lng: () => address.longitude
-          } as google.maps.LatLng
-        } : undefined
-      };
-      
-      console.log(`💾 [${requestId}] Updating local state and localStorage...`);
-      setActiveAddressId(address.id);
-      // Update localStorage for backward compatibility
-      localStorage.setItem('selected_address', JSON.stringify(googlePlaceFormat));
-      
-      console.log(`📞 [${requestId}] Calling onLocationSelect callback...`);
-      onLocationSelect?.(googlePlaceFormat);
-      
-      console.log(`🎉 [${requestId}] Showing success toast and closing modal...`);
-      toast.success('Address set as active!');
-      onClose();
-      
-      console.log(`✅ [${requestId}] === ADDRESS SWITCH COMPLETED SUCCESSFULLY ===`);
-    } catch (error) {
-      console.error(`💥 [${requestId}] === ADDRESS SWITCH ERROR ===`);
-      console.error(`❌ [${requestId}] Error Details:`, {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        addressId: address.id,
-        userId: user?.id,
-        address: address
-      });
-      toast.error('Failed to set active address');
-    }
-  };
-
-  const handleAddressDelete = async (addressId: string) => {
-    try {
-      await AddressService.deleteAddress(addressId);
-      toast.success('Address deleted successfully!');
-      
-      // If deleted address was active, clear active state from backend and localStorage
-      if (activeAddressId === addressId) {
-        if (user?.id) {
-          try {
-            await AddressService.setActiveAddress(user.id, null);
-          } catch (error) {
-            console.error('Error clearing active address from backend:', error);
-          }
-        }
-        setActiveAddressId(null);
-        localStorage.removeItem('selected_address');
-      }
-      
-      // Reload addresses
-      await loadSavedAddresses();
-    } catch (error) {
-      console.error('Error deleting address:', error);
-      toast.error('Failed to delete address');
-    }
-  };
-
-  const handleSetDefault = async (addressId: string) => {
-    try {
-      await AddressService.setDefaultAddress(addressId);
-      toast.success('Default address updated!');
-      // Reload addresses to reflect the change
-      await loadSavedAddresses();
-    } catch (error) {
-      console.error('Error setting default address:', error);
-      toast.error('Failed to set default address');
-    }
-  };
-
-  const handleAddressUpdate = async (updatedAddress: any) => {
-    try {
-      const response = await AddressService.updateAddress(updatedAddress.id, {
-        address_type: updatedAddress.address_type,
-        notes: updatedAddress.notes,
-      });
-      
-      if (response.success) {
-        toast.success('Address updated successfully!');
-        setEditingAddress(null);
-        // Reload addresses to show the changes
-        await loadSavedAddresses();
-      } else {
-        throw new Error(response.error || 'Failed to update address');
-      }
-    } catch (error) {
-      console.error('Error updating address:', error);
-      toast.error('Failed to update address');
     }
   };
 
@@ -418,172 +333,96 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
             fullPage={true}
           />
 
-          {/* Manage Addresses Section */}
-          <div className="mt-6">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">Manage Addresses</h4>
-            
-            {isLoadingAddresses ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
-                <span className="ml-2 text-gray-600">Loading addresses...</span>
-              </div>
-            ) : savedAddresses.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                </svg>
-                <p>No saved addresses yet</p>
-                <p className="text-sm">Search and save an address above to get started</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {savedAddresses.map((address) => (
-                  <div
-                    key={address.id}
-                    className={`p-4 rounded-lg border transition-all ${
-                      activeAddressId === address.id
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+          {/* Manage Address Section */}
+          {user?.id && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Address</h3>
+              
+              {isLoadingAddresses ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
+                  <span className="ml-2 text-gray-600">Loading addresses...</span>
+                </div>
+              ) : userAddresses.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No saved addresses found.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {userAddresses.map((address) => (
+                    <div
+                      key={address.id}
+                      className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">
                             {address.formatted_address}
                           </p>
-                          {activeAddressId === address.id && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Active
+                          {address.address_type && (
+                            <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full mt-1">
+                              {address.address_type}
                             </span>
                           )}
                           {address.is_default && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full mt-1 ml-2">
                               Default
                             </span>
                           )}
+                          {activeAddressId === address.id && (
+                            <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full mt-1 ml-2">
+                              Active
+                            </span>
+                          )}
+                          {address.notes && (
+                            <p className="text-sm text-gray-600 mt-1">{address.notes}</p>
+                          )}
                         </div>
-                        <p className="text-xs text-gray-500 capitalize">
-                          {address.address_type} address
-                        </p>
+                        <div className="flex items-center space-x-2 ml-4">
+                          <button
+                            onClick={() => handleSetActiveAddress(address.id)}
+                            disabled={settingActiveId === address.id || activeAddressId === address.id}
+                            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              activeAddressId === address.id
+                                ? 'text-purple-600 bg-purple-50 border border-purple-200'
+                                : 'text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+                            }`}
+                          >
+                            {settingActiveId === address.id ? (
+                              <div className="flex items-center">
+                                <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></div>
+                                Setting...
+                              </div>
+                            ) : activeAddressId === address.id ? (
+                              'Currently Active'
+                            ) : (
+                              'Set as Active'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAddress(address.id)}
+                            disabled={deletingAddressId === address.id}
+                            className="px-3 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {deletingAddressId === address.id ? (
+                              <div className="flex items-center">
+                                <div className="animate-spin rounded-full h-3 w-3 border-b border-red-600 mr-1"></div>
+                                Deleting...
+                              </div>
+                            ) : (
+                              'Delete'
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="mt-3 flex items-center space-x-2">
-                      {activeAddressId !== address.id && (
-                        <button
-                          onClick={() => handleAddressSwitch(address)}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
-                        >
-                          <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                          </svg>
-                          Switch
-                        </button>
-                      )}
-                      
-                      {!address.is_default && (
-                        <button
-                          onClick={() => handleSetDefault(address.id)}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
-                        >
-                          <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-                          </svg>
-                          Set Default
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => setEditingAddress(address)}
-                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                        </svg>
-                        Edit
-                      </button>
-                      
-                      <button
-                        onClick={() => handleAddressDelete(address.id)}
-                        className="inline-flex items-center px-3 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                        </svg>
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Edit Address Modal */}
-          {editingAddress && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Address</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Address Type
-                    </label>
-                    <select
-                      value={editingAddress.address_type}
-                      onChange={(e) => setEditingAddress({
-                        ...editingAddress,
-                        address_type: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
-                    >
-                      <option value="home">Home</option>
-                      <option value="work">Work</option>
-                      <option value="billing">Billing</option>
-                      <option value="shipping">Shipping</option>
-                      <option value="pickup">Pickup</option>
-                      <option value="delivery">Delivery</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Notes (Optional)
-                    </label>
-                    <textarea
-                      value={editingAddress.notes || ''}
-                      onChange={(e) => setEditingAddress({
-                        ...editingAddress,
-                        notes: e.target.value
-                      })}
-                      placeholder="Delivery instructions, landmarks, etc."
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
-                    />
-                  </div>
+                  ))}
                 </div>
-                
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={() => setEditingAddress(null)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleAddressUpdate(editingAddress)}
-                    className="px-4 py-2 text-sm font-medium text-white bg-black border border-transparent rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           )}
+
+
         </div>
       </div>
     </div>
@@ -612,101 +451,83 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Load persisted address on component mount
-  useEffect(() => {
-    const loadPersistedAddress = async () => {
-      try {
-        // First, try to get from localStorage for immediate display
-        const localAddress = localStorage.getItem('selected_address');
-        if (localAddress) {
-          try {
-            const parsedAddress = JSON.parse(localAddress);
-            setSelectedLocation(parsedAddress);
-          } catch (error) {
-            console.warn('Failed to parse stored address:', error);
-          }
-        }
+  // Load address from backend only
+  const loadAddressFromBackend = useCallback(async () => {
+    if (!user?.id) {
+      setIsLoadingAddress(false);
+      return;
+    }
 
-        // Then, fetch user's active address from backend (persistent)
-        if (user?.id) {
-          try {
-            const activeAddressResponse = await AddressService.getActiveAddress(user.id);
-            if (activeAddressResponse.success && activeAddressResponse.address) {
-              const activeAddress = activeAddressResponse.address;
-              
-              // Convert API address back to Google Places format for display
-              const googlePlaceFormat: google.maps.places.PlaceResult = {
-                formatted_address: activeAddress.formatted_address,
-                place_id: activeAddress.google_place_id,
-                name: activeAddress.formatted_address,
-                geometry: activeAddress.latitude && activeAddress.longitude ? {
-                  location: {
-                    lat: () => activeAddress.latitude,
-                    lng: () => activeAddress.longitude
-                  } as google.maps.LatLng
-                } : undefined
-              };
-              
-              setSelectedLocation(googlePlaceFormat);
-              // Update localStorage for backward compatibility
-              localStorage.setItem('selected_address', JSON.stringify(googlePlaceFormat));
-              return; // Exit early, we have the active address
-            }
-          } catch (error) {
-            console.error('Error loading active address:', error);
-          }
-        }
-
-        // Fallback: fetch user's addresses and use default or first one
-        const response = await AddressService.getUserAddresses();
-        if (response.success && response.addresses && response.addresses.length > 0) {
-          // Find default address or use the first one
-          const defaultAddress = response.addresses.find((addr: any) => addr.is_default) || response.addresses[0];
-          
-          if (defaultAddress) {
-            // Convert API address back to Google Places format for display
-            const googlePlaceFormat: google.maps.places.PlaceResult = {
-              formatted_address: defaultAddress.formatted_address,
-              place_id: defaultAddress.google_place_id,
-              name: defaultAddress.formatted_address,
-              geometry: defaultAddress.latitude && defaultAddress.longitude ? {
-                location: {
-                  lat: () => defaultAddress.latitude,
-                  lng: () => defaultAddress.longitude
-                } as google.maps.LatLng
-              } : undefined
-            };
-            
-            setSelectedLocation(googlePlaceFormat);
-            // Update localStorage with the fetched address
-            localStorage.setItem('selected_address', JSON.stringify(googlePlaceFormat));
-            
-            // If user is authenticated, set this as active address in backend
-            if (user?.id) {
-              try {
-                await AddressService.setActiveAddress(user.id, defaultAddress.id);
-                console.log('Set default address as active in backend');
-              } catch (error) {
-                console.error('Error setting default address as active:', error);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error loading persisted address:', error);
-      } finally {
-        setIsLoadingAddress(false);
+    try {
+      // First, try to get user's active address from backend
+      const activeAddressResponse = await AddressService.getActiveAddress(user.id);
+      if (activeAddressResponse.success && activeAddressResponse.address) {
+        const activeAddress = activeAddressResponse.address;
+        
+        // Convert API address back to Google Places format for display
+        const googlePlaceFormat: google.maps.places.PlaceResult = {
+          formatted_address: activeAddress.formatted_address,
+          place_id: activeAddress.google_place_id,
+          name: activeAddress.formatted_address,
+          geometry: activeAddress.latitude && activeAddress.longitude ? {
+            location: {
+              lat: () => activeAddress.latitude,
+              lng: () => activeAddress.longitude
+            } as google.maps.LatLng
+          } : undefined
+        };
+        
+        setSelectedLocation(googlePlaceFormat);
+        return; // Exit early, we have the active address
       }
-    };
 
-    loadPersistedAddress();
+      // Fallback: fetch user's addresses and use default or latest one
+      const response = await AddressService.getUserAddresses(user.id);
+      if (response.success && response.addresses && response.addresses.length > 0) {
+        // Find default address or use the most recent one (latest saved)
+        const defaultAddress = response.addresses.find((addr: any) => addr.is_default) || 
+                              response.addresses.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+        
+        if (defaultAddress) {
+          // Convert API address back to Google Places format for display
+          const googlePlaceFormat: google.maps.places.PlaceResult = {
+            formatted_address: defaultAddress.formatted_address,
+            place_id: defaultAddress.google_place_id,
+            name: defaultAddress.formatted_address,
+            geometry: defaultAddress.latitude && defaultAddress.longitude ? {
+              location: {
+                lat: () => defaultAddress.latitude,
+                lng: () => defaultAddress.longitude
+              } as google.maps.LatLng
+            } : undefined
+          };
+          
+          setSelectedLocation(googlePlaceFormat);
+        }
+      } else {
+        // No addresses found - reset selected location
+        setSelectedLocation(null);
+      }
+    } catch (error) {
+      console.error('Error loading address from backend:', error);
+      setSelectedLocation(null);
+    } finally {
+      setIsLoadingAddress(false);
+    }
   }, [user?.id]);
+
+  useEffect(() => {
+    loadAddressFromBackend();
+  }, [loadAddressFromBackend]);
 
   const handleLocationSelect = (location: google.maps.places.PlaceResult) => {
     setSelectedLocation(location);
-    // Persist to localStorage immediately
-    localStorage.setItem('selected_address', JSON.stringify(location));
     onLocationSelect?.(location);
+  };
+
+  const handleAddressesChanged = () => {
+    // Reload the address when addresses are modified
+    loadAddressFromBackend();
   };
 
   const handleClick = () => {
@@ -733,6 +554,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onLocationSelect={handleLocationSelect}
+        onAddressesChanged={handleAddressesChanged}
       />
     </>
   );
