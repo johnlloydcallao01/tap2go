@@ -25,8 +25,9 @@ export const Users: CollectionConfig = {
     read: () => true, // Allow reading user data
     create: adminOnly, // Only admins can create users
     update: ({ req: { user } }) => {
-      // Users can update their own data, admins can update any
-      if (user?.role === 'admin') return true;
+      // Service accounts, admins, and users can update data
+      if (user?.role === 'admin' || user?.role === 'service') return true;
+      // Users can update their own data
       return { id: { equals: user?.id } };
     },
     delete: adminOnly, // Only admins can delete users

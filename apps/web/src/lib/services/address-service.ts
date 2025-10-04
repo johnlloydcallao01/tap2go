@@ -222,7 +222,7 @@ export class AddressService {
 
   // === ACTIVE ADDRESS MANAGEMENT ===
   
-  // Set user's active address (truly persistent)
+  // Set user's active address (truly persistent) - Using standard PayloadCMS user update
   static async setActiveAddress(userId: string | number, addressId: string | number | null): Promise<AddressResponse> {
     const requestId = Math.random().toString(36).substr(2, 9);
     console.log(`🔄 [${requestId}] === SET ACTIVE ADDRESS REQUEST STARTED ===`);
@@ -231,7 +231,7 @@ export class AddressService {
       addressId,
       userIdType: typeof userId,
       addressIdType: typeof addressId,
-      endpoint: `/api/users/${userId}/active-address`
+      endpoint: `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}`
     });
 
     try {
@@ -242,11 +242,11 @@ export class AddressService {
         authPreview: headers['Authorization'] ? `${headers['Authorization'].substring(0, 20)}...` : 'None'
       });
 
-      const requestBody = { addressId };
+      const requestBody = { activeAddress: addressId };
       console.log(`📦 [${requestId}] Request Body:`, requestBody);
 
       const startTime = Date.now();
-      const response = await fetch(`/api/users/${userId}/active-address`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${userId}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify(requestBody),
@@ -262,7 +262,7 @@ export class AddressService {
         headers: Object.fromEntries(response.headers.entries())
       });
 
-      let data: AddressResponse;
+      let data: any;
       try {
         data = await response.json();
         console.log(`📄 [${requestId}] Response Data:`, data);
@@ -277,14 +277,18 @@ export class AddressService {
         console.error(`❌ [${requestId}] Request failed:`, {
           status: response.status,
           statusText: response.statusText,
-          error: data.error,
+          error: data.error || data.errors,
           data
         });
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        throw new Error(data.error || data.errors?.[0]?.message || `HTTP error! status: ${response.status}`);
       }
 
       console.log(`✅ [${requestId}] === SET ACTIVE ADDRESS SUCCESS ===`);
-      return data;
+      return { 
+        success: true, 
+        message: 'Active address updated successfully',
+        address: data.activeAddress 
+      };
     } catch (error) {
       console.error(`💥 [${requestId}] === SET ACTIVE ADDRESS ERROR ===`);
       console.error(`❌ [${requestId}] Error Details:`, {
@@ -298,24 +302,47 @@ export class AddressService {
     }
   }
 
-  // Get user's active address (from database, not localStorage)
+  // Get user's active address (from database, not localStorage) - Using standard PayloadCMS user endpoint
   static async getActiveAddress(userId: string | number): Promise<AddressResponse> {
     try {
-      const response = await fetch(`/api/users/${userId}/active-address`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${userId}`, {
         method: 'GET',
         headers: this.getHeaders(),
       });
 
       if (!response.ok) {
         if (response.status === 404) {
-          return { success: true, address: null }; // User has no active address
+          return { success: true, address: null }; // User not found
         }
-        const data: AddressResponse = await response.json();
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        throw new Error(data.error || data.errors?.[0]?.message || `HTTP error! status: ${response.status}`);
       }
 
-      const data: AddressResponse = await response.json();
-      return data;
+      const userData = await response.json();
+      
+      // If user has an active address, fetch the full address details
+      if (userData.activeAddress) {
+        try {
+          const addressResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/addresses/${userData.activeAddress}`, {
+            method: 'GET',
+            headers: this.getHeaders(),
+          });
+
+          if (addressResponse.ok) {
+            const addressData = await addressResponse.json();
+            return { success: true, address: addressData };
+          } else {
+            // Active address reference exists but address not found, clear it
+            console.warn(`Active address ${userData.activeAddress} not found, clearing reference`);
+            return { success: true, address: null };
+          }
+        } catch (error) {
+          console.error('Error fetching active address details:', error);
+          return { success: true, address: null };
+        }
+      }
+
+      return { success: true, address: null }; // User has no active address
     } catch (error) {
       console.error('Error getting active address:', error);
       throw error;
