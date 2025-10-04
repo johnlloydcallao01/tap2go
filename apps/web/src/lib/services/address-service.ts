@@ -6,7 +6,7 @@
 
 interface AddressCreateRequest {
   place: google.maps.places.PlaceResult;
-  address_type?: 'home' | 'work' | 'other';
+  address_type?: 'home' | 'work' | 'billing' | 'shipping' | 'pickup' | 'delivery';
   is_default?: boolean;
   notes?: string;
 }
@@ -76,17 +76,42 @@ export class AddressService {
       console.log('📡 API Response status:', response.status);
       console.log('📡 API Response ok:', response.ok);
 
-      const data: AddressResponse = await response.json();
-      console.log('📋 API Response data:', data);
-
       if (!response.ok) {
+        // Handle error response more robustly
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        let errorDetails = null;
+        
+        try {
+          const errorData = await response.json();
+          console.log('📋 Error response data:', errorData);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+          errorDetails = errorData.details || errorData;
+        } catch (parseError) {
+          console.warn('⚠️ Failed to parse error response as JSON:', parseError);
+          // Try to get response as text
+          try {
+            const errorText = await response.text();
+            console.log('📋 Error response text:', errorText);
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          } catch (textError) {
+            console.warn('⚠️ Failed to get error response as text:', textError);
+          }
+        }
+
         console.error('❌ Address save failed:', {
           status: response.status,
-          error: data.error,
-          details: data.details
+          statusText: response.statusText,
+          error: errorMessage,
+          details: errorDetails
         });
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        
+        throw new Error(errorMessage);
       }
+
+      const data: AddressResponse = await response.json();
+      console.log('📋 API Response data:', data);
 
       console.log('✅ Address saved successfully');
       return data;

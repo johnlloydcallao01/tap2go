@@ -78,9 +78,13 @@ export async function POST(request: NextRequest) {
       formatted_address: place.formatted_address || '',
       google_place_id: place.place_id || '',
       
-      // Geolocation
-      latitude: place.geometry?.location?.lat(),
-      longitude: place.geometry?.location?.lng(),
+      // Geolocation - Handle both function-based and direct property access
+      latitude: typeof place.geometry?.location?.lat === 'function' 
+        ? place.geometry.location.lat() 
+        : (place.geometry?.location?.lat as number | undefined),
+      longitude: typeof place.geometry?.location?.lng === 'function' 
+        ? place.geometry.location.lng() 
+        : (place.geometry?.location?.lng as number | undefined),
       
       // Metadata
       address_type,

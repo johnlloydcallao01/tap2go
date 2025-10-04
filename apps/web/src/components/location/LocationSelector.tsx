@@ -67,7 +67,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
       // Save the address to the database
       const response = await AddressService.saveAddress({
         place,
-        address_type: 'other', // Default type
+        address_type: 'home', // Default type - using valid PayloadCMS value
         is_default: false, // User can set default later
       });
 
