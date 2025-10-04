@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { adminOnly, instructorOrAbove } from '../access'
+import { adminOnly } from '../access'
 
 export const EmergencyContacts: CollectionConfig = {
   slug: 'emergency-contacts',
@@ -8,7 +8,7 @@ export const EmergencyContacts: CollectionConfig = {
     defaultColumns: ['user', 'firstName', 'lastName', 'contactNumber', 'relationship'],
   },
   access: {
-    read: instructorOrAbove, // Instructors and admins can read emergency contacts
+    read: adminOnly, // Only admins can read emergency contacts
     create: adminOnly, // Only admins can create emergency contacts
     update: adminOnly, // Only admins can update emergency contacts
     delete: adminOnly, // Only admins can delete emergency contacts

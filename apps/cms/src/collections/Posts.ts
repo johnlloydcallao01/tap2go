@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { blogContentFields } from '../fields'
-import { instructorOrAbove, adminOnly } from '../access'
+import { adminOnly } from '../access'
 
 export const Posts: CollectionConfig = {
   slug: 'posts',
@@ -11,8 +11,8 @@ export const Posts: CollectionConfig = {
   },
   access: {
     read: () => true, // Public can read published posts
-    create: instructorOrAbove, // Instructors and admins can create posts
-    update: instructorOrAbove, // Instructors and admins can update posts
+    create: adminOnly, // Only admins can create posts
+    update: adminOnly, // Only admins can update posts
     delete: adminOnly, // Only admins can delete posts
   },
   fields: blogContentFields,

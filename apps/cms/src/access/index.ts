@@ -1,10 +1,9 @@
-import type { Access, FieldAccess, AccessArgs } from 'payload'
+import type { Access, FieldAccess } from 'payload'
 
 // LMS role hierarchy levels
 export const ROLE_LEVELS = {
   CUSTOMER: 1,
-  SERVICE: 3, // Step 2: Add service account role level (between customer and instructor)
-  INSTRUCTOR: 5,
+  SERVICE: 3, // Step 2: Add service account role level (between customer and admin)
   ADMIN: 10,
 } as const
 
@@ -12,7 +11,6 @@ export const ROLE_LEVELS = {
 export const LEGACY_ROLE_LEVELS = {
   'customer': ROLE_LEVELS.CUSTOMER,
   'service': ROLE_LEVELS.SERVICE, // Step 2: Map service role for API key users
-  'instructor': ROLE_LEVELS.INSTRUCTOR,
   'admin': ROLE_LEVELS.ADMIN,
 } as const
 
@@ -29,13 +27,6 @@ export const hasMinimumRoleLevel = (userRole: string, minimumLevel: number): boo
  */
 export const adminOnly: Access = ({ req: { user } }) => {
   return user?.role === 'admin'
-}
-
-/**
- * Access control for instructors and above
- */
-export const instructorOrAbove: Access = ({ req: { user } }) => {
-  return hasMinimumRoleLevel(user?.role || '', ROLE_LEVELS.INSTRUCTOR)
 }
 
 /**
@@ -108,23 +99,27 @@ export const usersOwnData: Access = ({ req: { user } }) => {
 }
 
 /**
- * Access control for course content
+ * Access control for course content based on user role and enrollment
  */
 export const courseContentAccess: Access = ({ req: { user } }) => {
   if (!user) return false
 
-  // Admins can access all content
+  // Admins can access all course content
   if (user.role === 'admin') {
     return true
   }
 
-  // Instructors can access content they created
-  if (user.role === 'instructor') {
-    return true // Simplified for now
+  // Service accounts can access course content
+  if (user.role === 'service') {
+    return true
   }
 
-  // Customers can only access published content
-  return true // Simplified for now
+  // Customers can access content they're enrolled in
+  return {
+    enrolledUsers: {
+      contains: user.id,
+    },
+  }
 }
 
 /**
@@ -146,7 +141,7 @@ export const mediaAccess: Access = ({ req: { user } }) => {
     return true
   }
 
-  // Instructors and customers can access media
+  // Service accounts and customers can access media
   return true // Simplified for now
 }
 
@@ -159,11 +154,11 @@ export const dynamicRoleAccess = (resource: string, action: string): Access => {
     
     switch (action) {
       case 'create':
-        return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.INSTRUCTOR)
+        return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.SERVICE)
       case 'read':
         return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.CUSTOMER)
       case 'update':
-        return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.INSTRUCTOR)
+        return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.SERVICE)
       case 'delete':
         return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.ADMIN)
       default:
@@ -173,67 +168,17 @@ export const dynamicRoleAccess = (resource: string, action: string): Access => {
 }
 
 /**
- * LMS-specific access patterns
+ * LMS-specific access control
  */
-export const lmsAccess = {
-  // Course management access
-  courseManagement: ({ req: { user } }: AccessArgs) => {
-    if (!user) return false
-
-    // Admins can manage all courses
-    if (user.role === 'admin') {
-      return true
-    }
-
-    // Instructors can manage courses
-    if (user.role === 'instructor') {
-      return true
-    }
-
-    return false
-  },
-
-  // User enrollment access
-  userEnrollment: ({ req: { user } }: AccessArgs) => {
-    if (!user) return false
-
-    // Admins and instructors can manage enrollments
-    if (user.role === 'admin' || user.role === 'instructor') {
-      return true
-    }
-
-    // Customers can see enrollments
-    return true
-  },
-
-  // Grade management access
-  gradeManagement: ({ req: { user } }: AccessArgs) => {
-    if (!user) return false
-
-    // Admins can manage all grades
-    if (user.role === 'admin') {
-      return true
-    }
-
-    // Instructors can manage grades
-    if (user.role === 'instructor') {
-      return true
-    }
-
-    return false
-  },
+export const lmsAccess: Access = ({ req: { user } }) => {
+  if (!user) return false
+  
+  // All authenticated users have basic LMS access
+  return hasMinimumRoleLevel(user.role || '', ROLE_LEVELS.CUSTOMER)
 }
 
 /**
- * Access control for service accounts (API key users)
- * Step 2: Service accounts have read-only access to most collections
- */
-export const serviceAccountAccess: Access = ({ req: { user } }) => {
-  return user?.role === 'service'
-}
-
-/**
- * Access control for service accounts or above (service, instructor, admin)
+ * Access control for service accounts or above (service, admin)
  */
 export const serviceOrAbove: Access = ({ req: { user } }) => {
   return hasMinimumRoleLevel(user?.role || '', ROLE_LEVELS.SERVICE)
@@ -241,9 +186,7 @@ export const serviceOrAbove: Access = ({ req: { user } }) => {
 
 const accessControls = {
   adminOnly,
-  instructorOrAbove,
-  serviceAccountAccess, // Step 2: Add service account access control
-  serviceOrAbove, // Step 2: Add service or above access control
+  serviceOrAbove, // Service or above access control
   authenticatedUsers,
   apiKeyOnly, // API key-only access control
   usersOwnData,

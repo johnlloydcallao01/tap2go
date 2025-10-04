@@ -68,20 +68,6 @@ export const Users: CollectionConfig = {
             });
           }
 
-          // Delete related instructor records
-          const instructors = await payload.find({
-            collection: 'instructors',
-            where: { user: { equals: id } },
-          });
-
-          for (const instructor of instructors.docs) {
-            console.log(`🗑️ Deleting instructor record ${instructor.id}`);
-            await payload.delete({
-              collection: 'instructors',
-              id: instructor.id,
-            });
-          }
-
           // Delete related admin records
           const admins = await payload.find({
             collection: 'admins',
@@ -203,10 +189,6 @@ export const Users: CollectionConfig = {
         {
           label: 'Admin',
           value: 'admin',
-        },
-        {
-          label: 'Instructor',
-          value: 'instructor',
         },
         {
               label: 'Customer',

@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { adminOnly, instructorOrAbove } from '../access'
+import { adminOnly } from '../access'
 
 export const Customers: CollectionConfig = {
   slug: 'customers',
@@ -8,7 +8,7 @@ export const Customers: CollectionConfig = {
     defaultColumns: ['user', 'srn', 'enrollmentDate', 'currentLevel'],
   },
   access: {
-    read: instructorOrAbove, // Instructors and admins can read customer data
+    read: adminOnly, // Only admins can read customer data
     create: adminOnly, // Only admins can create customer records
     update: adminOnly, // Only admins can update customer records
     delete: adminOnly, // Only admins can delete customer records

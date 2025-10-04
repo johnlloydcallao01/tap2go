@@ -68,7 +68,6 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
-    instructors: Instructor;
     customers: Customer;
     admins: Admin;
     'user-events': UserEvent;
@@ -86,7 +85,6 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
-    instructors: InstructorsSelect<false> | InstructorsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     admins: AdminsSelect<false> | AdminsSelect<true>;
     'user-events': UserEventsSelect<false> | UserEventsSelect<true>;
@@ -180,7 +178,7 @@ export interface User {
   /**
    * User role determines access permissions. Service accounts are for API key authentication.
    */
-  role: 'admin' | 'instructor' | 'customer' | 'service';
+  role: 'admin' | 'customer' | 'service';
   /**
    * Inactive users cannot log in
    */
@@ -234,51 +232,6 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "instructors".
- */
-export interface Instructor {
-  id: number;
-  /**
-   * Link to user account
-   */
-  user: number | User;
-  /**
-   * Teaching specialization or subject area
-   */
-  specialization: string;
-  /**
-   * Years of teaching experience
-   */
-  yearsExperience?: number | null;
-  /**
-   * Professional certifications and qualifications
-   */
-  certifications?: string | null;
-  /**
-   * Office hours schedule
-   */
-  officeHours?: string | null;
-  /**
-   * Professional contact email
-   */
-  contactEmail?: string | null;
-  /**
-   * Course management and teaching capabilities
-   */
-  teachingPermissions?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  updatedAt: string;
-  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1543,10 +1496,6 @@ export interface PayloadLockedDocument {
         value: number | User;
       } | null)
     | ({
-        relationTo: 'instructors';
-        value: number | Instructor;
-      } | null)
-    | ({
         relationTo: 'customers';
         value: number | Customer;
       } | null)
@@ -1667,21 +1616,6 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "instructors_select".
- */
-export interface InstructorsSelect<T extends boolean = true> {
-  user?: T;
-  specialization?: T;
-  yearsExperience?: T;
-  certifications?: T;
-  officeHours?: T;
-  contactEmail?: T;
-  teachingPermissions?: T;
-  updatedAt?: T;
-  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

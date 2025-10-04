@@ -13,7 +13,6 @@ import type { PayloadRequest, PayloadHandler } from 'payload'
 // import sharp from 'sharp'
 
 import { Users } from './collections/Users'
-import { Instructors } from './collections/Instructors'
 import { Customers } from './collections/Customers'
 import { Admins } from './collections/Admins'
 import { UserEvents } from './collections/UserEvents'
@@ -41,7 +40,6 @@ export default buildConfig({
   collections: [
     // User Management
     Users,
-    Instructors,
     Customers,
     Admins,
     UserEvents,
