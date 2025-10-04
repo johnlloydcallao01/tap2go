@@ -39,7 +39,9 @@ export class AddressService {
    */
   private static getHeaders(): HeadersInit {
     const token = this.getAuthToken();
+    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
     console.log('📋 Creating headers with token:', token ? 'Token present' : 'No token');
+    console.log('🔑 API key available:', apiKey ? 'Yes' : 'No');
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -47,9 +49,13 @@ export class AddressService {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
-      console.log('✅ Authorization header added');
+      console.log('✅ Authorization header added (Bearer token)');
+    } else if (apiKey) {
+      // Fallback to API key if no user token (same format as MerchantClientService)
+      headers['Authorization'] = `users API-Key ${apiKey}`;
+      console.log('✅ Authorization header added (API Key fallback)');
     } else {
-      console.warn('⚠️ No authorization token available');
+      console.warn('⚠️ No authorization token or API key available');
     }
 
     return headers;

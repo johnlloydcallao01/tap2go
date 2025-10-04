@@ -14,10 +14,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.co
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: { userId: string } }
 ) {
   try {
-    const { userId } = await params;
+    const { userId } = params;
 
     // Get user token from Authorization header
     const authHeader = request.headers.get('authorization');
@@ -69,7 +69,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: { userId: string } }
 ) {
   const requestId = Math.random().toString(36).substr(2, 9);
   const startTime = Date.now();
@@ -77,7 +77,7 @@ export async function PATCH(
   console.log(`🔄 [${requestId}] === PATCH ACTIVE ADDRESS API STARTED ===`);
   
   try {
-    const { userId } = await params;
+    const { userId } = params;
     console.log(`📋 [${requestId}] Route Parameters:`, { userId });
     
     let body;
