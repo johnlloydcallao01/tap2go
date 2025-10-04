@@ -13,9 +13,17 @@ export const Addresses: CollectionConfig = {
     read: ({ req: { user } }) => {
       // If user exists, they've been authenticated (either via API key or login)
       if (user) {
-        // Allow service accounts (for website display) and admins
+        // Allow service accounts and admins to read all addresses
         if (user.role === 'service' || user.role === 'admin') {
           return true
+        }
+        // Allow customers to read their own addresses
+        if (user.role === 'customer') {
+          return {
+            user: {
+              equals: user.id,
+            },
+          }
         }
       }
       
@@ -23,16 +31,44 @@ export const Addresses: CollectionConfig = {
       return false
     },
     create: ({ req: { user } }) => {
-      // Allow both service accounts and admins to create addresses
-      return user?.role === 'service' || user?.role === 'admin' || false
+      // Allow service accounts, admins, and customers to create addresses
+      return user?.role === 'service' || user?.role === 'admin' || user?.role === 'customer' || false
     },
     update: ({ req: { user } }) => {
-      // Allow both service accounts and admins to update addresses
-      return user?.role === 'service' || user?.role === 'admin' || false
+      // If user exists, they've been authenticated
+      if (user) {
+        // Allow service accounts and admins to update all addresses
+        if (user.role === 'service' || user.role === 'admin') {
+          return true
+        }
+        // Allow customers to update their own addresses
+        if (user.role === 'customer') {
+          return {
+            user: {
+              equals: user.id,
+            },
+          }
+        }
+      }
+      return false
     },
     delete: ({ req: { user } }) => {
-      // Allow both service accounts and admins to delete addresses
-      return user?.role === 'service' || user?.role === 'admin' || false
+      // If user exists, they've been authenticated
+      if (user) {
+        // Allow service accounts and admins to delete all addresses
+        if (user.role === 'service' || user.role === 'admin') {
+          return true
+        }
+        // Allow customers to delete their own addresses
+        if (user.role === 'customer') {
+          return {
+            user: {
+              equals: user.id,
+            },
+          }
+        }
+      }
+      return false
     },
   },
   fields: [

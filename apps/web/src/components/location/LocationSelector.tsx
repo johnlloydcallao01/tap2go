@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AddressSearchInput } from '@/components/shared/AddressSearchInput';
+import { AddressService } from '@/lib/services/address-service';
+import { toast } from 'react-hot-toast';
 
 interface LocationSelectorProps {
   onLocationSelect?: (location: google.maps.places.PlaceResult) => void;
@@ -45,6 +47,7 @@ function LocationIcon({ className }: { className?: string }) {
 // Location Modal Component
 function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps) {
   const [isMobile, setIsMobile] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Check if we're on mobile/tablet
   useEffect(() => {
@@ -57,9 +60,34 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  const handleAddressSelect = (place: google.maps.places.PlaceResult) => {
-    onLocationSelect?.(place);
-    onClose();
+  const handleAddressSelect = async (place: google.maps.places.PlaceResult) => {
+    setIsSaving(true);
+    
+    try {
+      // Save the address to the database
+      const response = await AddressService.saveAddress({
+        place,
+        address_type: 'other', // Default type
+        is_default: false, // User can set default later
+      });
+
+      if (response.success) {
+        toast.success('Address saved successfully!');
+        onLocationSelect?.(place);
+        onClose();
+      } else {
+        throw new Error(response.error || 'Failed to save address');
+      }
+    } catch (error) {
+      console.error('Error saving address:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save address');
+      
+      // Still allow the UI to update even if saving fails
+      onLocationSelect?.(place);
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Handle click outside to close modal (desktop only)
@@ -175,6 +203,12 @@ function LocationModal({ isOpen, onClose, onLocationSelect }: LocationModalProps
 
         {/* Search Section */}
         <div className={`${isMobile ? 'px-4 py-4 flex-1 overflow-y-auto' : 'px-6 py-4 flex-1 overflow-y-auto max-h-96'}`}>
+          {isSaving && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <span className="text-sm text-blue-700">Saving address...</span>
+            </div>
+          )}
           <AddressSearchInput
             placeholder="Search for an address"
             onAddressSelect={handleAddressSelect}
