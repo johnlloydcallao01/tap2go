@@ -178,7 +178,7 @@ export interface User {
   /**
    * User role determines access permissions. Service accounts are for API key authentication.
    */
-  role: 'admin' | 'customer' | 'service';
+  role: 'admin' | 'customer' | 'service' | 'vendor';
   /**
    * Inactive users cannot log in
    */

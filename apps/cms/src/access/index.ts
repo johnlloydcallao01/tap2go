@@ -99,30 +99,6 @@ export const usersOwnData: Access = ({ req: { user } }) => {
 }
 
 /**
- * Access control for course content based on user role and enrollment
- */
-export const courseContentAccess: Access = ({ req: { user } }) => {
-  if (!user) return false
-
-  // Admins can access all course content
-  if (user.role === 'admin') {
-    return true
-  }
-
-  // Service accounts can access course content
-  if (user.role === 'service') {
-    return true
-  }
-
-  // Customers can access content they're enrolled in
-  return {
-    enrolledUsers: {
-      contains: user.id,
-    },
-  }
-}
-
-/**
  * Field access for sensitive data
  */
 export const sensitiveData: FieldAccess = ({ req: { user } }) => {
@@ -190,7 +166,6 @@ const accessControls = {
   authenticatedUsers,
   apiKeyOnly, // API key-only access control
   usersOwnData,
-  courseContentAccess,
   sensitiveData,
   mediaAccess,
   dynamicRoleAccess,

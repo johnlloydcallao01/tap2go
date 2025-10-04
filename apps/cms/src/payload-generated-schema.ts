@@ -77,19 +77,7 @@ export const enum__posts_v_version_status = pgEnum('enum__posts_v_version_status
   'draft',
   'published',
 ])
-export const enum_courses_difficulty_level = pgEnum('enum_courses_difficulty_level', [
-  'beginner',
-  'intermediate',
-  'advanced',
-])
-export const enum_courses_language = pgEnum('enum_courses_language', ['en', 'es', 'fr', 'de'])
-export const enum_courses_status = pgEnum('enum_courses_status', ['draft', 'published'])
-export const enum_course_categories_category_type = pgEnum('enum_course_categories_category_type', [
-  'course',
-  'skill',
-  'topic',
-  'industry',
-])
+
 export const enum_vendors_business_type = pgEnum('enum_vendors_business_type', [
   'restaurant',
   'fast_food',
@@ -547,114 +535,7 @@ export const _posts_v = pgTable(
   }),
 )
 
-export const courses = pgTable(
-  'courses',
-  {
-    id: serial('id').primaryKey(),
-    title: varchar('title').notNull(),
-    courseCode: varchar('course_code').notNull(),
-    excerpt: varchar('excerpt'),
-    description: jsonb('description'),
-    instructor: integer('instructor_id')
-      .notNull()
-      .references(() => instructors.id, {
-        onDelete: 'set null',
-      }),
-    category: integer('category_id').references(() => course_categories.id, {
-      onDelete: 'set null',
-    }),
-    thumbnail: integer('thumbnail_id').references(() => media.id, {
-      onDelete: 'set null',
-    }),
-    bannerImage: integer('banner_image_id').references(() => media.id, {
-      onDelete: 'set null',
-    }),
-    price: numeric('price').default('0'),
-    discountedPrice: numeric('discounted_price'),
-    maxStudents: numeric('max_students'),
-    enrollmentStartDate: timestamp('enrollment_start_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }),
-    enrollmentEndDate: timestamp('enrollment_end_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }),
-    courseStartDate: timestamp('course_start_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }),
-    courseEndDate: timestamp('course_end_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }),
-    estimatedDuration: numeric('estimated_duration'),
-    difficultyLevel: enum_courses_difficulty_level('difficulty_level').default('beginner'),
-    language: enum_courses_language('language').default('en'),
-    passingGrade: numeric('passing_grade').default('70'),
-    prerequisites: jsonb('prerequisites'),
-    status: enum_courses_status('status').notNull().default('draft'),
-    publishedAt: timestamp('published_at', { mode: 'string', withTimezone: true, precision: 3 }),
-    settings: jsonb('settings'),
-    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
-      .defaultNow()
-      .notNull(),
-    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
-      .defaultNow()
-      .notNull(),
-  },
-  (columns) => ({
-    courses_course_code_idx: uniqueIndex('courses_course_code_idx').on(columns.courseCode),
-    courses_instructor_idx: index('courses_instructor_idx').on(columns.instructor),
-    courses_category_idx: index('courses_category_idx').on(columns.category),
-    courses_thumbnail_idx: index('courses_thumbnail_idx').on(columns.thumbnail),
-    courses_banner_image_idx: index('courses_banner_image_idx').on(columns.bannerImage),
-    courses_updated_at_idx: index('courses_updated_at_idx').on(columns.updatedAt),
-    courses_created_at_idx: index('courses_created_at_idx').on(columns.createdAt),
-  }),
-)
 
-export const course_categories = pgTable(
-  'course_categories',
-  {
-    id: serial('id').primaryKey(),
-    name: varchar('name').notNull(),
-    slug: varchar('slug').notNull(),
-    description: varchar('description'),
-    parent: integer('parent_id').references((): AnyPgColumn => course_categories.id, {
-      onDelete: 'set null',
-    }),
-    categoryType: enum_course_categories_category_type('category_type').notNull().default('course'),
-    icon: integer('icon_id').references(() => media.id, {
-      onDelete: 'set null',
-    }),
-    colorCode: varchar('color_code'),
-    displayOrder: numeric('display_order').default('0'),
-    isActive: boolean('is_active').default(true),
-    metadata: jsonb('metadata'),
-    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
-      .defaultNow()
-      .notNull(),
-    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
-      .defaultNow()
-      .notNull(),
-  },
-  (columns) => ({
-    course_categories_slug_idx: uniqueIndex('course_categories_slug_idx').on(columns.slug),
-    course_categories_parent_idx: index('course_categories_parent_idx').on(columns.parent),
-    course_categories_icon_idx: index('course_categories_icon_idx').on(columns.icon),
-    course_categories_updated_at_idx: index('course_categories_updated_at_idx').on(
-      columns.updatedAt,
-    ),
-    course_categories_created_at_idx: index('course_categories_created_at_idx').on(
-      columns.createdAt,
-    ),
-  }),
-)
 
 export const vendors = pgTable(
   'vendors',
@@ -1167,8 +1048,6 @@ export const payload_locked_documents_rels = pgTable(
     'emergency-contactsID': integer('emergency_contacts_id'),
     mediaID: integer('media_id'),
     postsID: integer('posts_id'),
-    coursesID: integer('courses_id'),
-    'course-categoriesID': integer('course_categories_id'),
     vendorsID: integer('vendors_id'),
     merchantsID: integer('merchants_id'),
     'product-categoriesID': integer('prod_categories_id'),
@@ -1202,12 +1081,6 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_posts_id_idx: index(
       'payload_locked_documents_rels_posts_id_idx',
     ).on(columns.postsID),
-    payload_locked_documents_rels_courses_id_idx: index(
-      'payload_locked_documents_rels_courses_id_idx',
-    ).on(columns.coursesID),
-    payload_locked_documents_rels_course_categories_id_idx: index(
-      'payload_locked_documents_rels_course_categories_id_idx',
-    ).on(columns['course-categoriesID']),
     payload_locked_documents_rels_vendors_id_idx: index(
       'payload_locked_documents_rels_vendors_id_idx',
     ).on(columns.vendorsID),
@@ -1264,16 +1137,6 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns['postsID']],
       foreignColumns: [posts.id],
       name: 'payload_locked_documents_rels_posts_fk',
-    }).onDelete('cascade'),
-    coursesIdFk: foreignKey({
-      columns: [columns['coursesID']],
-      foreignColumns: [courses.id],
-      name: 'payload_locked_documents_rels_courses_fk',
-    }).onDelete('cascade'),
-    'course-categoriesIdFk': foreignKey({
-      columns: [columns['course-categoriesID']],
-      foreignColumns: [course_categories.id],
-      name: 'payload_locked_documents_rels_course_categories_fk',
     }).onDelete('cascade'),
     vendorsIdFk: foreignKey({
       columns: [columns['vendorsID']],
@@ -1481,40 +1344,7 @@ export const relations__posts_v = relations(_posts_v, ({ one, many }) => ({
     relationName: 'version_author',
   }),
 }))
-export const relations_courses = relations(courses, ({ one }) => ({
-  instructor: one(instructors, {
-    fields: [courses.instructor],
-    references: [instructors.id],
-    relationName: 'instructor',
-  }),
-  category: one(course_categories, {
-    fields: [courses.category],
-    references: [course_categories.id],
-    relationName: 'category',
-  }),
-  thumbnail: one(media, {
-    fields: [courses.thumbnail],
-    references: [media.id],
-    relationName: 'thumbnail',
-  }),
-  bannerImage: one(media, {
-    fields: [courses.bannerImage],
-    references: [media.id],
-    relationName: 'bannerImage',
-  }),
-}))
-export const relations_course_categories = relations(course_categories, ({ one }) => ({
-  parent: one(course_categories, {
-    fields: [course_categories.parent],
-    references: [course_categories.id],
-    relationName: 'parent',
-  }),
-  icon: one(media, {
-    fields: [course_categories.icon],
-    references: [media.id],
-    relationName: 'icon',
-  }),
-}))
+
 export const relations_vendors = relations(vendors, ({ one }) => ({
   businessLicense: one(media, {
     fields: [vendors.businessLicense],
@@ -1695,16 +1525,6 @@ export const relations_payload_locked_documents_rels = relations(
       references: [posts.id],
       relationName: 'posts',
     }),
-    coursesID: one(courses, {
-      fields: [payload_locked_documents_rels.coursesID],
-      references: [courses.id],
-      relationName: 'courses',
-    }),
-    'course-categoriesID': one(course_categories, {
-      fields: [payload_locked_documents_rels['course-categoriesID']],
-      references: [course_categories.id],
-      relationName: 'course-categories',
-    }),
     vendorsID: one(vendors, {
       fields: [payload_locked_documents_rels.vendorsID],
       references: [vendors.id],
@@ -1767,10 +1587,6 @@ type DatabaseSchema = {
   enum_emergency_contacts_relationship: typeof enum_emergency_contacts_relationship
   enum_posts_status: typeof enum_posts_status
   enum__posts_v_version_status: typeof enum__posts_v_version_status
-  enum_courses_difficulty_level: typeof enum_courses_difficulty_level
-  enum_courses_language: typeof enum_courses_language
-  enum_courses_status: typeof enum_courses_status
-  enum_course_categories_category_type: typeof enum_course_categories_category_type
   enum_vendors_business_type: typeof enum_vendors_business_type
   enum_vendors_verification_status: typeof enum_vendors_verification_status
   enum_merchants_operational_status: typeof enum_merchants_operational_status
@@ -1790,8 +1606,6 @@ type DatabaseSchema = {
   posts: typeof posts
   _posts_v_version_tags: typeof _posts_v_version_tags
   _posts_v: typeof _posts_v
-  courses: typeof courses
-  course_categories: typeof course_categories
   vendors: typeof vendors
   merchants: typeof merchants
   prod_categories: typeof prod_categories
@@ -1817,8 +1631,6 @@ type DatabaseSchema = {
   relations_posts: typeof relations_posts
   relations__posts_v_version_tags: typeof relations__posts_v_version_tags
   relations__posts_v: typeof relations__posts_v
-  relations_courses: typeof relations_courses
-  relations_course_categories: typeof relations_course_categories
   relations_vendors: typeof relations_vendors
   relations_merchants: typeof relations_merchants
   relations_prod_categories: typeof relations_prod_categories

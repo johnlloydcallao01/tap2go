@@ -2,11 +2,7 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
 
 export async function up({ db }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
-    -- Drop the only existing array table
-    DROP TABLE IF EXISTS "courses_prerequisites" CASCADE;
-    
     -- Add JSON columns for all converted array fields
-    ALTER TABLE "courses" ADD COLUMN "prerequisites" jsonb;
     ALTER TABLE "vendors" ADD COLUMN "cuisine_types" jsonb;
     ALTER TABLE "merchants" ADD COLUMN "special_hours" jsonb;
     ALTER TABLE "merchants" ADD COLUMN "media_interior_images" jsonb;
@@ -33,7 +29,6 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
 export async function down({ db }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
     -- Remove JSON columns
-    ALTER TABLE "courses" DROP COLUMN IF EXISTS "prerequisites";
     ALTER TABLE "vendors" DROP COLUMN IF EXISTS "cuisine_types";
     ALTER TABLE "merchants" DROP COLUMN IF EXISTS "special_hours";
     ALTER TABLE "merchants" DROP COLUMN IF EXISTS "media_interior_images";
@@ -54,15 +49,5 @@ export async function down({ db }: MigrateDownArgs): Promise<void> {
     CREATE TYPE "public"."enum_prod_categories_attributes_dietary_tags_tag" AS ENUM('vegetarian', 'vegan', 'gluten_free', 'halal', 'kosher', 'organic', 'low_carb', 'keto', 'dairy_free', 'nut_free', 'spicy', 'healthy');
     CREATE TYPE "public"."enum_prod_categories_availability_seasonal_availability_season" AS ENUM('spring', 'summer', 'fall', 'winter', 'holiday', 'special');
     CREATE TYPE "public"."enum_products_dietary_allergens_allergen" AS ENUM('milk', 'eggs', 'fish', 'shellfish', 'tree_nuts', 'peanuts', 'wheat', 'soybeans', 'sesame');
-    
-    -- Recreate the courses_prerequisites table
-    CREATE TABLE "courses_prerequisites" (
-      "_order" integer NOT NULL,
-      "_parent_id" integer NOT NULL,
-      "id" varchar PRIMARY KEY,
-      "prerequisite" varchar
-    );
-    
-    ALTER TABLE "courses_prerequisites" ADD CONSTRAINT "courses_prerequisites_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."courses"("id") ON DELETE cascade ON UPDATE no action;
   `)
 }

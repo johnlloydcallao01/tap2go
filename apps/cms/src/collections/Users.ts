@@ -198,6 +198,10 @@ export const Users: CollectionConfig = {
           label: 'Service Account', // Step 2: Add dedicated role for API key users
           value: 'service',
         },
+        {
+          label: 'Vendor',
+          value: 'vendor',
+        },
       ],
       defaultValue: 'customer',
       required: true,

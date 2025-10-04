@@ -38,26 +38,26 @@ async function testAPIKeyAuth(apiKey, keyType) {
       console.log(`   Error: ${errorText}`);
     }
     
-    // Test 2: Try to access courses
-    console.log('\n📚 Test 2: Accessing courses...');
-    const coursesResponse = await fetch(`${API_BASE}/courses`, {
+    // Test 2: Try to access users
+    console.log('\n👥 Test 2: Accessing users...');
+    const usersResponse = await fetch(`${API_BASE}/users`, {
       headers: {
         'Authorization': `users API-Key ${apiKey}`,
         'Content-Type': 'application/json'
       }
     });
     
-    if (coursesResponse.ok) {
-      const coursesData = await coursesResponse.json();
-      console.log('✅ Courses access successful!');
-      console.log(`   - Total courses: ${coursesData.totalDocs}`);
-      console.log(`   - Courses returned: ${coursesData.docs?.length}`);
-      if (coursesData.docs?.length > 0) {
-        console.log(`   - First course: ${coursesData.docs[0].title}`);
+    if (usersResponse.ok) {
+      const usersData = await usersResponse.json();
+      console.log('✅ Users access successful!');
+      console.log(`   - Total users: ${usersData.totalDocs}`);
+      console.log(`   - Users returned: ${usersData.docs?.length}`);
+      if (usersData.docs?.length > 0) {
+        console.log(`   - First user: ${usersData.docs[0].email}`);
       }
     } else {
-      console.log(`❌ Courses access failed: ${coursesResponse.status} ${coursesResponse.statusText}`);
-      const errorText = await coursesResponse.text();
+      console.log(`❌ Users access failed: ${usersResponse.status} ${usersResponse.statusText}`);
+      const errorText = await usersResponse.text();
       console.log(`   Error: ${errorText}`);
     }
     
@@ -68,14 +68,14 @@ async function testAPIKeyAuth(apiKey, keyType) {
       const userRole = userData.user?.role;
       
       console.log(`   - User role: ${userRole}`);
-      console.log(`   - Expected access for courses:`);
+      console.log(`   - Expected access for users:`);
       
       if (userRole === 'admin') {
-        console.log('     ✅ Admin should have READ access to courses');
+        console.log('     ✅ Admin should have READ access to users');
       } else if (userRole === 'service') {
-        console.log('     ✅ Service should have read access to courses');
+        console.log('     ✅ Service should have READ access to users');
       } else {
-        console.log('     ❌ Other roles should NOT have read access to courses');
+        console.log('     ❌ Other roles should NOT have read access to users');
       }
     }
     
