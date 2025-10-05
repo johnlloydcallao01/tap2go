@@ -17,6 +17,8 @@ import * as migration_20251005_071448 from './20251005_071448';
 import * as migration_20251005_094055 from './20251005_094055';
 import * as migration_20251005_140115 from './20251005_140115';
 import * as migration_20251005_141500_fix_instructor_functions from './20251005_141500_fix_instructor_functions';
+import * as migration_20251005_145823 from './20251005_145823';
+import * as migration_20251005_152445 from './20251005_152445';
 
 export const migrations = [
   {
@@ -107,11 +109,21 @@ export const migrations = [
   {
     up: migration_20251005_140115.up,
     down: migration_20251005_140115.down,
-    name: '20251005_140115'
+    name: '20251005_140115',
   },
   {
     up: migration_20251005_141500_fix_instructor_functions.up,
     down: migration_20251005_141500_fix_instructor_functions.down,
-    name: '20251005_141500_fix_instructor_functions'
+    name: '20251005_141500_fix_instructor_functions',
+  },
+  {
+    up: migration_20251005_145823.up,
+    down: migration_20251005_145823.down,
+    name: '20251005_145823',
+  },
+  {
+    up: migration_20251005_152445.up,
+    down: migration_20251005_152445.down,
+    name: '20251005_152445'
   },
 ];

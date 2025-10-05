@@ -36,6 +36,26 @@ export const Vendors: CollectionConfig = {
     },
   },
   fields: [
+    // === USER RELATIONSHIP ===
+    {
+      name: 'user',
+      type: 'relationship',
+      relationTo: 'users',
+      required: true,
+      filterOptions: ({ relationTo: _relationTo, data: _data }) => {
+        // Only show users with 'vendor' role in the dropdown
+        return {
+          role: {
+            equals: 'vendor',
+          },
+        }
+      },
+      admin: {
+        description: 'User account associated with this vendor (required)',
+        position: 'sidebar',
+      },
+    },
+    
     // === CORE BUSINESS INFORMATION ===
     {
       name: 'businessName',
