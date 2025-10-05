@@ -914,35 +914,6 @@ export interface Merchant {
       | null;
   };
   /**
-   * Regulatory compliance and certifications
-   */
-  compliance?: {
-    /**
-     * Local business permit number
-     */
-    businessPermitNumber?: string | null;
-    /**
-     * Food safety license number
-     */
-    foodSafetyLicense?: string | null;
-    /**
-     * Fire safety permit number
-     */
-    firePermitNumber?: string | null;
-    /**
-     * Sanitary permit number
-     */
-    sanitaryPermitNumber?: string | null;
-    /**
-     * Last health/safety inspection date
-     */
-    lastInspectionDate?: string | null;
-    /**
-     * Latest inspection score
-     */
-    inspectionScore?: number | null;
-  };
-  /**
    * Outlet description and special features
    */
   description?: string | null;
@@ -1946,16 +1917,6 @@ export interface MerchantsSelect<T extends boolean = true> {
         storeFrontImage?: T;
         interiorImages?: T;
         menuImages?: T;
-      };
-  compliance?:
-    | T
-    | {
-        businessPermitNumber?: T;
-        foodSafetyLicense?: T;
-        firePermitNumber?: T;
-        sanitaryPermitNumber?: T;
-        lastInspectionDate?: T;
-        inspectionScore?: T;
       };
   description?: T;
   specialInstructions?: T;

@@ -422,60 +422,7 @@ export const Merchants: CollectionConfig = {
 
 
 
-    // === COMPLIANCE AND CERTIFICATIONS ===
-    {
-      name: 'compliance',
-      type: 'group',
-      fields: [
-        {
-          name: 'businessPermitNumber',
-          type: 'text',
-          admin: {
-            description: 'Local business permit number',
-          },
-        },
-        {
-          name: 'foodSafetyLicense',
-          type: 'text',
-          admin: {
-            description: 'Food safety license number',
-          },
-        },
-        {
-          name: 'firePermitNumber',
-          type: 'text',
-          admin: {
-            description: 'Fire safety permit number',
-          },
-        },
-        {
-          name: 'sanitaryPermitNumber',
-          type: 'text',
-          admin: {
-            description: 'Sanitary permit number',
-          },
-        },
-        {
-          name: 'lastInspectionDate',
-          type: 'date',
-          admin: {
-            description: 'Last health/safety inspection date',
-          },
-        },
-        {
-          name: 'inspectionScore',
-          type: 'number',
-          min: 0,
-          max: 100,
-          admin: {
-            description: 'Latest inspection score',
-          },
-        },
-      ],
-      admin: {
-        description: 'Regulatory compliance and certifications',
-      },
-    },
+
 
     // === ADDITIONAL INFORMATION ===
     {
