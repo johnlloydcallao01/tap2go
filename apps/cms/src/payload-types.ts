@@ -848,35 +848,6 @@ export interface Merchant {
     maxDeliveryTimeMinutes?: number | null;
   };
   /**
-   * Performance tracking and analytics
-   */
-  metrics?: {
-    /**
-     * Average customer rating
-     */
-    averageRating?: number | null;
-    /**
-     * Total number of customer reviews
-     */
-    totalReviews?: number | null;
-    /**
-     * Total orders processed
-     */
-    totalOrders?: number | null;
-    /**
-     * Average food preparation time
-     */
-    averagePreparationTimeMinutes?: number | null;
-    /**
-     * Percentage of orders accepted
-     */
-    orderAcceptanceRate?: number | null;
-    /**
-     * Percentage of on-time deliveries
-     */
-    onTimeDeliveryRate?: number | null;
-  };
-  /**
    * Visual content for the merchant
    */
   media?: {
@@ -1899,16 +1870,6 @@ export interface MerchantsSelect<T extends boolean = true> {
         freeDeliveryThreshold?: T;
         estimatedDeliveryTimeMinutes?: T;
         maxDeliveryTimeMinutes?: T;
-      };
-  metrics?:
-    | T
-    | {
-        averageRating?: T;
-        totalReviews?: T;
-        totalOrders?: T;
-        averagePreparationTimeMinutes?: T;
-        orderAcceptanceRate?: T;
-        onTimeDeliveryRate?: T;
       };
   media?:
     | T

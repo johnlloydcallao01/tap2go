@@ -4,7 +4,7 @@ export const Merchants: CollectionConfig = {
   slug: 'merchants',
   admin: {
     useAsTitle: 'outletName',
-    defaultColumns: ['outletName', 'vendor', 'city', 'isActive', 'isAcceptingOrders', 'averageRating'],
+    defaultColumns: ['outletName', 'vendor', 'city', 'isActive', 'isAcceptingOrders'],
     group: 'Food Delivery',
     description: 'Manage individual merchant locations and outlets',
   },
@@ -308,76 +308,7 @@ export const Merchants: CollectionConfig = {
       },
     },
 
-    // === PERFORMANCE METRICS ===
-    {
-      name: 'metrics',
-      type: 'group',
-      fields: [
-        {
-          name: 'averageRating',
-          type: 'number',
-          min: 0,
-          max: 5,
-          defaultValue: 0,
-          admin: {
-            description: 'Average customer rating',
-            step: 0.1,
-          },
-        },
-        {
-          name: 'totalReviews',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          admin: {
-            description: 'Total number of customer reviews',
-          },
-        },
-        {
-          name: 'totalOrders',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          admin: {
-            description: 'Total orders processed',
-          },
-        },
-        {
-          name: 'averagePreparationTimeMinutes',
-          type: 'number',
-          min: 0,
-          defaultValue: 20,
-          admin: {
-            description: 'Average food preparation time',
-          },
-        },
-        {
-          name: 'orderAcceptanceRate',
-          type: 'number',
-          min: 0,
-          max: 100,
-          defaultValue: 100,
-          admin: {
-            description: 'Percentage of orders accepted',
-            step: 0.1,
-          },
-        },
-        {
-          name: 'onTimeDeliveryRate',
-          type: 'number',
-          min: 0,
-          max: 100,
-          defaultValue: 100,
-          admin: {
-            description: 'Percentage of on-time deliveries',
-            step: 0.1,
-          },
-        },
-      ],
-      admin: {
-        description: 'Performance tracking and analytics',
-      },
-    },
+
 
     // === MEDIA AND BRANDING ===
     {
