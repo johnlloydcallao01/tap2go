@@ -83,20 +83,6 @@ export const Users: CollectionConfig = {
             });
           }
 
-          // Delete related vendor records
-          const vendors = await payload.find({
-            collection: 'vendors',
-            where: { user: { equals: id } },
-          });
-
-          for (const vendor of vendors.docs) {
-            console.log(`🗑️ Deleting vendor record ${vendor.id}`);
-            await payload.delete({
-              collection: 'vendors',
-              id: vendor.id,
-            });
-          }
-
           console.log(`✅ Successfully cleaned up related records for user ${id}`);
         } catch (error) {
           console.error(`❌ Error cleaning up related records for user ${id}:`, error);

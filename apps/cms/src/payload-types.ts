@@ -568,10 +568,6 @@ export interface Post {
 export interface Vendor {
   id: number;
   /**
-   * The vendor user account associated with this business (required for new vendors)
-   */
-  user?: (number | null) | User;
-  /**
    * Business name (e.g., "Jollibee Corporation", "McDonald's Philippines")
    */
   businessName: string;
@@ -1747,7 +1743,6 @@ export interface PostsSelect<T extends boolean = true> {
  * via the `definition` "vendors_select".
  */
 export interface VendorsSelect<T extends boolean = true> {
-  user?: T;
   businessName?: T;
   legalName?: T;
   businessRegistrationNumber?: T;

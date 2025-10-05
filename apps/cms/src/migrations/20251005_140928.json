@@ -1,5 +1,5 @@
 {
-  "id": "0284bf75-059b-48dd-86a3-ccaa609651c4",
+  "id": "c390cc01-e1d2-463b-b208-30e0d90f41d7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2140,12 +2140,6 @@
           "primaryKey": true,
           "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "business_name": {
           "name": "business_name",
           "type": "varchar",
@@ -2338,21 +2332,6 @@
         }
       },
       "indexes": {
-        "vendors_user_idx": {
-          "name": "vendors_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "vendors_business_registration_number_idx": {
           "name": "vendors_business_registration_number_idx",
           "columns": [
@@ -2460,19 +2439,6 @@
         }
       },
       "foreignKeys": {
-        "vendors_user_id_users_id_fk": {
-          "name": "vendors_user_id_users_id_fk",
-          "tableFrom": "vendors",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "vendors_business_license_id_media_id_fk": {
           "name": "vendors_business_license_id_media_id_fk",
           "tableFrom": "vendors",
