@@ -4,7 +4,7 @@ export const Merchants: CollectionConfig = {
   slug: 'merchants',
   admin: {
     useAsTitle: 'outletName',
-    defaultColumns: ['outletName', 'vendor', 'city', 'isActive', 'isAcceptingOrders'],
+    defaultColumns: ['outletName', 'vendor', 'isActive', 'isAcceptingOrders'],
     group: 'Food Delivery',
     description: 'Manage individual merchant locations and outlets',
   },
@@ -66,102 +66,7 @@ export const Merchants: CollectionConfig = {
       },
     },
 
-    // === ADDRESS INFORMATION ===
-    {
-      name: 'address',
-      type: 'group',
-      fields: [
-        {
-          name: 'streetAddress',
-          type: 'textarea',
-          required: true,
-          admin: {
-            description: 'Complete street address',
-          },
-        },
-        {
-          name: 'barangay',
-          type: 'text',
-          admin: {
-            description: 'Barangay',
-          },
-        },
-        {
-          name: 'city',
-          type: 'text',
-          required: true,
-          admin: {
-            description: 'City',
-          },
-        },
-        {
-          name: 'province',
-          type: 'text',
-          required: true,
-          admin: {
-            description: 'Province/State',
-          },
-        },
-        {
-          name: 'postalCode',
-          type: 'text',
-          admin: {
-            description: 'Postal/ZIP code',
-          },
-        },
-        {
-          name: 'country',
-          type: 'text',
-          defaultValue: 'Philippines',
-          admin: {
-            description: 'Country',
-          },
-        },
-      ],
-      admin: {
-        description: 'Complete address information',
-      },
-    },
 
-    // === GEOGRAPHIC COORDINATES ===
-    {
-      name: 'location',
-      type: 'group',
-      fields: [
-        {
-          name: 'latitude',
-          type: 'number',
-          required: true,
-          admin: {
-            description: 'Latitude coordinate for delivery radius calculations',
-            step: 0.000001,
-          },
-        },
-        {
-          name: 'longitude',
-          type: 'number',
-          required: true,
-          admin: {
-            description: 'Longitude coordinate for delivery radius calculations',
-            step: 0.000001,
-          },
-        },
-        {
-          name: 'deliveryRadiusKm',
-          type: 'number',
-          defaultValue: 5,
-          min: 0,
-          max: 50,
-          admin: {
-            description: 'Delivery radius in kilometers',
-            step: 0.1,
-          },
-        },
-      ],
-      admin: {
-        description: 'Geographic location and delivery coverage',
-      },
-    },
 
     // === CONTACT INFORMATION ===
     {
@@ -382,11 +287,10 @@ export const Merchants: CollectionConfig = {
     beforeChange: [
       ({ data }) => {
         // Auto-generate outlet code if not provided
-        if (!data.outletCode && data.outletName && data.address?.city) {
+        if (!data.outletCode && data.outletName) {
           const name = data.outletName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 6).toUpperCase()
-          const city = data.address.city.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase()
           const timestamp = Date.now().toString().slice(-4)
-          data.outletCode = `${name}-${city}-${timestamp}`
+          data.outletCode = `${name}-${timestamp}`
         }
         return data
       },

@@ -110,11 +110,7 @@ function MerchantCard({ merchant }: MerchantCardProps) {
             {merchant.vendor.businessName}
           </p>
         )}
-        {merchant.address && (
-          <p className="text-sm text-gray-600 line-clamp-2">
-            {`${merchant.address.streetAddress || ''} ${merchant.address.barangay || ''} ${merchant.address.city || ''} ${merchant.address.province || ''}`.trim()}
-          </p>
-        )}
+
         {merchant.operationalStatus && (
           <div className="flex items-center space-x-2">
             <span className={`inline-block w-2 h-2 rounded-full ${

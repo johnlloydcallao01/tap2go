@@ -19,22 +19,6 @@ export interface Media {
   focalY?: number | null;
 }
 
-// Address interface matching CMS structure
-export interface Address {
-  streetAddress: string;
-  barangay?: string | null;
-  city: string;
-  province: string;
-  postalCode?: string | null;
-  country?: string | null;
-}
-
-// Location interface
-export interface Location {
-  latitude: number;
-  longitude: number;
-}
-
 // Contact Info interface
 export interface ContactInfo {
   phone?: string | null;
@@ -97,8 +81,6 @@ export interface Merchant {
   id: string;
   vendor?: Vendor | null;
   outletName: string;
-  address?: Address | null;
-  location?: Location | null;
   contactInfo?: ContactInfo | null;
   isActive?: boolean | null;
   isAcceptingOrders?: boolean | null;

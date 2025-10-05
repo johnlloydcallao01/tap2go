@@ -720,52 +720,6 @@ export interface Merchant {
    */
   outletCode: string;
   /**
-   * Complete address information
-   */
-  address: {
-    /**
-     * Complete street address
-     */
-    streetAddress: string;
-    /**
-     * Barangay
-     */
-    barangay?: string | null;
-    /**
-     * City
-     */
-    city: string;
-    /**
-     * Province/State
-     */
-    province: string;
-    /**
-     * Postal/ZIP code
-     */
-    postalCode?: string | null;
-    /**
-     * Country
-     */
-    country?: string | null;
-  };
-  /**
-   * Geographic location and delivery coverage
-   */
-  location: {
-    /**
-     * Latitude coordinate for delivery radius calculations
-     */
-    latitude: number;
-    /**
-     * Longitude coordinate for delivery radius calculations
-     */
-    longitude: number;
-    /**
-     * Delivery radius in kilometers
-     */
-    deliveryRadiusKm?: number | null;
-  };
-  /**
    * Contact information for this specific outlet
    */
   contactInfo?: {
@@ -1832,23 +1786,6 @@ export interface MerchantsSelect<T extends boolean = true> {
   vendor?: T;
   outletName?: T;
   outletCode?: T;
-  address?:
-    | T
-    | {
-        streetAddress?: T;
-        barangay?: T;
-        city?: T;
-        province?: T;
-        postalCode?: T;
-        country?: T;
-      };
-  location?:
-    | T
-    | {
-        latitude?: T;
-        longitude?: T;
-        deliveryRadiusKm?: T;
-      };
   contactInfo?:
     | T
     | {

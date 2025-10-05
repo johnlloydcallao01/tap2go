@@ -14,6 +14,7 @@ import * as migration_20251004_051313_drop_instructors_table_final from './20251
 import * as migration_20251004_112740 from './20251004_112740';
 import * as migration_20251005_064849 from './20251005_064849';
 import * as migration_20251005_071448 from './20251005_071448';
+import * as migration_20251005_094055 from './20251005_094055';
 import * as migration_20251202_delete_extra_tables from './20251202_delete_extra_tables';
 
 export const migrations = [
@@ -96,6 +97,11 @@ export const migrations = [
     up: migration_20251005_071448.up,
     down: migration_20251005_071448.down,
     name: '20251005_071448',
+  },
+  {
+    up: migration_20251005_094055.up,
+    down: migration_20251005_094055.down,
+    name: '20251005_094055',
   },
   {
     up: migration_20251202_delete_extra_tables.up,
