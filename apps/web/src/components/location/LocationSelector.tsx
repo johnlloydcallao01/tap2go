@@ -55,6 +55,11 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
   const [settingActiveId, setSettingActiveId] = useState<string | null>(null);
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
+  
+  // Multi-step popup state
+  const [currentStep, setCurrentStep] = useState<'search' | 'preview'>('search');
+  const [selectedAddress, setSelectedAddress] = useState<google.maps.places.PlaceResult | null>(null);
+  
   const { user } = useUser();
 
   // Check if we're on mobile/tablet
@@ -109,6 +114,14 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
       loadUserAddresses();
     }
   }, [isOpen, user?.id, loadUserAddresses]);
+
+  // Reset modal state when opening/closing
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentStep('search');
+      setSelectedAddress(null);
+    }
+  }, [isOpen]);
 
   const handleDeleteAddress = async (addressId: string) => {
     // Show confirmation dialog
@@ -177,33 +190,69 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
   };
 
   const handleAddressSelect = async (place: google.maps.places.PlaceResult) => {
+    // Instead of directly saving, show preview step
+    setSelectedAddress(place);
+    setCurrentStep('preview');
+  };
+
+  // New function to handle the actual saving from preview step
+  const handleSaveAddress = async () => {
+    if (!selectedAddress || !user?.id) return;
+    
     setIsSaving(true);
     
     try {
-      // Save the address to the database
-      const response = await AddressService.saveAddress({
-        place,
+      // Step 1: Save the address to the database
+      const saveResponse = await AddressService.saveAddress({
+        place: selectedAddress,
         address_type: 'home', // Default type - using valid PayloadCMS value
         is_default: false, // User can set default later
       });
 
-      if (response.success) {
-        toast.success('Address saved successfully!');
-        onLocationSelect?.(place);
-        onClose();
-      } else {
-        throw new Error(response.error || 'Failed to save address');
+      if (!saveResponse.success || !saveResponse.address) {
+        throw new Error(saveResponse.error || 'Failed to save address');
       }
-    } catch (error) {
-      console.error('Error saving address:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to save address');
+
+      // Extract the correct address ID from PayloadCMS response structure
+      const addressId = saveResponse.address.doc?.id || saveResponse.address.id;
       
-      // Still allow the UI to update even if saving fails
-      onLocationSelect?.(place);
+      if (!addressId) {
+        throw new Error('Address ID not found in response');
+      }
+
+      console.log('🔍 Address saved with ID:', addressId);
+
+      // Step 2: Set the saved address as active
+      const setActiveResponse = await AddressService.setActiveAddress(user.id, addressId);
+      
+      if (!setActiveResponse.success) {
+        throw new Error(setActiveResponse.error || 'Failed to set address as active');
+      }
+
+      // Both operations successful
+      toast.success('Address saved and activated successfully!');
+      
+      // Update local state to reflect the new active address
+      setActiveAddressId(addressId);
+      
+      // Notify parent component that addresses have changed
+      onAddressesChanged?.();
+      
+      onLocationSelect?.(selectedAddress);
       onClose();
+      
+    } catch (error) {
+      console.error('Error in save and activate process:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save and activate address');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Function to go back to search step
+  const handleBackToSearch = () => {
+    setCurrentStep('search');
+    setSelectedAddress(null);
   };
 
   // Handle click outside to close modal (desktop only)
@@ -255,7 +304,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
 
   const modalElement = (
     <div 
-      className={isMobile ? '' : 'fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md px-4'}
+      className={isMobile ? '' : 'fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-lg px-4'}
       style={isMobile ? { 
         position: 'fixed', 
         top: 0, 
@@ -288,7 +337,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
             // Mobile header with back button
             <div className="flex items-center w-full">
               <button
-                onClick={onClose}
+                onClick={currentStep === 'preview' ? handleBackToSearch : onClose}
                 className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors mr-3"
               >
                 <svg className="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -296,14 +345,24 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
                 </svg>
               </button>
               <h3 className="text-xl font-semibold text-gray-900">
-                Addresses
+                {currentStep === 'preview' ? 'Address Preview' : 'Addresses'}
               </h3>
             </div>
           ) : (
             // Desktop header with close button
             <div className="flex items-center justify-between">
+              {currentStep === 'preview' && (
+                <button
+                  onClick={handleBackToSearch}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors mr-3"
+                >
+                  <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
               <h3 className="text-xl font-semibold text-gray-900">
-                Addresses
+                {currentStep === 'preview' ? 'Address Preview' : 'Addresses'}
               </h3>
               <button
                 onClick={onClose}
@@ -317,112 +376,195 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
           )}
         </div>
 
-        {/* Search Section */}
-        <div className={`${isMobile ? 'px-4 py-4 flex-1 overflow-y-auto' : 'px-6 py-4 flex-1 overflow-y-auto max-h-96'}`}>
+        {/* Content Section - Conditional rendering based on current step */}
+        <div className={`${isMobile ? 'px-4 py-4 flex-1 overflow-y-auto' : 'px-6 py-4 flex-1 overflow-y-auto max-h-[24rem]'}`}>
           {isSaving && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               <span className="text-sm text-blue-700">Saving address...</span>
             </div>
           )}
-          <AddressSearchInput
-            placeholder="Search for an address"
-            onAddressSelect={handleAddressSelect}
-            autoFocus={true}
-            inputClassName="w-full pl-12 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all"
-            fullPage={true}
-          />
 
-          {/* Manage Address Section */}
-          {user?.id && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Address</h3>
-              
-              {isLoadingAddresses ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
-                  <span className="ml-2 text-gray-600">Loading addresses...</span>
-                </div>
-              ) : userAddresses.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No saved addresses found.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {userAddresses.map((address) => (
-                    <div
-                      key={address.id}
-                      className="p-4 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">
-                            {address.formatted_address}
-                          </p>
-                          {address.address_type && (
-                            <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full mt-1">
-                              {address.address_type}
-                            </span>
-                          )}
-                          {address.is_default && (
-                            <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full mt-1 ml-2">
-                              Default
-                            </span>
-                          )}
-                          {activeAddressId === address.id && (
-                            <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full mt-1 ml-2">
-                              Active
-                            </span>
-                          )}
-                          {address.notes && (
-                            <p className="text-sm text-gray-600 mt-1">{address.notes}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 ml-4">
-                          <button
-                            onClick={() => handleSetActiveAddress(address.id)}
-                            disabled={settingActiveId === address.id || activeAddressId === address.id}
-                            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                              activeAddressId === address.id
-                                ? 'text-purple-600 bg-purple-50 border border-purple-200'
-                                : 'text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
-                            }`}
-                          >
-                            {settingActiveId === address.id ? (
-                              <div className="flex items-center">
-                                <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></div>
-                                Setting...
-                              </div>
-                            ) : activeAddressId === address.id ? (
-                              'Currently Active'
-                            ) : (
-                              'Set as Active'
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAddress(address.id)}
-                            disabled={deletingAddressId === address.id}
-                            className="px-3 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {deletingAddressId === address.id ? (
-                              <div className="flex items-center">
-                                <div className="animate-spin rounded-full h-3 w-3 border-b border-red-600 mr-1"></div>
-                                Deleting...
-                              </div>
-                            ) : (
-                              'Delete'
-                            )}
-                          </button>
-                        </div>
-                      </div>
+          {currentStep === 'search' ? (
+            // Search Step Content
+            <>
+              <AddressSearchInput
+                placeholder="Search for an address"
+                onAddressSelect={handleAddressSelect}
+                autoFocus={true}
+                inputClassName="w-full pl-12 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all"
+                fullPage={true}
+              />
+
+              {/* Manage Address Section */}
+              {user?.id && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Address</h3>
+                  
+                  {isLoadingAddresses ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
+                      <span className="ml-2 text-gray-600">Loading addresses...</span>
                     </div>
-                  ))}
+                  ) : userAddresses.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No saved addresses found.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {userAddresses.map((address) => (
+                        <div
+                          key={address.id}
+                          className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex flex-col space-y-3">
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {address.formatted_address}
+                              </p>
+                              {address.address_type && (
+                                <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full mt-1">
+                                  {address.address_type}
+                                </span>
+                              )}
+                              {address.is_default && (
+                                <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full mt-1 ml-2">
+                                  Default
+                                </span>
+                              )}
+                              {activeAddressId === address.id && (
+                                <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full mt-1 ml-2">
+                                  Active
+                                </span>
+                              )}
+                              {address.notes && (
+                                <p className="text-sm text-gray-600 mt-1">{address.notes}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                onClick={() => handleSetActiveAddress(address.id)}
+                                disabled={settingActiveId === address.id || activeAddressId === address.id}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  activeAddressId === address.id
+                                    ? 'text-purple-600 bg-purple-50 border border-purple-200'
+                                    : 'text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+                                }`}
+                              >
+                                {settingActiveId === address.id ? (
+                                  <div className="flex items-center">
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></div>
+                                    Setting...
+                                  </div>
+                                ) : activeAddressId === address.id ? (
+                                  'Currently Active'
+                                ) : (
+                                  'Set as Active'
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAddress(address.id)}
+                                disabled={deletingAddressId === address.id}
+                                className="px-3 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {deletingAddressId === address.id ? (
+                                  <div className="flex items-center">
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b border-red-600 mr-1"></div>
+                                    Deleting...
+                                  </div>
+                                ) : (
+                                  'Delete'
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
+            </>
+          ) : (
+            // Preview Step Content
+            <div className="space-y-6">
+              {/* Address Preview Card */}
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <LocationIcon className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                      Selected Address
+                    </h4>
+                    <p className="text-gray-700 text-base leading-relaxed">
+                      {selectedAddress?.formatted_address || selectedAddress?.name}
+                    </p>
+                    {selectedAddress?.name && selectedAddress?.formatted_address && selectedAddress.name !== selectedAddress.formatted_address && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        {selectedAddress.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Address Details */}
+              {selectedAddress && (
+                <div className="space-y-4">
+                  <h5 className="text-sm font-medium text-gray-900 uppercase tracking-wide">
+                    Address Details
+                  </h5>
+                  <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+                    {selectedAddress.place_id && (
+                      <div className="px-4 py-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide">Place ID</div>
+                        <div className="text-sm text-gray-900 mt-1 font-mono">{selectedAddress.place_id}</div>
+                      </div>
+                    )}
+                    {selectedAddress.types && selectedAddress.types.length > 0 && (
+                      <div className="px-4 py-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide">Types</div>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {selectedAddress.types.slice(0, 3).map((type, index) => (
+                            <span key={index} className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
+                              {type.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                          {selectedAddress.types.length > 3 && (
+                            <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">
+                              +{selectedAddress.types.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Save Button */}
+              <div className="pt-4">
+                <button
+                  onClick={handleSaveAddress}
+                  disabled={isSaving}
+                  className="w-full bg-black text-white py-4 px-6 rounded-xl font-medium text-base hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                     <div className="flex items-center justify-center">
+                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                       Saving and Activating...
+                     </div>
+                   ) : (
+                     'Save and Activate'
+                   )}
+                </button>
+              </div>
             </div>
           )}
-
-
         </div>
       </div>
     </div>
