@@ -15,6 +15,9 @@ import * as migration_20251004_112740 from './20251004_112740';
 import * as migration_20251005_064849 from './20251005_064849';
 import * as migration_20251005_071448 from './20251005_071448';
 import * as migration_20251005_094055 from './20251005_094055';
+import * as migration_20251005_122737_add_vendor_user_relationship from './20251005_122737_add_vendor_user_relationship';
+import * as migration_20251005_124730 from './20251005_124730';
+import * as migration_20251005_130109_fix_vendor_user_optional from './20251005_130109_fix_vendor_user_optional';
 import * as migration_20251202_delete_extra_tables from './20251202_delete_extra_tables';
 
 export const migrations = [
@@ -102,6 +105,21 @@ export const migrations = [
     up: migration_20251005_094055.up,
     down: migration_20251005_094055.down,
     name: '20251005_094055',
+  },
+  {
+    up: migration_20251005_122737_add_vendor_user_relationship.up,
+    down: migration_20251005_122737_add_vendor_user_relationship.down,
+    name: '20251005_122737_add_vendor_user_relationship',
+  },
+  {
+    up: migration_20251005_124730.up,
+    down: migration_20251005_124730.down,
+    name: '20251005_124730',
+  },
+  {
+    up: migration_20251005_130109_fix_vendor_user_optional.up,
+    down: migration_20251005_130109_fix_vendor_user_optional.down,
+    name: '20251005_130109_fix_vendor_user_optional',
   },
   {
     up: migration_20251202_delete_extra_tables.up,

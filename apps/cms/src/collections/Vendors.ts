@@ -17,6 +17,14 @@ export const Vendors: CollectionConfig = {
         if (user.role === 'service' || user.role === 'admin') {
           return true
         }
+        // Allow vendor users to read only their own vendor record
+        if (user.role === 'vendor') {
+          return {
+            user: {
+              equals: user.id,
+            },
+          }
+        }
       }
       
       // Block all unauthenticated requests and other roles
@@ -28,14 +36,42 @@ export const Vendors: CollectionConfig = {
     },
     update: ({ req: { user } }) => {
       // Allow both service accounts and admins to update vendors
-      return user?.role === 'service' || user?.role === 'admin' || false
+      if (user?.role === 'service' || user?.role === 'admin') {
+        return true
+      }
+      // Allow vendor users to update only their own vendor record
+      if (user?.role === 'vendor') {
+        return {
+          user: {
+            equals: user.id,
+          },
+        }
+      }
+      return false
     },
     delete: ({ req: { user } }) => {
-      // Allow both service accounts and admins to delete vendors
+      // Only allow service accounts and admins to delete vendors
+      // Vendors should not be able to delete their own records
       return user?.role === 'service' || user?.role === 'admin' || false
     },
   },
   fields: [
+    // === USER RELATIONSHIP ===
+    {
+      name: 'user',
+      type: 'relationship',
+      relationTo: 'users',
+      required: false, // Temporarily optional to handle existing data
+      unique: true,
+      filterOptions: {
+        role: {
+          equals: 'vendor',
+        },
+      },
+      admin: {
+        description: 'The vendor user account associated with this business (required for new vendors)',
+      },
+    },
     // === CORE BUSINESS INFORMATION ===
     {
       name: 'businessName',

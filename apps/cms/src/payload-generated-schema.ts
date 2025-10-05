@@ -36,12 +36,7 @@ export const enum_users_civil_status = pgEnum('enum_users_civil_status', [
   'widowed',
   'separated',
 ])
-export const enum_users_role = pgEnum('enum_users_role', [
-  'admin',
-  'instructor',
-  'customer',
-  'service',
-])
+export const enum_users_role = pgEnum('enum_users_role', ['admin', 'customer', 'service', 'vendor'])
 export const enum_customers_current_level = pgEnum('enum_customers_current_level', [
   'beginner',
   'intermediate',
@@ -72,12 +67,19 @@ export const enum_emergency_contacts_relationship = pgEnum('enum_emergency_conta
   'relative',
   'other',
 ])
+export const enum_addresses_address_type = pgEnum('enum_addresses_address_type', [
+  'home',
+  'work',
+  'billing',
+  'shipping',
+  'pickup',
+  'delivery',
+])
 export const enum_posts_status = pgEnum('enum_posts_status', ['draft', 'published'])
 export const enum__posts_v_version_status = pgEnum('enum__posts_v_version_status', [
   'draft',
   'published',
 ])
-
 export const enum_vendors_business_type = pgEnum('enum_vendors_business_type', [
   'restaurant',
   'fast_food',
@@ -155,7 +157,7 @@ export const users_sessions = pgTable(
   }),
 )
 
-export const users = pgTable(
+export const users: any = pgTable(
   'users',
   {
     id: serial('id').primaryKey(),
@@ -173,7 +175,10 @@ export const users = pgTable(
     role: enum_users_role('role').notNull().default('customer'),
     isActive: boolean('is_active').default(true),
     lastLogin: timestamp('last_login', { mode: 'string', withTimezone: true, precision: 3 }),
-    profilePicture: integer('profile_picture_id').references(() => media.id, {
+    profilePicture: integer('profile_picture_id').references((): any => media.id, {
+      onDelete: 'set null',
+    }),
+    activeAddress: integer('active_address_id').references((): any => addresses.id, {
       onDelete: 'set null',
     }),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
@@ -200,38 +205,10 @@ export const users = pgTable(
   (columns) => ({
     users_username_idx: uniqueIndex('users_username_idx').on(columns.username),
     users_profile_picture_idx: index('users_profile_picture_idx').on(columns.profilePicture),
+    users_active_address_idx: index('users_active_address_idx').on(columns.activeAddress),
     users_updated_at_idx: index('users_updated_at_idx').on(columns.updatedAt),
     users_created_at_idx: index('users_created_at_idx').on(columns.createdAt),
     users_email_idx: uniqueIndex('users_email_idx').on(columns.email),
-  }),
-)
-
-export const instructors = pgTable(
-  'instructors',
-  {
-    id: serial('id').primaryKey(),
-    user: integer('user_id')
-      .notNull()
-      .references(() => users.id, {
-        onDelete: 'set null',
-      }),
-    specialization: varchar('specialization').notNull(),
-    yearsExperience: numeric('years_experience'),
-    certifications: varchar('certifications'),
-    officeHours: varchar('office_hours'),
-    contactEmail: varchar('contact_email'),
-    teachingPermissions: jsonb('teaching_permissions'),
-    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
-      .defaultNow()
-      .notNull(),
-    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
-      .defaultNow()
-      .notNull(),
-  },
-  (columns) => ({
-    instructors_user_idx: uniqueIndex('instructors_user_idx').on(columns.user),
-    instructors_updated_at_idx: index('instructors_updated_at_idx').on(columns.updatedAt),
-    instructors_created_at_idx: index('instructors_created_at_idx').on(columns.createdAt),
   }),
 )
 
@@ -355,6 +332,54 @@ export const emergency_contacts = pgTable(
     emergency_contacts_created_at_idx: index('emergency_contacts_created_at_idx').on(
       columns.createdAt,
     ),
+  }),
+)
+
+export const addresses: any = pgTable(
+  'addresses',
+  {
+    id: serial('id').primaryKey(),
+    user: integer('user_id')
+      .notNull()
+      .references((): any => users.id, {
+        onDelete: 'set null',
+      }),
+    formatted_address: varchar('formatted_address').notNull(),
+    google_place_id: varchar('google_place_id'),
+    street_number: varchar('street_number'),
+    route: varchar('route'),
+    subpremise: varchar('subpremise'),
+    barangay: varchar('barangay'),
+    locality: varchar('locality'),
+    administrative_area_level_2: varchar('administrative_area_level_2'),
+    administrative_area_level_1: varchar('administrative_area_level_1'),
+    country: varchar('country').default('Philippines'),
+    postal_code: varchar('postal_code'),
+    latitude: numeric('latitude'),
+    longitude: numeric('longitude'),
+    address_type: enum_addresses_address_type('address_type').notNull().default('home'),
+    is_default: boolean('is_default').default(false),
+    is_verified: boolean('is_verified').default(false),
+    notes: varchar('notes'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    addresses_user_idx: index('addresses_user_idx').on(columns.user),
+    addresses_updated_at_idx: index('addresses_updated_at_idx').on(columns.updatedAt),
+    addresses_created_at_idx: index('addresses_created_at_idx').on(columns.createdAt),
+    user_idx: index('user_idx').on(columns.user),
+    latitude_longitude_idx: index('latitude_longitude_idx').on(columns.latitude, columns.longitude),
+    locality_administrative_area_level_1_idx: index('locality_administrative_area_level_1_idx').on(
+      columns.locality,
+      columns.administrative_area_level_1,
+    ),
+    postal_code_idx: index('postal_code_idx').on(columns.postal_code),
+    google_place_id_idx: index('google_place_id_idx').on(columns.google_place_id),
   }),
 )
 
@@ -535,12 +560,13 @@ export const _posts_v = pgTable(
   }),
 )
 
-
-
 export const vendors = pgTable(
   'vendors',
   {
     id: serial('id').primaryKey(),
+    user: integer('user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     businessName: varchar('business_name').notNull(),
     legalName: varchar('legal_name').notNull(),
     businessRegistrationNumber: varchar('business_registration_number').notNull(),
@@ -581,21 +607,6 @@ export const vendors = pgTable(
     socialMediaLinks_instagram: varchar('social_media_links_instagram'),
     socialMediaLinks_twitter: varchar('social_media_links_twitter'),
     socialMediaLinks_website: varchar('social_media_links_website'),
-    complianceSettings_foodSafetyLicense: varchar('compliance_settings_food_safety_license'),
-    complianceSettings_halaalCertified: boolean('compliance_settings_halaal_certified').default(
-      false,
-    ),
-    complianceSettings_organicCertified: boolean('compliance_settings_organic_certified').default(
-      false,
-    ),
-    complianceSettings_allergenCompliance: boolean(
-      'compliance_settings_allergen_compliance',
-    ).default(false),
-    platformSettings_commissionRate: numeric('platform_settings_commission_rate').default('15'),
-    platformSettings_minimumOrderAmount: numeric('platform_settings_minimum_order_amount').default(
-      '0',
-    ),
-    platformSettings_deliveryFee: numeric('platform_settings_delivery_fee').default('0'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -604,6 +615,7 @@ export const vendors = pgTable(
       .notNull(),
   },
   (columns) => ({
+    vendors_user_idx: uniqueIndex('vendors_user_idx').on(columns.user),
     vendors_business_registration_number_idx: uniqueIndex(
       'vendors_business_registration_number_idx',
     ).on(columns.businessRegistrationNumber),
@@ -629,15 +641,6 @@ export const merchants = pgTable(
       }),
     outletName: varchar('outlet_name').notNull(),
     outletCode: varchar('outlet_code').notNull(),
-    address_streetAddress: varchar('address_street_address').notNull(),
-    address_barangay: varchar('address_barangay'),
-    address_city: varchar('address_city').notNull(),
-    address_province: varchar('address_province').notNull(),
-    address_postalCode: varchar('address_postal_code'),
-    address_country: varchar('address_country').default('Philippines'),
-    location_latitude: numeric('location_latitude').notNull(),
-    location_longitude: numeric('location_longitude').notNull(),
-    location_deliveryRadiusKm: numeric('location_delivery_radius_km').default('5'),
     contactInfo_phone: varchar('contact_info_phone'),
     contactInfo_email: varchar('contact_info_email'),
     contactInfo_managerName: varchar('contact_info_manager_name'),
@@ -658,14 +661,6 @@ export const merchants = pgTable(
     deliverySettings_maxDeliveryTimeMinutes: numeric(
       'delivery_settings_max_delivery_time_minutes',
     ).default('60'),
-    metrics_averageRating: numeric('metrics_average_rating').default('0'),
-    metrics_totalReviews: numeric('metrics_total_reviews').default('0'),
-    metrics_totalOrders: numeric('metrics_total_orders').default('0'),
-    metrics_averagePreparationTimeMinutes: numeric(
-      'metrics_average_preparation_time_minutes',
-    ).default('20'),
-    metrics_orderAcceptanceRate: numeric('metrics_order_acceptance_rate').default('100'),
-    metrics_onTimeDeliveryRate: numeric('metrics_on_time_delivery_rate').default('100'),
     media_thumbnail: integer('media_thumbnail_id').references(() => media.id, {
       onDelete: 'set null',
     }),
@@ -674,16 +669,6 @@ export const merchants = pgTable(
     }),
     media_interiorImages: jsonb('media_interior_images'),
     media_menuImages: jsonb('media_menu_images'),
-    compliance_businessPermitNumber: varchar('compliance_business_permit_number'),
-    compliance_foodSafetyLicense: varchar('compliance_food_safety_license'),
-    compliance_firePermitNumber: varchar('compliance_fire_permit_number'),
-    compliance_sanitaryPermitNumber: varchar('compliance_sanitary_permit_number'),
-    compliance_lastInspectionDate: timestamp('compliance_last_inspection_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }),
-    compliance_inspectionScore: numeric('compliance_inspection_score'),
     description: varchar('description'),
     specialInstructions: varchar('special_instructions'),
     tags: jsonb('tags'),
@@ -804,97 +789,6 @@ export const prod_categories = pgTable(
     ).on(columns.media_thumbnailImage),
     prod_categories_updated_at_idx: index('prod_categories_updated_at_idx').on(columns.updatedAt),
     prod_categories_created_at_idx: index('prod_categories_created_at_idx').on(columns.createdAt),
-  }),
-)
-
-export const products_pricing_price_history = pgTable(
-  'products_pricing_price_history',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    price: numeric('price').notNull(),
-    effectiveDate: timestamp('effective_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }).notNull(),
-    reason: varchar('reason'),
-  },
-  (columns) => ({
-    _orderIdx: index('products_pricing_price_history_order_idx').on(columns._order),
-    _parentIDIdx: index('products_pricing_price_history_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_pricing_price_history_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const products_nutrition_vitamins = pgTable(
-  'products_nutrition_vitamins',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    vitamin: varchar('vitamin'),
-    amount: varchar('amount'),
-    dailyValuePercentage: numeric('daily_value_percentage'),
-  },
-  (columns) => ({
-    _orderIdx: index('products_nutrition_vitamins_order_idx').on(columns._order),
-    _parentIDIdx: index('products_nutrition_vitamins_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_nutrition_vitamins_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const products_media_additional_images = pgTable(
-  'products_media_additional_images',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    image: integer('image_id').references(() => media.id, {
-      onDelete: 'set null',
-    }),
-    caption: varchar('caption'),
-    isMainImage: boolean('is_main_image').default(false),
-  },
-  (columns) => ({
-    _orderIdx: index('products_media_additional_images_order_idx').on(columns._order),
-    _parentIDIdx: index('products_media_additional_images_parent_id_idx').on(columns._parentID),
-    products_media_additional_images_image_idx: index(
-      'products_media_additional_images_image_idx',
-    ).on(columns.image),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_media_additional_images_parent_id_fk',
-    }).onDelete('cascade'),
-  }),
-)
-
-export const products_seo_keywords = pgTable(
-  'products_seo_keywords',
-  {
-    _order: integer('_order').notNull(),
-    _parentID: integer('_parent_id').notNull(),
-    id: varchar('id').primaryKey(),
-    keyword: varchar('keyword'),
-  },
-  (columns) => ({
-    _orderIdx: index('products_seo_keywords_order_idx').on(columns._order),
-    _parentIDIdx: index('products_seo_keywords_parent_id_idx').on(columns._parentID),
-    _parentIDFk: foreignKey({
-      columns: [columns['_parentID']],
-      foreignColumns: [products.id],
-      name: 'products_seo_keywords_parent_id_fk',
-    }).onDelete('cascade'),
   }),
 )
 
@@ -1041,11 +935,11 @@ export const payload_locked_documents_rels = pgTable(
     parent: integer('parent_id').notNull(),
     path: varchar('path').notNull(),
     usersID: integer('users_id'),
-    instructorsID: integer('instructors_id'),
     customersID: integer('customers_id'),
     adminsID: integer('admins_id'),
     'user-eventsID': integer('user_events_id'),
     'emergency-contactsID': integer('emergency_contacts_id'),
+    addressesID: integer('addresses_id'),
     mediaID: integer('media_id'),
     postsID: integer('posts_id'),
     vendorsID: integer('vendors_id'),
@@ -1060,9 +954,6 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_users_id_idx: index(
       'payload_locked_documents_rels_users_id_idx',
     ).on(columns.usersID),
-    payload_locked_documents_rels_instructors_id_idx: index(
-      'payload_locked_documents_rels_instructors_id_idx',
-    ).on(columns.instructorsID),
     payload_locked_documents_rels_customers_id_idx: index(
       'payload_locked_documents_rels_customers_id_idx',
     ).on(columns.customersID),
@@ -1075,6 +966,9 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_emergency_contacts_id_idx: index(
       'payload_locked_documents_rels_emergency_contacts_id_idx',
     ).on(columns['emergency-contactsID']),
+    payload_locked_documents_rels_addresses_id_idx: index(
+      'payload_locked_documents_rels_addresses_id_idx',
+    ).on(columns.addressesID),
     payload_locked_documents_rels_media_id_idx: index(
       'payload_locked_documents_rels_media_id_idx',
     ).on(columns.mediaID),
@@ -1103,11 +997,6 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [users.id],
       name: 'payload_locked_documents_rels_users_fk',
     }).onDelete('cascade'),
-    instructorsIdFk: foreignKey({
-      columns: [columns['instructorsID']],
-      foreignColumns: [instructors.id],
-      name: 'payload_locked_documents_rels_instructors_fk',
-    }).onDelete('cascade'),
     customersIdFk: foreignKey({
       columns: [columns['customersID']],
       foreignColumns: [customers.id],
@@ -1127,6 +1016,11 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns['emergency-contactsID']],
       foreignColumns: [emergency_contacts.id],
       name: 'payload_locked_documents_rels_emergency_contacts_fk',
+    }).onDelete('cascade'),
+    addressesIdFk: foreignKey({
+      columns: [columns['addressesID']],
+      foreignColumns: [addresses.id],
+      name: 'payload_locked_documents_rels_addresses_fk',
     }).onDelete('cascade'),
     mediaIdFk: foreignKey({
       columns: [columns['mediaID']],
@@ -1250,15 +1144,13 @@ export const relations_users = relations(users, ({ one, many }) => ({
     references: [media.id],
     relationName: 'profilePicture',
   }),
+  activeAddress: one(addresses, {
+    fields: [users.activeAddress],
+    references: [addresses.id],
+    relationName: 'activeAddress',
+  }),
   sessions: many(users_sessions, {
     relationName: 'sessions',
-  }),
-}))
-export const relations_instructors = relations(instructors, ({ one }) => ({
-  user: one(users, {
-    fields: [instructors.user],
-    references: [users.id],
-    relationName: 'user',
   }),
 }))
 export const relations_customers = relations(customers, ({ one }) => ({
@@ -1290,6 +1182,13 @@ export const relations_user_events = relations(user_events, ({ one }) => ({
 export const relations_emergency_contacts = relations(emergency_contacts, ({ one }) => ({
   user: one(users, {
     fields: [emergency_contacts.user],
+    references: [users.id],
+    relationName: 'user',
+  }),
+}))
+export const relations_addresses = relations(addresses, ({ one }) => ({
+  user: one(users, {
+    fields: [addresses.user],
     references: [users.id],
     relationName: 'user',
   }),
@@ -1344,8 +1243,12 @@ export const relations__posts_v = relations(_posts_v, ({ one, many }) => ({
     relationName: 'version_author',
   }),
 }))
-
 export const relations_vendors = relations(vendors, ({ one }) => ({
+  user: one(users, {
+    fields: [vendors.user],
+    references: [users.id],
+    relationName: 'user',
+  }),
   businessLicense: one(media, {
     fields: [vendors.businessLicense],
     references: [media.id],
@@ -1401,49 +1304,7 @@ export const relations_prod_categories = relations(prod_categories, ({ one }) =>
     relationName: 'media_thumbnailImage',
   }),
 }))
-export const relations_products_pricing_price_history = relations(
-  products_pricing_price_history,
-  ({ one }) => ({
-    _parentID: one(products, {
-      fields: [products_pricing_price_history._parentID],
-      references: [products.id],
-      relationName: 'pricing_priceHistory',
-    }),
-  }),
-)
-export const relations_products_nutrition_vitamins = relations(
-  products_nutrition_vitamins,
-  ({ one }) => ({
-    _parentID: one(products, {
-      fields: [products_nutrition_vitamins._parentID],
-      references: [products.id],
-      relationName: 'nutrition_vitamins',
-    }),
-  }),
-)
-export const relations_products_media_additional_images = relations(
-  products_media_additional_images,
-  ({ one }) => ({
-    _parentID: one(products, {
-      fields: [products_media_additional_images._parentID],
-      references: [products.id],
-      relationName: 'media_additionalImages',
-    }),
-    image: one(media, {
-      fields: [products_media_additional_images.image],
-      references: [media.id],
-      relationName: 'image',
-    }),
-  }),
-)
-export const relations_products_seo_keywords = relations(products_seo_keywords, ({ one }) => ({
-  _parentID: one(products, {
-    fields: [products_seo_keywords._parentID],
-    references: [products.id],
-    relationName: 'seo_keywords',
-  }),
-}))
-export const relations_products = relations(products, ({ one, many }) => ({
+export const relations_products = relations(products, ({ one }) => ({
   merchant: one(merchants, {
     fields: [products.merchant],
     references: [merchants.id],
@@ -1454,27 +1315,15 @@ export const relations_products = relations(products, ({ one, many }) => ({
     references: [prod_categories.id],
     relationName: 'primaryCategory',
   }),
-  pricing_priceHistory: many(products_pricing_price_history, {
-    relationName: 'pricing_priceHistory',
-  }),
-  nutrition_vitamins: many(products_nutrition_vitamins, {
-    relationName: 'nutrition_vitamins',
-  }),
   media_primaryImage: one(media, {
     fields: [products.media_primaryImage],
     references: [media.id],
     relationName: 'media_primaryImage',
   }),
-  media_additionalImages: many(products_media_additional_images, {
-    relationName: 'media_additionalImages',
-  }),
   media_video: one(media, {
     fields: [products.media_video],
     references: [media.id],
     relationName: 'media_video',
-  }),
-  seo_keywords: many(products_seo_keywords, {
-    relationName: 'seo_keywords',
   }),
 }))
 export const relations_payload_locked_documents_rels = relations(
@@ -1489,11 +1338,6 @@ export const relations_payload_locked_documents_rels = relations(
       fields: [payload_locked_documents_rels.usersID],
       references: [users.id],
       relationName: 'users',
-    }),
-    instructorsID: one(instructors, {
-      fields: [payload_locked_documents_rels.instructorsID],
-      references: [instructors.id],
-      relationName: 'instructors',
     }),
     customersID: one(customers, {
       fields: [payload_locked_documents_rels.customersID],
@@ -1514,6 +1358,11 @@ export const relations_payload_locked_documents_rels = relations(
       fields: [payload_locked_documents_rels['emergency-contactsID']],
       references: [emergency_contacts.id],
       relationName: 'emergency-contacts',
+    }),
+    addressesID: one(addresses, {
+      fields: [payload_locked_documents_rels.addressesID],
+      references: [addresses.id],
+      relationName: 'addresses',
     }),
     mediaID: one(media, {
       fields: [payload_locked_documents_rels.mediaID],
@@ -1585,6 +1434,7 @@ type DatabaseSchema = {
   enum_admins_admin_level: typeof enum_admins_admin_level
   enum_user_events_event_type: typeof enum_user_events_event_type
   enum_emergency_contacts_relationship: typeof enum_emergency_contacts_relationship
+  enum_addresses_address_type: typeof enum_addresses_address_type
   enum_posts_status: typeof enum_posts_status
   enum__posts_v_version_status: typeof enum__posts_v_version_status
   enum_vendors_business_type: typeof enum_vendors_business_type
@@ -1596,11 +1446,11 @@ type DatabaseSchema = {
   enum_products_preparation_cooking_method: typeof enum_products_preparation_cooking_method
   users_sessions: typeof users_sessions
   users: typeof users
-  instructors: typeof instructors
   customers: typeof customers
   admins: typeof admins
   user_events: typeof user_events
   emergency_contacts: typeof emergency_contacts
+  addresses: typeof addresses
   media: typeof media
   posts_tags: typeof posts_tags
   posts: typeof posts
@@ -1609,10 +1459,6 @@ type DatabaseSchema = {
   vendors: typeof vendors
   merchants: typeof merchants
   prod_categories: typeof prod_categories
-  products_pricing_price_history: typeof products_pricing_price_history
-  products_nutrition_vitamins: typeof products_nutrition_vitamins
-  products_media_additional_images: typeof products_media_additional_images
-  products_seo_keywords: typeof products_seo_keywords
   products: typeof products
   payload_locked_documents: typeof payload_locked_documents
   payload_locked_documents_rels: typeof payload_locked_documents_rels
@@ -1621,11 +1467,11 @@ type DatabaseSchema = {
   payload_migrations: typeof payload_migrations
   relations_users_sessions: typeof relations_users_sessions
   relations_users: typeof relations_users
-  relations_instructors: typeof relations_instructors
   relations_customers: typeof relations_customers
   relations_admins: typeof relations_admins
   relations_user_events: typeof relations_user_events
   relations_emergency_contacts: typeof relations_emergency_contacts
+  relations_addresses: typeof relations_addresses
   relations_media: typeof relations_media
   relations_posts_tags: typeof relations_posts_tags
   relations_posts: typeof relations_posts
@@ -1634,10 +1480,6 @@ type DatabaseSchema = {
   relations_vendors: typeof relations_vendors
   relations_merchants: typeof relations_merchants
   relations_prod_categories: typeof relations_prod_categories
-  relations_products_pricing_price_history: typeof relations_products_pricing_price_history
-  relations_products_nutrition_vitamins: typeof relations_products_nutrition_vitamins
-  relations_products_media_additional_images: typeof relations_products_media_additional_images
-  relations_products_seo_keywords: typeof relations_products_seo_keywords
   relations_products: typeof relations_products
   relations_payload_locked_documents_rels: typeof relations_payload_locked_documents_rels
   relations_payload_locked_documents: typeof relations_payload_locked_documents
