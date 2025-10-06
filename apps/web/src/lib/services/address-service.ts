@@ -69,9 +69,9 @@ export class AddressService {
   private static getCachedAddresses(userId: string | number): any[] | null {
     if (!this.isCacheValid(userId)) return null;
     
-    // Don't return empty arrays as valid cache - let it fetch fresh data
-    if (!this.addressCache?.addresses || this.addressCache.addresses.length === 0) {
-      console.log('📦 Cache has no addresses, will fetch fresh data');
+    // Return cached addresses even if empty - empty array is valid data
+    if (!this.addressCache?.addresses) {
+      console.log('📦 No cached addresses found');
       return null;
     }
     
@@ -120,11 +120,8 @@ export class AddressService {
       timestamp: new Date(this.addressCache.timestamp).toISOString()
     });
     
-    // If we're caching empty addresses, clear the cache instead
-    if (this.addressCache.addresses.length === 0) {
-      console.log('🗑️ Clearing cache due to empty addresses array');
-      this.addressCache = null;
-    }
+    // Note: Empty addresses array is valid - user might have no addresses yet
+    // Don't clear cache just because addresses array is empty
   }
 
   /**
