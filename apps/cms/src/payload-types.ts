@@ -348,6 +348,10 @@ export interface Customer {
    * Current learning level
    */
   currentLevel?: ('beginner' | 'intermediate' | 'advanced') | null;
+  /**
+   * Currently selected active address for this customer (for food delivery)
+   */
+  activeAddress?: (number | null) | Address;
   updatedAt: string;
   createdAt: string;
 }
@@ -1621,6 +1625,7 @@ export interface CustomersSelect<T extends boolean = true> {
   couponCode?: T;
   enrollmentDate?: T;
   currentLevel?: T;
+  activeAddress?: T;
   updatedAt?: T;
   createdAt?: T;
 }

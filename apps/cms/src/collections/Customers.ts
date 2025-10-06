@@ -71,6 +71,14 @@ export const Customers: CollectionConfig = {
         description: 'Current learning level',
       },
     },
+    {
+      name: 'activeAddress',
+      type: 'relationship',
+      relationTo: 'addresses',
+      admin: {
+        description: 'Currently selected active address for this customer (for food delivery)',
+      },
+    },
 
   ],
 }
