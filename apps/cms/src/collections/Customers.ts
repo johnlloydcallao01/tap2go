@@ -1,5 +1,4 @@
 import type { CollectionConfig } from 'payload'
-import { adminOnly } from '../access'
 
 export const Customers: CollectionConfig = {
   slug: 'customers',
@@ -8,10 +7,31 @@ export const Customers: CollectionConfig = {
     defaultColumns: ['user', 'srn', 'enrollmentDate', 'currentLevel'],
   },
   access: {
-    read: adminOnly, // Only admins can read customer data
-    create: adminOnly, // Only admins can create customer records
-    update: adminOnly, // Only admins can update customer records
-    delete: adminOnly, // Only admins can delete customer records
+    // PayloadCMS automatically authenticates API keys and populates req.user
+    read: ({ req: { user } }) => {
+      // If user exists, they've been authenticated (either via API key or login)
+      if (user) {
+        // Allow service accounts and admins to read all customer data
+        if (user.role === 'service' || user.role === 'admin') {
+          return true
+        }
+      }
+      
+      // Block all unauthenticated requests and other roles
+      return false
+    },
+    create: ({ req: { user } }) => {
+      // Allow service accounts and admins to create customer records
+      return user?.role === 'service' || user?.role === 'admin' || false
+    },
+    update: ({ req: { user } }) => {
+      // Allow service accounts and admins to update customer records
+      return user?.role === 'service' || user?.role === 'admin' || false
+    },
+    delete: ({ req: { user } }) => {
+      // Allow service accounts and admins to delete customer records
+      return user?.role === 'service' || user?.role === 'admin' || false
+    },
   },
   fields: [
     {
