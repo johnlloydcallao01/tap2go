@@ -21,111 +21,8 @@ interface AddressResponse {
   details?: any;
 }
 
-// Cache interface for addresses
-interface AddressCache {
-  addresses: any[];
-  activeAddress: any | null;
-  timestamp: number;
-  userId: string | number;
-}
-
 export class AddressService {
   private static readonly API_BASE = '/api/addresses';
-  private static readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
-  private static addressCache: AddressCache | null = null;
-
-  /**
-   * Clear the address cache
-   */
-  private static clearCache(): void {
-    console.log('🗑️ Clearing address cache');
-    this.addressCache = null;
-  }
-
-  /**
-   * Check if cache is valid for the given user
-   */
-  private static isCacheValid(userId: string | number): boolean {
-    if (!this.addressCache) return false;
-    if (this.addressCache.userId !== userId) return false;
-    
-    const now = Date.now();
-    const isValid = (now - this.addressCache.timestamp) < this.CACHE_DURATION;
-    
-    console.log('🔍 Cache validity check:', {
-      hasCache: !!this.addressCache,
-      userMatch: this.addressCache.userId === userId,
-      age: now - this.addressCache.timestamp,
-      maxAge: this.CACHE_DURATION,
-      isValid
-    });
-    
-    return isValid;
-  }
-
-  /**
-   * Get cached addresses for user
-   */
-  private static getCachedAddresses(userId: string | number): any[] | null {
-    if (!this.isCacheValid(userId)) return null;
-    
-    // Don't return empty arrays as valid cache - let it fetch fresh data
-    if (!this.addressCache?.addresses || this.addressCache.addresses.length === 0) {
-      console.log('📦 Cache has no addresses, will fetch fresh data');
-      return null;
-    }
-    
-    console.log('📦 Using cached addresses:', this.addressCache.addresses.length);
-    return this.addressCache.addresses;
-  }
-
-  /**
-   * Get cached active address for user
-   */
-  private static getCachedActiveAddress(userId: string | number): any | null {
-    if (!this.isCacheValid(userId)) return null;
-    console.log('📦 Using cached active address:', !!this.addressCache?.activeAddress);
-    return this.addressCache?.activeAddress || null;
-  }
-
-  /**
-   * Update cache with new data
-   */
-  private static updateCache(userId: string | number, addresses?: any[], activeAddress?: any): void {
-    const now = Date.now();
-    
-    if (!this.addressCache || this.addressCache.userId !== userId) {
-      // Create new cache entry
-      this.addressCache = {
-        userId,
-        addresses: addresses || [],
-        activeAddress: activeAddress || null,
-        timestamp: now
-      };
-    } else {
-      // Update existing cache
-      if (addresses !== undefined) {
-        this.addressCache.addresses = addresses;
-      }
-      if (activeAddress !== undefined) {
-        this.addressCache.activeAddress = activeAddress;
-      }
-      this.addressCache.timestamp = now;
-    }
-    
-    console.log('💾 Cache updated:', {
-      userId,
-      addressCount: this.addressCache.addresses.length,
-      hasActiveAddress: !!this.addressCache.activeAddress,
-      timestamp: new Date(this.addressCache.timestamp).toISOString()
-    });
-    
-    // If we're caching empty addresses, clear the cache instead
-    if (this.addressCache.addresses.length === 0) {
-      console.log('🗑️ Clearing cache due to empty addresses array');
-      this.addressCache = null;
-    }
-  }
 
   /**
    * Get the authorization token from localStorage
@@ -165,7 +62,7 @@ export class AddressService {
   }
 
   /**
-   * Save a new address (with cache invalidation)
+   * Save a new address
    */
   static async saveAddress(request: AddressCreateRequest): Promise<AddressResponse> {
     try {
@@ -222,9 +119,6 @@ export class AddressService {
       const data: AddressResponse = await response.json();
       console.log('📋 API Response data:', data);
 
-      // Clear cache when address is saved to force refresh
-      this.clearCache();
-
       console.log('✅ Address saved successfully');
       return data;
     } catch (error) {
@@ -234,19 +128,10 @@ export class AddressService {
   }
 
   /**
-   * Get all addresses for the current user (with caching)
+   * Get all addresses for the current user
    */
-  static async getUserAddresses(userId?: string | number): Promise<AddressResponse> {
+  static async getUserAddresses(): Promise<AddressResponse> {
     try {
-      // Try to get from cache first if userId is provided
-      if (userId) {
-        const cachedAddresses = this.getCachedAddresses(userId);
-        if (cachedAddresses) {
-          console.log('📦 Returning cached addresses');
-          return { success: true, addresses: cachedAddresses };
-        }
-      }
-
       console.log('🌐 Fetching addresses from API');
       const response = await fetch(this.API_BASE, {
         method: 'GET',
@@ -257,11 +142,6 @@ export class AddressService {
 
       if (!response.ok) {
         throw new Error(data.error || `HTTP error! status: ${response.status}`);
-      }
-
-      // Update cache if userId is provided and we have addresses
-      if (userId && data.addresses) {
-        this.updateCache(userId, data.addresses);
       }
 
       return data;
@@ -295,7 +175,7 @@ export class AddressService {
   }
 
   /**
-   * Delete an address (with cache invalidation)
+   * Delete an address
    */
   static async deleteAddress(addressId: string): Promise<AddressResponse> {
     try {
@@ -309,9 +189,6 @@ export class AddressService {
       if (!response.ok) {
         throw new Error(data.error || `HTTP error! status: ${response.status}`);
       }
-
-      // Clear cache when address is deleted to force refresh
-      this.clearCache();
 
       return data;
     } catch (error) {
@@ -460,9 +337,6 @@ export class AddressService {
 
       console.log(`✅ [${requestId}] === SET ACTIVE ADDRESS SUCCESS ===`);
       
-      // Clear cache when active address is updated to force refresh
-      this.clearCache();
-      
       return { 
         success: true, 
         message: 'Active address updated successfully',
@@ -482,16 +356,9 @@ export class AddressService {
     }
   }
 
-  // Get customer's active address (from database, not localStorage) - Using Next.js API route proxy (with caching)
+  // Get customer's active address (from database, not localStorage) - Using Next.js API route proxy
   static async getActiveAddress(userId: string | number): Promise<AddressResponse> {
     try {
-      // Try to get from cache first
-      const cachedActiveAddress = this.getCachedActiveAddress(userId);
-      if (cachedActiveAddress) {
-        console.log('📦 Returning cached active address');
-        return { success: true, address: cachedActiveAddress };
-      }
-
       console.log('🌐 Fetching active address from API');
       
       // Step 1: Get customer ID from user ID
@@ -518,115 +385,10 @@ export class AddressService {
       const responseData = await response.json();
       const activeAddress = responseData.customer?.activeAddress || responseData.activeAddress;
       
-      // Update cache with the active address
-      this.updateCache(userId, undefined, activeAddress);
-      
       return { success: true, address: activeAddress };
     } catch (error) {
       console.error('Error getting active address:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Update cache with optimized partial updates
-   */
-  private static updateCacheOptimized(
-    userId: string | number, 
-    addresses?: any[], 
-    activeAddress?: any,
-    operation?: 'delete' | 'setActive' | 'add'
-  ) {
-    const now = Date.now();
-    
-    // Initialize cache if it doesn't exist
-    if (!this.addressCache) {
-      this.addressCache = {
-        userId: userId.toString(),
-        addresses: addresses || [],
-        activeAddress: activeAddress || null,
-        timestamp: now
-      };
-      return;
-    }
-
-    // Update timestamp
-    this.addressCache.timestamp = now;
-
-    // Handle different operations
-    if (operation === 'delete' && addresses) {
-      this.addressCache.addresses = addresses;
-      // Clear active address if it was deleted
-      const activeAddress = this.addressCache.activeAddress;
-      if (activeAddress && !addresses.find(addr => addr.id === activeAddress.id)) {
-        this.addressCache.activeAddress = null;
-      }
-    } else if (operation === 'setActive' && activeAddress) {
-      this.addressCache.activeAddress = activeAddress;
-      // Update the address in the addresses array to reflect active status
-      const addressIndex = this.addressCache.addresses.findIndex(addr => addr.id === activeAddress.id);
-      if (addressIndex !== -1) {
-        this.addressCache.addresses[addressIndex] = { ...this.addressCache.addresses[addressIndex], ...activeAddress };
-      }
-    } else if (operation === 'add' && addresses) {
-      this.addressCache.addresses = addresses;
-      if (activeAddress) {
-        this.addressCache.activeAddress = activeAddress;
-      }
-    }
-
-    console.log('💾 Cache updated optimized:', {
-      userId,
-      operation,
-      addressCount: this.addressCache.addresses.length,
-      hasActiveAddress: !!this.addressCache.activeAddress
-    });
-  }
-
-  /**
-   * Remove a specific address from cache
-   */
-  private static removeAddressFromCache(userId: string | number, addressId: string) {
-    if (!this.addressCache || this.addressCache.userId !== userId.toString()) {
-      return;
-    }
-
-    // Remove the address from the addresses array
-    this.addressCache.addresses = this.addressCache.addresses.filter(addr => addr.id !== addressId);
-    
-    // Clear active address if it was the one deleted
-    if (this.addressCache.activeAddress?.id === addressId) {
-      this.addressCache.activeAddress = null;
-    }
-
-    this.addressCache.timestamp = Date.now();
-
-    console.log('🗑️ Address removed from cache:', {
-      userId,
-      addressId,
-      remainingCount: this.addressCache.addresses.length
-    });
-  }
-
-  /**
-   * Update active address in cache
-   */
-  private static updateActiveAddressInCache(userId: string | number, addressId: string) {
-    if (!this.addressCache || this.addressCache.userId !== userId.toString()) {
-      return;
-    }
-
-    // Find and set the active address
-    const address = this.addressCache.addresses.find(addr => addr.id === addressId);
-    if (address) {
-      this.addressCache.activeAddress = { ...address, is_active: true };
-      this.addressCache.timestamp = Date.now();
-
-      console.log('🎯 Active address updated in cache:', {
-        userId,
-        addressId,
-        activeAddress: this.addressCache.activeAddress
-      });
     }
   }
 }
