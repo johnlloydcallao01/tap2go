@@ -70,7 +70,19 @@ export type IconName =
   | 'integrations'
   | 'api'
   | 'security'
-  | 'backup';
+  | 'backup'
+  | 'heart'
+  | 'receipt'
+  | 'history'
+  | 'location'
+  | 'subscription'
+  | 'voucher'
+  | 'coupon'
+  | 'points'
+  | 'invite'
+  | 'terms'
+  | 'privacy'
+  | 'logout';
 
 // Category icon mapping type
 export interface CategoryIconConfig {

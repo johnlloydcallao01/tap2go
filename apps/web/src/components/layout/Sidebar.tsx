@@ -42,19 +42,133 @@ export function Sidebar({ isOpen, onToggle, onScroll }: SidebarProps) {
               collapsed={!isOpen}
               href="/"
             />
+            <SidebarItem
+              icon="history"
+              label="Recently Viewed"
+              active={pathname === '/recently-viewed'}
+              collapsed={!isOpen}
+              href="/recently-viewed"
+            />
 
           </div>
 
           {isOpen && <hr className="my-3 border-gray-200" />}
 
-          {/* Explore section */}
+          {/* Account section */}
           <div className="space-y-1">
-            {isOpen && <div className="px-3 py-2 text-sm font-medium text-gray-900">Explore</div>}
-            <SidebarItem icon="trending" label="Trending" collapsed={!isOpen} href="/trending" />
-            <SidebarItem icon="music" label="Music" collapsed={!isOpen} href="/music" />
-            <SidebarItem icon="gaming" label="Gaming" collapsed={!isOpen} href="/gaming" />
-            <SidebarItem icon="news" label="News" collapsed={!isOpen} href="/news" />
-            <SidebarItem icon="sports" label="Sports" collapsed={!isOpen} href="/sports" />
+            {isOpen && <div className="px-3 py-2 text-sm font-medium text-gray-900">Account</div>}
+            <SidebarItem 
+              icon="receipt" 
+              label="Orders" 
+              active={pathname === '/orders'}
+              collapsed={!isOpen} 
+              href="/orders" 
+            />
+            <SidebarItem 
+              icon="heart" 
+              label="Wishlists" 
+              active={pathname === '/wishlists'}
+              collapsed={!isOpen} 
+              href="/wishlists" 
+            />
+            <SidebarItem 
+              icon="location" 
+              label="Addresses" 
+              active={pathname === '/addresses'}
+              collapsed={!isOpen} 
+              href="/addresses" 
+            />
+            <SidebarItem 
+              icon="billing" 
+              label="Wallets" 
+              active={pathname === '/wallets'}
+              collapsed={!isOpen} 
+              href="/wallets" 
+            />
+            <SidebarItem 
+              icon="settings" 
+              label="Settings" 
+              active={pathname === '/settings'}
+              collapsed={!isOpen} 
+              href="/settings" 
+            />
+          </div>
+
+          {isOpen && <hr className="my-3 border-gray-200" />}
+
+          {/* Perks section */}
+          <div className="space-y-1">
+            {isOpen && <div className="px-3 py-2 text-sm font-medium text-gray-900">Perks</div>}
+            <SidebarItem
+              icon="subscription"
+              label="Subscriptions"
+              href="/subscriptions"
+              active={pathname === '/subscriptions'}
+              collapsed={!isOpen}
+            />
+            <SidebarItem
+              icon="voucher"
+              label="Vouchers"
+              href="/vouchers"
+              active={pathname === '/vouchers'}
+              collapsed={!isOpen}
+            />
+            <SidebarItem
+              icon="coupon"
+              label="Coupons"
+              href="/coupons"
+              active={pathname === '/coupons'}
+              collapsed={!isOpen}
+            />
+            <SidebarItem
+              icon="points"
+              label="Points"
+              href="/points"
+              active={pathname === '/points'}
+              collapsed={!isOpen}
+            />
+            <SidebarItem
+              icon="invite"
+              label="Invite Friends"
+              href="/invite"
+              active={pathname === '/invite'}
+              collapsed={!isOpen}
+            />
+          </div>
+
+          {isOpen && <hr className="my-3 border-gray-200" />}
+
+          {/* General section */}
+          <div className="space-y-1">
+            {isOpen && <div className="px-3 py-2 text-sm font-medium text-gray-900">General</div>}
+            <SidebarItem
+              icon="help"
+              label="Help Center"
+              href="/help"
+              active={pathname === '/help'}
+              collapsed={!isOpen}
+            />
+            <SidebarItem
+              icon="terms"
+              label="Terms and Conditions"
+              href="/terms"
+              active={pathname === '/terms'}
+              collapsed={!isOpen}
+            />
+            <SidebarItem
+              icon="privacy"
+              label="Privacy Policy"
+              href="/privacy"
+              active={pathname === '/privacy'}
+              collapsed={!isOpen}
+            />
+            <SidebarItem
+              icon="logout"
+              label="Logout"
+              href="/logout"
+              active={pathname === '/logout'}
+              collapsed={!isOpen}
+            />
           </div>
 
 

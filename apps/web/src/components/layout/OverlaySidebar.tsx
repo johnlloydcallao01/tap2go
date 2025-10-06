@@ -82,47 +82,138 @@ export function OverlaySidebar({ isOpen, onClose }: OverlaySidebarProps) {
                 href="/"
                 onClick={onClose}
               />
+              <SidebarItem
+                icon="history"
+                label="Recently Viewed"
+                active={pathname === '/recently-viewed'}
+                collapsed={false}
+                href="/recently-viewed"
+                onClick={onClose}
+              />
+          </div>
+
+          <hr className="my-3 border-gray-200" />
+
+          {/* Perks section */}
+          <div className="space-y-1">
+            <div className="px-3 py-2 text-sm font-medium text-gray-900">Perks</div>
+            <SidebarItem
+              icon="subscription"
+              label="Subscriptions"
+              href="/subscriptions"
+              active={pathname === '/subscriptions'}
+              collapsed={false}
+              onClick={onClose}
+            />
+            <SidebarItem
+              icon="voucher"
+              label="Vouchers"
+              href="/vouchers"
+              active={pathname === '/vouchers'}
+              collapsed={false}
+              onClick={onClose}
+            />
+            <SidebarItem
+              icon="coupon"
+              label="Coupons"
+              href="/coupons"
+              active={pathname === '/coupons'}
+              collapsed={false}
+              onClick={onClose}
+            />
+            <SidebarItem
+              icon="points"
+              label="Points"
+              href="/points"
+              active={pathname === '/points'}
+              collapsed={false}
+              onClick={onClose}
+            />
+            <SidebarItem
+              icon="invite"
+              label="Invite Friends"
+              href="/invite"
+              active={pathname === '/invite'}
+              collapsed={false}
+              onClick={onClose}
+            />
+          </div>
+
+            <hr className="my-3 border-gray-200" />
+
+            {/* Account section */}
+            <div className="space-y-1">
+              <div className="px-3 py-2 text-sm font-medium text-gray-900">Account</div>
+              <SidebarItem 
+                icon="receipt" 
+                label="Orders" 
+                active={pathname === '/orders'}
+                collapsed={false} 
+                href="/orders" 
+                onClick={onClose}
+              />
+              <SidebarItem 
+                icon="heart" 
+                label="Wishlists" 
+                active={pathname === '/wishlists'}
+                collapsed={false} 
+                href="/wishlists" 
+                onClick={onClose}
+              />
+              <SidebarItem 
+                icon="location" 
+                label="Addresses" 
+                active={pathname === '/addresses'}
+                collapsed={false} 
+                href="/addresses" 
+                onClick={onClose}
+              />
+              <SidebarItem 
+                icon="billing" 
+                label="Wallets" 
+                active={pathname === '/wallets'}
+                collapsed={false} 
+                href="/wallets" 
+                onClick={onClose}
+              />
+              <SidebarItem 
+                icon="settings" 
+                label="Settings" 
+                active={pathname === '/settings'}
+                collapsed={false} 
+                href="/settings" 
+                onClick={onClose}
+              />
             </div>
 
             <hr className="my-3 border-gray-200" />
 
-            {/* Explore section */}
+            {/* General section */}
             <div className="space-y-1">
-              <div className="px-3 py-2 text-sm font-medium text-gray-900">Explore</div>
-              <SidebarItem 
-                icon="trending" 
-                label="Trending" 
-                collapsed={false} 
-                href="/trending" 
-                onClick={onClose}
+              <div className="px-3 py-2 text-sm font-medium text-gray-900">General</div>
+              <SidebarItem
+                icon="help"
+                label="Help Center"
+                href="/help"
+                active={pathname === '/help'}
               />
-              <SidebarItem 
-                icon="music" 
-                label="Music" 
-                collapsed={false} 
-                href="/music" 
-                onClick={onClose}
+              <SidebarItem
+                icon="terms"
+                label="Terms and Conditions"
+                href="/terms"
+                active={pathname === '/terms'}
               />
-              <SidebarItem 
-                icon="gaming" 
-                label="Gaming" 
-                collapsed={false} 
-                href="/gaming" 
-                onClick={onClose}
+              <SidebarItem
+                icon="privacy"
+                label="Privacy Policy"
+                href="/privacy"
+                active={pathname === '/privacy'}
               />
-              <SidebarItem 
-                icon="news" 
-                label="News" 
-                collapsed={false} 
-                href="/news" 
-                onClick={onClose}
-              />
-              <SidebarItem 
-                icon="sports" 
-                label="Sports" 
-                collapsed={false} 
-                href="/sports" 
-                onClick={onClose}
+              <SidebarItem
+                icon="logout"
+                label="Logout"
+                href="/logout"
+                active={pathname === '/logout'}
               />
             </div>
           </nav>

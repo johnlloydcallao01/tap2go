@@ -162,7 +162,7 @@ export function Header({
 
           {/* Bell/Notifications Icon */}
           <button
-            onClick={() => router.push('/notifications')}
+            onClick={() => router.push('/notifications' as any)}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
           >
             <i className="fas fa-bell text-gray-600 text-lg"></i>
@@ -232,9 +232,18 @@ export function Header({
 
         {/* Right section - Desktop */}
         <div className="flex items-center space-x-4">
+          {/* Cart Icon */}
+          <button
+            onClick={() => router.push('/cart' as any)}
+            className="p-2 hover:bg-gray-100 rounded-full text-gray-600 hover:text-gray-800 transition-colors"
+            aria-label="Shopping Cart"
+          >
+            <i className="fas fa-shopping-cart text-lg"></i>
+          </button>
+
           {/* Notification Bell Icon */}
           <button
-            onClick={() => router.push('/notifications')}
+            onClick={() => router.push('/notifications' as any)}
             className="p-2 hover:bg-gray-100 rounded-full text-gray-600 hover:text-gray-800 transition-colors"
             aria-label="Notifications"
           >
