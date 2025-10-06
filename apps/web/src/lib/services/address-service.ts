@@ -346,7 +346,41 @@ export class AddressService {
 
   // === ACTIVE ADDRESS MANAGEMENT ===
   
-  // Set user's active address (truly persistent) - Using Next.js API route proxy
+  /**
+   * Get customer ID from user ID
+   */
+  private static async getCustomerIdFromUserId(userId: string | number): Promise<string | null> {
+    try {
+      // Use proper authentication headers for PayloadCMS API
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Authorization': `users API-Key ${process.env.NEXT_PUBLIC_PAYLOAD_API_KEY}`,
+      };
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api'}/customers?where[user][equals]=${userId}&limit=1`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch customer by user ID:', response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      if (data.docs && data.docs.length > 0) {
+        return data.docs[0].id;
+      }
+      
+      console.error('No customer found for user ID:', userId);
+      return null;
+    } catch (error) {
+      console.error('Error getting customer ID from user ID:', error);
+      return null;
+    }
+  }
+  
+  // Set customer's active address (truly persistent) - Using customers table instead of users
   static async setActiveAddress(userId: string | number, addressId: string | number | null): Promise<AddressResponse> {
     const requestId = Math.random().toString(36).substr(2, 9);
     console.log(`🔄 [${requestId}] === SET ACTIVE ADDRESS REQUEST STARTED ===`);
@@ -363,10 +397,19 @@ export class AddressService {
       addressId,
       userIdType: typeof userId,
       addressIdType: typeof addressId,
-      endpoint: `/api/users/${userId}`
     });
 
     try {
+      // Step 1: Get customer ID from user ID
+      console.log(`🔍 [${requestId}] Getting customer ID from user ID...`);
+      const customerId = await this.getCustomerIdFromUserId(userId);
+      
+      if (!customerId) {
+        throw new Error('Customer record not found for this user');
+      }
+      
+      console.log(`✅ [${requestId}] Customer ID found:`, customerId);
+
       const headers = this.getHeaders();
       console.log(`📤 [${requestId}] Request Headers:`, {
         hasAuth: !!headers['Authorization'],
@@ -378,7 +421,7 @@ export class AddressService {
       console.log(`📦 [${requestId}] Request Body:`, requestBody);
 
       const startTime = Date.now();
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetch(`/api/customers/${customerId}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify(requestBody),
@@ -423,7 +466,7 @@ export class AddressService {
       return { 
         success: true, 
         message: 'Active address updated successfully',
-        address: data.user?.activeAddress || data.activeAddress 
+        address: data.customer?.activeAddress || data.activeAddress 
       };
     } catch (error) {
       console.error(`💥 [${requestId}] === SET ACTIVE ADDRESS ERROR ===`);
@@ -433,13 +476,13 @@ export class AddressService {
         stack: error.stack,
         userId,
         addressId,
-        endpoint: `/api/users/${userId}`
+        endpoint: `/api/customers/[customerId]`
       });
       throw error;
     }
   }
 
-  // Get user's active address (from database, not localStorage) - Using Next.js API route proxy (with caching)
+  // Get customer's active address (from database, not localStorage) - Using Next.js API route proxy (with caching)
   static async getActiveAddress(userId: string | number): Promise<AddressResponse> {
     try {
       // Try to get from cache first
@@ -450,21 +493,30 @@ export class AddressService {
       }
 
       console.log('🌐 Fetching active address from API');
-      const response = await fetch(`/api/users/${userId}`, {
+      
+      // Step 1: Get customer ID from user ID
+      const customerId = await this.getCustomerIdFromUserId(userId);
+      
+      if (!customerId) {
+        console.log('No customer found for user ID:', userId);
+        return { success: true, address: null };
+      }
+
+      const response = await fetch(`/api/customers/${customerId}`, {
         method: 'GET',
         headers: this.getHeaders(),
       });
 
       if (!response.ok) {
         if (response.status === 404) {
-          return { success: true, address: null }; // User not found or no active address
+          return { success: true, address: null }; // Customer not found or no active address
         }
         const data = await response.json();
         throw new Error(data.error || data.errors?.[0]?.message || `HTTP error! status: ${response.status}`);
       }
 
       const responseData = await response.json();
-      const activeAddress = responseData.user?.activeAddress || responseData.activeAddress;
+      const activeAddress = responseData.customer?.activeAddress || responseData.activeAddress;
       
       // Update cache with the active address
       this.updateCache(userId, undefined, activeAddress);
