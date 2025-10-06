@@ -193,10 +193,6 @@ export interface User {
    * User profile picture
    */
   profilePicture?: (number | null) | Media;
-  /**
-   * Currently selected active address for this user (for food delivery)
-   */
-  activeAddress?: (number | null) | Address;
   updatedAt: string;
   createdAt: string;
   enableAPIKey?: boolean | null;
@@ -238,6 +234,39 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customers".
+ */
+export interface Customer {
+  id: number;
+  /**
+   * Link to user account
+   */
+  user: number | User;
+  /**
+   * Student Registration Number (unique identifier)
+   */
+  srn: string;
+  /**
+   * Marketing coupon code used during registration
+   */
+  couponCode?: string | null;
+  /**
+   * Date when customer enrolled in the program
+   */
+  enrollmentDate?: string | null;
+  /**
+   * Current learning level
+   */
+  currentLevel?: ('beginner' | 'intermediate' | 'advanced') | null;
+  /**
+   * Currently selected active address for this customer (for food delivery)
+   */
+  activeAddress?: (number | null) | Address;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Manage user addresses with Google Maps integration
@@ -319,39 +348,6 @@ export interface Address {
    * Additional notes or delivery instructions
    */
   notes?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "customers".
- */
-export interface Customer {
-  id: number;
-  /**
-   * Link to user account
-   */
-  user: number | User;
-  /**
-   * Student Registration Number (unique identifier)
-   */
-  srn: string;
-  /**
-   * Marketing coupon code used during registration
-   */
-  couponCode?: string | null;
-  /**
-   * Date when customer enrolled in the program
-   */
-  enrollmentDate?: string | null;
-  /**
-   * Current learning level
-   */
-  currentLevel?: ('beginner' | 'intermediate' | 'advanced') | null;
-  /**
-   * Currently selected active address for this customer (for food delivery)
-   */
-  activeAddress?: (number | null) | Address;
   updatedAt: string;
   createdAt: string;
 }
@@ -1594,7 +1590,6 @@ export interface UsersSelect<T extends boolean = true> {
   isActive?: T;
   lastLogin?: T;
   profilePicture?: T;
-  activeAddress?: T;
   updatedAt?: T;
   createdAt?: T;
   enableAPIKey?: T;

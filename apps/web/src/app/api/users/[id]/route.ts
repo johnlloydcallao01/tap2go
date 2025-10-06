@@ -99,7 +99,7 @@ export async function PATCH(
     }
     console.log('✅ User updated successfully:', {
       id: updatedUser.doc?.id || updatedUser.id,
-      activeAddress: updatedUser.doc?.activeAddress || updatedUser.activeAddress
+      email: updatedUser.doc?.email || updatedUser.email
     });
 
     console.log('👤 === USER UPDATE COMPLETED ===');
@@ -216,7 +216,7 @@ export async function GET(
     }
     console.log('✅ User fetched successfully:', {
       id: userData.id,
-      activeAddress: userData.activeAddress
+      email: userData.email
     });
 
     console.log('📖 === USER GET COMPLETED ===');
