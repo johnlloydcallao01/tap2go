@@ -103,6 +103,8 @@ export const CACHE_KEYS = {
   PRODUCT_CATEGORIES: 'product-categories',
   MERCHANTS: 'merchants',
   MERCHANTS_BY_ID: (id: string) => `merchant-${id}`,
+  ADDRESSES: 'addresses',
+  ACTIVE_ADDRESS: (userId: string | number) => `active-address-${userId}`,
 } as const;
 
 // Default TTL values (in minutes)
@@ -110,4 +112,6 @@ export const CACHE_TTL = {
   PRODUCT_CATEGORIES: 10, // 10 minutes
   MERCHANTS: 5, // 5 minutes
   MERCHANT_DETAILS: 15, // 15 minutes
+  ADDRESSES: 5, // 5 minutes
+  ACTIVE_ADDRESS: 10, // 10 minutes
 } as const;

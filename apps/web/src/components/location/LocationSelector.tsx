@@ -78,8 +78,8 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
     
     setIsLoadingAddresses(true);
     try {
-      // Load user addresses
-      const response = await AddressService.getUserAddresses();
+      // Load user addresses with caching enabled
+      const response = await AddressService.getUserAddresses(true);
       if (response.success && response.addresses) {
         setUserAddresses(response.addresses);
       } else {
@@ -87,9 +87,9 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
         setUserAddresses([]);
       }
 
-      // Load active address to show which one is currently active
+      // Load active address to show which one is currently active with caching enabled
       try {
-        const activeResponse = await AddressService.getActiveAddress(user.id);
+        const activeResponse = await AddressService.getActiveAddress(user.id, true);
         if (activeResponse.success && activeResponse.address) {
           setActiveAddressId(activeResponse.address.id);
         } else {
@@ -602,7 +602,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
 
     try {
       // First, try to get user's active address from backend
-      const activeAddressResponse = await AddressService.getActiveAddress(user.id);
+      const activeAddressResponse = await AddressService.getActiveAddress(user.id, true);
       if (activeAddressResponse.success && activeAddressResponse.address) {
         const activeAddress = activeAddressResponse.address;
         
@@ -624,7 +624,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
       }
 
       // Fallback: fetch user's addresses and use default or latest one
-      const response = await AddressService.getUserAddresses();
+      const response = await AddressService.getUserAddresses(true);
       if (response.success && response.addresses && response.addresses.length > 0) {
         // Find default address or use the most recent one (latest saved)
         const defaultAddress = response.addresses.find((addr: any) => addr.is_default) || 
