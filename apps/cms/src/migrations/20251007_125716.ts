@@ -1,6 +1,6 @@
 import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
 
-export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
+export async function up({ db, payload: _payload, req: _req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
    CREATE TYPE "public"."enum_addresses_geocoding_accuracy" AS ENUM('ROOFTOP', 'RANGE_INTERPOLATED', 'GEOMETRIC_CENTER', 'APPROXIMATE');
   CREATE TYPE "public"."enum_addresses_coordinate_source" AS ENUM('GPS', 'GOOGLE_GEOCODING', 'MANUAL', 'ESTIMATED');
@@ -60,7 +60,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "merchants_delivery_zones_gist_idx" ON "merchants" USING gist ("delivery_zones");`)
 }
 
-export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
+export async function down({ db, payload: _payload, req: _req }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
    DROP INDEX "address_quality_score_idx";
   DROP INDEX "is_verified_idx";

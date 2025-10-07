@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url'
 import crypto from 'crypto'
 import { cloudinaryAdapter } from './storage/cloudinary-adapter'
 import { authLogger, createAuthLogContext } from './utils/auth-logger'
+import { GeospatialService } from './utils/GeospatialService'
 import type { PayloadRequest, PayloadHandler } from 'payload'
 // import sharp from 'sharp'
 
@@ -261,7 +262,338 @@ export default buildConfig({
       }) as PayloadHandler,
     },
 
+    // ========================================
+    // HIGH-PERFORMANCE GEOSPATIAL API ENDPOINTS
+    // ========================================
+    {
+      path: '/merchants-by-location',
+      method: 'get',
+      handler: (async (req: PayloadRequest) => {
+        const startTime = Date.now();
+        const requestId = crypto.randomUUID();
+        
+        try {
+          console.log(`🗺️ [${requestId}] MERCHANTS BY LOCATION REQUEST:`, {
+            timestamp: new Date().toISOString(),
+            query: req.query,
+          });
 
+          // Extract and validate query parameters
+          const { latitude, longitude, radius = '5000', limit = '20', offset = '0' } = req.query as {
+            latitude?: string;
+            longitude?: string;
+            radius?: string;
+            limit?: string;
+            offset?: string;
+          };
+
+          // Validation
+          if (!latitude || !longitude) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Missing required parameters: latitude and longitude',
+                code: 'MISSING_PARAMETERS',
+                timestamp: new Date().toISOString(),
+                requestId,
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const lat = parseFloat(latitude);
+          const lng = parseFloat(longitude);
+          const radiusMeters = parseInt(radius, 10);
+          const limitNum = Math.min(parseInt(limit, 10), 100); // Cap at 100
+          const offsetNum = parseInt(offset, 10);
+
+          if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Invalid coordinates',
+                code: 'INVALID_COORDINATES',
+                timestamp: new Date().toISOString(),
+                requestId,
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Use GeospatialService to find merchants
+          const geospatialService = new GeospatialService(req.payload);
+          const result = await geospatialService.findMerchantsWithinRadius({
+            latitude: lat,
+            longitude: lng,
+            radiusMeters,
+            limit: limitNum,
+            offset: offsetNum
+          });
+
+          const responseTime = Date.now() - startTime;
+          
+          console.log(`✅ [${requestId}] MERCHANTS BY LOCATION SUCCESS:`, {
+            merchantsFound: result.merchants.length,
+            totalCount: result.totalCount,
+            responseTime: `${responseTime}ms`,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: result,
+              metadata: {
+                query: { latitude: lat, longitude: lng, radius: radiusMeters },
+                pagination: { limit: limitNum, offset: offsetNum },
+                performance: { responseTime, requestId },
+                timestamp: new Date().toISOString(),
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+
+        } catch (error) {
+          const responseTime = Date.now() - startTime;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          
+          console.error(`🚨 [${requestId}] MERCHANTS BY LOCATION ERROR:`, {
+            error: errorMessage,
+            responseTime: `${responseTime}ms`,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Internal server error',
+              code: 'INTERNAL_SERVER_ERROR',
+              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+              timestamp: new Date().toISOString(),
+              requestId,
+              responseTime,
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }) as PayloadHandler,
+    },
+
+    {
+      path: '/merchants-in-delivery-radius',
+      method: 'get',
+      handler: (async (req: PayloadRequest) => {
+        const startTime = Date.now();
+        const requestId = crypto.randomUUID();
+        
+        try {
+          console.log(`🚚 [${requestId}] MERCHANTS IN DELIVERY RADIUS REQUEST:`, {
+            timestamp: new Date().toISOString(),
+            query: req.query,
+          });
+
+          // Extract and validate query parameters
+          const { latitude, longitude, limit = '20', offset = '0' } = req.query as {
+            latitude?: string;
+            longitude?: string;
+            limit?: string;
+            offset?: string;
+          };
+
+          // Validation
+          if (!latitude || !longitude) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Missing required parameters: latitude and longitude',
+                code: 'MISSING_PARAMETERS',
+                timestamp: new Date().toISOString(),
+                requestId,
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const lat = parseFloat(latitude);
+          const lng = parseFloat(longitude);
+          const limitNum = Math.min(parseInt(limit, 10), 100); // Cap at 100
+          const offsetNum = parseInt(offset, 10);
+
+          if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Invalid coordinates',
+                code: 'INVALID_COORDINATES',
+                timestamp: new Date().toISOString(),
+                requestId,
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Use GeospatialService to find merchants in delivery radius
+          const geospatialService = new GeospatialService(req.payload);
+          const result = await geospatialService.findMerchantsInDeliveryRadius({
+            latitude: lat,
+            longitude: lng,
+            limit: limitNum,
+            offset: offsetNum
+          });
+
+          const responseTime = Date.now() - startTime;
+          
+          console.log(`✅ [${requestId}] MERCHANTS IN DELIVERY RADIUS SUCCESS:`, {
+            merchantsFound: result.merchants.length,
+            totalCount: result.totalCount,
+            responseTime: `${responseTime}ms`,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: result,
+              metadata: {
+                query: { latitude: lat, longitude: lng },
+                pagination: { limit: limitNum, offset: offsetNum },
+                performance: { responseTime, requestId },
+                timestamp: new Date().toISOString(),
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+
+        } catch (error) {
+          const responseTime = Date.now() - startTime;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          
+          console.error(`🚨 [${requestId}] MERCHANTS IN DELIVERY RADIUS ERROR:`, {
+            error: errorMessage,
+            responseTime: `${responseTime}ms`,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Internal server error',
+              code: 'INTERNAL_SERVER_ERROR',
+              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+              timestamp: new Date().toISOString(),
+              requestId,
+              responseTime,
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }) as PayloadHandler,
+    },
+
+    {
+      path: '/merchants-in-service-area',
+      method: 'get',
+      handler: (async (req: PayloadRequest) => {
+        const startTime = Date.now();
+        const requestId = crypto.randomUUID();
+        
+        try {
+          console.log(`🏢 [${requestId}] MERCHANTS IN SERVICE AREA REQUEST:`, {
+            timestamp: new Date().toISOString(),
+            query: req.query,
+          });
+
+          // Extract and validate query parameters
+          const { latitude, longitude, limit = '20', offset = '0' } = req.query as {
+            latitude?: string;
+            longitude?: string;
+            limit?: string;
+            offset?: string;
+          };
+
+          // Validation
+          if (!latitude || !longitude) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Missing required parameters: latitude and longitude',
+                code: 'MISSING_PARAMETERS',
+                timestamp: new Date().toISOString(),
+                requestId,
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const lat = parseFloat(latitude);
+          const lng = parseFloat(longitude);
+          const limitNum = Math.min(parseInt(limit, 10), 100); // Cap at 100
+          const offsetNum = parseInt(offset, 10);
+
+          if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Invalid coordinates',
+                code: 'INVALID_COORDINATES',
+                timestamp: new Date().toISOString(),
+                requestId,
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Use GeospatialService to find merchants in service area
+          const geospatialService = new GeospatialService(req.payload);
+          const result = await geospatialService.findMerchantsInServiceArea({
+            latitude: lat,
+            longitude: lng,
+            limit: limitNum,
+            offset: offsetNum
+          });
+
+          const responseTime = Date.now() - startTime;
+          
+          console.log(`✅ [${requestId}] MERCHANTS IN SERVICE AREA SUCCESS:`, {
+            merchantsFound: result.merchants.length,
+            totalCount: result.totalCount,
+            responseTime: `${responseTime}ms`,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: result,
+              metadata: {
+                query: { latitude: lat, longitude: lng },
+                pagination: { limit: limitNum, offset: offsetNum },
+                performance: { responseTime, requestId },
+                timestamp: new Date().toISOString(),
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+
+        } catch (error) {
+          const responseTime = Date.now() - startTime;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          
+          console.error(`🚨 [${requestId}] MERCHANTS IN SERVICE AREA ERROR:`, {
+            error: errorMessage,
+            responseTime: `${responseTime}ms`,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Internal server error',
+              code: 'INTERNAL_SERVER_ERROR',
+              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+              timestamp: new Date().toISOString(),
+              requestId,
+              responseTime,
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }) as PayloadHandler,
+    },
   ],
 
   // sharp,
