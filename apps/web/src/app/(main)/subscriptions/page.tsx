@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Star, Calendar, Clock, CreditCard, Gift, Zap, Crown, Shield } from 'lucide-react'
 
 interface Subscription {
   id: string
