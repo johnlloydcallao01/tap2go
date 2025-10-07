@@ -333,6 +333,66 @@ export interface Address {
    */
   longitude?: number | null;
   /**
+   * PostGIS GEOMETRY(POINT, 4326) for spatial queries - stored as GeoJSON
+   */
+  coordinates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Elevation data in meters (optional)
+   */
+  altitude?: number | null;
+  /**
+   * Geocoding confidence score (1-100)
+   */
+  address_quality_score?: number | null;
+  /**
+   * Google Maps geocoding accuracy level
+   */
+  geocoding_accuracy?: ('ROOFTOP' | 'RANGE_INTERPOLATED' | 'GEOMETRIC_CENTER' | 'APPROXIMATE') | null;
+  /**
+   * Source of coordinate data
+   */
+  coordinate_source?: ('GPS' | 'GOOGLE_GEOCODING' | 'MANUAL' | 'ESTIMATED') | null;
+  /**
+   * Timestamp of last geocoding update
+   */
+  last_geocoded_at?: string | null;
+  /**
+   * Method used to verify address accuracy
+   */
+  verification_method?: ('GPS_CONFIRMED' | 'DELIVERY_CONFIRMED' | 'USER_CONFIRMED' | 'UNVERIFIED') | null;
+  /**
+   * PostGIS POLYGON for property boundaries - stored as GeoJSON
+   */
+  address_boundary?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Default delivery radius in meters
+   */
+  service_radius_meters?: number | null;
+  /**
+   * Delivery instructions and accessibility information
+   */
+  accessibility_notes?: string | null;
+  /**
+   * Nearby landmarks for easier location identification
+   */
+  landmark_description?: string | null;
+  /**
    * Type of address for categorization
    */
   address_type: 'home' | 'work' | 'billing' | 'shipping' | 'pickup' | 'delivery';
@@ -866,6 +926,142 @@ export interface Merchant {
    * Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user
    */
   activeAddress?: (number | null) | Address;
+  /**
+   * PostGIS GEOMETRY(POINT, 4326) synced from activeAddress - stored as GeoJSON
+   */
+  merchant_coordinates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Latitude synced from activeAddress
+   */
+  merchant_latitude?: number | null;
+  /**
+   * Longitude synced from activeAddress
+   */
+  merchant_longitude?: number | null;
+  /**
+   * Location accuracy radius in meters
+   */
+  location_accuracy_radius?: number | null;
+  /**
+   * Current delivery radius in meters
+   */
+  delivery_radius_meters?: number | null;
+  /**
+   * Maximum possible delivery radius in meters
+   */
+  max_delivery_radius_meters?: number | null;
+  /**
+   * Minimum order amount for delivery (PHP)
+   */
+  min_order_amount?: number | null;
+  /**
+   * Base delivery fee (PHP)
+   */
+  delivery_fee_base?: number | null;
+  /**
+   * Per-kilometer delivery fee (PHP)
+   */
+  delivery_fee_per_km?: number | null;
+  /**
+   * Order amount for free delivery (PHP)
+   */
+  free_delivery_threshold?: number | null;
+  /**
+   * PostGIS POLYGON for delivery coverage area - stored as GeoJSON
+   */
+  service_area?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS MULTIPOLYGON for premium delivery areas - stored as GeoJSON
+   */
+  priority_zones?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS MULTIPOLYGON for no-delivery zones - stored as GeoJSON
+   */
+  restricted_areas?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Zone-specific pricing configuration (JSONB format)
+   */
+  delivery_zones?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Location verified through GPS or delivery confirmation
+   */
+  is_location_verified?: boolean | null;
+  /**
+   * Timestamp of last address synchronization
+   */
+  last_location_sync?: string | null;
+  /**
+   * Average delivery time in minutes
+   */
+  avg_delivery_time_minutes?: number | null;
+  /**
+   * Delivery success rate (0.0 to 1.0)
+   */
+  delivery_success_rate?: number | null;
+  /**
+   * Surge pricing multiplier during peak hours
+   */
+  peak_hours_multiplier?: number | null;
+  /**
+   * Delivery-specific operating hours (JSONB format)
+   */
+  delivery_hours?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Real-time delivery availability status
+   */
+  is_currently_delivering?: boolean | null;
+  /**
+   * Next available delivery time slot
+   */
+  next_available_slot?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1689,6 +1885,17 @@ export interface AddressesSelect<T extends boolean = true> {
   postal_code?: T;
   latitude?: T;
   longitude?: T;
+  coordinates?: T;
+  altitude?: T;
+  address_quality_score?: T;
+  geocoding_accuracy?: T;
+  coordinate_source?: T;
+  last_geocoded_at?: T;
+  verification_method?: T;
+  address_boundary?: T;
+  service_radius_meters?: T;
+  accessibility_notes?: T;
+  landmark_description?: T;
   address_type?: T;
   is_default?: T;
   is_verified?: T;
@@ -1829,6 +2036,28 @@ export interface MerchantsSelect<T extends boolean = true> {
   specialInstructions?: T;
   tags?: T;
   activeAddress?: T;
+  merchant_coordinates?: T;
+  merchant_latitude?: T;
+  merchant_longitude?: T;
+  location_accuracy_radius?: T;
+  delivery_radius_meters?: T;
+  max_delivery_radius_meters?: T;
+  min_order_amount?: T;
+  delivery_fee_base?: T;
+  delivery_fee_per_km?: T;
+  free_delivery_threshold?: T;
+  service_area?: T;
+  priority_zones?: T;
+  restricted_areas?: T;
+  delivery_zones?: T;
+  is_location_verified?: T;
+  last_location_sync?: T;
+  avg_delivery_time_minutes?: T;
+  delivery_success_rate?: T;
+  peak_hours_multiplier?: T;
+  delivery_hours?: T;
+  is_currently_delivering?: T;
+  next_available_slot?: T;
   updatedAt?: T;
   createdAt?: T;
 }

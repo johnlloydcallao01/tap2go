@@ -327,6 +327,232 @@ export const Merchants: CollectionConfig = {
         description: 'Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user',
       },
     },
+
+    // === SYNCHRONIZED GEOSPATIAL FIELDS ===
+    {
+      name: 'merchant_coordinates',
+      type: 'json',
+      admin: {
+        description: 'PostGIS GEOMETRY(POINT, 4326) synced from activeAddress - stored as GeoJSON',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'merchant_latitude',
+      type: 'number',
+      admin: {
+        description: 'Latitude synced from activeAddress',
+        readOnly: true,
+        step: 0.00000001,
+      },
+    },
+    {
+      name: 'merchant_longitude',
+      type: 'number',
+      admin: {
+        description: 'Longitude synced from activeAddress',
+        readOnly: true,
+        step: 0.00000001,
+      },
+    },
+    {
+      name: 'location_accuracy_radius',
+      type: 'number',
+      min: 0,
+      admin: {
+        description: 'Location accuracy radius in meters',
+      },
+    },
+
+    // === DELIVERY CONFIGURATION ===
+    {
+      name: 'delivery_radius_meters',
+      type: 'number',
+      min: 0,
+      defaultValue: 5000,
+      admin: {
+        description: 'Current delivery radius in meters',
+      },
+    },
+    {
+      name: 'max_delivery_radius_meters',
+      type: 'number',
+      min: 0,
+      defaultValue: 10000,
+      admin: {
+        description: 'Maximum possible delivery radius in meters',
+      },
+    },
+    {
+      name: 'min_order_amount',
+      type: 'number',
+      min: 0,
+      admin: {
+        description: 'Minimum order amount for delivery (PHP)',
+      },
+    },
+    {
+      name: 'delivery_fee_base',
+      type: 'number',
+      min: 0,
+      admin: {
+        description: 'Base delivery fee (PHP)',
+      },
+    },
+    {
+      name: 'delivery_fee_per_km',
+      type: 'number',
+      min: 0,
+      admin: {
+        description: 'Per-kilometer delivery fee (PHP)',
+      },
+    },
+    {
+      name: 'free_delivery_threshold',
+      type: 'number',
+      min: 0,
+      admin: {
+        description: 'Order amount for free delivery (PHP)',
+      },
+    },
+
+    // === SERVICE AREAS & ZONES ===
+    {
+      name: 'service_area',
+      type: 'json',
+      admin: {
+        description: 'PostGIS POLYGON for delivery coverage area - stored as GeoJSON',
+      },
+    },
+    {
+      name: 'priority_zones',
+      type: 'json',
+      admin: {
+        description: 'PostGIS MULTIPOLYGON for premium delivery areas - stored as GeoJSON',
+      },
+    },
+    {
+      name: 'restricted_areas',
+      type: 'json',
+      admin: {
+        description: 'PostGIS MULTIPOLYGON for no-delivery zones - stored as GeoJSON',
+      },
+    },
+    {
+      name: 'delivery_zones',
+      type: 'json',
+      admin: {
+        description: 'Zone-specific pricing configuration (JSONB format)',
+      },
+    },
+
+    // === OPERATIONAL STATUS & PERFORMANCE ===
+    {
+      name: 'is_location_verified',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Location verified through GPS or delivery confirmation',
+      },
+    },
+    {
+      name: 'last_location_sync',
+      type: 'date',
+      admin: {
+        description: 'Timestamp of last address synchronization',
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+      },
+    },
+    {
+      name: 'avg_delivery_time_minutes',
+      type: 'number',
+      min: 0,
+      admin: {
+        description: 'Average delivery time in minutes',
+      },
+    },
+    {
+      name: 'delivery_success_rate',
+      type: 'number',
+      min: 0,
+      max: 1,
+      admin: {
+        description: 'Delivery success rate (0.0 to 1.0)',
+        step: 0.0001,
+      },
+    },
+    {
+      name: 'peak_hours_multiplier',
+      type: 'number',
+      min: 1,
+      defaultValue: 1,
+      admin: {
+        description: 'Surge pricing multiplier during peak hours',
+        step: 0.1,
+      },
+    },
+
+    // === BUSINESS HOURS & AVAILABILITY ===
+    {
+      name: 'delivery_hours',
+      type: 'json',
+      admin: {
+        description: 'Delivery-specific operating hours (JSONB format)',
+      },
+    },
+    {
+      name: 'is_currently_delivering',
+      type: 'checkbox',
+      defaultValue: true,
+      admin: {
+        description: 'Real-time delivery availability status',
+      },
+    },
+    {
+      name: 'next_available_slot',
+      type: 'date',
+      admin: {
+        description: 'Next available delivery time slot',
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+      },
+    },
+  ],
+  indexes: [
+    {
+      fields: ['vendor'],
+    },
+    {
+      fields: ['outletCode'],
+    },
+    {
+      fields: ['isActive', 'isAcceptingOrders'],
+    },
+    {
+      fields: ['operationalStatus'],
+    },
+    // Enhanced geospatial indexes
+    {
+      fields: ['merchant_latitude', 'merchant_longitude'],
+    },
+    {
+      fields: ['delivery_radius_meters'],
+    },
+    {
+      fields: ['is_currently_delivering'],
+    },
+    {
+      fields: ['is_location_verified'],
+    },
+    {
+      fields: ['avg_delivery_time_minutes'],
+    },
+    {
+      fields: ['delivery_success_rate'],
+    },
   ],
   hooks: {
     beforeChange: [
@@ -338,6 +564,39 @@ export const Merchants: CollectionConfig = {
           data.outletCode = `${name}-${timestamp}`
         }
         return data
+      },
+    ],
+    afterChange: [
+      async ({ doc, req, operation }) => {
+        // Synchronize coordinates from activeAddress when merchant is updated
+        if (operation === 'update' && doc.activeAddress) {
+          try {
+            const addressDoc = await req.payload.findByID({
+              collection: 'addresses',
+              id: doc.activeAddress,
+            })
+
+            if (addressDoc && addressDoc.latitude && addressDoc.longitude) {
+              // Update merchant coordinates to match address
+              await req.payload.update({
+                collection: 'merchants',
+                id: doc.id,
+                data: {
+                  merchant_latitude: addressDoc.latitude,
+                  merchant_longitude: addressDoc.longitude,
+                  merchant_coordinates: {
+                    type: 'Point',
+                    coordinates: [addressDoc.longitude, addressDoc.latitude],
+                  },
+                  last_location_sync: new Date().toISOString(),
+                  is_location_verified: addressDoc.is_verified || false,
+                },
+              })
+            }
+          } catch (error) {
+            console.error('Error syncing merchant coordinates:', error)
+          }
+        }
       },
     ],
   },

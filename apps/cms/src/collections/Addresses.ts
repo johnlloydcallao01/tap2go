@@ -186,6 +186,117 @@ export const Addresses: CollectionConfig = {
         step: 0.00000001,
       },
     },
+    {
+      name: 'coordinates',
+      type: 'json',
+      admin: {
+        description: 'PostGIS GEOMETRY(POINT, 4326) for spatial queries - stored as GeoJSON',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'altitude',
+      type: 'number',
+      admin: {
+        description: 'Elevation data in meters (optional)',
+        step: 0.001,
+      },
+    },
+
+    // === GEOCODING QUALITY & VALIDATION ===
+    {
+      name: 'address_quality_score',
+      type: 'number',
+      min: 1,
+      max: 100,
+      admin: {
+        description: 'Geocoding confidence score (1-100)',
+      },
+    },
+    {
+      name: 'geocoding_accuracy',
+      type: 'select',
+      options: [
+        { label: 'Rooftop', value: 'ROOFTOP' },
+        { label: 'Range Interpolated', value: 'RANGE_INTERPOLATED' },
+        { label: 'Geometric Center', value: 'GEOMETRIC_CENTER' },
+        { label: 'Approximate', value: 'APPROXIMATE' },
+      ],
+      admin: {
+        description: 'Google Maps geocoding accuracy level',
+      },
+    },
+    {
+      name: 'coordinate_source',
+      type: 'select',
+      options: [
+        { label: 'GPS', value: 'GPS' },
+        { label: 'Google Geocoding', value: 'GOOGLE_GEOCODING' },
+        { label: 'Manual Entry', value: 'MANUAL' },
+        { label: 'Estimated', value: 'ESTIMATED' },
+      ],
+      defaultValue: 'GOOGLE_GEOCODING',
+      admin: {
+        description: 'Source of coordinate data',
+      },
+    },
+    {
+      name: 'last_geocoded_at',
+      type: 'date',
+      admin: {
+        description: 'Timestamp of last geocoding update',
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+      },
+    },
+    {
+      name: 'verification_method',
+      type: 'select',
+      options: [
+        { label: 'GPS Confirmed', value: 'GPS_CONFIRMED' },
+        { label: 'Delivery Confirmed', value: 'DELIVERY_CONFIRMED' },
+        { label: 'User Confirmed', value: 'USER_CONFIRMED' },
+        { label: 'Unverified', value: 'UNVERIFIED' },
+      ],
+      defaultValue: 'UNVERIFIED',
+      admin: {
+        description: 'Method used to verify address accuracy',
+      },
+    },
+
+    // === SERVICE AREA & BOUNDARIES ===
+    {
+      name: 'address_boundary',
+      type: 'json',
+      admin: {
+        description: 'PostGIS POLYGON for property boundaries - stored as GeoJSON',
+      },
+    },
+    {
+      name: 'service_radius_meters',
+      type: 'number',
+      min: 0,
+      admin: {
+        description: 'Default delivery radius in meters',
+      },
+    },
+    {
+      name: 'accessibility_notes',
+      type: 'textarea',
+      admin: {
+        description: 'Delivery instructions and accessibility information',
+        rows: 3,
+      },
+    },
+    {
+      name: 'landmark_description',
+      type: 'textarea',
+      admin: {
+        description: 'Nearby landmarks for easier location identification',
+        rows: 2,
+      },
+    },
 
     // === ADDRESS METADATA ===
     {
@@ -268,5 +379,74 @@ export const Addresses: CollectionConfig = {
     {
       fields: ['google_place_id'],
     },
+    // Enhanced geospatial indexes
+    {
+      fields: ['address_quality_score'],
+    },
+    {
+      fields: ['is_verified'],
+    },
+    {
+      fields: ['geocoding_accuracy'],
+    },
+    {
+      fields: ['coordinate_source'],
+    },
+    {
+      fields: ['verification_method'],
+    },
   ],
+  hooks: {
+    beforeChange: [
+      ({ data }) => {
+        // Auto-generate PostGIS coordinates from latitude/longitude
+        if (data.latitude && data.longitude) {
+          data.coordinates = {
+            type: 'Point',
+            coordinates: [data.longitude, data.latitude],
+          }
+          data.last_geocoded_at = new Date().toISOString()
+        }
+        return data
+      },
+    ],
+    afterChange: [
+      async ({ doc, req, operation }) => {
+        // Propagate coordinate changes to associated merchants
+        if ((operation === 'update' || operation === 'create') && doc.latitude && doc.longitude) {
+          try {
+            // Find all merchants using this address as activeAddress
+            const merchants = await req.payload.find({
+              collection: 'merchants',
+              where: {
+                activeAddress: {
+                  equals: doc.id,
+                },
+              },
+            })
+
+            // Update each merchant's coordinates
+            for (const merchant of merchants.docs) {
+              await req.payload.update({
+                collection: 'merchants',
+                id: merchant.id,
+                data: {
+                  merchant_latitude: doc.latitude,
+                  merchant_longitude: doc.longitude,
+                  merchant_coordinates: {
+                    type: 'Point',
+                    coordinates: [doc.longitude, doc.latitude],
+                  },
+                  last_location_sync: new Date().toISOString(),
+                  is_location_verified: doc.is_verified || false,
+                },
+              })
+            }
+          } catch (error) {
+            console.error('Error propagating address coordinates to merchants:', error)
+          }
+        }
+      },
+    ],
+  },
 }

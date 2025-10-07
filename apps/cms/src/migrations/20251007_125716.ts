@@ -1,0 +1,121 @@
+import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
+
+export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
+  await db.execute(sql`
+   CREATE TYPE "public"."enum_addresses_geocoding_accuracy" AS ENUM('ROOFTOP', 'RANGE_INTERPOLATED', 'GEOMETRIC_CENTER', 'APPROXIMATE');
+  CREATE TYPE "public"."enum_addresses_coordinate_source" AS ENUM('GPS', 'GOOGLE_GEOCODING', 'MANUAL', 'ESTIMATED');
+  CREATE TYPE "public"."enum_addresses_verification_method" AS ENUM('GPS_CONFIRMED', 'DELIVERY_CONFIRMED', 'USER_CONFIRMED', 'UNVERIFIED');
+  ALTER TABLE "addresses" ADD COLUMN "coordinates" GEOMETRY(POINT, 4326);
+  ALTER TABLE "addresses" ADD COLUMN "altitude" numeric;
+  ALTER TABLE "addresses" ADD COLUMN "address_quality_score" numeric;
+  ALTER TABLE "addresses" ADD COLUMN "geocoding_accuracy" "enum_addresses_geocoding_accuracy";
+  ALTER TABLE "addresses" ADD COLUMN "coordinate_source" "enum_addresses_coordinate_source" DEFAULT 'GOOGLE_GEOCODING';
+  ALTER TABLE "addresses" ADD COLUMN "last_geocoded_at" timestamp(3) with time zone;
+  ALTER TABLE "addresses" ADD COLUMN "verification_method" "enum_addresses_verification_method" DEFAULT 'UNVERIFIED';
+  ALTER TABLE "addresses" ADD COLUMN "address_boundary" GEOMETRY(POLYGON, 4326);
+  ALTER TABLE "addresses" ADD COLUMN "service_radius_meters" numeric;
+  ALTER TABLE "addresses" ADD COLUMN "accessibility_notes" varchar;
+  ALTER TABLE "addresses" ADD COLUMN "landmark_description" varchar;
+  ALTER TABLE "merchants" ADD COLUMN "merchant_coordinates" GEOMETRY(POINT, 4326);
+  ALTER TABLE "merchants" ADD COLUMN "merchant_latitude" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "merchant_longitude" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "location_accuracy_radius" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "delivery_radius_meters" numeric DEFAULT 5000;
+  ALTER TABLE "merchants" ADD COLUMN "max_delivery_radius_meters" numeric DEFAULT 10000;
+  ALTER TABLE "merchants" ADD COLUMN "min_order_amount" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "delivery_fee_base" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "delivery_fee_per_km" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "free_delivery_threshold" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "service_area" GEOMETRY(POLYGON, 4326);
+  ALTER TABLE "merchants" ADD COLUMN "priority_zones" GEOMETRY(MULTIPOLYGON, 4326);
+  ALTER TABLE "merchants" ADD COLUMN "restricted_areas" GEOMETRY(MULTIPOLYGON, 4326);
+  ALTER TABLE "merchants" ADD COLUMN "delivery_zones" GEOMETRY(MULTIPOLYGON, 4326);
+  ALTER TABLE "merchants" ADD COLUMN "is_location_verified" boolean DEFAULT false;
+  ALTER TABLE "merchants" ADD COLUMN "last_location_sync" timestamp(3) with time zone;
+  ALTER TABLE "merchants" ADD COLUMN "avg_delivery_time_minutes" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "delivery_success_rate" numeric;
+  ALTER TABLE "merchants" ADD COLUMN "peak_hours_multiplier" numeric DEFAULT 1;
+  ALTER TABLE "merchants" ADD COLUMN "delivery_hours" jsonb;
+  ALTER TABLE "merchants" ADD COLUMN "is_currently_delivering" boolean DEFAULT true;
+  ALTER TABLE "merchants" ADD COLUMN "next_available_slot" timestamp(3) with time zone;
+  CREATE INDEX "address_quality_score_idx" ON "addresses" USING btree ("address_quality_score");
+  CREATE INDEX "is_verified_idx" ON "addresses" USING btree ("is_verified");
+  CREATE INDEX "geocoding_accuracy_idx" ON "addresses" USING btree ("geocoding_accuracy");
+  CREATE INDEX "coordinate_source_idx" ON "addresses" USING btree ("coordinate_source");
+  CREATE INDEX "verification_method_idx" ON "addresses" USING btree ("verification_method");
+  CREATE INDEX "addresses_coordinates_gist_idx" ON "addresses" USING gist ("coordinates");
+  CREATE INDEX "addresses_boundary_gist_idx" ON "addresses" USING gist ("address_boundary");
+  CREATE INDEX "vendor_idx" ON "merchants" USING btree ("vendor_id");
+  CREATE INDEX "outletCode_idx" ON "merchants" USING btree ("outlet_code");
+  CREATE INDEX "isActive_isAcceptingOrders_idx" ON "merchants" USING btree ("is_active","is_accepting_orders");
+  CREATE INDEX "operationalStatus_idx" ON "merchants" USING btree ("operational_status");
+  CREATE INDEX "merchant_latitude_merchant_longitude_idx" ON "merchants" USING btree ("merchant_latitude","merchant_longitude");
+  CREATE INDEX "delivery_radius_meters_idx" ON "merchants" USING btree ("delivery_radius_meters");
+  CREATE INDEX "is_currently_delivering_idx" ON "merchants" USING btree ("is_currently_delivering");
+  CREATE INDEX "is_location_verified_idx" ON "merchants" USING btree ("is_location_verified");
+  CREATE INDEX "avg_delivery_time_minutes_idx" ON "merchants" USING btree ("avg_delivery_time_minutes");
+  CREATE INDEX "delivery_success_rate_idx" ON "merchants" USING btree ("delivery_success_rate");
+  CREATE INDEX "merchants_coordinates_gist_idx" ON "merchants" USING gist ("merchant_coordinates");
+  CREATE INDEX "merchants_service_area_gist_idx" ON "merchants" USING gist ("service_area");
+  CREATE INDEX "merchants_delivery_zones_gist_idx" ON "merchants" USING gist ("delivery_zones");`)
+}
+
+export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
+  await db.execute(sql`
+   DROP INDEX "address_quality_score_idx";
+  DROP INDEX "is_verified_idx";
+  DROP INDEX "geocoding_accuracy_idx";
+  DROP INDEX "coordinate_source_idx";
+  DROP INDEX "verification_method_idx";
+  DROP INDEX "addresses_coordinates_gist_idx";
+  DROP INDEX "addresses_boundary_gist_idx";
+  DROP INDEX "vendor_idx";
+  DROP INDEX "outletCode_idx";
+  DROP INDEX "isActive_isAcceptingOrders_idx";
+  DROP INDEX "operationalStatus_idx";
+  DROP INDEX "merchant_latitude_merchant_longitude_idx";
+  DROP INDEX "delivery_radius_meters_idx";
+  DROP INDEX "is_currently_delivering_idx";
+  DROP INDEX "is_location_verified_idx";
+  DROP INDEX "avg_delivery_time_minutes_idx";
+  DROP INDEX "delivery_success_rate_idx";
+  DROP INDEX "merchants_coordinates_gist_idx";
+  DROP INDEX "merchants_service_area_gist_idx";
+  DROP INDEX "merchants_delivery_zones_gist_idx";
+  ALTER TABLE "addresses" DROP COLUMN "coordinates";
+  ALTER TABLE "addresses" DROP COLUMN "altitude";
+  ALTER TABLE "addresses" DROP COLUMN "address_quality_score";
+  ALTER TABLE "addresses" DROP COLUMN "geocoding_accuracy";
+  ALTER TABLE "addresses" DROP COLUMN "coordinate_source";
+  ALTER TABLE "addresses" DROP COLUMN "last_geocoded_at";
+  ALTER TABLE "addresses" DROP COLUMN "verification_method";
+  ALTER TABLE "addresses" DROP COLUMN "address_boundary";
+  ALTER TABLE "addresses" DROP COLUMN "service_radius_meters";
+  ALTER TABLE "addresses" DROP COLUMN "accessibility_notes";
+  ALTER TABLE "addresses" DROP COLUMN "landmark_description";
+  ALTER TABLE "merchants" DROP COLUMN "merchant_coordinates";
+  ALTER TABLE "merchants" DROP COLUMN "merchant_latitude";
+  ALTER TABLE "merchants" DROP COLUMN "merchant_longitude";
+  ALTER TABLE "merchants" DROP COLUMN "location_accuracy_radius";
+  ALTER TABLE "merchants" DROP COLUMN "delivery_radius_meters";
+  ALTER TABLE "merchants" DROP COLUMN "max_delivery_radius_meters";
+  ALTER TABLE "merchants" DROP COLUMN "min_order_amount";
+  ALTER TABLE "merchants" DROP COLUMN "delivery_fee_base";
+  ALTER TABLE "merchants" DROP COLUMN "delivery_fee_per_km";
+  ALTER TABLE "merchants" DROP COLUMN "free_delivery_threshold";
+  ALTER TABLE "merchants" DROP COLUMN "service_area";
+  ALTER TABLE "merchants" DROP COLUMN "priority_zones";
+  ALTER TABLE "merchants" DROP COLUMN "restricted_areas";
+  ALTER TABLE "merchants" DROP COLUMN "delivery_zones";
+  ALTER TABLE "merchants" DROP COLUMN "is_location_verified";
+  ALTER TABLE "merchants" DROP COLUMN "last_location_sync";
+  ALTER TABLE "merchants" DROP COLUMN "avg_delivery_time_minutes";
+  ALTER TABLE "merchants" DROP COLUMN "delivery_success_rate";
+  ALTER TABLE "merchants" DROP COLUMN "peak_hours_multiplier";
+  ALTER TABLE "merchants" DROP COLUMN "delivery_hours";
+  ALTER TABLE "merchants" DROP COLUMN "is_currently_delivering";
+  ALTER TABLE "merchants" DROP COLUMN "next_available_slot";
+  DROP TYPE "public"."enum_addresses_geocoding_accuracy";
+  DROP TYPE "public"."enum_addresses_coordinate_source";
+  DROP TYPE "public"."enum_addresses_verification_method";`)
+}
