@@ -132,8 +132,8 @@ export function OverlaySidebar({ isOpen, onClose }: OverlaySidebarProps) {
             <SidebarItem
               icon="invite"
               label="Invite Friends"
-              href="/invite"
-              active={pathname === '/invite'}
+              href="/invite-friends"
+              active={pathname === '/invite-friends'}
               collapsed={false}
               onClick={onClose}
             />

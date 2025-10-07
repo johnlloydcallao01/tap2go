@@ -130,8 +130,8 @@ export function Sidebar({ isOpen, onToggle, onScroll }: SidebarProps) {
             <SidebarItem
               icon="invite"
               label="Invite Friends"
-              href="/invite"
-              active={pathname === '/invite'}
+              href="/invite-friends"
+              active={pathname === '/invite-friends'}
               collapsed={!isOpen}
             />
           </div>
