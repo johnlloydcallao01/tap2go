@@ -862,6 +862,10 @@ export interface Merchant {
     | number
     | boolean
     | null;
+  /**
+   * Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user
+   */
+  activeAddress?: (number | null) | Address;
   updatedAt: string;
   createdAt: string;
 }
@@ -1824,6 +1828,7 @@ export interface MerchantsSelect<T extends boolean = true> {
   description?: T;
   specialInstructions?: T;
   tags?: T;
+  activeAddress?: T;
   updatedAt?: T;
   createdAt?: T;
 }

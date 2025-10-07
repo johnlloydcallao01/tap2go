@@ -17,8 +17,8 @@ export const Addresses: CollectionConfig = {
         if (user.role === 'service' || user.role === 'admin') {
           return true
         }
-        // Allow customers to read their own addresses
-        if (user.role === 'customer') {
+        // Allow customers and vendors to read their own addresses
+        if (user.role === 'customer' || user.role === 'vendor') {
           return {
             user: {
               equals: user.id,
@@ -31,8 +31,8 @@ export const Addresses: CollectionConfig = {
       return false
     },
     create: ({ req: { user } }) => {
-      // Allow service accounts, admins, and customers to create addresses
-      return user?.role === 'service' || user?.role === 'admin' || user?.role === 'customer' || false
+      // Allow service accounts, admins, customers, and vendors to create addresses
+      return user?.role === 'service' || user?.role === 'admin' || user?.role === 'customer' || user?.role === 'vendor' || false
     },
     update: ({ req: { user } }) => {
       // If user exists, they've been authenticated
@@ -41,8 +41,8 @@ export const Addresses: CollectionConfig = {
         if (user.role === 'service' || user.role === 'admin') {
           return true
         }
-        // Allow customers to update their own addresses
-        if (user.role === 'customer') {
+        // Allow customers and vendors to update their own addresses
+        if (user.role === 'customer' || user.role === 'vendor') {
           return {
             user: {
               equals: user.id,
@@ -59,8 +59,8 @@ export const Addresses: CollectionConfig = {
         if (user.role === 'service' || user.role === 'admin') {
           return true
         }
-        // Allow customers to delete their own addresses
-        if (user.role === 'customer') {
+        // Allow customers and vendors to delete their own addresses
+        if (user.role === 'customer' || user.role === 'vendor') {
           return {
             user: {
               equals: user.id,

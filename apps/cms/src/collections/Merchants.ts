@@ -282,6 +282,51 @@ export const Merchants: CollectionConfig = {
         description: 'Tags for search and categorization (JSON array of strings)',
       },
     },
+    {
+      name: 'activeAddress',
+      type: 'relationship',
+      relationTo: 'addresses',
+      filterOptions: async ({ relationTo: _relationTo, data, user: _user, req }) => {
+        // If we have merchant data with a vendor relationship
+        if (data?.vendor) {
+          try {
+            let vendorUserId;
+            
+            // If vendor is just an ID (string/number), we need to fetch the vendor to get the user
+            if (typeof data.vendor === 'string' || typeof data.vendor === 'number') {
+              const vendor = await req.payload.findByID({
+                collection: 'vendors',
+                id: data.vendor,
+                depth: 1, // This will populate the user relationship
+              });
+              
+              if (vendor?.user) {
+                vendorUserId = typeof vendor.user === 'object' ? vendor.user.id : vendor.user;
+              }
+            } else if (data.vendor?.user) {
+              // If vendor is populated, get the user ID
+              vendorUserId = typeof data.vendor.user === 'object' ? data.vendor.user.id : data.vendor.user;
+            }
+            
+            if (vendorUserId) {
+              return {
+                user: {
+                  equals: vendorUserId,
+                },
+              };
+            }
+          } catch (error) {
+            console.error('Error in activeAddress filterOptions:', error);
+          }
+        }
+        
+        // If no vendor data available or error occurred, return false to show no addresses
+        return false;
+      },
+      admin: {
+        description: 'Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user',
+      },
+    },
   ],
   hooks: {
     beforeChange: [
