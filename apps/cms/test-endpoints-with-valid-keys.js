@@ -11,9 +11,9 @@ const BASE_URL = 'https://cms.tap2goph.com/api';
 const ADMIN_API_KEY = '5c4a6003319c5c34cbe294bbf80ca501';
 const SERVICE_API_KEY = '13486c38-c99b-489a-bac0-8977d6c2d710';
 
-// Test coordinates (Manila area)
-const testLat = 14.5995;
-const testLng = 121.0244;
+// Test coordinates (generic test location)
+const testLat = 14.0000;
+const testLng = 121.0000;
 const testRadius = 10000; // 10km in meters
 
 async function testEndpointWithKey(endpoint, apiKey, keyType, params = {}) {

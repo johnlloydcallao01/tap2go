@@ -27,6 +27,7 @@
     "@payloadcms/plugin-cloud-storage": "3.49.0",
     "@payloadcms/richtext-lexical": "3.49.0",
     "@payloadcms/ui": "3.49.0",
+    "axios": "^1.7.9",
     "cloudinary": "^2.7.0",
     "cross-env": "^7.0.3",
     "dotenv": "16.4.7",

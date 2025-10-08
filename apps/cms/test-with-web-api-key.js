@@ -4,10 +4,10 @@ import fetch from 'node-fetch';
 const API_KEY = '1331d981-b6b7-4ff5-aab6-b9ddbb0c63ae';
 const BASE_URL = 'https://cms.tap2goph.com/api';
 
-// Test coordinates (Manila, Philippines)
+// Test coordinates (generic test location)
 const TEST_COORDINATES = {
-  latitude: 14.5995,
-  longitude: 121.0244
+  latitude: 14.0000,
+  longitude: 121.0000
 };
 
 const SEARCH_RADIUS = 5000; // 5km in meters

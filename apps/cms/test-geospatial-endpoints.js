@@ -8,9 +8,9 @@ const API_KEY = process.env.PAYLOAD_SECRET_KEY;
 async function testGeospatialEndpoints() {
   console.log('🧪 TESTING GEOSPATIAL ENDPOINTS SYSTEMATICALLY...\n');
 
-  // Test coordinates (Manila area)
-  const testLat = 14.5995;
-  const testLng = 121.0244;
+  // Test coordinates (generic test location)
+  const testLat = 14.0000;
+  const testLng = 121.0000;
   const testRadius = 10000; // 10km in meters
 
   const headers = {
@@ -171,7 +171,7 @@ async function testGeospatialEndpoints() {
   const edgeCases = [
     { name: 'Far coordinates', lat: 0, lng: 0 },
     { name: 'Boundary coordinates', lat: 90, lng: 180 },
-    { name: 'Negative coordinates', lat: -14.5995, lng: -121.0244 },
+    { name: 'Negative coordinates', lat: -14.0000, lng: -121.0000 },
   ];
 
   for (const testCase of edgeCases) {

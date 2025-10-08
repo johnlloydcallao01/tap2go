@@ -25,8 +25,8 @@ async function testDirectQueries() {
 
     // Test 2: Geospatial distance query
     console.log('\n📋 STEP 2: Testing geospatial distance query...');
-    const userLat = 14.5995;
-    const userLng = 121.0244;
+    const userLat = 14.0000;
+    const userLng = 121.0000;
     const radius = 10; // 10km
 
     const distanceQuery = await pool.query(`

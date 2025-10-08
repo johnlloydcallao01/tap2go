@@ -12,24 +12,24 @@ async function insertTestMerchants() {
     await client.connect();
     console.log('🔗 Connected to database successfully\n');
     
-    // Test merchant data with Manila area coordinates
+    // Test merchant data with generic coordinates (not real locations)
     const testMerchants = [
       {
-        outlet_name: 'Test Restaurant Manila',
-        latitude: 14.5995,
-        longitude: 121.0244,
+        outlet_name: 'Test Restaurant A',
+        latitude: 14.0000,
+        longitude: 121.0000,
         delivery_radius: 5000 // 5km
       },
       {
-        outlet_name: 'Test Cafe Makati',
-        latitude: 14.5547,
-        longitude: 121.0244,
+        outlet_name: 'Test Cafe B',
+        latitude: 14.1000,
+        longitude: 121.1000,
         delivery_radius: 3000 // 3km
       },
       {
-        outlet_name: 'Test Food Truck Quezon City',
-        latitude: 14.6760,
-        longitude: 121.0583,
+        outlet_name: 'Test Food Truck C',
+        latitude: 14.2000,
+        longitude: 121.2000,
         delivery_radius: 2000 // 2km
       }
     ];

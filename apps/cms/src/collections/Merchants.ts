@@ -568,8 +568,8 @@ export const Merchants: CollectionConfig = {
     ],
     afterChange: [
       async ({ doc, req, operation }) => {
-        // Synchronize coordinates from activeAddress when merchant is updated
-        if (operation === 'update' && doc.activeAddress) {
+        // Synchronize coordinates from activeAddress when merchant is created or updated
+        if ((operation === 'create' || operation === 'update') && doc.activeAddress) {
           try {
             const addressDoc = await req.payload.findByID({
               collection: 'addresses',
@@ -592,6 +592,9 @@ export const Merchants: CollectionConfig = {
                   is_location_verified: addressDoc.is_verified || false,
                 },
               })
+              console.log(`Merchant ${doc.id} coordinates synced from address ${doc.activeAddress}`)
+            } else {
+              console.warn(`Address ${doc.activeAddress} for merchant ${doc.id} has no coordinates`)
             }
           } catch (error) {
             console.error('Error syncing merchant coordinates:', error)

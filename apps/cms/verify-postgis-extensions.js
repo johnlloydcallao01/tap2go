@@ -79,17 +79,17 @@ async function verifyPostGISExtensions() {
     // 4. Test geometry creation and manipulation
     console.log('\n📋 STEP 4: Testing geometry creation and spatial operations...');
     
-    // Test point creation (Manila coordinates)
+    // Test point creation (generic test coordinates)
     const pointQuery = await client.query(`
       SELECT 
-        ST_AsText(ST_Point(121.0244, 14.5995)) as manila_point,
-        ST_SRID(ST_GeomFromText('POINT(121.0244 14.5995)', 4326)) as coordinate_system,
-        ST_X(ST_Point(121.0244, 14.5995)) as longitude,
-        ST_Y(ST_Point(121.0244, 14.5995)) as latitude;
+        ST_AsText(ST_Point(121.0000, 14.0000)) as test_point,
+        ST_SRID(ST_GeomFromText('POINT(121.0000 14.0000)', 4326)) as coordinate_system,
+        ST_X(ST_Point(121.0000, 14.0000)) as longitude,
+        ST_Y(ST_Point(121.0000, 14.0000)) as latitude;
     `);
     
     console.log('✅ Point creation test:');
-    console.log(`   Manila coordinates: ${pointQuery.rows[0].manila_point}`);
+    console.log(`   Test coordinates: ${pointQuery.rows[0].test_point}`);
     console.log(`   Coordinate system: EPSG:${pointQuery.rows[0].coordinate_system}`);
     console.log(`   Longitude: ${pointQuery.rows[0].longitude}`);
     console.log(`   Latitude: ${pointQuery.rows[0].latitude}`);
@@ -99,16 +99,16 @@ async function verifyPostGISExtensions() {
     const distanceQuery = await client.query(`
       SELECT 
         ST_Distance(
-          ST_Point(121.0244, 14.5995),  -- Manila
-          ST_Point(121.0583, 14.6760)   -- Quezon City
+          ST_Point(121.0000, 14.0000),  -- Test Point A
+          ST_Point(121.1000, 14.1000)   -- Test Point B
         ) * 111320 as distance_meters,
         ST_Distance(
-          ST_Point(121.0244, 14.5995),  -- Manila
-          ST_Point(121.0583, 14.6760)   -- Quezon City
+          ST_Point(121.0000, 14.0000),  -- Test Point A
+          ST_Point(121.1000, 14.1000)   -- Test Point B
         ) * 111.32 as distance_km;
     `);
     
-    console.log('✅ Distance calculation test (Manila to Quezon City):');
+    console.log('✅ Distance calculation test (Point A to Point B):');
     console.log(`   Distance: ${Math.round(distanceQuery.rows[0].distance_meters)} meters`);
     console.log(`   Distance: ${distanceQuery.rows[0].distance_km.toFixed(2)} kilometers`);
     
@@ -117,8 +117,8 @@ async function verifyPostGISExtensions() {
     const spatialQuery = await client.query(`
       EXPLAIN (ANALYZE, BUFFERS) 
       SELECT ST_DWithin(
-        ST_Point(121.0244, 14.5995),  -- Customer location
-        ST_Point(121.0583, 14.6760),  -- Merchant location
+        ST_Point(121.0000, 14.0000),  -- Customer location
+        ST_Point(121.1000, 14.1000),  -- Merchant location
         0.1  -- Within 0.1 degrees (~11km)
       ) as within_delivery_range;
     `);
@@ -130,7 +130,7 @@ async function verifyPostGISExtensions() {
     const polygonQuery = await client.query(`
       WITH service_area AS (
         SELECT ST_Buffer(
-          ST_Point(121.0244, 14.5995),  -- Manila center
+          ST_Point(121.0000, 14.0000),  -- Test center
           0.01  -- ~1km radius
         ) as delivery_zone
       )

@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { googleMapsService } from '../services/GoogleMapsService'
 
 export const Addresses: CollectionConfig = {
   slug: 'addresses',
@@ -398,15 +399,56 @@ export const Addresses: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      ({ data }) => {
+      async ({ data, operation: _operation }) => {
+        // Auto-geocode address if formatted_address is provided but coordinates are missing
+        if (data.formatted_address && (!data.latitude || !data.longitude)) {
+          try {
+            console.log('Auto-geocoding address:', data.formatted_address)
+            const geocodingResult = await googleMapsService.geocodeAddress(data.formatted_address)
+            
+            if (geocodingResult) {
+              // Update all geocoding fields
+              data.google_place_id = geocodingResult.google_place_id
+              data.latitude = geocodingResult.latitude
+              data.longitude = geocodingResult.longitude
+              data.geocoding_accuracy = geocodingResult.geocoding_accuracy
+              data.address_quality_score = geocodingResult.address_quality_score
+              data.coordinate_source = 'GOOGLE_GEOCODING'
+              data.last_geocoded_at = new Date().toISOString()
+              data.is_verified = true
+              
+              // Update address components
+              const components = geocodingResult.address_components
+              if (components.street_number) data.street_number = components.street_number
+              if (components.route) data.route = components.route
+              if (components.subpremise) data.subpremise = components.subpremise
+              if (components.barangay) data.barangay = components.barangay
+              if (components.locality) data.locality = components.locality
+              if (components.administrative_area_level_2) data.administrative_area_level_2 = components.administrative_area_level_2
+              if (components.administrative_area_level_1) data.administrative_area_level_1 = components.administrative_area_level_1
+              if (components.country) data.country = components.country
+              if (components.postal_code) data.postal_code = components.postal_code
+              
+              console.log('Successfully geocoded address with coordinates:', data.latitude, data.longitude)
+            } else {
+              console.warn('Failed to geocode address:', data.formatted_address)
+            }
+          } catch (error) {
+            console.error('Error during address geocoding:', error)
+          }
+        }
+
         // Auto-generate PostGIS coordinates from latitude/longitude
         if (data.latitude && data.longitude) {
           data.coordinates = {
             type: 'Point',
             coordinates: [data.longitude, data.latitude],
           }
-          data.last_geocoded_at = new Date().toISOString()
+          if (!data.last_geocoded_at) {
+            data.last_geocoded_at = new Date().toISOString()
+          }
         }
+        
         return data
       },
     ],
