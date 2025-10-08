@@ -26,131 +26,68 @@ export class GeospatialService {
     offset?: number;
     includeInactive?: boolean;
   }) {
-    const { latitude, longitude, radiusMeters, limit = 50, includeInactive = false } = params;
+    const { latitude, longitude, radiusMeters, limit = 50, offset = 0, includeInactive = false } = params;
 
     // Validate coordinates
     this.validateCoordinates(latitude, longitude);
 
-    const whereClause: Where = {
-      and: [
-        {
-          merchant_coordinates: {
-            near: [longitude, latitude, radiusMeters]
+    try {
+      // Use basic where clause without PostGIS spatial queries for now
+      const whereClause: Where = {
+        and: [
+          {
+            merchant_latitude: {
+              exists: true,
+              not_equals: null
+            }
+          },
+          {
+            merchant_longitude: {
+              exists: true,
+              not_equals: null
+            }
           }
-        }
-      ]
-    };
+        ]
+      };
 
-    // Filter active merchants unless explicitly including inactive
-    if (!includeInactive) {
-      (whereClause.and as WhereCondition[]).push({ isActive: { equals: true } });
-    }
-
-    const merchants = await this.payload.find({
-      collection: 'merchants',
-      where: whereClause,
-      limit,
-      select: {
-        id: true,
-        outletName: true,
-        merchant_latitude: true,
-        merchant_longitude: true,
-        delivery_radius_meters: true,
-        isActive: true,
-        operationalStatus: true,
-        activeAddress: true,
+      // Filter active merchants unless explicitly including inactive
+      if (!includeInactive) {
+        (whereClause.and as WhereCondition[]).push({ isActive: { equals: true } });
       }
-    });
 
-    // Calculate distances and add estimated delivery times
-    const enrichedMerchants = merchants.docs.map(merchant => ({
-      ...merchant,
-      distance: this.calculateHaversineDistance(
-        latitude,
-        longitude,
-        merchant.merchant_latitude || 0,
-        merchant.merchant_longitude || 0
-      ),
-      estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
-        this.calculateHaversineDistance(
+      const merchants = await this.payload.find({
+        collection: 'merchants',
+        where: whereClause,
+        limit,
+        page: Math.floor(offset / limit) + 1,
+        select: {
+          id: true,
+          outletName: true,
+          merchant_latitude: true,
+          merchant_longitude: true,
+          delivery_radius_meters: true,
+          isActive: true,
+          operationalStatus: true,
+          activeAddress: true,
+        }
+      });
+
+      // Filter by distance using Haversine formula
+      const filteredMerchants = merchants.docs.filter(merchant => {
+        if (!merchant.merchant_latitude || !merchant.merchant_longitude) return false;
+        
+        const distance = this.calculateHaversineDistance(
           latitude,
           longitude,
-          merchant.merchant_latitude || 0,
-          merchant.merchant_longitude || 0
-        )
-      )
-    }));
+          merchant.merchant_latitude,
+          merchant.merchant_longitude
+        );
+        
+        return distance <= radiusMeters;
+      });
 
-    return {
-      merchants: enrichedMerchants,
-      totalCount: merchants.totalDocs,
-      hasNextPage: merchants.hasNextPage,
-      hasPrevPage: merchants.hasPrevPage,
-      page: merchants.page,
-      totalPages: merchants.totalPages
-    };
-  }
-
-  /**
-   * Find merchants that can deliver to a specific location
-   * Checks if the target location is within each merchant's delivery radius
-   */
-  async findMerchantsInDeliveryRadius(params: {
-    latitude: number;
-    longitude: number;
-    limit?: number;
-    offset?: number;
-    includeInactive?: boolean;
-  }) {
-    const { latitude, longitude, limit = 50, offset: _offset = 0, includeInactive = false } = params;
-
-    // Validate coordinates
-    this.validateCoordinates(latitude, longitude);
-
-    const whereClause: Where = {
-      and: [
-        {
-          delivery_radius_meters: { greater_than: 0 }
-        }
-      ]
-    };
-
-    // Filter active merchants unless explicitly including inactive
-    if (!includeInactive) {
-      (whereClause.and as WhereCondition[]).push({ isActive: { equals: true } });
-    }
-
-    const merchants = await this.payload.find({
-      collection: 'merchants',
-      where: whereClause,
-      limit: 1000, // Get more to filter by delivery radius
-      select: {
-        id: true,
-        outletName: true,
-        merchant_latitude: true,
-        merchant_longitude: true,
-        delivery_radius_meters: true,
-        isActive: true,
-        operationalStatus: true,
-        activeAddress: true,
-      }
-    });
-
-    // Filter merchants that can deliver to the target location
-    const deliverableMerchants = merchants.docs.filter(merchant => {
-      const distance = this.calculateHaversineDistance(
-        latitude,
-        longitude,
-        merchant.merchant_latitude || 0,
-        merchant.merchant_longitude || 0
-      );
-      return distance <= (merchant.delivery_radius_meters || 0);
-    });
-
-    // Apply pagination to filtered results
-    const paginatedMerchants = deliverableMerchants
-      .slice(_offset, _offset + limit)
-      .map(merchant => ({
+      // Calculate distances and add estimated delivery times
+      const enrichedMerchants = filteredMerchants.map(merchant => ({
         ...merchant,
         distance: this.calculateHaversineDistance(
           latitude,
@@ -168,14 +105,144 @@ export class GeospatialService {
         )
       }));
 
-    return {
-      merchants: paginatedMerchants,
-      totalCount: deliverableMerchants.length,
-      hasNextPage: (_offset + limit) < deliverableMerchants.length,
-      hasPrevPage: _offset > 0,
-      page: Math.floor(_offset / limit) + 1,
-      totalPages: Math.ceil(deliverableMerchants.length / limit)
-    };
+      // Sort by distance
+      enrichedMerchants.sort((a, b) => a.distance - b.distance);
+
+      return {
+        merchants: enrichedMerchants,
+        totalCount: filteredMerchants.length,
+        pagination: {
+          totalDocs: filteredMerchants.length,
+          limit: merchants.limit,
+          totalPages: Math.ceil(filteredMerchants.length / limit),
+          page: merchants.page,
+          pagingCounter: merchants.pagingCounter,
+          hasPrevPage: merchants.hasPrevPage,
+          hasNextPage: merchants.hasNextPage,
+          prevPage: merchants.prevPage,
+          nextPage: merchants.nextPage
+        }
+      };
+    } catch (error) {
+      console.error('Error in findMerchantsWithinRadius:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find merchants that can deliver to a specific location
+   * Checks if the target location is within each merchant's delivery radius
+   */
+  async findMerchantsInDeliveryRadius(params: {
+    latitude: number;
+    longitude: number;
+    limit?: number;
+    offset?: number;
+    includeInactive?: boolean;
+  }) {
+    const { latitude, longitude, limit = 50, offset = 0, includeInactive = false } = params;
+
+    // Validate coordinates
+    this.validateCoordinates(latitude, longitude);
+
+    try {
+      const whereClause: Where = {
+        and: [
+          {
+            delivery_radius_meters: { greater_than: 0 }
+          },
+          {
+            merchant_latitude: {
+              exists: true,
+              not_equals: null
+            }
+          },
+          {
+            merchant_longitude: {
+              exists: true,
+              not_equals: null
+            }
+          }
+        ]
+      };
+
+      // Filter active merchants unless explicitly including inactive
+      if (!includeInactive) {
+        (whereClause.and as WhereCondition[]).push({ isActive: { equals: true } });
+      }
+
+      const merchants = await this.payload.find({
+        collection: 'merchants',
+        where: whereClause,
+        limit: 1000, // Get more to filter by delivery radius
+        select: {
+          id: true,
+          outletName: true,
+          merchant_latitude: true,
+          merchant_longitude: true,
+          delivery_radius_meters: true,
+          isActive: true,
+          operationalStatus: true,
+          activeAddress: true,
+        }
+      });
+
+      // Filter merchants that can deliver to the target location
+      const deliverableMerchants = merchants.docs.filter(merchant => {
+        if (!merchant.merchant_latitude || !merchant.merchant_longitude) return false;
+        
+        const distance = this.calculateHaversineDistance(
+          latitude,
+          longitude,
+          merchant.merchant_latitude,
+          merchant.merchant_longitude
+        );
+        return distance <= (merchant.delivery_radius_meters || 0);
+      });
+
+      // Apply pagination to filtered results
+      const paginatedMerchants = deliverableMerchants
+        .slice(offset, offset + limit)
+        .map(merchant => ({
+          ...merchant,
+          distance: this.calculateHaversineDistance(
+            latitude,
+            longitude,
+            merchant.merchant_latitude || 0,
+            merchant.merchant_longitude || 0
+          ),
+          estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
+            this.calculateHaversineDistance(
+              latitude,
+              longitude,
+              merchant.merchant_latitude || 0,
+              merchant.merchant_longitude || 0
+            )
+          )
+        }));
+
+      // Sort by distance
+      paginatedMerchants.sort((a, b) => a.distance - b.distance);
+
+      return {
+        merchants: paginatedMerchants,
+        totalCount: deliverableMerchants.length,
+        pagination: {
+          totalDocs: deliverableMerchants.length,
+          limit: limit,
+          totalPages: Math.ceil(deliverableMerchants.length / limit),
+          page: Math.floor(offset / limit) + 1,
+          pagingCounter: offset + 1,
+          hasPrevPage: offset > 0,
+          hasNextPage: offset + limit < deliverableMerchants.length,
+          prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
+          nextPage: offset + limit < deliverableMerchants.length ? Math.floor((offset + limit) / limit) + 1 : null
+        }
+      };
+    } catch (error) {
+      console.error('Error in findMerchantsInDeliveryRadius:', error);
+      throw error;
+    }
   }
 
   /**
@@ -189,67 +256,94 @@ export class GeospatialService {
     offset?: number;
     includeInactive?: boolean;
   }) {
-    const { latitude, longitude, limit = 50, offset: _offset = 0, includeInactive = false } = params;
+    const { latitude, longitude, limit = 50, offset = 0, includeInactive = false } = params;
 
     // Validate coordinates
     this.validateCoordinates(latitude, longitude);
 
-    const whereClause: Where = {
-      and: [
-        {
-          service_area: { exists: true }
-        }
-      ]
-    };
+    try {
+      const whereClause: Where = {
+        and: [
+          {
+            merchant_latitude: {
+              exists: true,
+              not_equals: null
+            }
+          },
+          {
+            merchant_longitude: {
+              exists: true,
+              not_equals: null
+            }
+          }
+        ]
+      };
 
-    // Filter active merchants unless explicitly including inactive
-    if (!includeInactive) {
-      (whereClause.and as WhereCondition[]).push({ isActive: { equals: true } });
-    }
-
-    const merchants = await this.payload.find({
-      collection: 'merchants',
-      where: whereClause,
-      limit,
-      select: {
-        id: true,
-        outletName: true,
-        merchant_latitude: true,
-        merchant_longitude: true,
-        service_area: true,
-        isActive: true,
-        operationalStatus: true,
-        activeAddress: true,
+      // Filter active merchants unless explicitly including inactive
+      if (!includeInactive) {
+        (whereClause.and as WhereCondition[]).push({ isActive: { equals: true } });
       }
-    });
 
-    // Calculate distances for merchants in service area
-    const enrichedMerchants = merchants.docs.map(merchant => ({
-      ...merchant,
-      distance: this.calculateHaversineDistance(
-        latitude,
-        longitude,
-        merchant.merchant_latitude || 0,
-        merchant.merchant_longitude || 0
-      ),
-      estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
-        this.calculateHaversineDistance(
-          latitude,
-          longitude,
-          merchant.merchant_latitude || 0,
-          merchant.merchant_longitude || 0
-        )
-      )
-    }));
+      const merchants = await this.payload.find({
+        collection: 'merchants',
+        where: whereClause,
+        limit,
+        page: Math.floor(offset / limit) + 1,
+        select: {
+          id: true,
+          outletName: true,
+          merchant_latitude: true,
+          merchant_longitude: true,
+          service_area: true,
+          isActive: true,
+          operationalStatus: true,
+          activeAddress: true,
+        }
+      });
 
-    return {
-      merchants: enrichedMerchants,
-      totalCount: merchants.totalDocs,
-      hasNextPage: merchants.hasNextPage,
-      hasPrevPage: merchants.hasPrevPage,
-      page: merchants.page,
-      totalPages: merchants.totalPages
-    };
+      // Calculate distances for merchants in service area
+      const enrichedMerchants = merchants.docs
+        .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
+        .map(merchant => ({
+          ...merchant,
+          distance: this.calculateHaversineDistance(
+            latitude,
+            longitude,
+            merchant.merchant_latitude || 0,
+            merchant.merchant_longitude || 0
+          ),
+          estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
+            this.calculateHaversineDistance(
+              latitude,
+              longitude,
+              merchant.merchant_latitude || 0,
+              merchant.merchant_longitude || 0
+            )
+          )
+        }));
+
+      // Sort by distance
+      enrichedMerchants.sort((a, b) => a.distance - b.distance);
+
+      return {
+        merchants: enrichedMerchants,
+        totalCount: merchants.totalDocs,
+        pagination: {
+          totalDocs: merchants.totalDocs,
+          limit: merchants.limit,
+          totalPages: merchants.totalPages,
+          page: merchants.page,
+          pagingCounter: merchants.pagingCounter,
+          hasPrevPage: merchants.hasPrevPage,
+          hasNextPage: merchants.hasNextPage,
+          prevPage: merchants.prevPage,
+          nextPage: merchants.nextPage
+        }
+      };
+    } catch (error) {
+      console.error('Error in findMerchantsInServiceArea:', error);
+      throw error;
+    }
   }
 
   /**

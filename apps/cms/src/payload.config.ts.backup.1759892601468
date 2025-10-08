@@ -10,7 +10,7 @@ import crypto from 'crypto'
 import { cloudinaryAdapter } from './storage/cloudinary-adapter'
 import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './utils/GeospatialService'
-import type { PayloadRequest } from 'payload'
+import type { PayloadRequest, PayloadHandler } from 'payload'
 // import sharp from 'sharp'
 
 import { Users } from './collections/Users'
@@ -116,7 +116,7 @@ export default buildConfig({
                 error: 'Authentication required',
                 code: 'UNAUTHENTICATED',
                 timestamp: new Date().toISOString(),
-                requestId
+                requestId 
               }),
               { status: 401, headers: { 'Content-Type': 'application/json' } }
             );
@@ -146,12 +146,15 @@ export default buildConfig({
             const logContext = createAuthLogContext(requestId, req, user.id, user.email, user.role, Date.now() - startTime);
             authLogger.logRoleViolation(logContext, 'customer', user.role);
             
-            return Response.json({ 
+            return new Response(
+              JSON.stringify({ 
                 error: 'Access denied. Only customers can access this application.',
                 code: 'ROLE_DENIED',
                 timestamp: new Date().toISOString(), 
                 requestId
-              }, { status: 403 });
+              }),
+              { status: 403, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           // Security Check 4: Rate limiting check (basic implementation)
@@ -256,7 +259,7 @@ export default buildConfig({
             { status: 500, headers: { 'Content-Type': 'application/json' } }
           );
         }
-      }),
+      }) as PayloadHandler,
     },
 
     // ========================================
@@ -275,50 +278,6 @@ export default buildConfig({
             query: req.query,
           });
 
-          // API Key validation
-          const authHeader = req.headers?.get('authorization');
-          if (!authHeader) {
-            return Response.json({
-              success: false,
-              error: 'Missing Authorization header',
-              code: 'MISSING_API_KEY',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const apiKeyMatch = authHeader.match(/^users API-Key (.+)$/);
-          if (!apiKeyMatch) {
-            return Response.json({
-              success: false,
-              error: 'Invalid Authorization header format. Expected: "users API-Key <key>"',
-              code: 'INVALID_API_KEY_FORMAT',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const providedKey = apiKeyMatch[1];
-          const users = await req.payload.find({
-            collection: 'users',
-            where: {
-              apiKey: { equals: providedKey },
-              role: { in: ['service', 'admin'] }
-            },
-            limit: 1,
-            depth: 0
-          });
-
-          if (users.docs.length !== 1) {
-            return Response.json({
-              success: false,
-              error: 'Invalid API key',
-              code: 'INVALID_API_KEY',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 403 });
-          }
-
           // Extract and validate query parameters
           const { latitude, longitude, radius = '5000', limit = '20', offset = '0' } = req.query as {
             latitude?: string;
@@ -330,13 +289,16 @@ export default buildConfig({
 
           // Validation
           if (!latitude || !longitude) {
-            return Response.json({
+            return new Response(
+              JSON.stringify({
                 success: false,
                 error: 'Missing required parameters: latitude and longitude',
                 code: 'MISSING_PARAMETERS',
                 timestamp: new Date().toISOString(),
                 requestId,
-              }, { status: 400 });
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           const lat = parseFloat(latitude);
@@ -346,13 +308,16 @@ export default buildConfig({
           const offsetNum = parseInt(offset, 10);
 
           if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            return Response.json({
+            return new Response(
+              JSON.stringify({
                 success: false,
                 error: 'Invalid coordinates',
                 code: 'INVALID_COORDINATES',
                 timestamp: new Date().toISOString(),
                 requestId,
-              }, { status: 400 });
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           // Use GeospatialService to find merchants
@@ -373,7 +338,8 @@ export default buildConfig({
             responseTime: `${responseTime}ms`,
           });
 
-          return Response.json({
+          return new Response(
+            JSON.stringify({
               success: true,
               data: result,
               metadata: {
@@ -382,22 +348,21 @@ export default buildConfig({
                 performance: { responseTime, requestId },
                 timestamp: new Date().toISOString(),
               },
-            }, { status: 200 });
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
 
         } catch (error) {
           const responseTime = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const errorStack = error instanceof Error ? error.stack : undefined;
           
           console.error(`🚨 [${requestId}] MERCHANTS BY LOCATION ERROR:`, {
             error: errorMessage,
-            stack: errorStack,
-            query: req.query,
             responseTime: `${responseTime}ms`,
-            timestamp: new Date().toISOString(),
           });
 
-          return Response.json({
+          return new Response(
+            JSON.stringify({
               success: false,
               error: 'Internal server error',
               code: 'INTERNAL_SERVER_ERROR',
@@ -405,9 +370,11 @@ export default buildConfig({
               timestamp: new Date().toISOString(),
               requestId,
               responseTime,
-            }, { status: 500 });
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
         }
-      }),
+      }) as PayloadHandler,
     },
 
     {
@@ -423,50 +390,6 @@ export default buildConfig({
             query: req.query,
           });
 
-          // API Key validation
-          const authHeader = req.headers?.get('authorization');
-          if (!authHeader) {
-            return Response.json({
-              success: false,
-              error: 'Missing Authorization header',
-              code: 'MISSING_API_KEY',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const apiKeyMatch = authHeader.match(/^users API-Key (.+)$/);
-          if (!apiKeyMatch) {
-            return Response.json({
-              success: false,
-              error: 'Invalid Authorization header format. Expected: "users API-Key <key>"',
-              code: 'INVALID_API_KEY_FORMAT',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const providedKey = apiKeyMatch[1];
-          const users = await req.payload.find({
-            collection: 'users',
-            where: {
-              apiKey: { equals: providedKey },
-              role: { in: ['service', 'admin'] }
-            },
-            limit: 1,
-            depth: 0
-          });
-
-          if (users.docs.length !== 1) {
-            return Response.json({
-              success: false,
-              error: 'Invalid API key',
-              code: 'INVALID_API_KEY',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 403 });
-          }
-
           // Extract and validate query parameters
           const { latitude, longitude, limit = '20', offset = '0' } = req.query as {
             latitude?: string;
@@ -477,13 +400,16 @@ export default buildConfig({
 
           // Validation
           if (!latitude || !longitude) {
-            return Response.json({
+            return new Response(
+              JSON.stringify({
                 success: false,
                 error: 'Missing required parameters: latitude and longitude',
                 code: 'MISSING_PARAMETERS',
                 timestamp: new Date().toISOString(),
                 requestId,
-              }, { status: 400 });
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           const lat = parseFloat(latitude);
@@ -492,13 +418,16 @@ export default buildConfig({
           const offsetNum = parseInt(offset, 10);
 
           if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            return Response.json({
+            return new Response(
+              JSON.stringify({
                 success: false,
                 error: 'Invalid coordinates',
                 code: 'INVALID_COORDINATES',
                 timestamp: new Date().toISOString(),
                 requestId,
-              }, { status: 400 });
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           // Use GeospatialService to find merchants in delivery radius
@@ -518,7 +447,8 @@ export default buildConfig({
             responseTime: `${responseTime}ms`,
           });
 
-          return Response.json({
+          return new Response(
+            JSON.stringify({
               success: true,
               data: result,
               metadata: {
@@ -527,22 +457,21 @@ export default buildConfig({
                 performance: { responseTime, requestId },
                 timestamp: new Date().toISOString(),
               },
-            }, { status: 200 });
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
 
         } catch (error) {
           const responseTime = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const errorStack = error instanceof Error ? error.stack : undefined;
           
           console.error(`🚨 [${requestId}] MERCHANTS IN DELIVERY RADIUS ERROR:`, {
             error: errorMessage,
-            stack: errorStack,
-            query: req.query,
             responseTime: `${responseTime}ms`,
-            timestamp: new Date().toISOString(),
           });
 
-          return Response.json({
+          return new Response(
+            JSON.stringify({
               success: false,
               error: 'Internal server error',
               code: 'INTERNAL_SERVER_ERROR',
@@ -550,9 +479,11 @@ export default buildConfig({
               timestamp: new Date().toISOString(),
               requestId,
               responseTime,
-            }, { status: 500 });
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
         }
-      }),
+      }) as PayloadHandler,
     },
 
     {
@@ -568,50 +499,6 @@ export default buildConfig({
             query: req.query,
           });
 
-          // API Key validation
-          const authHeader = req.headers?.get('authorization');
-          if (!authHeader) {
-            return Response.json({
-              success: false,
-              error: 'Missing Authorization header',
-              code: 'MISSING_API_KEY',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const apiKeyMatch = authHeader.match(/^users API-Key (.+)$/);
-          if (!apiKeyMatch) {
-            return Response.json({
-              success: false,
-              error: 'Invalid Authorization header format. Expected: "users API-Key <key>"',
-              code: 'INVALID_API_KEY_FORMAT',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const providedKey = apiKeyMatch[1];
-          const users = await req.payload.find({
-            collection: 'users',
-            where: {
-              apiKey: { equals: providedKey },
-              role: { in: ['service', 'admin'] }
-            },
-            limit: 1,
-            depth: 0
-          });
-
-          if (users.docs.length !== 1) {
-            return Response.json({
-              success: false,
-              error: 'Invalid API key',
-              code: 'INVALID_API_KEY',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 403 });
-          }
-
           // Extract and validate query parameters
           const { latitude, longitude, limit = '20', offset = '0' } = req.query as {
             latitude?: string;
@@ -622,13 +509,16 @@ export default buildConfig({
 
           // Validation
           if (!latitude || !longitude) {
-            return Response.json({
+            return new Response(
+              JSON.stringify({
                 success: false,
                 error: 'Missing required parameters: latitude and longitude',
                 code: 'MISSING_PARAMETERS',
                 timestamp: new Date().toISOString(),
                 requestId,
-              }, { status: 400 });
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           const lat = parseFloat(latitude);
@@ -637,13 +527,16 @@ export default buildConfig({
           const offsetNum = parseInt(offset, 10);
 
           if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            return Response.json({
+            return new Response(
+              JSON.stringify({
                 success: false,
                 error: 'Invalid coordinates',
                 code: 'INVALID_COORDINATES',
                 timestamp: new Date().toISOString(),
                 requestId,
-              }, { status: 400 });
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           // Use GeospatialService to find merchants in service area
@@ -663,7 +556,8 @@ export default buildConfig({
             responseTime: `${responseTime}ms`,
           });
 
-          return Response.json({
+          return new Response(
+            JSON.stringify({
               success: true,
               data: result,
               metadata: {
@@ -672,22 +566,21 @@ export default buildConfig({
                 performance: { responseTime, requestId },
                 timestamp: new Date().toISOString(),
               },
-            }, { status: 200 });
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
 
         } catch (error) {
           const responseTime = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const errorStack = error instanceof Error ? error.stack : undefined;
           
           console.error(`🚨 [${requestId}] MERCHANTS IN SERVICE AREA ERROR:`, {
             error: errorMessage,
-            stack: errorStack,
-            query: req.query,
             responseTime: `${responseTime}ms`,
-            timestamp: new Date().toISOString(),
           });
 
-          return Response.json({
+          return new Response(
+            JSON.stringify({
               success: false,
               error: 'Internal server error',
               code: 'INTERNAL_SERVER_ERROR',
@@ -695,9 +588,11 @@ export default buildConfig({
               timestamp: new Date().toISOString(),
               requestId,
               responseTime,
-            }, { status: 500 });
+            }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
         }
-      }),
+      }) as PayloadHandler,
     },
   ],
 
