@@ -275,45 +275,24 @@ export default buildConfig({
             query: req.query,
           });
 
-          // API Key validation
-          const authHeader = req.headers?.get('authorization');
-          if (!authHeader) {
+          // PayloadCMS built-in API key authentication
+          // PayloadCMS automatically authenticates API keys and populates req.user
+          if (!req.user) {
             return Response.json({
               success: false,
-              error: 'Missing Authorization header',
-              code: 'MISSING_API_KEY',
+              error: 'Authentication required. Please provide a valid API key.',
+              code: 'UNAUTHENTICATED',
               timestamp: new Date().toISOString(),
               requestId,
             }, { status: 401 });
           }
 
-          const apiKeyMatch = authHeader.match(/^users API-Key (.+)$/);
-          if (!apiKeyMatch) {
+          // Verify user has service or admin role
+          if (req.user.role !== 'service' && req.user.role !== 'admin') {
             return Response.json({
               success: false,
-              error: 'Invalid Authorization header format. Expected: "users API-Key <key>"',
-              code: 'INVALID_API_KEY_FORMAT',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const providedKey = apiKeyMatch[1];
-          const users = await req.payload.find({
-            collection: 'users',
-            where: {
-              apiKey: { equals: providedKey },
-              role: { in: ['service', 'admin'] }
-            },
-            limit: 1,
-            depth: 0
-          });
-
-          if (users.docs.length !== 1) {
-            return Response.json({
-              success: false,
-              error: 'Invalid API key',
-              code: 'INVALID_API_KEY',
+              error: 'Access denied. Service or admin role required.',
+              code: 'INSUFFICIENT_PERMISSIONS',
               timestamp: new Date().toISOString(),
               requestId,
             }, { status: 403 });
@@ -423,45 +402,24 @@ export default buildConfig({
             query: req.query,
           });
 
-          // API Key validation
-          const authHeader = req.headers?.get('authorization');
-          if (!authHeader) {
+          // PayloadCMS built-in API key authentication
+          // PayloadCMS automatically authenticates API keys and populates req.user
+          if (!req.user) {
             return Response.json({
               success: false,
-              error: 'Missing Authorization header',
-              code: 'MISSING_API_KEY',
+              error: 'Authentication required. Please provide a valid API key.',
+              code: 'UNAUTHENTICATED',
               timestamp: new Date().toISOString(),
               requestId,
             }, { status: 401 });
           }
 
-          const apiKeyMatch = authHeader.match(/^users API-Key (.+)$/);
-          if (!apiKeyMatch) {
+          // Verify user has service or admin role
+          if (req.user.role !== 'service' && req.user.role !== 'admin') {
             return Response.json({
               success: false,
-              error: 'Invalid Authorization header format. Expected: "users API-Key <key>"',
-              code: 'INVALID_API_KEY_FORMAT',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const providedKey = apiKeyMatch[1];
-          const users = await req.payload.find({
-            collection: 'users',
-            where: {
-              apiKey: { equals: providedKey },
-              role: { in: ['service', 'admin'] }
-            },
-            limit: 1,
-            depth: 0
-          });
-
-          if (users.docs.length !== 1) {
-            return Response.json({
-              success: false,
-              error: 'Invalid API key',
-              code: 'INVALID_API_KEY',
+              error: 'Access denied. Service or admin role required.',
+              code: 'INSUFFICIENT_PERMISSIONS',
               timestamp: new Date().toISOString(),
               requestId,
             }, { status: 403 });
@@ -568,45 +526,24 @@ export default buildConfig({
             query: req.query,
           });
 
-          // API Key validation
-          const authHeader = req.headers?.get('authorization');
-          if (!authHeader) {
+          // PayloadCMS built-in API key authentication
+          // PayloadCMS automatically authenticates API keys and populates req.user
+          if (!req.user) {
             return Response.json({
               success: false,
-              error: 'Missing Authorization header',
-              code: 'MISSING_API_KEY',
+              error: 'Authentication required. Please provide a valid API key.',
+              code: 'UNAUTHENTICATED',
               timestamp: new Date().toISOString(),
               requestId,
             }, { status: 401 });
           }
 
-          const apiKeyMatch = authHeader.match(/^users API-Key (.+)$/);
-          if (!apiKeyMatch) {
+          // Verify user has service or admin role
+          if (req.user.role !== 'service' && req.user.role !== 'admin') {
             return Response.json({
               success: false,
-              error: 'Invalid Authorization header format. Expected: "users API-Key <key>"',
-              code: 'INVALID_API_KEY_FORMAT',
-              timestamp: new Date().toISOString(),
-              requestId,
-            }, { status: 401 });
-          }
-
-          const providedKey = apiKeyMatch[1];
-          const users = await req.payload.find({
-            collection: 'users',
-            where: {
-              apiKey: { equals: providedKey },
-              role: { in: ['service', 'admin'] }
-            },
-            limit: 1,
-            depth: 0
-          });
-
-          if (users.docs.length !== 1) {
-            return Response.json({
-              success: false,
-              error: 'Invalid API key',
-              code: 'INVALID_API_KEY',
+              error: 'Access denied. Service or admin role required.',
+              code: 'INSUFFICIENT_PERMISSIONS',
               timestamp: new Date().toISOString(),
               requestId,
             }, { status: 403 });
