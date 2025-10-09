@@ -1,5 +1,4 @@
 import type { CollectionConfig } from 'payload'
-import { googleMapsService } from '../services/GoogleMapsService'
 
 export const Merchants: CollectionConfig = {
   slug: 'merchants',
@@ -326,44 +325,27 @@ export const Merchants: CollectionConfig = {
       },
       admin: {
         description: 'Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user',
-        components: {
-          afterInput: [
-            {
-              path: '../components/admin/GeospatialSyncNotification',
-              exportName: 'GeospatialSyncNotification',
-            },
-          ],
-        },
       },
     },
 
-    // === SYNCHRONIZED GEOSPATIAL FIELDS ===
-    {
-      name: 'merchant_coordinates',
-      type: 'json',
-      admin: {
-        description: 'PostGIS GEOMETRY(POINT, 4326) synced from activeAddress - stored as GeoJSON',
-        readOnly: true,
-      },
-    },
+    // === DENORMALIZED GEOSPATIAL FIELDS ===
     {
       name: 'merchant_latitude',
       type: 'number',
       admin: {
-        description: 'Latitude synced from activeAddress',
+        description: 'Denormalized latitude from active address for performance',
         readOnly: true,
-        step: 0.00000001,
       },
     },
     {
       name: 'merchant_longitude',
       type: 'number',
       admin: {
-        description: 'Longitude synced from activeAddress',
+        description: 'Denormalized longitude from active address for performance',
         readOnly: true,
-        step: 0.00000001,
       },
     },
+
     {
       name: 'location_accuracy_radius',
       type: 'number',
@@ -455,25 +437,7 @@ export const Merchants: CollectionConfig = {
       },
     },
 
-    // === OPERATIONAL STATUS & PERFORMANCE ===
-    {
-      name: 'is_location_verified',
-      type: 'checkbox',
-      defaultValue: false,
-      admin: {
-        description: 'Location verified through GPS or delivery confirmation',
-      },
-    },
-    {
-      name: 'last_location_sync',
-      type: 'date',
-      admin: {
-        description: 'Timestamp of last address synchronization',
-        date: {
-          pickerAppearance: 'dayAndTime',
-        },
-      },
-    },
+
     {
       name: 'avg_delivery_time_minutes',
       type: 'number',
@@ -545,16 +509,10 @@ export const Merchants: CollectionConfig = {
     },
     // Enhanced geospatial indexes
     {
-      fields: ['merchant_latitude', 'merchant_longitude'],
-    },
-    {
       fields: ['delivery_radius_meters'],
     },
     {
       fields: ['is_currently_delivering'],
-    },
-    {
-      fields: ['is_location_verified'],
     },
     {
       fields: ['avg_delivery_time_minutes'],
@@ -566,131 +524,60 @@ export const Merchants: CollectionConfig = {
   hooks: {
     beforeChange: [
       ({ data }) => {
-        // Auto-generate outlet code if not provided
+        // Auto-generate outletCode if not provided
         if (!data.outletCode && data.outletName) {
-          const name = data.outletName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 6).toUpperCase()
-          const timestamp = Date.now().toString().slice(-4)
-          data.outletCode = `${name}-${timestamp}`
+          const sanitized = data.outletName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+          data.outletCode = `${sanitized}-${Date.now()}`
         }
         return data
       },
     ],
     afterChange: [
-      async ({ doc, req, operation }) => {
-        // Synchronize coordinates from activeAddress when merchant is created or updated
-        if ((operation === 'create' || operation === 'update') && doc.activeAddress) {
+      async ({ doc, req, previousDoc }) => {
+        // Check if activeAddress has changed or if this is a new merchant
+        const activeAddressChanged = doc.activeAddress !== previousDoc?.activeAddress
+        
+        if (activeAddressChanged && doc.activeAddress) {
           try {
-            // Resolve relationship to raw ID whether admin populated it as object or ID
-            const activeAddressId = typeof doc.activeAddress === 'object' ? doc.activeAddress.id : doc.activeAddress
-            const addressDoc = await req.payload.findByID({
-              collection: 'addresses',
-              id: activeAddressId,
-            })
+            // Resolve activeAddress ID from either object or string
+            const activeAddressId = typeof doc.activeAddress === 'object' 
+              ? doc.activeAddress.id 
+              : doc.activeAddress
 
-            let syncSuccess = false
-            let syncMessage = ''
-
-            if (addressDoc && addressDoc.latitude && addressDoc.longitude) {
-              // Update merchant coordinates to match address
-              await req.payload.update({
-                collection: 'merchants',
-                id: doc.id,
-                data: {
-                  merchant_latitude: addressDoc.latitude,
-                  merchant_longitude: addressDoc.longitude,
-                  merchant_coordinates: {
-                    type: 'Point',
-                    coordinates: [addressDoc.longitude, addressDoc.latitude],
-                  },
-                  last_location_sync: new Date().toISOString(),
-                  is_location_verified: addressDoc.is_verified || false,
-                },
+            if (activeAddressId) {
+              // Fetch the address document to get latitude and longitude
+              const address = await req.payload.findByID({
+                collection: 'addresses',
+                id: activeAddressId,
                 overrideAccess: true,
               })
-              syncSuccess = true
-              syncMessage = `Merchant ${doc.id} coordinates synced from address ${activeAddressId}`
-              console.log(syncMessage)
-            } else {
-              // Geocoding fallback: if address has a formatted address but no coordinates, geocode it
-              if (addressDoc?.formatted_address) {
-                try {
-                  const geocodingResult = await googleMapsService.geocodeAddress(addressDoc.formatted_address)
-                  if (geocodingResult && geocodingResult.latitude && geocodingResult.longitude) {
-                    // Update address with geocoded fields
-                    await req.payload.update({
-                      collection: 'addresses',
-                      id: addressDoc.id,
-                      data: {
-                        google_place_id: geocodingResult.google_place_id,
-                        latitude: geocodingResult.latitude,
-                        longitude: geocodingResult.longitude,
-                        coordinates: {
-                          type: 'Point',
-                          coordinates: [geocodingResult.longitude, geocodingResult.latitude],
-                        },
-                        geocoding_accuracy: geocodingResult.geocoding_accuracy,
-                        address_quality_score: geocodingResult.address_quality_score,
-                        coordinate_source: 'GOOGLE_GEOCODING',
-                        last_geocoded_at: new Date().toISOString(),
-                        is_verified: true,
-                      },
-                      overrideAccess: true,
-                    })
-                    // Sync merchant after address update
-                    await req.payload.update({
-                      collection: 'merchants',
-                      id: doc.id,
-                      data: {
-                        merchant_latitude: geocodingResult.latitude,
-                        merchant_longitude: geocodingResult.longitude,
-                        merchant_coordinates: {
-                          type: 'Point',
-                          coordinates: [geocodingResult.longitude, geocodingResult.latitude],
-                        },
-                        last_location_sync: new Date().toISOString(),
-                        is_location_verified: true,
-                      },
-                      overrideAccess: true,
-                    })
-                    syncSuccess = true
-                    syncMessage = `Geocoded address ${activeAddressId} and synced merchant ${doc.id} coordinates`
-                    console.log(syncMessage)
-                  } else {
-                    syncMessage = `Failed to geocode activeAddress ${activeAddressId} for merchant ${doc.id}`
-                    console.warn(syncMessage)
-                  }
-                } catch (error) {
-                  syncMessage = `Error geocoding activeAddress in merchant afterChange: ${error}`
-                  console.error(syncMessage)
-                }
-              } else {
-                syncMessage = `Address ${activeAddressId} for merchant ${doc.id} has no coordinates or formatted_address`
-                console.warn(syncMessage)
-              }
-            }
 
-            // Store sync result in the document for the admin component to access
-            if (operation === 'update') {
-              req.context = req.context || {}
-              req.context.geospatialSync = {
-                success: syncSuccess,
-                message: syncMessage,
-                merchantId: doc.id,
-                activeAddressId,
+              if (address && address.latitude && address.longitude) {
+                // Update merchant with denormalized geospatial data
+                await req.payload.update({
+                  collection: 'merchants',
+                  id: doc.id,
+                  data: {
+                    merchant_latitude: address.latitude,
+                    merchant_longitude: address.longitude,
+                  },
+                  overrideAccess: true,
+                })
+              } else {
+                // Clear geospatial fields if address has no coordinates
+                await req.payload.update({
+                  collection: 'merchants',
+                  id: doc.id,
+                  data: {
+                    merchant_latitude: null,
+                    merchant_longitude: null,
+                  },
+                  overrideAccess: true,
+                })
               }
             }
           } catch (error) {
-            const errorMessage = `Error syncing merchant coordinates: ${error}`
-            console.error(errorMessage)
-            if (operation === 'update') {
-              req.context = req.context || {}
-              req.context.geospatialSync = {
-                success: false,
-                message: errorMessage,
-                merchantId: doc.id,
-                activeAddressId: typeof doc.activeAddress === 'object' ? doc.activeAddress.id : doc.activeAddress,
-              }
-            }
+            console.error('Error denormalizing geospatial data in Merchants afterChange:', error)
           }
         }
       },

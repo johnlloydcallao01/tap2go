@@ -475,12 +475,6 @@ export const Addresses: CollectionConfig = {
                 data: {
                   merchant_latitude: doc.latitude,
                   merchant_longitude: doc.longitude,
-                  merchant_coordinates: {
-                    type: 'Point',
-                    coordinates: [doc.longitude, doc.latitude],
-                  },
-                  last_location_sync: new Date().toISOString(),
-                  is_location_verified: doc.is_verified || false,
                 },
               })
             }

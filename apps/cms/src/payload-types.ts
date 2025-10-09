@@ -927,23 +927,11 @@ export interface Merchant {
    */
   activeAddress?: (number | null) | Address;
   /**
-   * PostGIS GEOMETRY(POINT, 4326) synced from activeAddress - stored as GeoJSON
-   */
-  merchant_coordinates?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Latitude synced from activeAddress
+   * Denormalized latitude from active address for performance
    */
   merchant_latitude?: number | null;
   /**
-   * Longitude synced from activeAddress
+   * Denormalized longitude from active address for performance
    */
   merchant_longitude?: number | null;
   /**
@@ -1022,14 +1010,6 @@ export interface Merchant {
     | number
     | boolean
     | null;
-  /**
-   * Location verified through GPS or delivery confirmation
-   */
-  is_location_verified?: boolean | null;
-  /**
-   * Timestamp of last address synchronization
-   */
-  last_location_sync?: string | null;
   /**
    * Average delivery time in minutes
    */
@@ -2036,7 +2016,6 @@ export interface MerchantsSelect<T extends boolean = true> {
   specialInstructions?: T;
   tags?: T;
   activeAddress?: T;
-  merchant_coordinates?: T;
   merchant_latitude?: T;
   merchant_longitude?: T;
   location_accuracy_radius?: T;
@@ -2050,8 +2029,6 @@ export interface MerchantsSelect<T extends boolean = true> {
   priority_zones?: T;
   restricted_areas?: T;
   delivery_zones?: T;
-  is_location_verified?: T;
-  last_location_sync?: T;
   avg_delivery_time_minutes?: T;
   delivery_success_rate?: T;
   peak_hours_multiplier?: T;
