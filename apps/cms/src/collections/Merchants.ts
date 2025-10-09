@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { googleMapsService } from '../services/GoogleMapsService'
 
 export const Merchants: CollectionConfig = {
   slug: 'merchants',
@@ -594,7 +595,55 @@ export const Merchants: CollectionConfig = {
               })
               console.log(`Merchant ${doc.id} coordinates synced from address ${doc.activeAddress}`)
             } else {
-              console.warn(`Address ${doc.activeAddress} for merchant ${doc.id} has no coordinates`)
+              // Geocoding fallback: if address has a formatted address but no coordinates, geocode it
+              if (addressDoc?.formatted_address) {
+                try {
+                  const geocodingResult = await googleMapsService.geocodeAddress(addressDoc.formatted_address)
+                  if (geocodingResult && geocodingResult.latitude && geocodingResult.longitude) {
+                    // Update address with geocoded fields
+                    await req.payload.update({
+                      collection: 'addresses',
+                      id: addressDoc.id,
+                      data: {
+                        google_place_id: geocodingResult.google_place_id,
+                        latitude: geocodingResult.latitude,
+                        longitude: geocodingResult.longitude,
+                        coordinates: {
+                          type: 'Point',
+                          coordinates: [geocodingResult.longitude, geocodingResult.latitude],
+                        },
+                        geocoding_accuracy: geocodingResult.geocoding_accuracy,
+                        address_quality_score: geocodingResult.address_quality_score,
+                        coordinate_source: 'GOOGLE_GEOCODING',
+                        last_geocoded_at: new Date().toISOString(),
+                        is_verified: true,
+                      },
+                    })
+                    // Sync merchant after address update
+                    await req.payload.update({
+                      collection: 'merchants',
+                      id: doc.id,
+                      data: {
+                        merchant_latitude: geocodingResult.latitude,
+                        merchant_longitude: geocodingResult.longitude,
+                        merchant_coordinates: {
+                          type: 'Point',
+                          coordinates: [geocodingResult.longitude, geocodingResult.latitude],
+                        },
+                        last_location_sync: new Date().toISOString(),
+                        is_location_verified: true,
+                      },
+                    })
+                    console.log(`Geocoded address ${doc.activeAddress} and synced merchant ${doc.id} coordinates`)
+                  } else {
+                    console.warn(`Failed to geocode activeAddress ${doc.activeAddress} for merchant ${doc.id}`)
+                  }
+                } catch (error) {
+                  console.error('Error geocoding activeAddress in merchant afterChange:', error)
+                }
+              } else {
+                console.warn(`Address ${doc.activeAddress} for merchant ${doc.id} has no coordinates`)
+              }
             }
           } catch (error) {
             console.error('Error syncing merchant coordinates:', error)
