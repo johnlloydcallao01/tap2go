@@ -326,6 +326,14 @@ export const Merchants: CollectionConfig = {
       },
       admin: {
         description: 'Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user',
+        components: {
+          afterInput: [
+            {
+              path: '../components/admin/GeospatialSyncNotification',
+              exportName: 'GeospatialSyncNotification',
+            },
+          ],
+        },
       },
     },
 
@@ -572,10 +580,15 @@ export const Merchants: CollectionConfig = {
         // Synchronize coordinates from activeAddress when merchant is created or updated
         if ((operation === 'create' || operation === 'update') && doc.activeAddress) {
           try {
+            // Resolve relationship to raw ID whether admin populated it as object or ID
+            const activeAddressId = typeof doc.activeAddress === 'object' ? doc.activeAddress.id : doc.activeAddress
             const addressDoc = await req.payload.findByID({
               collection: 'addresses',
-              id: doc.activeAddress,
+              id: activeAddressId,
             })
+
+            let syncSuccess = false
+            let syncMessage = ''
 
             if (addressDoc && addressDoc.latitude && addressDoc.longitude) {
               // Update merchant coordinates to match address
@@ -592,8 +605,11 @@ export const Merchants: CollectionConfig = {
                   last_location_sync: new Date().toISOString(),
                   is_location_verified: addressDoc.is_verified || false,
                 },
+                overrideAccess: true,
               })
-              console.log(`Merchant ${doc.id} coordinates synced from address ${doc.activeAddress}`)
+              syncSuccess = true
+              syncMessage = `Merchant ${doc.id} coordinates synced from address ${activeAddressId}`
+              console.log(syncMessage)
             } else {
               // Geocoding fallback: if address has a formatted address but no coordinates, geocode it
               if (addressDoc?.formatted_address) {
@@ -618,6 +634,7 @@ export const Merchants: CollectionConfig = {
                         last_geocoded_at: new Date().toISOString(),
                         is_verified: true,
                       },
+                      overrideAccess: true,
                     })
                     // Sync merchant after address update
                     await req.payload.update({
@@ -633,20 +650,47 @@ export const Merchants: CollectionConfig = {
                         last_location_sync: new Date().toISOString(),
                         is_location_verified: true,
                       },
+                      overrideAccess: true,
                     })
-                    console.log(`Geocoded address ${doc.activeAddress} and synced merchant ${doc.id} coordinates`)
+                    syncSuccess = true
+                    syncMessage = `Geocoded address ${activeAddressId} and synced merchant ${doc.id} coordinates`
+                    console.log(syncMessage)
                   } else {
-                    console.warn(`Failed to geocode activeAddress ${doc.activeAddress} for merchant ${doc.id}`)
+                    syncMessage = `Failed to geocode activeAddress ${activeAddressId} for merchant ${doc.id}`
+                    console.warn(syncMessage)
                   }
                 } catch (error) {
-                  console.error('Error geocoding activeAddress in merchant afterChange:', error)
+                  syncMessage = `Error geocoding activeAddress in merchant afterChange: ${error}`
+                  console.error(syncMessage)
                 }
               } else {
-                console.warn(`Address ${doc.activeAddress} for merchant ${doc.id} has no coordinates`)
+                syncMessage = `Address ${activeAddressId} for merchant ${doc.id} has no coordinates or formatted_address`
+                console.warn(syncMessage)
+              }
+            }
+
+            // Store sync result in the document for the admin component to access
+            if (operation === 'update') {
+              req.context = req.context || {}
+              req.context.geospatialSync = {
+                success: syncSuccess,
+                message: syncMessage,
+                merchantId: doc.id,
+                activeAddressId,
               }
             }
           } catch (error) {
-            console.error('Error syncing merchant coordinates:', error)
+            const errorMessage = `Error syncing merchant coordinates: ${error}`
+            console.error(errorMessage)
+            if (operation === 'update') {
+              req.context = req.context || {}
+              req.context.geospatialSync = {
+                success: false,
+                message: errorMessage,
+                merchantId: doc.id,
+                activeAddressId: typeof doc.activeAddress === 'object' ? doc.activeAddress.id : doc.activeAddress,
+              }
+            }
           }
         }
       },
