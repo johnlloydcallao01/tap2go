@@ -1,4 +1,12 @@
 import axios from 'axios'
+import {
+  Client,
+  DistanceMatrixRequest,
+  DistanceMatrixResponse,
+  TravelMode,
+  UnitSystem,
+  TrafficModel,
+} from '@googlemaps/google-maps-services-js'
 
 // Define Google Maps API response types
 interface GoogleMapsAddressComponent {
@@ -27,14 +35,27 @@ export interface GoogleMapsGeocodingResult {
   address_quality_score: number
 }
 
+export interface DistanceResult {
+  distance: number; // Distance in meters
+  duration: number; // Duration in seconds
+  status: 'OK' | 'NOT_FOUND' | 'ZERO_RESULTS' | 'MAX_ROUTE_LENGTH_EXCEEDED' | 'INVALID_REQUEST' | 'OVER_DAILY_LIMIT' | 'OVER_QUERY_LIMIT' | 'REQUEST_DENIED' | 'UNKNOWN_ERROR';
+}
+
+export interface LocationCoordinates {
+  latitude: number;
+  longitude: number;
+}
+
 export class GoogleMapsService {
   private apiKey: string
   private baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json'
+  private distanceMatrixClient: Client
 
   constructor() {
     this.apiKey = process.env.GOOGLE_MAPS_API_KEY || ''
+    this.distanceMatrixClient = new Client({})
     if (!this.apiKey) {
-      console.warn('Google Maps API key not configured. Geocoding will not work.')
+      console.warn('Google Maps API key not configured. Geocoding and distance calculation will not work.')
     }
   }
 
@@ -261,6 +282,214 @@ export class GoogleMapsService {
       console.error('Google Maps API key validation failed:', error)
       return false
     }
+  }
+
+  /**
+   * Calculate real-world driving distance between two points using Google Maps Distance Matrix API
+   * @param origin Starting point coordinates
+   * @param destination Ending point coordinates
+   * @returns Promise<DistanceResult> Distance and duration information
+   */
+  async calculateDrivingDistance(
+    origin: LocationCoordinates,
+    destination: LocationCoordinates
+  ): Promise<DistanceResult> {
+    if (!this.apiKey) {
+      console.error('Google Maps API key not configured')
+      return {
+        distance: 0,
+        duration: 0,
+        status: 'REQUEST_DENIED',
+      }
+    }
+
+    try {
+      const request: DistanceMatrixRequest = {
+        params: {
+          key: this.apiKey,
+          origins: [`${origin.latitude},${origin.longitude}`],
+          destinations: [`${destination.latitude},${destination.longitude}`],
+          mode: TravelMode.driving, // Use driving mode for motor vehicle distances
+          units: UnitSystem.metric, // Use metric units (meters/seconds)
+          avoid: [], // No restrictions by default
+          traffic_model: TrafficModel.best_guess, // Use best guess for traffic
+        },
+        timeout: 10000, // 10 second timeout
+      };
+
+      const response: DistanceMatrixResponse = await this.distanceMatrixClient.distancematrix(request);
+      
+      if (response.data.status !== 'OK') {
+        console.error(`Google Maps Distance Matrix API error: ${response.data.status}`);
+        return {
+          distance: 0,
+          duration: 0,
+          status: 'UNKNOWN_ERROR',
+        };
+      }
+
+      const element = response.data.rows[0]?.elements[0];
+      
+      if (!element) {
+        console.error('No route data returned from Google Maps Distance Matrix API');
+        return {
+          distance: 0,
+          duration: 0,
+          status: 'UNKNOWN_ERROR',
+        };
+      }
+
+      return {
+        distance: element.distance?.value || 0, // Distance in meters
+        duration: element.duration?.value || 0, // Duration in seconds
+        status: element.status as DistanceResult['status'],
+      };
+    } catch (error) {
+      console.error('Error calculating driving distance:', error);
+      
+      // Return error result
+      return {
+        distance: 0,
+        duration: 0,
+        status: 'UNKNOWN_ERROR',
+      };
+    }
+  }
+
+  /**
+   * Calculate driving distances from one origin to multiple destinations
+   * @param origin Starting point coordinates
+   * @param destinations Array of destination coordinates
+   * @returns Promise<DistanceResult[]> Array of distance results
+   */
+  async calculateMultipleDistances(
+    origin: LocationCoordinates,
+    destinations: LocationCoordinates[]
+  ): Promise<DistanceResult[]> {
+    if (!this.apiKey) {
+      console.error('Google Maps API key not configured')
+      return destinations.map(() => ({
+        distance: 0,
+        duration: 0,
+        status: 'REQUEST_DENIED' as const,
+      }))
+    }
+
+    try {
+      if (destinations.length === 0) {
+        return [];
+      }
+
+      // Google Maps API has a limit of 25 destinations per request
+      const maxDestinations = 25;
+      const results: DistanceResult[] = [];
+
+      // Process destinations in batches
+      for (let i = 0; i < destinations.length; i += maxDestinations) {
+        const batch = destinations.slice(i, i + maxDestinations);
+        
+        const request: DistanceMatrixRequest = {
+          params: {
+            key: this.apiKey,
+            origins: [`${origin.latitude},${origin.longitude}`],
+            destinations: batch.map(dest => `${dest.latitude},${dest.longitude}`),
+            mode: TravelMode.driving,
+            units: UnitSystem.metric,
+            avoid: [],
+            traffic_model: TrafficModel.best_guess,
+          },
+          timeout: 15000, // 15 second timeout for batch requests
+        };
+
+        const response: DistanceMatrixResponse = await this.distanceMatrixClient.distancematrix(request);
+        
+        if (response.data.status !== 'OK') {
+          console.error(`Google Maps Distance Matrix API batch error: ${response.data.status}`);
+          // Add error results for this batch
+          const errorResults = batch.map(() => ({
+            distance: 0,
+            duration: 0,
+            status: 'UNKNOWN_ERROR' as const,
+          }));
+          results.push(...errorResults);
+          continue;
+        }
+
+        const elements = response.data.rows[0]?.elements || [];
+        
+        for (const element of elements) {
+          results.push({
+            distance: element.distance?.value || 0,
+            duration: element.duration?.value || 0,
+            status: (element.status as DistanceResult['status']) || 'UNKNOWN_ERROR',
+          });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Error calculating multiple distances:', error);
+      
+      // Return error results for all destinations
+      return destinations.map(() => ({
+        distance: 0,
+        duration: 0,
+        status: 'UNKNOWN_ERROR' as const,
+      }));
+    }
+  }
+
+  /**
+   * Fallback to Haversine formula for basic distance calculation
+   * Used when Google Maps API is unavailable or returns errors
+   * @param origin Starting point coordinates
+   * @param destination Ending point coordinates
+   * @returns Distance in meters (straight-line distance)
+   */
+  static calculateHaversineDistance(
+    origin: LocationCoordinates,
+    destination: LocationCoordinates
+  ): number {
+    const R = 6371000; // Earth's radius in meters
+    const lat1Rad = (origin.latitude * Math.PI) / 180;
+    const lat2Rad = (destination.latitude * Math.PI) / 180;
+    const deltaLatRad = ((destination.latitude - origin.latitude) * Math.PI) / 180;
+    const deltaLngRad = ((destination.longitude - origin.longitude) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
+      Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(deltaLngRad / 2) * Math.sin(deltaLngRad / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  /**
+   * Calculate distance with automatic fallback to Haversine if Google Maps fails
+   * @param origin Starting point coordinates
+   * @param destination Ending point coordinates
+   * @returns Promise<DistanceResult> Distance result with fallback support
+   */
+  async calculateDistanceWithFallback(
+    origin: LocationCoordinates,
+    destination: LocationCoordinates
+  ): Promise<DistanceResult> {
+    // Try Google Maps API first
+    const googleResult = await this.calculateDrivingDistance(origin, destination);
+    
+    if (googleResult.status === 'OK' && googleResult.distance > 0) {
+      return googleResult;
+    }
+
+    // Fallback to Haversine distance
+    console.warn('Google Maps Distance Matrix API failed, falling back to Haversine distance calculation');
+    const haversineDistance = GoogleMapsService.calculateHaversineDistance(origin, destination);
+    
+    return {
+      distance: haversineDistance,
+      duration: Math.round(haversineDistance / 13.89), // Approximate driving time (50 km/h average)
+      status: 'OK',
+    };
   }
 }
 

@@ -21,6 +21,7 @@
     "db:test": "node test-db-connection.js"
   },
   "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@payloadcms/db-postgres": "3.49.0",
     "@payloadcms/next": "3.49.0",
     "@payloadcms/payload-cloud": "3.49.0",

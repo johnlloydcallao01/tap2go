@@ -1,7 +1,17 @@
 # What We Have So Far - Tap2Go Project Status
 
 ## 🎯 Ultimate Goal
-Display merchants based on their delivery radius from a user's location, implementing a comprehensive 200km search feature with geospatial capabilities.
+Display merchants based on their delivery radius from a customer's location, implementing a comprehensive 200km search feature with geospatial capabilities.
+
+
+If facing issues during testing, always remember to reference to:
+NEXT_PUBLIC_API_URL=https://cms.tap2goph.com/api
+
+# API Authentication (Client-side accessible)
+NEXT_PUBLIC_PAYLOAD_API_KEY=1331d981-b6b7-4ff5-aab6-b9ddbb0c63ae
+
+# Google Maps API Key (with billing enabled)
+NEXT_PUBLIC_MAPS_BACKEND_KEY=AIzaSyAMJO82LtLjj81N1sfQkQVZLygmF4hggEQ
 
 ## ✅ Current Accomplishments
 
