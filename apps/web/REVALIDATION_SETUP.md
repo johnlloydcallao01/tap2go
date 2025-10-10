@@ -8,6 +8,7 @@ Previously, when product categories were updated in the CMS, the changes wouldn'
 ## Solution
 We've implemented **On-Demand Revalidation** using Next.js 13+ features that allow cache invalidation without rebuilding the entire application.
 
+
 ## Implementation
 
 ### 1. Manual Revalidation API (`/api/revalidate`)
