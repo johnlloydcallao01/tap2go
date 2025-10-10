@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url'
 import crypto from 'crypto'
 import { cloudinaryAdapter } from './storage/cloudinary-adapter'
 import { authLogger, createAuthLogContext } from './utils/auth-logger'
-import { GeospatialService } from './utils/GeospatialService'
+import { GeospatialService } from './services/GeospatialService'
 import type { PayloadRequest } from 'payload'
 // import sharp from 'sharp'
 
