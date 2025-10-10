@@ -1,12 +1,34 @@
 import axios from 'axios'
 import {
   Client,
-  DistanceMatrixRequest,
-  DistanceMatrixResponse,
-  TravelMode,
-  UnitSystem,
-  TrafficModel,
 } from '@googlemaps/google-maps-services-js'
+
+// Routes API v2 types for TWO_WHEELER support
+interface RouteMatrixRequest {
+  origins: Array<{
+    waypoint: {
+      location: {
+        latLng: {
+          latitude: number
+          longitude: number
+        }
+      }
+    }
+  }>
+  destinations: Array<{
+    waypoint: {
+      location: {
+        latLng: {
+          latitude: number
+          longitude: number
+        }
+      }
+    }
+  }>
+  travelMode: string
+  routingPreference: string
+  units: string
+}
 
 // Define Google Maps API response types
 interface GoogleMapsAddressComponent {
@@ -49,6 +71,7 @@ export interface LocationCoordinates {
 export class GoogleMapsService {
   private apiKey: string
   private baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json'
+  private routesApiUrl = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix'
   private distanceMatrixClient: Client
 
   constructor() {
@@ -285,7 +308,8 @@ export class GoogleMapsService {
   }
 
   /**
-   * Calculate real-world driving distance between two points using Google Maps Distance Matrix API
+   * Calculate real-world two-wheeler distance between two points using Google Routes API v2
+   * Uses TWO_WHEELER travel mode for accurate motorcycle delivery distance calculations
    * @param origin Starting point coordinates
    * @param destination Ending point coordinates
    * @returns Promise<DistanceResult> Distance and duration information
@@ -304,23 +328,43 @@ export class GoogleMapsService {
     }
 
     try {
-      const request: DistanceMatrixRequest = {
-        params: {
-          key: this.apiKey,
-          origins: [`${origin.latitude},${origin.longitude}`],
-          destinations: [`${destination.latitude},${destination.longitude}`],
-          mode: TravelMode.driving, // Use driving mode for motor vehicle distances
-          units: UnitSystem.metric, // Use metric units (meters/seconds)
-          avoid: [], // No restrictions by default
-          traffic_model: TrafficModel.best_guess, // Use best guess for traffic
+      const requestBody: RouteMatrixRequest = {
+        origins: [{
+          waypoint: {
+            location: {
+              latLng: {
+                latitude: origin.latitude,
+                longitude: origin.longitude
+              }
+            }
+          }
+        }],
+        destinations: [{
+          waypoint: {
+            location: {
+              latLng: {
+                latitude: destination.latitude,
+                longitude: destination.longitude
+              }
+            }
+          }
+        }],
+        travelMode: 'TWO_WHEELER', // Use TWO_WHEELER mode for motorcycle delivery
+        routingPreference: 'TRAFFIC_AWARE',
+        units: 'METRIC'
+      };
+
+      const response = await axios.post(this.routesApiUrl, requestBody, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': this.apiKey,
+          'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status,condition'
         },
         timeout: 10000, // 10 second timeout
-      };
+      });
 
-      const response: DistanceMatrixResponse = await this.distanceMatrixClient.distancematrix(request);
-      
-      if (response.data.status !== 'OK') {
-        console.error(`Google Maps Distance Matrix API error: ${response.data.status}`);
+      if (!response.data || response.data.length === 0) {
+        console.error('No route data returned from Google Routes API');
         return {
           distance: 0,
           duration: 0,
@@ -328,10 +372,10 @@ export class GoogleMapsService {
         };
       }
 
-      const element = response.data.rows[0]?.elements[0];
+      const element = response.data[0];
       
       if (!element) {
-        console.error('No route data returned from Google Maps Distance Matrix API');
+        console.error('No route element returned from Google Routes API');
         return {
           distance: 0,
           duration: 0,
@@ -339,13 +383,16 @@ export class GoogleMapsService {
         };
       }
 
+      // Parse duration from string format (e.g., "139s") to seconds
+      const durationInSeconds = element.duration ? parseInt(element.duration.replace('s', '')) : 0;
+
       return {
-        distance: element.distance?.value || 0, // Distance in meters
-        duration: element.duration?.value || 0, // Duration in seconds
-        status: element.status as DistanceResult['status'],
+        distance: element.distanceMeters || 0, // Distance in meters
+        duration: durationInSeconds, // Duration in seconds
+        status: element.condition === 'ROUTE_EXISTS' ? 'OK' : 'NOT_FOUND',
       };
     } catch (error) {
-      console.error('Error calculating driving distance:', error);
+      console.error('Error calculating two-wheeler distance:', error);
       
       // Return error result
       return {
@@ -357,7 +404,8 @@ export class GoogleMapsService {
   }
 
   /**
-   * Calculate driving distances from one origin to multiple destinations
+   * Calculate two-wheeler distances from one origin to multiple destinations using Google Routes API v2
+   * Uses TWO_WHEELER travel mode for accurate motorcycle delivery distance calculations
    * @param origin Starting point coordinates
    * @param destinations Array of destination coordinates
    * @returns Promise<DistanceResult[]> Array of distance results
@@ -380,31 +428,52 @@ export class GoogleMapsService {
         return [];
       }
 
-      // Google Maps API has a limit of 25 destinations per request
-      const maxDestinations = 25;
+      // Routes API v2 has a limit of 625 route elements (origins × destinations)
+      // For single origin, this means up to 625 destinations per request
+      const maxDestinations = 625;
       const results: DistanceResult[] = [];
 
       // Process destinations in batches
       for (let i = 0; i < destinations.length; i += maxDestinations) {
         const batch = destinations.slice(i, i + maxDestinations);
         
-        const request: DistanceMatrixRequest = {
-          params: {
-            key: this.apiKey,
-            origins: [`${origin.latitude},${origin.longitude}`],
-            destinations: batch.map(dest => `${dest.latitude},${dest.longitude}`),
-            mode: TravelMode.driving,
-            units: UnitSystem.metric,
-            avoid: [],
-            traffic_model: TrafficModel.best_guess,
-          },
-          timeout: 15000, // 15 second timeout for batch requests
+        const requestBody: RouteMatrixRequest = {
+          origins: [{
+            waypoint: {
+              location: {
+                latLng: {
+                  latitude: origin.latitude,
+                  longitude: origin.longitude
+                }
+              }
+            }
+          }],
+          destinations: batch.map(dest => ({
+            waypoint: {
+              location: {
+                latLng: {
+                  latitude: dest.latitude,
+                  longitude: dest.longitude
+                }
+              }
+            }
+          })),
+          travelMode: 'TWO_WHEELER', // Use TWO_WHEELER mode for motorcycle delivery
+          routingPreference: 'TRAFFIC_AWARE',
+          units: 'METRIC'
         };
 
-        const response: DistanceMatrixResponse = await this.distanceMatrixClient.distancematrix(request);
+        const response = await axios.post(this.routesApiUrl, requestBody, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': this.apiKey,
+            'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status,condition'
+          },
+          timeout: 15000, // 15 second timeout for batch requests
+        });
         
-        if (response.data.status !== 'OK') {
-          console.error(`Google Maps Distance Matrix API batch error: ${response.data.status}`);
+        if (!response.data || !Array.isArray(response.data)) {
+          console.error('Invalid response from Google Routes API batch request');
           // Add error results for this batch
           const errorResults = batch.map(() => ({
             distance: 0,
@@ -415,20 +484,22 @@ export class GoogleMapsService {
           continue;
         }
 
-        const elements = response.data.rows[0]?.elements || [];
-        
-        for (const element of elements) {
+        // Process each element in the response
+        for (const element of response.data) {
+          // Parse duration from string format (e.g., "139s") to seconds
+          const durationInSeconds = element.duration ? parseInt(element.duration.replace('s', '')) : 0;
+          
           results.push({
-            distance: element.distance?.value || 0,
-            duration: element.duration?.value || 0,
-            status: (element.status as DistanceResult['status']) || 'UNKNOWN_ERROR',
+            distance: element.distanceMeters || 0,
+            duration: durationInSeconds,
+            status: element.condition === 'ROUTE_EXISTS' ? 'OK' : 'NOT_FOUND',
           });
         }
       }
 
       return results;
     } catch (error) {
-      console.error('Error calculating multiple distances:', error);
+      console.error('Error calculating multiple two-wheeler distances:', error);
       
       // Return error results for all destinations
       return destinations.map(() => ({
