@@ -532,55 +532,5 @@ export const Merchants: CollectionConfig = {
         return data
       },
     ],
-    afterChange: [
-      async ({ doc, req, previousDoc }) => {
-        // Check if activeAddress has changed or if this is a new merchant
-        const activeAddressChanged = doc.activeAddress !== previousDoc?.activeAddress
-        
-        if (activeAddressChanged && doc.activeAddress) {
-          try {
-            // Resolve activeAddress ID from either object or string
-            const activeAddressId = typeof doc.activeAddress === 'object' 
-              ? doc.activeAddress.id 
-              : doc.activeAddress
-
-            if (activeAddressId) {
-              // Fetch the address document to get latitude and longitude
-              const address = await req.payload.findByID({
-                collection: 'addresses',
-                id: activeAddressId,
-                overrideAccess: true,
-              })
-
-              if (address && address.latitude && address.longitude) {
-                // Update merchant with denormalized geospatial data
-                await req.payload.update({
-                  collection: 'merchants',
-                  id: doc.id,
-                  data: {
-                    merchant_latitude: address.latitude,
-                    merchant_longitude: address.longitude,
-                  },
-                  overrideAccess: true,
-                })
-              } else {
-                // Clear geospatial fields if address has no coordinates
-                await req.payload.update({
-                  collection: 'merchants',
-                  id: doc.id,
-                  data: {
-                    merchant_latitude: null,
-                    merchant_longitude: null,
-                  },
-                  overrideAccess: true,
-                })
-              }
-            }
-          } catch (error) {
-            console.error('Error denormalizing geospatial data in Merchants afterChange:', error)
-          }
-        }
-      },
-    ],
   },
 }
