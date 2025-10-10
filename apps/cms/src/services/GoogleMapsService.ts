@@ -438,59 +438,6 @@ export class GoogleMapsService {
       }));
     }
   }
-
-  /**
-   * Fallback to Haversine formula for basic distance calculation
-   * Used when Google Maps API is unavailable or returns errors
-   * @param origin Starting point coordinates
-   * @param destination Ending point coordinates
-   * @returns Distance in meters (straight-line distance)
-   */
-  static calculateHaversineDistance(
-    origin: LocationCoordinates,
-    destination: LocationCoordinates
-  ): number {
-    const R = 6371000; // Earth's radius in meters
-    const lat1Rad = (origin.latitude * Math.PI) / 180;
-    const lat2Rad = (destination.latitude * Math.PI) / 180;
-    const deltaLatRad = ((destination.latitude - origin.latitude) * Math.PI) / 180;
-    const deltaLngRad = ((destination.longitude - origin.longitude) * Math.PI) / 180;
-
-    const a =
-      Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
-      Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(deltaLngRad / 2) * Math.sin(deltaLngRad / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
-  /**
-   * Calculate distance with automatic fallback to Haversine if Google Maps fails
-   * @param origin Starting point coordinates
-   * @param destination Ending point coordinates
-   * @returns Promise<DistanceResult> Distance result with fallback support
-   */
-  async calculateDistanceWithFallback(
-    origin: LocationCoordinates,
-    destination: LocationCoordinates
-  ): Promise<DistanceResult> {
-    // Try Google Maps API first
-    const googleResult = await this.calculateDrivingDistance(origin, destination);
-    
-    if (googleResult.status === 'OK' && googleResult.distance > 0) {
-      return googleResult;
-    }
-
-    // Fallback to Haversine distance
-    console.warn('Google Maps Distance Matrix API failed, falling back to Haversine distance calculation');
-    const haversineDistance = GoogleMapsService.calculateHaversineDistance(origin, destination);
-    
-    return {
-      distance: haversineDistance,
-      duration: Math.round(haversineDistance / 13.89), // Approximate driving time (50 km/h average)
-      status: 'OK',
-    };
-  }
 }
 
 // Export singleton instance

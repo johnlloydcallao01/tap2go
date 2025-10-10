@@ -34,8 +34,12 @@ type MerchantWithServiceArea = Merchant & {
 }
 
 /**
- * Enhanced GeospatialService with PostGIS support
+ * Enhanced GeospatialService with Google Maps API integration
  * Provides high-performance geospatial operations for merchant location queries
+ * Uses Google Maps motorcycle driving mode for accurate delivery distance calculations
+ * 
+ * Note: This service requires Google Maps API to be available. If the API is unavailable,
+ * methods will fail gracefully with appropriate error messages.
  */
 export class GeospatialService {
   private payload: Payload
@@ -45,8 +49,25 @@ export class GeospatialService {
   }
 
   /**
+   * Check if Google Maps service is available
+   */
+  private async checkGoogleMapsAvailability(): Promise<boolean> {
+    try {
+      // Simple test to check if Google Maps service is responsive
+      const testResult = await googleMapsService.calculateMultipleDistances(
+        { latitude: 0, longitude: 0 },
+        [{ latitude: 0, longitude: 0 }]
+      )
+      return testResult && testResult.length > 0
+    } catch (error) {
+      console.error('Google Maps API is not available:', error)
+      return false
+    }
+  }
+
+  /**
    * Find merchants within a specific radius using Google Maps driving distance calculation
-   * Falls back to Haversine distance if Google Maps API fails
+   * Uses motorcycle driving mode for accurate delivery distance calculations
    */
   async findMerchantsWithinRadius(params: {
     latitude: number
@@ -54,16 +75,8 @@ export class GeospatialService {
     radiusMeters: number
     limit?: number
     offset?: number
-    filters?: {
-      isActive?: boolean
-      isAcceptingOrders?: boolean
-      operationalStatus?: string[]
-      cuisineTypes?: string[]
-      minRating?: number
-      sortBy?: 'distance' | 'rating' | 'delivery_time' | 'success_rate'
-    }
   }) {
-    const { latitude, longitude, radiusMeters, limit = 20, offset = 0, filters = {} } = params
+    const { latitude, longitude, radiusMeters, limit = 20, offset = 0 } = params
     const startTime = Date.now()
 
     // Validate coordinates
@@ -77,15 +90,18 @@ export class GeospatialService {
     }
 
     try {
+      // Check Google Maps API availability first
+      const isGoogleMapsAvailable = await this.checkGoogleMapsAvailability()
+      if (!isGoogleMapsAvailable) {
+        throw new Error('Google Maps API is currently unavailable. Distance calculations cannot be performed.')
+      }
+
       // Build where clause for basic filters
       const whereClause: Where = {
         and: [
           // Ensure merchant has valid coordinates
           { merchant_latitude: { not_equals: null } },
           { merchant_longitude: { not_equals: null } },
-          ...(filters.isActive !== undefined ? [{ isActive: { equals: filters.isActive } }] : []),
-          ...(filters.isAcceptingOrders !== undefined ? [{ isAcceptingOrders: { equals: filters.isAcceptingOrders } }] : []),
-          ...(filters.operationalStatus ? [{ operationalStatus: { in: filters.operationalStatus } }] : []),
         ]
       }
 
@@ -135,185 +151,72 @@ export class GeospatialService {
         }
       }
 
-      try {
-        // Calculate distances using Google Maps Distance Matrix API
-        const distanceResults = await googleMapsService.calculateMultipleDistances(
-          customerLocation,
-          merchantLocations
-        )
+      // Calculate distances using Google Maps Distance Matrix API
+      const distanceResults = await googleMapsService.calculateMultipleDistances(
+        customerLocation,
+        merchantLocations
+      )
 
-        // Process results and filter by radius
-        for (let i = 0; i < result.docs.length && merchantsWithDistance.length < limit * 2; i++) {
-          const merchant = result.docs[i]
-          const distanceResult = distanceResults[i]
+      // Process results and filter by radius
+      for (let i = 0; i < result.docs.length && merchantsWithDistance.length < limit * 2; i++) {
+        const merchant = result.docs[i]
+        const distanceResult = distanceResults[i]
 
-          if (!merchant.merchant_latitude || !merchant.merchant_longitude) continue
+        if (!merchant.merchant_latitude || !merchant.merchant_longitude) continue
 
-          // Use Google Maps distance if available, otherwise fallback to Haversine
-          let distanceMeters: number
+        // Only use Google Maps distance - no fallback
+        if (!distanceResult || distanceResult.status !== 'OK' || distanceResult.distance <= 0) {
+          console.warn(`Google Maps API failed for merchant ${merchant.id}, skipping`)
+          continue
+        }
 
-          if (distanceResult && distanceResult.status === 'OK' && distanceResult.distance > 0) {
-            distanceMeters = distanceResult.distance
-          } else {
-            // Fallback to Haversine calculation
-            distanceMeters = this.calculateHaversineDistance(
-              latitude,
-              longitude,
-              merchant.merchant_latitude,
-              merchant.merchant_longitude
-            )
-          }
+        const distanceMeters = distanceResult.distance
 
-          // Filter by radius
-          if (distanceMeters > radiusMeters) continue
+        // Filter by radius
+        if (distanceMeters > radiusMeters) continue
 
-          merchantsWithDistance.push({
-            ...merchant,
-            vendor: merchant.vendor as Vendor,
+        merchantsWithDistance.push({
+          ...merchant,
+          vendor: merchant.vendor as Vendor,
+          distanceMeters,
+          distanceKm: distanceMeters / 1000,
+          isWithinDeliveryRadius: merchant.delivery_radius_meters 
+            ? distanceMeters <= merchant.delivery_radius_meters 
+            : false,
+          estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
             distanceMeters,
-            distanceKm: distanceMeters / 1000,
-            isWithinDeliveryRadius: merchant.delivery_radius_meters 
-              ? distanceMeters <= merchant.delivery_radius_meters 
-              : false,
-            estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
-              distanceMeters,
-              merchant.avg_delivery_time_minutes || undefined
-            ),
-          } as MerchantWithDistance)
-        }
+            merchant.avg_delivery_time_minutes || undefined
+          ),
+        } as MerchantWithDistance)
+      }
 
-        // Apply rating filter if specified
-        let filteredMerchants = merchantsWithDistance
-        if (filters.minRating) {
-          filteredMerchants = merchantsWithDistance.filter(merchant => {
-            const vendor = merchant.vendor as Vendor
-            return vendor.averageRating && vendor.averageRating >= filters.minRating!
-          })
-        }
+      // Sort results by distance (default sorting)
+      const sortedMerchants = merchantsWithDistance.sort((a, b) => a.distanceMeters - b.distanceMeters)
 
-        // Sort results
-        const sortedMerchants = filters.sortBy === 'rating'
-          ? filteredMerchants.sort((a, b) => {
-              const aRating = (a.vendor as Vendor).averageRating || 0
-              const bRating = (b.vendor as Vendor).averageRating || 0
-              return bRating - aRating
-            })
-          : filters.sortBy === 'delivery_time'
-          ? filteredMerchants.sort((a, b) => (a.avg_delivery_time_minutes || 999) - (b.avg_delivery_time_minutes || 999))
-          : filters.sortBy === 'success_rate'
-          ? filteredMerchants.sort((a, b) => (b.delivery_success_rate || 0) - (a.delivery_success_rate || 0))
-          : filteredMerchants.sort((a, b) => a.distanceMeters - b.distanceMeters) // Default: sort by distance
+      const endTime = Date.now()
+      const queryTime = endTime - startTime
 
-        const endTime = Date.now()
-        const queryTime = endTime - startTime
-
-        return {
-          merchants: sortedMerchants.slice(0, limit),
-          totalCount: filteredMerchants.length,
-          pagination: {
-            totalDocs: filteredMerchants.length,
-            limit,
-            totalPages: Math.ceil(filteredMerchants.length / limit),
-            page: Math.floor(offset / limit) + 1,
-            pagingCounter: offset + 1,
-            hasPrevPage: offset > 0,
-            hasNextPage: offset + limit < filteredMerchants.length,
-            prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
-            nextPage: offset + limit < filteredMerchants.length ? Math.floor((offset + limit) / limit) + 1 : null,
-          },
-          performance: {
-            queryTimeMs: queryTime,
-            searchRadius: radiusMeters,
-            withinSearchRadius: filteredMerchants.length,
-            proximityScore: filteredMerchants.length > 0 ? 
-              filteredMerchants.reduce((sum, m) => sum + (1 - m.distanceKm / (radiusMeters / 1000)), 0) / filteredMerchants.length : 0,
-            optimizationUsed: 'google_maps_distance_matrix_api'
-          }
-        }
-      } catch (error) {
-        console.error('Error using Google Maps API, falling back to Haversine:', error)
-        
-        // Fallback to original Haversine calculation
-        const merchantsWithHaversineDistance: MerchantWithDistance[] = result.docs
-          .map((merchant) => {
-            const merchantLat = merchant.merchant_latitude
-            const merchantLng = merchant.merchant_longitude
-
-            if (!merchantLat || !merchantLng) return null
-
-            const distanceMeters = this.calculateHaversineDistance(
-              latitude,
-              longitude,
-              merchantLat,
-              merchantLng
-            )
-
-            // Filter by radius
-            if (distanceMeters > radiusMeters) return null
-
-            return {
-              ...merchant,
-              vendor: merchant.vendor as Vendor,
-              distanceMeters,
-              distanceKm: distanceMeters / 1000,
-              isWithinDeliveryRadius: merchant.delivery_radius_meters 
-                ? distanceMeters <= merchant.delivery_radius_meters 
-                : false,
-              estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
-                distanceMeters,
-                merchant.avg_delivery_time_minutes || undefined
-              ),
-            } as MerchantWithDistance
-          })
-          .filter((merchant): merchant is MerchantWithDistance => merchant !== null)
-
-        // Apply rating filter if specified
-        let filteredMerchants = merchantsWithHaversineDistance
-        if (filters.minRating) {
-          filteredMerchants = merchantsWithHaversineDistance.filter(merchant => {
-            const vendor = merchant.vendor as Vendor
-            return vendor.averageRating && vendor.averageRating >= filters.minRating!
-          })
-        }
-
-        // Sort results
-        const sortedMerchants = filters.sortBy === 'rating'
-          ? filteredMerchants.sort((a, b) => {
-              const aRating = (a.vendor as Vendor).averageRating || 0
-              const bRating = (b.vendor as Vendor).averageRating || 0
-              return bRating - aRating
-            })
-          : filters.sortBy === 'delivery_time'
-          ? filteredMerchants.sort((a, b) => (a.avg_delivery_time_minutes || 999) - (b.avg_delivery_time_minutes || 999))
-          : filters.sortBy === 'success_rate'
-          ? filteredMerchants.sort((a, b) => (b.delivery_success_rate || 0) - (a.delivery_success_rate || 0))
-          : filteredMerchants.sort((a, b) => a.distanceMeters - b.distanceMeters) // Default: sort by distance
-
-        const endTime = Date.now()
-        const queryTime = endTime - startTime
-
-        return {
-          merchants: sortedMerchants.slice(0, limit),
-          totalCount: filteredMerchants.length,
-          pagination: {
-            totalDocs: filteredMerchants.length,
-            limit,
-            totalPages: Math.ceil(filteredMerchants.length / limit),
-            page: Math.floor(offset / limit) + 1,
-            pagingCounter: offset + 1,
-            hasPrevPage: offset > 0,
-            hasNextPage: offset + limit < filteredMerchants.length,
-            prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
-            nextPage: offset + limit < filteredMerchants.length ? Math.floor((offset + limit) / limit) + 1 : null,
-          },
-          performance: {
-            queryTimeMs: queryTime,
-            searchRadius: radiusMeters,
-            withinSearchRadius: filteredMerchants.length,
-            proximityScore: filteredMerchants.length > 0 ? 
-              filteredMerchants.reduce((sum, m) => sum + (1 - m.distanceKm / (radiusMeters / 1000)), 0) / filteredMerchants.length : 0,
-            optimizationUsed: 'haversine_fallback_after_api_error'
-          }
+      return {
+        merchants: sortedMerchants.slice(0, limit),
+        totalCount: merchantsWithDistance.length,
+        pagination: {
+          totalDocs: merchantsWithDistance.length,
+          limit,
+          totalPages: Math.ceil(merchantsWithDistance.length / limit),
+          page: Math.floor(offset / limit) + 1,
+          pagingCounter: offset + 1,
+          hasPrevPage: offset > 0,
+          hasNextPage: offset + limit < merchantsWithDistance.length,
+          prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
+          nextPage: offset + limit < merchantsWithDistance.length ? Math.floor((offset + limit) / limit) + 1 : null,
+        },
+        performance: {
+          queryTimeMs: queryTime,
+          searchRadius: radiusMeters,
+          withinSearchRadius: merchantsWithDistance.length,
+          proximityScore: merchantsWithDistance.length > 0 ? 
+            merchantsWithDistance.reduce((sum: number, m: MerchantWithDistance) => sum + (1 - m.distanceKm / (radiusMeters / 1000)), 0) / merchantsWithDistance.length : 0,
+          optimizationUsed: 'google_maps_distance_matrix_api'
         }
       }
     } catch (error) {
@@ -324,23 +227,15 @@ export class GeospatialService {
 
   /**
    * Find merchants in delivery radius using Google Maps driving distance calculation
-   * Falls back to Haversine distance if Google Maps API fails
+   * Uses motorcycle driving mode for accurate delivery distance calculations
    */
   async findMerchantsInDeliveryRadius(params: {
     latitude: number
     longitude: number
     limit?: number
     offset?: number
-    filters?: {
-      isActive?: boolean
-      isAcceptingOrders?: boolean
-      isCurrentlyDelivering?: boolean
-      maxDeliveryTime?: number
-      minOrderAmount?: number
-      maxSearchRadius?: number // Optional max search radius to limit query scope
-    }
   }) {
-    const { latitude, longitude, limit = 20, offset = 0, filters = {} } = params
+    const { latitude, longitude, limit = 20, offset = 0 } = params
     const startTime = Date.now()
 
     // Validate coordinates
@@ -349,18 +244,18 @@ export class GeospatialService {
     }
 
     try {
+      // Check Google Maps API availability first
+      const isGoogleMapsAvailable = await this.checkGoogleMapsAvailability()
+      if (!isGoogleMapsAvailable) {
+        throw new Error('Google Maps API is currently unavailable. Distance calculations cannot be performed.')
+      }
+
       // Build where clause - removed raw PostGIS query
       const whereClause: Where = {
         and: [
-          ...(filters.isCurrentlyDelivering !== undefined ? [{ is_currently_delivering: { equals: filters.isCurrentlyDelivering } }] : []),
-          ...(filters.maxDeliveryTime ? [{ avg_delivery_time_minutes: { less_than_equal: filters.maxDeliveryTime } }] : []),
-          ...(filters.minOrderAmount ? [{ min_order_amount: { less_than_equal: filters.minOrderAmount } }] : []),
           // Ensure merchant has valid coordinates
           { merchant_latitude: { not_equals: null } },
           { merchant_longitude: { not_equals: null } },
-          // Optional filters that can be applied if specified
-          ...(filters.isActive !== undefined ? [{ isActive: { equals: filters.isActive } }] : []),
-          ...(filters.isAcceptingOrders !== undefined ? [{ isAcceptingOrders: { equals: filters.isAcceptingOrders } }] : []),
         ]
       }
 
@@ -410,149 +305,71 @@ export class GeospatialService {
         }
       }
 
-      try {
-        // Calculate distances using Google Maps Distance Matrix API
-        const distanceResults = await googleMapsService.calculateMultipleDistances(
-          customerLocation,
-          merchantLocations
-        )
+      // Calculate distances using Google Maps Distance Matrix API
+      const distanceResults = await googleMapsService.calculateMultipleDistances(
+        customerLocation,
+        merchantLocations
+      )
 
-        // Process results and filter by delivery radius
-        for (let i = 0; i < result.docs.length && merchantsInDeliveryRadius.length < limit * 2; i++) {
-          const merchant = result.docs[i]
-          const distanceResult = distanceResults[i]
+      // Process results and filter by delivery radius
+      for (let i = 0; i < result.docs.length && merchantsInDeliveryRadius.length < limit * 2; i++) {
+        const merchant = result.docs[i]
+        const distanceResult = distanceResults[i]
 
-          if (!merchant.merchant_latitude || !merchant.merchant_longitude) continue
+        if (!merchant.merchant_latitude || !merchant.merchant_longitude) continue
 
-          // Use Google Maps distance if available, otherwise fallback to Haversine
-          let distanceMeters: number
+        // Only use Google Maps distance - no fallback
+        if (!distanceResult || distanceResult.status !== 'OK' || distanceResult.distance <= 0) {
+          console.warn(`Google Maps API failed for merchant ${merchant.id}, skipping`)
+          continue
+        }
 
-          if (distanceResult && distanceResult.status === 'OK' && distanceResult.distance > 0) {
-            distanceMeters = distanceResult.distance
-          } else {
-            // Fallback to Haversine calculation
-            distanceMeters = this.calculateHaversineDistance(
-              latitude,
-              longitude,
-              merchant.merchant_latitude,
-              merchant.merchant_longitude
-            )
-          }
+        const distanceMeters = distanceResult.distance
 
-          // Apply max search radius filter if specified
-          if (filters.maxSearchRadius && distanceMeters > filters.maxSearchRadius) continue
-
-          merchantsInDeliveryRadius.push({
-            ...merchant,
-            vendor: merchant.vendor as Vendor,
+        merchantsInDeliveryRadius.push({
+          ...merchant,
+          vendor: merchant.vendor as Vendor,
+          distanceMeters,
+          distanceKm: distanceMeters / 1000,
+          isWithinDeliveryRadius: merchant.delivery_radius_meters 
+            ? distanceMeters <= merchant.delivery_radius_meters 
+            : false,
+          estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
             distanceMeters,
-            distanceKm: distanceMeters / 1000,
-            isWithinDeliveryRadius: merchant.delivery_radius_meters 
-              ? distanceMeters <= merchant.delivery_radius_meters 
-              : false,
-            estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
-              distanceMeters,
-              merchant.avg_delivery_time_minutes || undefined
-            ),
-          } as MerchantWithDistance)
-        }
+            merchant.avg_delivery_time_minutes || undefined
+          ),
+        } as MerchantWithDistance)
+      }
 
-        const sortedMerchants = merchantsInDeliveryRadius
-          .sort((a, b) => a.distanceMeters - b.distanceMeters) // Sort by distance
-          .slice(offset, offset + limit) // Apply pagination
+      const sortedMerchants = merchantsInDeliveryRadius
+        .sort((a, b) => a.distanceMeters - b.distanceMeters) // Sort by distance
+        .slice(offset, offset + limit) // Apply pagination
 
-        const endTime = Date.now()
-        const queryTime = endTime - startTime
+      const endTime = Date.now()
+      const queryTime = endTime - startTime
 
-        return {
-          merchants: sortedMerchants,
-          totalCount: merchantsInDeliveryRadius.length,
-          pagination: {
-            totalDocs: merchantsInDeliveryRadius.length,
-            limit,
-            totalPages: Math.ceil(merchantsInDeliveryRadius.length / limit),
-            page: Math.floor(offset / limit) + 1,
-            pagingCounter: offset + 1,
-            hasPrevPage: offset > 0,
-            hasNextPage: offset + limit < merchantsInDeliveryRadius.length,
-            prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
-            nextPage: offset + limit < merchantsInDeliveryRadius.length ? Math.floor((offset + limit) / limit) + 1 : null,
-          },
-          performance: {
-            queryTimeMs: queryTime,
-            optimizationUsed: 'google_maps_distance_matrix_api',
-            totalMerchantsScanned: result.docs.length,
-            merchantsWithinRadius: merchantsInDeliveryRadius.length,
-            averageDistanceKm: merchantsInDeliveryRadius.length > 0 
-              ? merchantsInDeliveryRadius.reduce((sum, m) => sum + m.distanceKm, 0) / merchantsInDeliveryRadius.length 
-              : 0
-          }
-        }
-      } catch (error) {
-        console.error('Error using Google Maps API, falling back to Haversine:', error)
-        
-        // Fallback to original Haversine calculation
-        const merchantsWithHaversineDistance: MerchantWithDistance[] = result.docs
-          .map((merchant) => {
-            const merchantLat = merchant.merchant_latitude
-            const merchantLng = merchant.merchant_longitude
-
-            if (!merchantLat || !merchantLng) return null
-
-            const distanceMeters = this.calculateHaversineDistance(
-              latitude,
-              longitude,
-              merchantLat,
-              merchantLng
-            )
-
-            // Apply max search radius filter if specified
-            if (filters.maxSearchRadius && distanceMeters > filters.maxSearchRadius) return null
-
-            return {
-              ...merchant,
-              vendor: merchant.vendor as Vendor,
-              distanceMeters,
-              distanceKm: distanceMeters / 1000,
-              isWithinDeliveryRadius: merchant.delivery_radius_meters 
-                ? distanceMeters <= merchant.delivery_radius_meters 
-                : false,
-              estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
-                distanceMeters,
-                merchant.avg_delivery_time_minutes || undefined
-              ),
-            } as MerchantWithDistance
-          })
-          .filter((merchant): merchant is MerchantWithDistance => merchant !== null)
-          .sort((a, b) => a.distanceMeters - b.distanceMeters) // Sort by distance
-          .slice(offset, offset + limit) // Apply pagination
-
-        const endTime = Date.now()
-        const queryTime = endTime - startTime
-
-        return {
-          merchants: merchantsWithHaversineDistance,
-          totalCount: merchantsWithHaversineDistance.length,
-          pagination: {
-            totalDocs: merchantsWithHaversineDistance.length,
-            limit,
-            totalPages: Math.ceil(merchantsWithHaversineDistance.length / limit),
-            page: Math.floor(offset / limit) + 1,
-            pagingCounter: offset + 1,
-            hasPrevPage: offset > 0,
-            hasNextPage: offset + limit < merchantsWithHaversineDistance.length,
-            prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
-            nextPage: offset + limit < merchantsWithHaversineDistance.length ? Math.floor((offset + limit) / limit) + 1 : null,
-          },
-          performance: {
-            queryTimeMs: queryTime,
-            optimizationUsed: 'haversine_fallback_after_api_error',
-            totalMerchantsScanned: result.docs.length,
-            merchantsWithinRadius: merchantsWithHaversineDistance.length,
-            averageDistanceKm: merchantsWithHaversineDistance.length > 0 
-              ? merchantsWithHaversineDistance.reduce((sum, m) => sum + m.distanceKm, 0) / merchantsWithHaversineDistance.length 
-              : 0
-          }
+      return {
+        merchants: sortedMerchants,
+        totalCount: merchantsInDeliveryRadius.length,
+        pagination: {
+          totalDocs: merchantsInDeliveryRadius.length,
+          limit,
+          totalPages: Math.ceil(merchantsInDeliveryRadius.length / limit),
+          page: Math.floor(offset / limit) + 1,
+          pagingCounter: offset + 1,
+          hasPrevPage: offset > 0,
+          hasNextPage: offset + limit < merchantsInDeliveryRadius.length,
+          prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
+          nextPage: offset + limit < merchantsInDeliveryRadius.length ? Math.floor((offset + limit) / limit) + 1 : null,
+        },
+        performance: {
+          queryTimeMs: queryTime,
+          optimizationUsed: 'google_maps_distance_matrix_api',
+          totalMerchantsScanned: result.docs.length,
+          merchantsWithinRadius: merchantsInDeliveryRadius.length,
+          averageDistanceKm: merchantsInDeliveryRadius.length > 0 
+            ? merchantsInDeliveryRadius.reduce((sum, m) => sum + m.distanceKm, 0) / merchantsInDeliveryRadius.length 
+            : 0
         }
       }
     } catch (error) {
@@ -571,17 +388,8 @@ export class GeospatialService {
     serviceAreaType?: 'service_area' | 'priority_zones' | 'delivery_zones' | 'all'
     limit?: number
     offset?: number
-    filters?: {
-      isActive?: boolean
-      isAcceptingOrders?: boolean
-      operationalStatus?: string[]
-      cuisineTypes?: string[]
-      minRating?: number
-      sortBy?: 'distance' | 'rating' | 'delivery_time' | 'success_rate' | 'zone_priority'
-      includeRestrictedAreas?: boolean
-    }
   }) {
-    const { latitude, longitude, serviceAreaType = 'all', limit = 20, offset = 0, filters = {} } = params
+    const { latitude, longitude, serviceAreaType = 'all', limit = 20, offset = 0 } = params
     const startTime = Date.now()
 
     // Validate coordinates
@@ -590,16 +398,18 @@ export class GeospatialService {
     }
 
     try {
-      // Build where clause for basic filters - REMOVED STUPID BUSINESS RESTRICTIONS
+      // Check Google Maps API availability first
+      const isGoogleMapsAvailable = await this.checkGoogleMapsAvailability()
+      if (!isGoogleMapsAvailable) {
+        throw new Error('Google Maps API is currently unavailable. Distance calculations cannot be performed.')
+      }
+
+      // Build where clause for basic filters
       const whereClause: Where = {
         and: [
-          // Only ensure merchant has valid coordinates - NO MORE BUSINESS LOGIC BULLSHIT
+          // Only ensure merchant has valid coordinates
           { merchant_latitude: { not_equals: null } },
           { merchant_longitude: { not_equals: null } },
-          // Optional filters that can be applied if specified
-          ...(filters.isActive !== undefined ? [{ isActive: { equals: filters.isActive } }] : []),
-          ...(filters.isAcceptingOrders !== undefined ? [{ isAcceptingOrders: { equals: filters.isAcceptingOrders } }] : []),
-          ...(filters.operationalStatus ? [{ operationalStatus: { in: filters.operationalStatus } }] : []),
         ]
       }
 
@@ -612,20 +422,66 @@ export class GeospatialService {
         depth: 2, // Populate vendor relationship
       })
 
-      // Process merchants and add service area analysis
+      // Process merchants and add service area analysis using Google Maps API
+      const customerLocation: LocationCoordinates = { latitude, longitude }
+      const merchantLocations: LocationCoordinates[] = result.docs
+        .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
+        .map(merchant => ({
+          latitude: merchant.merchant_latitude!,
+          longitude: merchant.merchant_longitude!,
+        }))
+
+      if (merchantLocations.length === 0) {
+        return {
+          merchants: [],
+          totalCount: 0,
+          pagination: {
+            totalDocs: 0,
+            limit,
+            totalPages: 0,
+            page: 1,
+            pagingCounter: 0,
+            hasPrevPage: false,
+            hasNextPage: false,
+            prevPage: null,
+            nextPage: null,
+          },
+          performance: {
+            queryTimeMs: Date.now() - startTime,
+            serviceAreaType,
+            totalMerchantsScanned: 0,
+            merchantsInServiceArea: 0,
+            serviceAreaAnalysis: {
+              withServiceArea: 0,
+              withPriorityZones: 0,
+              withDeliveryZones: 0,
+            }
+          }
+        }
+      }
+
+      // Calculate distances using Google Maps Distance Matrix API
+      const distanceResults = await googleMapsService.calculateMultipleDistances(
+        customerLocation,
+        merchantLocations
+      )
+
       const merchantsWithServiceAreaData: MerchantWithServiceArea[] = result.docs
-        .map((merchant) => {
+        .map((merchant, index) => {
           const merchantLat = merchant.merchant_latitude
           const merchantLng = merchant.merchant_longitude
 
           if (!merchantLat || !merchantLng) return null
 
-          const distanceMeters = this.calculateHaversineDistance(
-            latitude,
-            longitude,
-            merchantLat,
-            merchantLng
-          )
+          const distanceResult = distanceResults[index]
+
+          // Only use Google Maps distance - no fallback
+          if (!distanceResult || distanceResult.status !== 'OK' || distanceResult.distance <= 0) {
+            console.warn(`Google Maps API failed for merchant ${merchant.id}, skipping`)
+            return null
+          }
+
+          const distanceMeters = distanceResult.distance
 
           // Basic service area analysis (simplified without PostGIS)
           const serviceAreaAnalysis = {
@@ -644,12 +500,6 @@ export class GeospatialService {
           if (serviceAreaType !== 'all') {
             const hasRequestedServiceArea = serviceAreaAnalysis.zoneTypes.includes(serviceAreaType)
             if (!hasRequestedServiceArea) return null
-          }
-
-          // Apply rating filter if specified
-          if (filters.minRating) {
-            const vendor = merchant.vendor as Vendor
-            if (!vendor.averageRating || vendor.averageRating < filters.minRating) return null
           }
 
           return {
@@ -671,40 +521,11 @@ export class GeospatialService {
         })
         .filter((merchant): merchant is MerchantWithServiceArea => merchant !== null)
 
-      // Sort results based on sortBy parameter with proper null checks
-      const finalResults = filters.sortBy === 'rating'
-        ? merchantsWithServiceAreaData.sort((a, b) => {
-            if (!a || !b) return 0
-            const aRating = (a.vendor as Vendor).averageRating || 0
-            const bRating = (b.vendor as Vendor).averageRating || 0
-            return bRating - aRating
-          })
-        : filters.sortBy === 'delivery_time'
-        ? merchantsWithServiceAreaData.sort((a, b) => {
-            if (!a || !b) return 0
-            return (a.avg_delivery_time_minutes || 999) - (b.avg_delivery_time_minutes || 999)
-          })
-        : filters.sortBy === 'success_rate'
-        ? merchantsWithServiceAreaData.sort((a, b) => {
-            if (!a || !b) return 0
-            return (b.delivery_success_rate || 0) - (a.delivery_success_rate || 0)
-          })
-        : filters.sortBy === 'zone_priority'
-        ? merchantsWithServiceAreaData.sort((a, b) => {
-            if (!a || !b) return 0
-            // Priority: high > medium > standard, then by rating
-            const priorityOrder = { high: 3, medium: 2, standard: 1 }
-            const aPriority = priorityOrder[a.zonePriority as keyof typeof priorityOrder] || 1
-            const bPriority = priorityOrder[b.zonePriority as keyof typeof priorityOrder] || 1
-            if (aPriority !== bPriority) return bPriority - aPriority
-            const aRating = (a.vendor as Vendor).averageRating || 0
-            const bRating = (b.vendor as Vendor).averageRating || 0
-            return bRating - aRating
-          })
-        : merchantsWithServiceAreaData.sort((a, b) => {
-            if (!a || !b) return 0
-            return a.distanceMeters - b.distanceMeters
-          }) // Default: distance
+      // Sort results by distance (default sorting)
+      const finalResults = merchantsWithServiceAreaData.sort((a, b) => {
+        if (!a || !b) return 0
+        return a.distanceMeters - b.distanceMeters
+      })
 
       const paginatedResults = finalResults.slice(offset, offset + limit)
       const endTime = Date.now()
@@ -740,28 +561,6 @@ export class GeospatialService {
       console.error('Error in findMerchantsInServiceArea:', error)
       throw new Error(`Failed to find merchants in service area: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-  }
-
-  /**
-   * Calculate Haversine distance between two points
-   */
-  private calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371000 // Earth's radius in meters
-    const dLat = this.toRadians(lat2 - lat1)
-    const dLon = this.toRadians(lon2 - lon1)
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-  }
-
-  /**
-   * Convert degrees to radians
-   */
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180)
   }
 
   /**
