@@ -27,6 +27,11 @@ import * as migration_20251008_101508 from './20251008_101508';
 import * as migration_20251009_140002 from './20251009_140002';
 import * as migration_20251009_141005 from './20251009_141005';
 import * as migration_20251009_142718 from './20251009_142718';
+import * as migration_20251009_143000_merchant_coordinates_triggers from './20251009_143000_merchant_coordinates_triggers';
+import * as migration_20251009_144500_fix_coordinates_jsonb from './20251009_144500_fix_coordinates_jsonb';
+import * as migration_20251009_145000_fix_address_boundary_jsonb from './20251009_145000_fix_address_boundary_jsonb';
+import * as migration_20251009_145500_fix_service_area_jsonb from './20251009_145500_fix_service_area_jsonb';
+import * as migration_20251010_034455_sync_merchants_schema from './20251010_034455_sync_merchants_schema';
 
 export const migrations = [
   {
@@ -172,6 +177,31 @@ export const migrations = [
   {
     up: migration_20251009_142718.up,
     down: migration_20251009_142718.down,
-    name: '20251009_142718'
+    name: '20251009_142718',
+  },
+  {
+    up: migration_20251009_143000_merchant_coordinates_triggers.up,
+    down: migration_20251009_143000_merchant_coordinates_triggers.down,
+    name: '20251009_143000_merchant_coordinates_triggers',
+  },
+  {
+    up: migration_20251009_144500_fix_coordinates_jsonb.up,
+    down: migration_20251009_144500_fix_coordinates_jsonb.down,
+    name: '20251009_144500_fix_coordinates_jsonb',
+  },
+  {
+    up: migration_20251009_145000_fix_address_boundary_jsonb.up,
+    down: migration_20251009_145000_fix_address_boundary_jsonb.down,
+    name: '20251009_145000_fix_address_boundary_jsonb',
+  },
+  {
+    up: migration_20251009_145500_fix_service_area_jsonb.up,
+    down: migration_20251009_145500_fix_service_area_jsonb.down,
+    name: '20251009_145500_fix_service_area_jsonb',
+  },
+  {
+    up: migration_20251010_034455_sync_merchants_schema.up,
+    down: migration_20251010_034455_sync_merchants_schema.down,
+    name: '20251010_034455_sync_merchants_schema'
   },
 ];
