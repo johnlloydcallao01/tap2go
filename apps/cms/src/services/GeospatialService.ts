@@ -1,7 +1,7 @@
 import type { Payload } from 'payload'
 import type { Merchant, Vendor } from '../payload-types'
 import type { Where } from 'payload'
-import { googleMapsService, type LocationCoordinates } from './GoogleMapsService'
+import { googleMapsService, type LocationCoordinates, type DistanceResult } from './GoogleMapsService'
 
 // Type for geospatial query results with vendor relationship
 type MerchantWithDistance = Merchant & {
@@ -68,6 +68,7 @@ export class GeospatialService {
   /**
    * Find merchants within a specific radius using Google Maps driving distance calculation
    * Uses motorcycle driving mode for accurate delivery distance calculations
+   * Calculates distances from merchant locations TO customer location (correct delivery direction)
    */
   async findMerchantsWithinRadius(params: {
     latitude: number
@@ -119,14 +120,17 @@ export class GeospatialService {
       const customerLocation: LocationCoordinates = { latitude, longitude }
       
       // Process merchants in batches for Google Maps API
-      const merchantLocations: LocationCoordinates[] = result.docs
+      const merchantsWithLocations = result.docs
         .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
         .map(merchant => ({
-          latitude: merchant.merchant_latitude!,
-          longitude: merchant.merchant_longitude!,
+          merchant,
+          location: {
+            latitude: merchant.merchant_latitude!,
+            longitude: merchant.merchant_longitude!,
+          }
         }))
 
-      if (merchantLocations.length === 0) {
+      if (merchantsWithLocations.length === 0) {
         return {
           merchants: [],
           totalCount: 0,
@@ -151,15 +155,20 @@ export class GeospatialService {
         }
       }
 
-      // Calculate distances using Google Maps Distance Matrix API
-      const distanceResults = await googleMapsService.calculateMultipleDistances(
-        customerLocation,
-        merchantLocations
-      )
+      // Calculate distances from each merchant TO customer (correct delivery direction)
+      // Process each merchant individually to get accurate merchant-to-customer distances
+      const distanceResults: DistanceResult[] = []
+      for (const { location } of merchantsWithLocations) {
+        const result = await googleMapsService.calculateMultipleDistances(
+          location, // Merchant location as origin
+          [customerLocation] // Customer location as destination
+        )
+        distanceResults.push(result[0]) // Get the first (and only) result
+      }
 
       // Process results and filter by radius
-      for (let i = 0; i < result.docs.length && merchantsWithDistance.length < limit * 2; i++) {
-        const merchant = result.docs[i]
+      for (let i = 0; i < merchantsWithLocations.length && merchantsWithDistance.length < limit * 2; i++) {
+        const { merchant } = merchantsWithLocations[i]
         const distanceResult = distanceResults[i]
 
         if (!merchant.merchant_latitude || !merchant.merchant_longitude) continue
@@ -228,6 +237,7 @@ export class GeospatialService {
   /**
    * Find merchants in delivery radius using Google Maps driving distance calculation
    * Uses motorcycle driving mode for accurate delivery distance calculations
+   * Calculates distances from merchant locations TO customer location (correct delivery direction)
    */
   async findMerchantsInDeliveryRadius(params: {
     latitude: number
@@ -273,14 +283,17 @@ export class GeospatialService {
       const customerLocation: LocationCoordinates = { latitude, longitude }
       
       // Process merchants in batches for Google Maps API
-      const merchantLocations: LocationCoordinates[] = result.docs
+      const merchantsWithLocations = result.docs
         .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
         .map(merchant => ({
-          latitude: merchant.merchant_latitude!,
-          longitude: merchant.merchant_longitude!,
+          merchant,
+          location: {
+            latitude: merchant.merchant_latitude!,
+            longitude: merchant.merchant_longitude!,
+          }
         }))
 
-      if (merchantLocations.length === 0) {
+      if (merchantsWithLocations.length === 0) {
         return {
           merchants: [],
           totalCount: 0,
@@ -305,15 +318,20 @@ export class GeospatialService {
         }
       }
 
-      // Calculate distances using Google Maps Distance Matrix API
-      const distanceResults = await googleMapsService.calculateMultipleDistances(
-        customerLocation,
-        merchantLocations
-      )
+      // Calculate distances from each merchant TO customer (correct delivery direction)
+      // Process each merchant individually to get accurate merchant-to-customer distances
+      const distanceResults: DistanceResult[] = []
+      for (const { location } of merchantsWithLocations) {
+        const result = await googleMapsService.calculateMultipleDistances(
+          location, // Merchant location as origin
+          [customerLocation] // Customer location as destination
+        )
+        distanceResults.push(result[0]) // Get the first (and only) result
+      }
 
       // Process results and filter by delivery radius
-      for (let i = 0; i < result.docs.length && merchantsInDeliveryRadius.length < limit * 2; i++) {
-        const merchant = result.docs[i]
+      for (let i = 0; i < merchantsWithLocations.length && merchantsInDeliveryRadius.length < limit * 2; i++) {
+        const { merchant } = merchantsWithLocations[i]
         const distanceResult = distanceResults[i]
 
         if (!merchant.merchant_latitude || !merchant.merchant_longitude) continue
@@ -381,6 +399,7 @@ export class GeospatialService {
   /**
    * Find merchants within service areas using polygon intersection
    * Note: This method uses basic coordinate filtering instead of PostGIS for compatibility
+   * Calculates distances from merchant locations TO customer location (correct delivery direction)
    */
   async findMerchantsInServiceArea(params: {
     latitude: number
@@ -424,14 +443,17 @@ export class GeospatialService {
 
       // Process merchants and add service area analysis using Google Maps API
       const customerLocation: LocationCoordinates = { latitude, longitude }
-      const merchantLocations: LocationCoordinates[] = result.docs
+      const merchantsWithLocations = result.docs
         .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
         .map(merchant => ({
-          latitude: merchant.merchant_latitude!,
-          longitude: merchant.merchant_longitude!,
+          merchant,
+          location: {
+            latitude: merchant.merchant_latitude!,
+            longitude: merchant.merchant_longitude!,
+          }
         }))
 
-      if (merchantLocations.length === 0) {
+      if (merchantsWithLocations.length === 0) {
         return {
           merchants: [],
           totalCount: 0,
@@ -460,14 +482,19 @@ export class GeospatialService {
         }
       }
 
-      // Calculate distances using Google Maps Distance Matrix API
-      const distanceResults = await googleMapsService.calculateMultipleDistances(
-        customerLocation,
-        merchantLocations
-      )
+      // Calculate distances from each merchant TO customer (correct delivery direction)
+      // Process each merchant individually to get accurate merchant-to-customer distances
+      const distanceResults: DistanceResult[] = []
+      for (const { location } of merchantsWithLocations) {
+        const result = await googleMapsService.calculateMultipleDistances(
+          location, // Merchant location as origin
+          [customerLocation] // Customer location as destination
+        )
+        distanceResults.push(result[0]) // Get the first (and only) result
+      }
 
-      const merchantsWithServiceAreaData: MerchantWithServiceArea[] = result.docs
-        .map((merchant, index) => {
+      const merchantsWithServiceAreaData: MerchantWithServiceArea[] = merchantsWithLocations
+        .map(({ merchant }, index) => {
           const merchantLat = merchant.merchant_latitude
           const merchantLng = merchant.merchant_longitude
 
