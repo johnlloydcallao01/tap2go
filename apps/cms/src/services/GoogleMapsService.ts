@@ -363,7 +363,7 @@ export class GoogleMapsService {
         timeout: 10000, // 10 second timeout
       });
 
-      if (!response.data || response.data.length === 0) {
+      if (!response.data) {
         console.error('No route data returned from Google Routes API');
         return {
           distance: 0,
@@ -372,7 +372,8 @@ export class GoogleMapsService {
         };
       }
 
-      const element = response.data[0];
+      // Handle single route response (API returns an object for single destination)
+      const element = response.data;
       
       if (!element) {
         console.error('No route element returned from Google Routes API');
@@ -472,8 +473,8 @@ export class GoogleMapsService {
           timeout: 15000, // 15 second timeout for batch requests
         });
         
-        if (!response.data || !Array.isArray(response.data)) {
-          console.error('Invalid response from Google Routes API batch request');
+        if (!response.data) {
+          console.error('No response data from Google Routes API batch request');
           // Add error results for this batch
           const errorResults = batch.map(() => ({
             distance: 0,
@@ -484,8 +485,12 @@ export class GoogleMapsService {
           continue;
         }
 
+        // Handle both single object and array responses
+        // For single destination, API returns an object; for multiple destinations, it returns an array
+        const responseElements = Array.isArray(response.data) ? response.data : [response.data];
+
         // Process each element in the response
-        for (const element of response.data) {
+        for (const element of responseElements) {
           // Parse duration from string format (e.g., "139s") to seconds
           const durationInSeconds = element.duration ? parseInt(element.duration.replace('s', '')) : 0;
           
