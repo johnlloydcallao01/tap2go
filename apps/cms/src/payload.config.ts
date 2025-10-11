@@ -10,6 +10,7 @@ import crypto from 'crypto'
 import { cloudinaryAdapter } from './storage/cloudinary-adapter'
 import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './services/GeospatialService'
+import { merchantCheckoutDeliveryHandler } from './endpoints/merchantCheckoutDelivery'
 import type { PayloadRequest } from 'payload'
 // import sharp from 'sharp'
 
@@ -387,6 +388,12 @@ export default buildConfig({
             }, { status: 500 });
         }
       }),
+    },
+
+    {
+      path: '/merchant/checkout-delivery',
+      method: 'get',
+      handler: merchantCheckoutDeliveryHandler,
     },
 
     {
