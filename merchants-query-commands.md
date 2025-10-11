@@ -21,6 +21,10 @@ if ($response.status -eq "OK") {
 
 2. Customer Address Coordinates
 
+Endpoints:
+https://cms.tap2goph.com/api/customers/3
+https://cms.tap2goph.com/api/addresses/$activeAddressId
+
 $headers = @{
     'Authorization' = 'users API-Key 1331d981-b6b7-4ff5-aab6-b9ddbb0c63ae'
     'Content-Type' = 'application/json'
@@ -50,6 +54,8 @@ Write-Host "Customer ID 3 -> Active Address ID $activeAddressId -> Coordinates: 
 
 
 3. Merchants Query by Location
+Endpoints:
+https://cms.tap2goph.com/api/merchants-by-location?latitude=$lat&longitude=$lng&radius=100000&limit=$limit
 
 $lat = 14.6030095; $lng = 120.970585; $limit = 20; $apiKey = "1331d981-b6b7-4ff5-aab6-b9ddbb0c63ae"; $response = Invoke-RestMethod -Uri "https://cms.tap2goph.com/api/merchants-by-location?latitude=$lat&longitude=$lng&radius=100000&limit=$limit" -Method Get -Headers @{ "Authorization" = "users API-Key $apiKey"; "Content-Type" = "application/json" }; Write-Host "=== DIVISORIA MALL - MERCHANT DISTANCES ==="; Write-Host "Search Location: $lat, $lng"; Write-Host ""; Write-Host "MERCHANTS FOUND: $($response.data.merchants.Count)"; Write-Host ""; foreach ($merchant in $response.data.merchants) { $maxRadius = [math]::Max($merchant.delivery_radius_meters, $merchant.max_delivery_radius_meters); Write-Host "Business: $($merchant.outletName)"; Write-Host "Distance: $($merchant.distanceMeters) meters ($($merchant.distanceKm) km)"; Write-Host "Status: $($merchant.operationalStatus)"; Write-Host "Merchant's Delivery Radius: $($merchant.delivery_radius_meters) meters ($([math]::Round($merchant.delivery_radius_meters/1000, 1)) km)"; Write-Host "Merchant's Max Delivery Radius: $($merchant.max_delivery_radius_meters) meters ($([math]::Round($merchant.max_delivery_radius_meters/1000, 1)) km)"; Write-Host "Effective Radius Used: $maxRadius meters ($([math]::Round($maxRadius/1000, 1)) km)"; Write-Host "Within Merchant's Delivery Radius: $($merchant.isWithinDeliveryRadius)"; Write-Host "Estimated Delivery Time: $($merchant.estimatedDeliveryTime) minutes"; Write-Host "Address: $($merchant.activeAddress.formatted_address)"; Write-Host "---"; } Write-Host "Performance: $($response.data.performance.queryTimeMs)ms using $($response.data.performance.optimizationUsed)" 
 
@@ -59,6 +65,11 @@ $lat = 14.6030095; $lng = 120.970585; $limit = 20; $apiKey = "1331d981-b6b7-4ff5
 
 
 4. COMBINED QUERY
+Endpoints:
+https://cms.tap2goph.com/api/addresses/$activeAddressId
+https://cms.tap2goph.com/api/customers/3
+https://cms.tap2goph.com/api/merchants-by-location?latitude=$lat&longitude=$lng&radius=100000&limit=$limit
+
 $headers = @{
     'Authorization' = 'users API-Key 1331d981-b6b7-4ff5-aab6-b9ddbb0c63ae'
     'Content-Type' = 'application/json'
@@ -110,3 +121,18 @@ foreach ($merchant in $response.data.merchants) {
 }
 
 Write-Host "`nPerformance: $($response.data.performance.queryTimeMs)ms using $($response.data.performance.optimizationUsed)" -ForegroundColor Yellow 
+
+
+
+
+5. From Merchant Checkout Delivery
+Endpoints:
+https://cms.tap2goph.com/api/merchant/checkout-delivery?customerId={id}
+
+- Beatifully Formatted:
+
+$env:PAYLOAD_API_KEY = Get-Content .env | Where-Object { $_ -match "^PAYLOAD_API_KEY=" } | ForEach-Object { $_.Split("=")[1] }; $json = (Invoke-WebRequest -Uri " https://cms.tap2goph.com/api/merchant/checkout-delivery?customerId=3 " -Headers @{ "Authorization" = "users API-Key $env:PAYLOAD_API_KEY" } -Method GET).Content | ConvertFrom-Json; Write-Host "MERCHANTS FOUND: $($json.data.merchants.Count)" -ForegroundColor Yellow; Write-Host ""; $json.data.merchants | ForEach-Object { Write-Host "Business: $($_.outletName)" -ForegroundColor White; Write-Host "Distance: $($_.distanceMeters) meters ($($_.distanceKm) km)" -ForegroundColor Cyan; Write-Host "Status: $($_.operationalStatus)" -ForegroundColor White; Write-Host "Within Delivery Radius: $($_.isWithinDeliveryRadius)" -ForegroundColor $(if($_.isWithinDeliveryRadius) {"Green"} else {"Red"}); Write-Host "Estimated Delivery Time: $($_.estimatedDeliveryTime) minutes" -ForegroundColor White; Write-Host "---" -ForegroundColor Gray }
+
+- Raw
+
+$env:PAYLOAD_API_KEY = Get-Content .env | Where-Object { $_ -match "^PAYLOAD_API_KEY=" } | ForEach-Object { $_.Split("=")[1] }; (Invoke-WebRequest -Uri "https://cms.tap2goph.com/api/merchant/checkout-delivery?customerId=3" -Headers @{ "Authorization" = "users API-Key $env:PAYLOAD_API_KEY" } -Method GET).Content
