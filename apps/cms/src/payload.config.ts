@@ -11,6 +11,7 @@ import { cloudinaryAdapter } from './storage/cloudinary-adapter'
 import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './services/GeospatialService'
 import { merchantCheckoutDeliveryHandler } from './endpoints/merchantCheckoutDelivery'
+import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
 import type { PayloadRequest } from 'payload'
 // import sharp from 'sharp'
 
@@ -394,6 +395,12 @@ export default buildConfig({
       path: '/merchant/checkout-delivery',
       method: 'get',
       handler: merchantCheckoutDeliveryHandler,
+    },
+
+    {
+      path: '/merchant/location-based-display',
+      method: 'get',
+      handler: merchantLocationBasedDisplayHandler,
     },
 
     {
