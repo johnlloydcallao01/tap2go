@@ -1,6 +1,6 @@
 import type { PayloadRequest } from 'payload'
 import crypto from 'crypto'
-import { MerchantCheckoutService } from '../services/MerchantCheckoutService'
+import { MerchantLocationService } from '../services/MerchantLocationService'
 
 export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) => {
   const startTime = Date.now()
@@ -81,15 +81,16 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
 
     console.log(`📋 [${requestId}] Processing request for customerId: ${customerIdNum}`)
 
-    // Use the dedicated service
-    console.log(`🔄 [${requestId}] Initializing MerchantCheckoutService...`)
-    const merchantCheckoutService = new MerchantCheckoutService(req.payload)
-    
-    console.log(`🔍 [${requestId}] Fetching merchants for customer ${customerIdNum}...`)
-    const result = await merchantCheckoutService.getMerchantsForCheckout({ customerId: customerIdNum })
+    // Initialize the PostGIS-based location service
+    console.log(`🔄 [${requestId}] Initializing MerchantLocationService (PostGIS-based)...`)
+     const merchantLocationService = new MerchantLocationService(req.payload)
+     
+     console.log(`🔍 [${requestId}] Fetching merchants using PostGIS spatial queries for customer ${customerIdNum}...`)
+     const result = await merchantLocationService.getMerchantsForLocationDisplay({ customerId: customerIdNum })
 
     const responseTime = Date.now() - startTime
-    console.log(`✅ [${requestId}] Request completed successfully in ${responseTime}ms`)
+     console.log(`✅ [${requestId}] Successfully retrieved ${result.merchants?.length || 0} merchants using PostGIS (${responseTime}ms)`)
+     console.log(`✅ [${requestId}] Request completed successfully in ${responseTime}ms`)
     console.log(`📊 [${requestId}] Result summary:`, {
       customerFound: !!result.customer,
       addressFound: !!result.address,

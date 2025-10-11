@@ -963,7 +963,67 @@ export interface Merchant {
    */
   free_delivery_threshold?: number | null;
   /**
-   * PostGIS POLYGON for delivery coverage area - stored as GeoJSON
+   * PostGIS GEOMETRY(POINT, 4326) for spatial queries - auto-populated from lat/lng
+   */
+  merchant_coordinates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS GEOMETRY(POLYGON, 4326) for delivery coverage area - for spatial queries
+   */
+  service_area_geometry?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS GEOMETRY(MULTIPOLYGON, 4326) for premium delivery areas - for spatial queries
+   */
+  priority_zones_geometry?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS GEOMETRY(MULTIPOLYGON, 4326) for no-delivery zones - for spatial queries
+   */
+  restricted_areas_geometry?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS GEOMETRY(MULTIPOLYGON, 4326) for zone-specific delivery areas - for spatial queries
+   */
+  delivery_zones_geometry?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS POLYGON for delivery coverage area - stored as GeoJSON (editable)
    */
   service_area?:
     | {
@@ -975,7 +1035,7 @@ export interface Merchant {
     | boolean
     | null;
   /**
-   * PostGIS MULTIPOLYGON for premium delivery areas - stored as GeoJSON
+   * PostGIS MULTIPOLYGON for premium delivery areas - stored as GeoJSON (editable)
    */
   priority_zones?:
     | {
@@ -987,7 +1047,7 @@ export interface Merchant {
     | boolean
     | null;
   /**
-   * PostGIS MULTIPOLYGON for no-delivery zones - stored as GeoJSON
+   * PostGIS MULTIPOLYGON for no-delivery zones - stored as GeoJSON (editable)
    */
   restricted_areas?:
     | {
@@ -2025,6 +2085,11 @@ export interface MerchantsSelect<T extends boolean = true> {
   delivery_fee_base?: T;
   delivery_fee_per_km?: T;
   free_delivery_threshold?: T;
+  merchant_coordinates?: T;
+  service_area_geometry?: T;
+  priority_zones_geometry?: T;
+  restricted_areas_geometry?: T;
+  delivery_zones_geometry?: T;
   service_area?: T;
   priority_zones?: T;
   restricted_areas?: T;

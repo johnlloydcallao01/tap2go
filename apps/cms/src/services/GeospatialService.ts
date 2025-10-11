@@ -3,6 +3,51 @@ import type { Merchant, Vendor } from '../payload-types'
 import type { Where } from 'payload'
 import { googleMapsService, type LocationCoordinates, type DistanceResult } from './GoogleMapsService'
 
+// Type for database query results
+interface DatabaseQueryResult {
+  rows: DatabaseRow[]
+}
+
+// Type for database row from merchants query
+interface DatabaseRow {
+  id: number  // Changed from string to number to match Merchant interface
+  outlet_name: string
+  outlet_code: string
+  merchant_latitude: number
+  merchant_longitude: number
+  delivery_radius_meters: number
+  avg_delivery_time_minutes: number
+  is_active: boolean
+  is_accepting_orders: boolean
+  operational_status: string
+  min_order_amount: number
+  delivery_fee_base: number
+  free_delivery_threshold: number
+  is_currently_delivering: boolean
+  updated_at: string
+  created_at: string
+  vendor_id: number  // Changed from string to number to match Vendor interface
+  distance_meters: string
+  average_rating: number
+  total_orders: number
+  service_area: unknown
+  priority_zones: unknown
+  restricted_areas: unknown
+  delivery_zones: unknown
+  vendor_business_name: string
+  vendor_business_type: string
+  vendor_average_rating: number
+  vendor_total_orders: number
+  vendor_is_active: boolean
+  vendor_is_verified: boolean
+  vendor_cuisine_types: unknown
+}
+
+// Type for count query result
+interface CountQueryResult {
+  rows: Array<{ total_count: string }>
+}
+
 // Type for geospatial query results with vendor relationship
 type MerchantWithDistance = Merchant & {
   distanceMeters: number
@@ -614,6 +659,167 @@ export class GeospatialService {
     const distanceKm = distanceMeters / 1000
     const additionalTime = Math.max(0, (distanceKm - 2) * 5) // Add 5 min per km after 2km
     return Math.round(baseTime + additionalTime)
+  }
+
+  /**
+   * Find merchants within radius using PostGIS distance calculation
+   * This method uses PostGIS ST_Distance for accurate spatial queries
+   * Designed specifically for location-based display (not delivery calculations)
+   */
+  async findMerchantsWithinRadiusPostGIS(params: {
+    latitude: number
+    longitude: number
+    radiusMeters: number
+    limit?: number
+    offset?: number
+  }) {
+    const { latitude, longitude, radiusMeters, limit = 20, offset = 0 } = params
+    const startTime = Date.now()
+
+    // Validate coordinates
+    if (!this.isValidCoordinate(latitude, longitude)) {
+      throw new Error('Invalid coordinates provided')
+    }
+
+    // Validate search radius (max 100km for performance)
+    if (radiusMeters > 100000) {
+      throw new Error('Search radius cannot exceed 100km')
+    }
+
+    try {
+      // Create customer point for PostGIS query
+      const customerPoint = `ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)`
+
+      // Execute PostGIS query to find merchants within radius
+      const result = await this.payload.db.drizzle.execute(`
+        SELECT 
+          m.*,
+          ST_Distance(
+            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(${customerPoint}, 3857)
+          ) as distance_meters,
+          v.id as vendor_id,
+          v.business_name as vendor_business_name,
+          v.average_rating as vendor_average_rating,
+          v.total_orders as vendor_total_orders,
+          v.is_verified as vendor_is_verified,
+          v.cuisine_types as vendor_cuisine_types
+        FROM merchants m
+        LEFT JOIN vendors v ON m.vendor_id = v.id
+        WHERE 
+          m.merchant_coordinates IS NOT NULL
+          AND m.is_active = true
+          AND m.is_accepting_orders = true
+          AND ST_DWithin(
+            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(${customerPoint}, 3857),
+            ${radiusMeters}
+          )
+        ORDER BY 
+          ST_Distance(
+            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(${customerPoint}, 3857)
+          )
+        LIMIT ${limit}
+        OFFSET ${offset};
+      `)
+
+      // Transform results to match expected format
+      const merchantsWithDistance: MerchantWithDistance[] = (result as DatabaseQueryResult).rows.map((row: DatabaseRow) => {
+        const distanceMeters = parseFloat(row.distance_meters)
+        
+        return {
+          id: row.id,
+          outletName: row.outlet_name,
+          outletCode: row.outlet_code,
+          merchant_latitude: row.merchant_latitude,
+          merchant_longitude: row.merchant_longitude,
+          delivery_radius_meters: row.delivery_radius_meters,
+          avg_delivery_time_minutes: row.avg_delivery_time_minutes,
+          average_rating: row.average_rating,
+          total_orders: row.total_orders,
+          isActive: row.is_active,
+          isAcceptingOrders: row.is_accepting_orders,
+          operationalStatus: row.operational_status,
+          service_area: row.service_area,
+          priority_zones: row.priority_zones,
+          restricted_areas: row.restricted_areas,
+          delivery_zones: row.delivery_zones,
+          vendor_id: row.vendor_id,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          // Distance information
+          distanceMeters,
+          distanceKm: distanceMeters / 1000,
+          isWithinDeliveryRadius: row.delivery_radius_meters 
+            ? distanceMeters <= row.delivery_radius_meters 
+            : false,
+          estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(
+            distanceMeters,
+            row.avg_delivery_time_minutes || undefined
+          ),
+          // Vendor information
+          vendor: {
+            id: row.vendor_id,
+            businessName: row.vendor_business_name,
+            businessType: row.vendor_business_type,
+            average_rating: row.vendor_average_rating,
+            total_orders: row.vendor_total_orders,
+            isActive: row.vendor_is_active,
+            isVerified: row.vendor_is_verified,
+            cuisineTypes: row.vendor_cuisine_types
+          } as unknown as Vendor
+        } as MerchantWithDistance
+      })
+
+      // Get total count for pagination
+      const countResult = await this.payload.db.drizzle.execute(`
+        SELECT COUNT(*) as total_count
+        FROM merchants m
+        WHERE 
+          m.merchant_coordinates IS NOT NULL
+          AND m.is_active = true
+          AND m.is_accepting_orders = true
+          AND ST_DWithin(
+            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(${customerPoint}, 3857),
+            ${radiusMeters}
+          );
+      `)
+
+      const totalCount = parseInt((countResult as CountQueryResult).rows[0]?.total_count || '0')
+      const endTime = Date.now()
+      const queryTime = endTime - startTime
+
+      return {
+        merchants: merchantsWithDistance,
+        totalCount,
+        pagination: {
+          totalDocs: totalCount,
+          limit,
+          totalPages: Math.ceil(totalCount / limit),
+          page: Math.floor(offset / limit) + 1,
+          pagingCounter: offset + 1,
+          hasPrevPage: offset > 0,
+          hasNextPage: offset + limit < totalCount,
+          prevPage: offset > 0 ? Math.floor((offset - limit) / limit) + 1 : null,
+          nextPage: offset + limit < totalCount ? Math.floor((offset + limit) / limit) + 1 : null,
+        },
+        performance: {
+          queryTimeMs: queryTime,
+          searchRadius: radiusMeters,
+          withinSearchRadius: merchantsWithDistance.length,
+          proximityScore: merchantsWithDistance.length > 0 
+            ? merchantsWithDistance.reduce((sum, m) => sum + (1 / (m.distanceKm + 1)), 0) / merchantsWithDistance.length 
+            : 0,
+          optimizationUsed: 'postgis_spatial_index'
+        }
+      }
+
+    } catch (error) {
+      console.error('Error in findMerchantsWithinRadiusPostGIS:', error)
+      throw new Error(`Failed to find merchants using PostGIS: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   /**

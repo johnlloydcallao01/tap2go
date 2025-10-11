@@ -407,26 +407,68 @@ export const Merchants: CollectionConfig = {
       },
     },
 
-    // === SERVICE AREAS & ZONES ===
+    // === POSTGIS GEOMETRY FIELDS ===
+    {
+      name: 'merchant_coordinates',
+      type: 'json',
+      admin: {
+        description: 'PostGIS GEOMETRY(POINT, 4326) for spatial queries - auto-populated from lat/lng',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'service_area_geometry',
+      type: 'json',
+      admin: {
+        description: 'PostGIS GEOMETRY(POLYGON, 4326) for delivery coverage area - for spatial queries',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'priority_zones_geometry',
+      type: 'json',
+      admin: {
+        description: 'PostGIS GEOMETRY(MULTIPOLYGON, 4326) for premium delivery areas - for spatial queries',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'restricted_areas_geometry',
+      type: 'json',
+      admin: {
+        description: 'PostGIS GEOMETRY(MULTIPOLYGON, 4326) for no-delivery zones - for spatial queries',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'delivery_zones_geometry',
+      type: 'json',
+      admin: {
+        description: 'PostGIS GEOMETRY(MULTIPOLYGON, 4326) for zone-specific delivery areas - for spatial queries',
+        readOnly: true,
+      },
+    },
+
+    // === SERVICE AREAS & ZONES (GEOJSON) ===
     {
       name: 'service_area',
       type: 'json',
       admin: {
-        description: 'PostGIS POLYGON for delivery coverage area - stored as GeoJSON',
+        description: 'PostGIS POLYGON for delivery coverage area - stored as GeoJSON (editable)',
       },
     },
     {
       name: 'priority_zones',
       type: 'json',
       admin: {
-        description: 'PostGIS MULTIPOLYGON for premium delivery areas - stored as GeoJSON',
+        description: 'PostGIS MULTIPOLYGON for premium delivery areas - stored as GeoJSON (editable)',
       },
     },
     {
       name: 'restricted_areas',
       type: 'json',
       admin: {
-        description: 'PostGIS MULTIPOLYGON for no-delivery zones - stored as GeoJSON',
+        description: 'PostGIS MULTIPOLYGON for no-delivery zones - stored as GeoJSON (editable)',
       },
     },
     {

@@ -136,3 +136,24 @@ $env:PAYLOAD_API_KEY = Get-Content .env | Where-Object { $_ -match "^PAYLOAD_API
 - Raw
 
 $env:PAYLOAD_API_KEY = Get-Content .env | Where-Object { $_ -match "^PAYLOAD_API_KEY=" } | ForEach-Object { $_.Split("=")[1] }; (Invoke-WebRequest -Uri "https://cms.tap2goph.com/api/merchant/checkout-delivery?customerId=3" -Headers @{ "Authorization" = "users API-Key $env:PAYLOAD_API_KEY" } -Method GET).Content
+
+
+
+
+
+
+
+
+
+
+6. Merchant Location Based Display
+Endpoints:
+https://cms.tap2goph.com/api/merchant/location-based-display?customerId={id}
+
+- Beatifully Formatted:
+
+$env:PAYLOAD_API_KEY = Get-Content .env | Where-Object { $_ -match "^PAYLOAD_API_KEY=" } | ForEach-Object { $_.Split("=")[1] }; $json = (Invoke-WebRequest -Uri "https://cms.tap2goph.com/api/merchant/location-based-display?customerId=3" -Headers @{ "Authorization" = "users API-Key $env:PAYLOAD_API_KEY" } -Method GET).Content | ConvertFrom-Json; Write-Host "MERCHANTS FOUND: $($json.data.merchants.Count)" -ForegroundColor Yellow; Write-Host ""; $json.data.merchants | ForEach-Object { Write-Host "Business: $($_.outletName)" -ForegroundColor White; Write-Host "Distance: $($_.distanceMeters) meters ($($_.distanceKm) km)" -ForegroundColor Cyan; Write-Host "Status: $($_.operationalStatus)" -ForegroundColor White; Write-Host "Within Delivery Radius: $($_.isWithinDeliveryRadius)" -ForegroundColor $(if($_.isWithinDeliveryRadius) {"Green"} else {"Red"}); Write-Host "Estimated Delivery Time: $($_.estimatedDeliveryTime) minutes" -ForegroundColor White; Write-Host "---" -ForegroundColor Gray }
+
+- Raw
+
+$env:PAYLOAD_API_KEY = Get-Content .env | Where-Object { $_ -match "^PAYLOAD_API_KEY=" } | ForEach-Object { $_.Split("=")[1] }; (Invoke-WebRequest -Uri "https://cms.tap2goph.com/api/merchant/location-based-display?customerId=3" -Headers @{ "Authorization" = "users API-Key $env:PAYLOAD_API_KEY" } -Method GET).Content 
