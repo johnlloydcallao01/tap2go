@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { ProductCategoryCarousel } from "@/components/sections";
 import { MerchantsGrid } from "@/components/sections/MerchantsGrid";
+import { LocationBasedMerchants } from "@/components/sections/LocationBasedMerchants";
 import { getMerchantsClient } from "@/lib/client-services/merchant-client-service";
 import type { Merchant } from "@/types/merchant";
 
@@ -45,6 +46,9 @@ export default function Home() {
 
       {/* Merchants Grid with CSR data and loading state */}
       <MerchantsGrid merchants={merchants} isLoading={loading} />
+
+      {/* Location Based Merchants Section */}
+      <LocationBasedMerchants customerId={undefined} limit={8} />
     </div>
   );
 }

@@ -7,7 +7,7 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
   const requestId = crypto.randomUUID()
   
   try {
-    console.log(`🛒 [${requestId}] MERCHANT CHECKOUT DELIVERY REQUEST:`, {
+    console.log(`📍 [${requestId}] MERCHANT LOCATION-BASED DISPLAY REQUEST:`, {
       timestamp: new Date().toISOString(),
       query: req.query,
     })
@@ -110,7 +110,7 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     const errorStack = error instanceof Error ? error.stack : undefined
     
-    console.error(`🚨 [${requestId}] MERCHANT CHECKOUT DELIVERY ERROR:`, {
+    console.error(`🚨 [${requestId}] MERCHANT LOCATION-BASED DISPLAY ERROR:`, {
       error: errorMessage,
       stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
       responseTime: `${responseTime}ms`,
@@ -120,7 +120,7 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
 
     return Response.json({
       success: false,
-      error: 'Failed to fetch merchants for checkout',
+      error: 'Failed to fetch location-based merchants',
       code: 'INTERNAL_SERVER_ERROR',
       message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
       timestamp: new Date().toISOString(),
