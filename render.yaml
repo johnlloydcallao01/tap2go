@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: tap2go-cms
+    runtime: docker
+    rootDir: apps/cms
+    dockerfilePath: ./Dockerfile
+    dockerContext: ../..
+    plan: starter
+    region: oregon
+    branch: main
+    buildCommand: ""
+    startCommand: ""
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PAYLOAD_SECRET
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: NEXT_PUBLIC_SERVER_URL
+        value: https://cms.tap2goph.com
+    autoDeploy: true
