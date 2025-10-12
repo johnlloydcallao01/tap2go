@@ -36,6 +36,7 @@ import * as migration_20251012_020017 from './20251012_020017';
 import * as migration_20251012_072054_fix_merchant_coordinates_for_haversine from './20251012_072054_fix_merchant_coordinates_for_haversine';
 import * as migration_20251201_fix_merchant_coordinates_type_conflict from './20251201_fix_merchant_coordinates_type_conflict';
 import * as migration_20251201_restore_postgis_geometry from './20251201_restore_postgis_geometry';
+import * as migration_20251202_fix_merchant_coordinates_geometry_to_jsonb from './20251202_fix_merchant_coordinates_geometry_to_jsonb';
 
 export const migrations = [
   {
@@ -227,5 +228,10 @@ export const migrations = [
     up: migration_20251201_restore_postgis_geometry.up,
     down: migration_20251201_restore_postgis_geometry.down,
     name: '20251201_restore_postgis_geometry'
+  },
+  {
+    up: migration_20251202_fix_merchant_coordinates_geometry_to_jsonb.up,
+    down: migration_20251202_fix_merchant_coordinates_geometry_to_jsonb.down,
+    name: '20251202_fix_merchant_coordinates_geometry_to_jsonb'
   },
 ];

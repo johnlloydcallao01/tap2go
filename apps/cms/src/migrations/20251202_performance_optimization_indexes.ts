@@ -15,7 +15,7 @@ export async function up({ payload, req: _req }: MigrateUpArgs): Promise<void> {
     -- Composite index for location-based queries with operational status
     CREATE INDEX IF NOT EXISTS "merchants_coordinates_operational_idx" 
     ON "merchants" USING gist ("merchant_coordinates") 
-    WHERE "operational_status" = 'active';
+    WHERE "operational_status" = 'open';
   `)
 
   await payload.db.drizzle.execute(sql`
@@ -41,9 +41,9 @@ export async function up({ payload, req: _req }: MigrateUpArgs): Promise<void> {
 
   // Create performance indexes for addresses table (customer lookups)
   await payload.db.drizzle.execute(sql`
-    -- Index for customer address lookups
-    CREATE INDEX IF NOT EXISTS "addresses_customer_id_idx" 
-    ON "addresses" ("customer_id");
+    -- Index for user addresses lookup
+    CREATE INDEX IF NOT EXISTS "addresses_user_id_idx" 
+    ON "addresses" ("user_id");
   `)
 
   await payload.db.drizzle.execute(sql`
@@ -56,9 +56,8 @@ export async function up({ payload, req: _req }: MigrateUpArgs): Promise<void> {
   // Create performance indexes for customers table
   await payload.db.drizzle.execute(sql`
     -- Index for customer ID lookups
-    CREATE INDEX IF NOT EXISTS "customers_id_active_idx" 
-    ON "customers" ("id") 
-    WHERE "is_active" = true;
+    CREATE INDEX IF NOT EXISTS "customers_id_idx" 
+    ON "customers" ("id");
   `)
 
   // Analyze tables to update statistics for query planner
