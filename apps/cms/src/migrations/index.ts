@@ -33,6 +33,7 @@ import * as migration_20251009_145000_fix_address_boundary_jsonb from './2025100
 import * as migration_20251009_145500_fix_service_area_jsonb from './20251009_145500_fix_service_area_jsonb';
 import * as migration_20251010_034455_sync_merchants_schema from './20251010_034455_sync_merchants_schema';
 import * as migration_20251012_020017 from './20251012_020017';
+import * as migration_20251012_072054_fix_merchant_coordinates_for_haversine from './20251012_072054_fix_merchant_coordinates_for_haversine';
 import * as migration_20251201_fix_merchant_coordinates_type_conflict from './20251201_fix_merchant_coordinates_type_conflict';
 import * as migration_20251201_restore_postgis_geometry from './20251201_restore_postgis_geometry';
 
@@ -211,6 +212,11 @@ export const migrations = [
     up: migration_20251012_020017.up,
     down: migration_20251012_020017.down,
     name: '20251012_020017',
+  },
+  {
+    up: migration_20251012_072054_fix_merchant_coordinates_for_haversine.up,
+    down: migration_20251012_072054_fix_merchant_coordinates_for_haversine.down,
+    name: '20251012_072054_fix_merchant_coordinates_for_haversine',
   },
   {
     up: migration_20251201_fix_merchant_coordinates_type_conflict.up,

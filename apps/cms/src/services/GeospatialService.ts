@@ -690,7 +690,14 @@ export class GeospatialService {
       // Create customer point for PostGIS query
       const customerPoint = `ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)`
 
-      // Execute PostGIS query to find merchants within radius
+      console.log(`🔍 PostGIS Query Debug:`, {
+        customerPoint,
+        radiusMeters,
+        limit,
+        offset
+      })
+
+      // Execute query using PostGIS geometry operations
       const result = await this.payload.db.drizzle.execute(`
         SELECT 
           m.*,
@@ -723,6 +730,8 @@ export class GeospatialService {
         LIMIT ${limit}
         OFFSET ${offset};
       `)
+
+      console.log(`✅ PostGIS Query executed successfully, rows returned: ${(result as DatabaseQueryResult).rows.length}`)
 
       // Transform results to match expected format
       const merchantsWithDistance: MerchantWithDistance[] = (result as DatabaseQueryResult).rows.map((row: DatabaseRow) => {
@@ -817,7 +826,12 @@ export class GeospatialService {
       }
 
     } catch (error) {
-      console.error('Error in findMerchantsWithinRadiusPostGIS:', error)
+      console.error('🚨 Error in findMerchantsWithinRadiusPostGIS:', error)
+      console.error('🔍 Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        params: { latitude, longitude, radiusMeters, limit, offset }
+      })
       throw new Error(`Failed to find merchants using PostGIS: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
