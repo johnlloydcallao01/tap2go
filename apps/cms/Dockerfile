@@ -12,9 +12,9 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 # Copy package.json from current directory and lockfiles from monorepo root
 COPY package.json ./
-COPY ../../pnpm-lock.yaml* ./
-COPY ../../yarn.lock* ./
-COPY ../../package-lock.json* ./
+COPY pnpm-lock.yaml* ./
+COPY yarn.lock* ./
+COPY package-lock.json* ./
 RUN \
   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm ci; \
