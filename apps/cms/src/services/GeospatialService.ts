@@ -219,7 +219,7 @@ export class GeospatialService {
         if (!merchant.merchant_latitude || !merchant.merchant_longitude) continue
 
         // Only use Google Maps distance - no fallback
-        if (!distanceResult || distanceResult.status !== 'OK' || distanceResult.distance <= 0) {
+        if (!distanceResult || distanceResult.status !== 'OK' || distanceResult.distance < 0) {
           console.warn(`Google Maps API failed for merchant ${merchant.id}, skipping`)
           continue
         }
