@@ -83,6 +83,14 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || '',
+      // Connection Pool Configuration for High-Performance
+      max: parseInt(process.env.DATABASE_POOL_MAX || '20'), // Maximum connections
+      min: parseInt(process.env.DATABASE_POOL_MIN || '5'),  // Minimum connections
+      idleTimeoutMillis: parseInt(process.env.DATABASE_IDLE_TIMEOUT || '30000'), // 30 seconds
+      connectionTimeoutMillis: parseInt(process.env.DATABASE_CONNECTION_TIMEOUT || '10000'), // 10 seconds
+      // Additional pool settings for stability
+      allowExitOnIdle: false,
+      maxUses: parseInt(process.env.DATABASE_MAX_USES || '7500'), // Recycle connections after 7500 uses
     },
   }),
 

@@ -1,5 +1,44 @@
 import type { Access, FieldAccess } from 'payload'
 
+// API Key Cache for Performance Optimization
+interface ApiKeyCache {
+  [key: string]: {
+    isValid: boolean
+    userId: string
+    role: string
+    timestamp: number
+  }
+}
+
+const apiKeyCache: ApiKeyCache = {}
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes in milliseconds
+const MAX_CACHE_SIZE = 1000 // Maximum number of cached entries
+
+// Cache cleanup function
+const cleanupCache = () => {
+  const now = Date.now()
+  const keys = Object.keys(apiKeyCache)
+  
+  // Remove expired entries
+  for (const key of keys) {
+    if (now - apiKeyCache[key].timestamp > CACHE_TTL) {
+      delete apiKeyCache[key]
+    }
+  }
+  
+  // If cache is still too large, remove oldest entries
+  const remainingKeys = Object.keys(apiKeyCache)
+  if (remainingKeys.length > MAX_CACHE_SIZE) {
+    const sortedKeys = remainingKeys.sort((a, b) => 
+      apiKeyCache[a].timestamp - apiKeyCache[b].timestamp
+    )
+    const keysToRemove = sortedKeys.slice(0, remainingKeys.length - MAX_CACHE_SIZE)
+    for (const key of keysToRemove) {
+      delete apiKeyCache[key]
+    }
+  }
+}
+
 // LMS role hierarchy levels
 export const ROLE_LEVELS = {
   CUSTOMER: 1,
@@ -39,6 +78,7 @@ export const authenticatedUsers: Access = ({ req: { user } }) => {
 /**
  * API key-only access control - bypasses user authentication
  * Allows access if valid API key is provided in Authorization header
+ * Now with performance caching to reduce database queries
  */
 export const apiKeyOnly: Access = async ({ req }) => {
   const authHeader = req.headers?.get('authorization')
@@ -49,11 +89,34 @@ export const apiKeyOnly: Access = async ({ req }) => {
   if (!apiKeyMatch) return false
   
   const providedKey = apiKeyMatch[1]
+  const now = Date.now()
+  
+  // Check cache first
+  if (apiKeyCache[providedKey]) {
+    const cached = apiKeyCache[providedKey]
+    
+    // Return cached result if not expired
+    if (now - cached.timestamp < CACHE_TTL) {
+      return cached.isValid
+    }
+    
+    // Remove expired entry
+    delete apiKeyCache[providedKey]
+  }
   
   try {
     // Professional approach: Validate API key against database
     const payload = req.payload
-    if (!payload) return false
+    if (!payload) {
+      // Cache negative result
+      apiKeyCache[providedKey] = {
+        isValid: false,
+        userId: '',
+        role: '',
+        timestamp: now
+      }
+      return false
+    }
     
     // Find user with matching API key
     const users = await payload.find({
@@ -71,10 +134,34 @@ export const apiKeyOnly: Access = async ({ req }) => {
       depth: 0
     })
     
-    // API key is valid if we found exactly one matching user
-    return users.docs.length === 1
+    const isValid = users.docs.length === 1
+    const user = users.docs[0]
+    
+    // Cache the result
+    apiKeyCache[providedKey] = {
+      isValid,
+      userId: user?.id?.toString() || '',
+      role: user?.role || '',
+      timestamp: now
+    }
+    
+    // Periodic cache cleanup (every 100 requests approximately)
+    if (Math.random() < 0.01) {
+      cleanupCache()
+    }
+    
+    return isValid
   } catch (error) {
     console.error('API key validation error:', error)
+    
+    // Cache negative result for failed validations
+    apiKeyCache[providedKey] = {
+      isValid: false,
+      userId: '',
+      role: '',
+      timestamp: now
+    }
+    
     return false
   }
 }
