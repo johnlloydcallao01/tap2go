@@ -1,6 +1,6 @@
 import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
 
-export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
+export async function up({ db, payload: _payload, req: _req }: MigrateUpArgs): Promise<void> {
     // Convert merchant_coordinates from PostGIS geometry to JSONB GeoJSON format
     await db.execute(sql`
         -- First, add a temporary column for the new JSONB data
@@ -19,7 +19,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
     `)
 }
 
-export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
+export async function down({ db, payload: _payload, req: _req }: MigrateDownArgs): Promise<void> {
     // Convert back from JSONB GeoJSON to PostGIS geometry
     await db.execute(sql`
         -- Add temporary geometry column

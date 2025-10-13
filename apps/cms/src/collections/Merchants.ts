@@ -577,12 +577,29 @@ export const Merchants: CollectionConfig = {
           data.outletCode = `${sanitized}-${Date.now()}`
         }
 
-        // Auto-populate merchant_coordinates from merchant_latitude and merchant_longitude
+        // Enhanced coordinate synchronization with validation
         if (data.merchant_latitude && data.merchant_longitude) {
-          data.merchant_coordinates = {
-            type: 'Point',
-            coordinates: [data.merchant_longitude, data.merchant_latitude]
+          const lat = parseFloat(data.merchant_latitude.toString())
+          const lng = parseFloat(data.merchant_longitude.toString())
+          
+          // Validate coordinates are within valid ranges
+          if (!isNaN(lat) && !isNaN(lng) && 
+              lat >= -90 && lat <= 90 && 
+              lng >= -180 && lng <= 180) {
+            
+            data.merchant_coordinates = {
+              type: 'Point',
+              coordinates: [lng, lat] // GeoJSON format: [longitude, latitude]
+            }
+            
+            console.log(`🔄 Synchronized coordinates for ${data.outletName}: [${lng}, ${lat}]`)
+          } else {
+            console.warn(`⚠️ Invalid coordinates for ${data.outletName}: lat=${lat}, lng=${lng}`)
           }
+        } else if (data.merchant_latitude === null || data.merchant_longitude === null) {
+          // Clear coordinates if lat/lng are explicitly set to null
+          data.merchant_coordinates = null
+          console.log(`🗑️ Cleared coordinates for ${data.outletName}`)
         }
 
         return data
