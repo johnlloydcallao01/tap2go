@@ -696,6 +696,7 @@ export class GeospatialService {
 
       // Execute query using PostGIS geometry operations
       // Convert jsonb coordinates to geometry before applying spatial functions
+      // Add proper validation for GeoJSON data
       const result = await this.payload.db.drizzle.execute(`
         SELECT 
           m.*,
@@ -712,6 +713,11 @@ export class GeospatialService {
         LEFT JOIN vendors v ON m.vendor_id = v.id
         WHERE 
           m.merchant_coordinates IS NOT NULL
+          AND m.merchant_coordinates::text != 'null'
+          AND m.merchant_coordinates ? 'type'
+          AND m.merchant_coordinates ? 'coordinates'
+          AND m.merchant_coordinates->>'type' = 'Point'
+          AND jsonb_array_length(m.merchant_coordinates->'coordinates') = 2
           AND m.is_active = true
           AND m.is_accepting_orders = true
           AND ST_DWithin(
@@ -781,6 +787,11 @@ export class GeospatialService {
         FROM merchants m
         WHERE 
           m.merchant_coordinates IS NOT NULL
+          AND m.merchant_coordinates::text != 'null'
+          AND m.merchant_coordinates ? 'type'
+          AND m.merchant_coordinates ? 'coordinates'
+          AND m.merchant_coordinates->>'type' = 'Point'
+          AND jsonb_array_length(m.merchant_coordinates->'coordinates') = 2
           AND m.is_active = true
           AND m.is_accepting_orders = true
           AND ST_DWithin(
