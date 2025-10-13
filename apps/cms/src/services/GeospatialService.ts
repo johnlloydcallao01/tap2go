@@ -787,11 +787,10 @@ export class GeospatialService {
         SELECT COUNT(*) as total_count
         FROM merchants m
         WHERE 
-          m.merchant_coordinates IS NOT NULL
-          AND m.is_active = true
-          AND m.is_accepting_orders = true
+         AND m.merchant_latitude IS NOT NULL 
+          AND m.merchant_longitude IS NOT NULL
           AND ST_DWithin(
-            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
+            ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857),
             ST_Transform(${customerPoint}, 3857),
             ${radiusMeters}
           );
