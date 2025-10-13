@@ -698,11 +698,12 @@ export class GeospatialService {
       })
 
       // Execute query using PostGIS geometry operations
+      // Convert jsonb coordinates to geometry before applying spatial functions
       const result = await this.payload.db.drizzle.execute(`
         SELECT 
           m.*,
           ST_Distance(
-            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857)
           ) as distance_meters,
           v.id as vendor_id,
@@ -718,13 +719,13 @@ export class GeospatialService {
           AND m.is_active = true
           AND m.is_accepting_orders = true
           AND ST_DWithin(
-            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857),
             ${radiusMeters}
           )
         ORDER BY 
           ST_Distance(
-            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857)
           )
         LIMIT ${limit}
@@ -790,7 +791,7 @@ export class GeospatialService {
           AND m.is_active = true
           AND m.is_accepting_orders = true
           AND ST_DWithin(
-            ST_Transform(m.merchant_coordinates, 3857),
+            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857),
             ${radiusMeters}
           );
