@@ -38,6 +38,30 @@ interface DatabaseRow {
   vendor_average_rating: number
   vendor_total_orders: number
   vendor_cuisine_types: unknown
+  // Merchant thumbnail media fields
+  merchant_thumbnail_id: number | null
+  merchant_thumbnail_cloudinary_public_id: string | null
+  merchant_thumbnail_cloudinary_url: string | null
+  merchant_thumbnail_url: string | null
+  merchant_thumbnail_thumbnail_url: string | null
+  merchant_thumbnail_filename: string | null
+  merchant_thumbnail_alt: string | null
+  // Merchant storefront media fields
+  merchant_storefront_id: number | null
+  merchant_storefront_cloudinary_public_id: string | null
+  merchant_storefront_cloudinary_url: string | null
+  merchant_storefront_url: string | null
+  merchant_storefront_thumbnail_url: string | null
+  merchant_storefront_filename: string | null
+  merchant_storefront_alt: string | null
+  // Vendor logo media fields
+  vendor_logo_id: number | null
+  vendor_logo_cloudinary_public_id: string | null
+  vendor_logo_cloudinary_url: string | null
+  vendor_logo_url: string | null
+  vendor_logo_thumbnail_url: string | null
+  vendor_logo_filename: string | null
+  vendor_logo_alt: string | null
 }
 
 // Type for count query result
@@ -708,9 +732,36 @@ export class GeospatialService {
           v.business_name as vendor_business_name,
           v.average_rating as vendor_average_rating,
           v.total_orders as vendor_total_orders,
-          v.cuisine_types as vendor_cuisine_types
+          v.cuisine_types as vendor_cuisine_types,
+          -- Merchant thumbnail media
+          mt.id as merchant_thumbnail_id,
+          mt.cloudinary_public_id as merchant_thumbnail_cloudinary_public_id,
+          mt.cloudinary_u_r_l as merchant_thumbnail_cloudinary_url,
+          mt.url as merchant_thumbnail_url,
+          mt.thumbnail_u_r_l as merchant_thumbnail_thumbnail_url,
+          mt.filename as merchant_thumbnail_filename,
+          mt.alt as merchant_thumbnail_alt,
+          -- Merchant storefront media
+          ms.id as merchant_storefront_id,
+          ms.cloudinary_public_id as merchant_storefront_cloudinary_public_id,
+          ms.cloudinary_u_r_l as merchant_storefront_cloudinary_url,
+          ms.url as merchant_storefront_url,
+          ms.thumbnail_u_r_l as merchant_storefront_thumbnail_url,
+          ms.filename as merchant_storefront_filename,
+          ms.alt as merchant_storefront_alt,
+          -- Vendor logo media
+          vl.id as vendor_logo_id,
+          vl.cloudinary_public_id as vendor_logo_cloudinary_public_id,
+          vl.cloudinary_u_r_l as vendor_logo_cloudinary_url,
+          vl.url as vendor_logo_url,
+          vl.thumbnail_u_r_l as vendor_logo_thumbnail_url,
+          vl.filename as vendor_logo_filename,
+          vl.alt as vendor_logo_alt
         FROM merchants m
         LEFT JOIN vendors v ON m.vendor_id = v.id
+        LEFT JOIN media mt ON m.media_thumbnail_id = mt.id
+        LEFT JOIN media ms ON m.media_store_front_image_id = ms.id
+        LEFT JOIN media vl ON v.logo_id = vl.id
         WHERE 
           m.merchant_coordinates IS NOT NULL
           AND m.merchant_coordinates::text != 'null'
@@ -760,6 +811,27 @@ export class GeospatialService {
           vendor_id: row.vendor_id,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
+          // Media information
+          media: {
+            thumbnail: row.merchant_thumbnail_id ? {
+              id: row.merchant_thumbnail_id,
+              cloudinary_public_id: row.merchant_thumbnail_cloudinary_public_id,
+              cloudinary_url: row.merchant_thumbnail_cloudinary_url,
+              url: row.merchant_thumbnail_url,
+              thumbnail_url: row.merchant_thumbnail_thumbnail_url,
+              filename: row.merchant_thumbnail_filename,
+              alt: row.merchant_thumbnail_alt
+            } : null,
+            storeFrontImage: row.merchant_storefront_id ? {
+              id: row.merchant_storefront_id,
+              cloudinary_public_id: row.merchant_storefront_cloudinary_public_id,
+              cloudinary_url: row.merchant_storefront_cloudinary_url,
+              url: row.merchant_storefront_url,
+              thumbnail_url: row.merchant_storefront_thumbnail_url,
+              filename: row.merchant_storefront_filename,
+              alt: row.merchant_storefront_alt
+            } : null
+          },
           // Distance information
           distanceMeters,
           distanceKm: distanceMeters / 1000,
@@ -776,7 +848,16 @@ export class GeospatialService {
             businessName: row.vendor_business_name,
             average_rating: row.vendor_average_rating,
             total_orders: row.vendor_total_orders,
-            cuisineTypes: row.vendor_cuisine_types
+            cuisineTypes: row.vendor_cuisine_types,
+            logo: row.vendor_logo_id ? {
+              id: row.vendor_logo_id,
+              cloudinary_public_id: row.vendor_logo_cloudinary_public_id,
+              cloudinary_url: row.vendor_logo_cloudinary_url,
+              url: row.vendor_logo_url,
+              thumbnail_url: row.vendor_logo_thumbnail_url,
+              filename: row.vendor_logo_filename,
+              alt: row.vendor_logo_alt
+            } : null
           } as unknown as Vendor
         } as MerchantWithDistance
       })
