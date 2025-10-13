@@ -1,12 +1,13 @@
 'use client';
 
 import Image from '@/components/ui/ImageWrapper';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Media } from '@/types/merchant';
 import { 
   LocationBasedMerchantService, 
   type LocationBasedMerchant 
 } from '@/lib/client-services/location-based-merchant-service';
+import { useAddressChange } from '@/hooks/useAddressChange';
 
 interface LocationBasedMerchantsProps {
   customerId?: string;
@@ -115,17 +116,24 @@ function LocationMerchantCard({ merchant }: LocationMerchantCardProps) {
           {getDeliveryStatusText(merchant.isWithinDeliveryRadius, merchant.operationalStatus)}
         </div>
 
-        {/* Vendor Logo Overlay */}
+        {/* Vendor Logo Overlay - Professional delivery platform style */}
         {vendorLogoUrl && (
-          <div className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-full p-1 shadow-md">
-            <div className="relative w-full h-full">
-              <Image
-                src={vendorLogoUrl}
-                alt={`${merchant.vendor?.businessName} logo`}
-                fill
-                className="object-contain rounded-full"
-              />
-            </div>
+          <div className="absolute -bottom-4 left-0 w-16 h-16 bg-white rounded-full shadow-lg border-2 border-white">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={vendorLogoUrl}
+              alt={`${merchant.vendor?.businessName || 'Vendor'} logo`}
+              className="w-full h-full object-contain rounded-full"
+              loading="lazy"
+              onError={(e) => {
+                // Hide logo on error
+                const target = e.target as HTMLImageElement;
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.style.display = 'none';
+                }
+              }}
+            />
           </div>
         )}
       </div>
@@ -173,6 +181,44 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
   const [error, setError] = useState<string | null>(null);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(customerId || null);
 
+  // Function to fetch merchants
+  const fetchLocationBasedMerchants = useCallback(async (customerIdToUse: string) => {
+    console.log('🚀 Starting merchant fetch with customer ID:', customerIdToUse);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const locationMerchants = await LocationBasedMerchantService.getLocationBasedMerchants({
+        customerId: customerIdToUse,
+        limit,
+      });
+      console.log('✅ Merchants fetched successfully:', locationMerchants.length, 'merchants');
+      setMerchants(locationMerchants);
+    } catch (err) {
+      console.error('❌ Error fetching location-based merchants:', err);
+      setError('Failed to load merchants. Please try again.');
+    } finally {
+      console.log('🏁 Merchant fetch completed, setting loading to false');
+      setIsLoading(false);
+    }
+  }, [limit]);
+
+  // Listen for address changes and refetch merchants
+  useAddressChange((addressId: string) => {
+    console.log('🔄 LocationBasedMerchants received address change event for:', addressId);
+    if (resolvedCustomerId) {
+      console.log('🚀 Refetching merchants due to address change...');
+      
+      // Clear the cache first to ensure fresh data
+      console.log('🗑️ Clearing location-based merchants cache...');
+      LocationBasedMerchantService.clearCache(resolvedCustomerId);
+      
+      fetchLocationBasedMerchants(resolvedCustomerId);
+    } else {
+      console.log('⏳ Customer ID not resolved yet, skipping merchant refetch');
+    }
+  });
+
   // Effect to resolve customer ID if not provided
   useEffect(() => {
     const resolveCustomerId = async () => {
@@ -206,42 +252,21 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
 
   // Effect to fetch merchants when customer ID is resolved
   useEffect(() => {
-    const fetchLocationBasedMerchants = async () => {
-      if (!resolvedCustomerId) {
-        console.log('⏳ Waiting for customer ID to be resolved...');
-        return;
-      }
+    if (!resolvedCustomerId) {
+      console.log('⏳ Waiting for customer ID to be resolved...');
+      return;
+    }
 
-      console.log('🚀 Starting merchant fetch with customer ID:', resolvedCustomerId);
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const locationMerchants = await LocationBasedMerchantService.getLocationBasedMerchants({
-          customerId: resolvedCustomerId,
-          limit,
-        });
-        console.log('✅ Merchants fetched successfully:', locationMerchants.length, 'merchants');
-        setMerchants(locationMerchants);
-      } catch (err) {
-        console.error('❌ Error fetching location-based merchants:', err);
-        setError('Failed to load merchants. Please try again.');
-      } finally {
-        console.log('🏁 Merchant fetch completed, setting loading to false');
-        setIsLoading(false);
-      }
-    };
-
-    fetchLocationBasedMerchants();
-  }, [resolvedCustomerId, limit]);
+    fetchLocationBasedMerchants(resolvedCustomerId);
+  }, [resolvedCustomerId, fetchLocationBasedMerchants]);
 
   if (isLoading) {
     return (
-      <section className="py-12 bg-white">
+      <section className="py-4 bg-white">
         <div className="container mx-auto px-4">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Location Based Merchants
+              Nearby Restaurants
             </h2>
             <p className="text-gray-600">
               Loading merchants near your location...
@@ -260,11 +285,11 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
 
   if (error) {
     return (
-      <section className="py-12 bg-white">
+      <section className="py-4 bg-white">
         <div className="container mx-auto px-4">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Location Based Merchants
+              Nearby Restaurants
             </h2>
             <p className="text-gray-600">
               Merchants near your location with delivery information
@@ -297,11 +322,11 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
 
   if (!merchants || merchants.length === 0) {
     return (
-      <section className="py-12 bg-white">
+      <section className="py-4 bg-white">
         <div className="container mx-auto px-4">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Location Based Merchants
+              Nearby Restaurants
             </h2>
             <p className="text-gray-600">
               Merchants near your location with delivery information
@@ -328,11 +353,11 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
   }
 
   return (
-    <section className="py-12 bg-white">
+    <section className="py-4 bg-white">
       <div className="container mx-auto px-4">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Location Based Merchants
+            Nearby Restaurants
           </h2>
           <p className="text-gray-600">
             {merchants.length} merchants found near your location

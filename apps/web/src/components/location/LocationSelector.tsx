@@ -7,6 +7,7 @@ import { AddressSearchInput } from '@/components/shared/AddressSearchInput';
 import { AddressService } from '@/lib/services/address-service';
 import { useUser } from '@/hooks/useAuth';
 import { toast } from 'react-hot-toast';
+import { emitAddressChange } from '@/hooks/useAddressChange';
 
 interface LocationSelectorProps {
   onLocationSelect?: (location: google.maps.places.PlaceResult) => void;
@@ -163,19 +164,27 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
   const handleSetActiveAddress = async (addressId: string) => {
     if (!user?.id) return;
     
+    console.log('🎯 handleSetActiveAddress called with addressId:', addressId);
     setSettingActiveId(addressId);
     try {
       const response = await AddressService.setActiveAddress(user.id, addressId);
       
       if (response.success) {
+        console.log('✅ Address set as active successfully, emitting change event...');
         toast.success('Active address updated successfully!');
         
         // Optimistically update UI state - set the new active address
         setActiveAddressId(addressId);
         
+        // Emit address change event for real-time updates
+        console.log('📢 About to emit address change for:', addressId);
+        emitAddressChange(addressId);
+        console.log('📢 Address change event emitted successfully');
+        
         // Notify parent component that addresses have changed
         onAddressesChanged?.();
       } else {
+        console.error('❌ Failed to set active address:', response.error);
         throw new Error(response.error || 'Failed to set active address');
       }
     } catch (error) {
@@ -234,6 +243,9 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
       
       // Update local state to reflect the new active address
       setActiveAddressId(addressId);
+      
+      // Emit address change event for real-time updates
+      emitAddressChange(addressId);
       
       // Notify parent component that addresses have changed
       onAddressesChanged?.();
