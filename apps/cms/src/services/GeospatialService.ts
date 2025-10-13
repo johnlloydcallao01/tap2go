@@ -35,11 +35,8 @@ interface DatabaseRow {
   restricted_areas: unknown
   delivery_zones: unknown
   vendor_business_name: string
-  vendor_business_type: string
   vendor_average_rating: number
   vendor_total_orders: number
-  vendor_is_active: boolean
-  vendor_is_verified: boolean
   vendor_cuisine_types: unknown
 }
 
@@ -771,10 +768,8 @@ export class GeospatialService {
           vendor: {
             id: row.vendor_id,
             businessName: row.vendor_business_name,
-            businessType: row.vendor_business_type,
             average_rating: row.vendor_average_rating,
             total_orders: row.vendor_total_orders,
-            isActive: row.vendor_is_active,
             cuisineTypes: row.vendor_cuisine_types
           } as unknown as Vendor
         } as MerchantWithDistance
