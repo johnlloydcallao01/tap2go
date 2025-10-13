@@ -8,6 +8,7 @@ import { AddressService } from '@/lib/services/address-service';
 import { useUser } from '@/hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { emitAddressChange } from '@/hooks/useAddressChange';
+import { AddressSkeleton } from '@/components/ui/Skeleton';
 
 interface LocationSelectorProps {
   onLocationSelect?: (location: google.maps.places.PlaceResult) => void;
@@ -389,7 +390,10 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
         </div>
 
         {/* Content Section - Conditional rendering based on current step */}
-        <div className={`${isMobile ? 'px-4 py-4 flex-1 overflow-y-auto' : 'px-6 py-4 flex-1 overflow-y-auto max-h-[24rem]'}`}>
+        <div 
+          className={`${isMobile ? 'px-4 py-4 overflow-y-auto' : 'px-6 py-4 flex-1 overflow-y-auto max-h-[24rem]'}`}
+          style={isMobile ? { maxHeight: '125vh', flex: '1 1 auto', paddingBottom: '60px' } : {}}
+        >
           {isSaving && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -689,18 +693,22 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
     setIsModalOpen(true);
   };
 
-  const displayText = isLoadingAddress 
-    ? 'Loading...' 
-    : (selectedLocation?.name || selectedLocation?.formatted_address || 'Enter Address');
-
   return (
     <>
       <button
         onClick={handleClick}
         className={`flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors ${className}`}
       >
-        <LocationIcon className="h-5 w-5 text-gray-500" />
-        <span className="truncate max-w-32">{displayText}</span>
+        {isLoadingAddress ? (
+          <AddressSkeleton />
+        ) : (
+          <>
+            <LocationIcon className="h-5 w-5 text-gray-500" />
+            <span className="truncate max-w-32">
+              {selectedLocation?.name || selectedLocation?.formatted_address || 'Enter Address'}
+            </span>
+          </>
+        )}
       </button>
 
       {/* Always show modal */}

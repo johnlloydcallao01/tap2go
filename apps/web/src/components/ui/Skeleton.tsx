@@ -93,6 +93,18 @@ export function TableRowSkeleton({ columns = 4 }: { columns?: number }) {
 }
 
 /**
+ * Address Skeleton - for location selector loading state
+ */
+export function AddressSkeleton() {
+  return (
+    <div className="flex items-center space-x-2">
+      <div className="w-5 h-5 bg-gray-200 rounded animate-pulse flex-shrink-0"></div>
+      <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+    </div>
+  );
+}
+
+/**
  * Page Header Skeleton
  */
 export function PageHeaderSkeleton() {
