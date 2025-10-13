@@ -67,6 +67,24 @@ export const enum_emergency_contacts_relationship = pgEnum('enum_emergency_conta
   'relative',
   'other',
 ])
+export const enum_addresses_geocoding_accuracy = pgEnum('enum_addresses_geocoding_accuracy', [
+  'ROOFTOP',
+  'RANGE_INTERPOLATED',
+  'GEOMETRIC_CENTER',
+  'APPROXIMATE',
+])
+export const enum_addresses_coordinate_source = pgEnum('enum_addresses_coordinate_source', [
+  'GPS',
+  'GOOGLE_GEOCODING',
+  'MANUAL',
+  'ESTIMATED',
+])
+export const enum_addresses_verification_method = pgEnum('enum_addresses_verification_method', [
+  'GPS_CONFIRMED',
+  'DELIVERY_CONFIRMED',
+  'USER_CONFIRMED',
+  'UNVERIFIED',
+])
 export const enum_addresses_address_type = pgEnum('enum_addresses_address_type', [
   'home',
   'work',
@@ -157,7 +175,7 @@ export const users_sessions = pgTable(
   }),
 )
 
-export const users: any = pgTable(
+export const users = pgTable(
   'users',
   {
     id: serial('id').primaryKey(),
@@ -175,10 +193,7 @@ export const users: any = pgTable(
     role: enum_users_role('role').notNull().default('customer'),
     isActive: boolean('is_active').default(true),
     lastLogin: timestamp('last_login', { mode: 'string', withTimezone: true, precision: 3 }),
-    profilePicture: integer('profile_picture_id').references((): any => media.id, {
-      onDelete: 'set null',
-    }),
-    activeAddress: integer('active_address_id').references((): any => addresses.id, {
+    profilePicture: integer('profile_picture_id').references(() => media.id, {
       onDelete: 'set null',
     }),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
@@ -205,7 +220,6 @@ export const users: any = pgTable(
   (columns) => ({
     users_username_idx: uniqueIndex('users_username_idx').on(columns.username),
     users_profile_picture_idx: index('users_profile_picture_idx').on(columns.profilePicture),
-    users_active_address_idx: index('users_active_address_idx').on(columns.activeAddress),
     users_updated_at_idx: index('users_updated_at_idx').on(columns.updatedAt),
     users_created_at_idx: index('users_created_at_idx').on(columns.createdAt),
     users_email_idx: uniqueIndex('users_email_idx').on(columns.email),
@@ -229,6 +243,9 @@ export const customers = pgTable(
       precision: 3,
     }),
     currentLevel: enum_customers_current_level('current_level').default('beginner'),
+    activeAddress: integer('active_address_id').references(() => addresses.id, {
+      onDelete: 'set null',
+    }),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -239,6 +256,7 @@ export const customers = pgTable(
   (columns) => ({
     customers_user_idx: uniqueIndex('customers_user_idx').on(columns.user),
     customers_srn_idx: uniqueIndex('customers_srn_idx').on(columns.srn),
+    customers_active_address_idx: index('customers_active_address_idx').on(columns.activeAddress),
     customers_updated_at_idx: index('customers_updated_at_idx').on(columns.updatedAt),
     customers_created_at_idx: index('customers_created_at_idx').on(columns.createdAt),
   }),
@@ -335,13 +353,13 @@ export const emergency_contacts = pgTable(
   }),
 )
 
-export const addresses: any = pgTable(
+export const addresses = pgTable(
   'addresses',
   {
     id: serial('id').primaryKey(),
     user: integer('user_id')
       .notNull()
-      .references((): any => users.id, {
+      .references(() => users.id, {
         onDelete: 'set null',
       }),
     formatted_address: varchar('formatted_address').notNull(),
@@ -357,6 +375,23 @@ export const addresses: any = pgTable(
     postal_code: varchar('postal_code'),
     latitude: numeric('latitude'),
     longitude: numeric('longitude'),
+    coordinates: jsonb('coordinates'),
+    altitude: numeric('altitude'),
+    address_quality_score: numeric('address_quality_score'),
+    geocoding_accuracy: enum_addresses_geocoding_accuracy('geocoding_accuracy'),
+    coordinate_source:
+      enum_addresses_coordinate_source('coordinate_source').default('GOOGLE_GEOCODING'),
+    last_geocoded_at: timestamp('last_geocoded_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    verification_method:
+      enum_addresses_verification_method('verification_method').default('UNVERIFIED'),
+    address_boundary: jsonb('address_boundary'),
+    service_radius_meters: numeric('service_radius_meters'),
+    accessibility_notes: varchar('accessibility_notes'),
+    landmark_description: varchar('landmark_description'),
     address_type: enum_addresses_address_type('address_type').notNull().default('home'),
     is_default: boolean('is_default').default(false),
     is_verified: boolean('is_verified').default(false),
@@ -380,6 +415,11 @@ export const addresses: any = pgTable(
     ),
     postal_code_idx: index('postal_code_idx').on(columns.postal_code),
     google_place_id_idx: index('google_place_id_idx').on(columns.google_place_id),
+    address_quality_score_idx: index('address_quality_score_idx').on(columns.address_quality_score),
+    is_verified_idx: index('is_verified_idx').on(columns.is_verified),
+    geocoding_accuracy_idx: index('geocoding_accuracy_idx').on(columns.geocoding_accuracy),
+    coordinate_source_idx: index('coordinate_source_idx').on(columns.coordinate_source),
+    verification_method_idx: index('verification_method_idx').on(columns.verification_method),
   }),
 )
 
@@ -564,9 +604,11 @@ export const vendors = pgTable(
   'vendors',
   {
     id: serial('id').primaryKey(),
-    user: integer('user_id').references(() => users.id, {
-      onDelete: 'set null',
-    }),
+    user: integer('user_id')
+      .notNull()
+      .references(() => users.id, {
+        onDelete: 'set null',
+      }),
     businessName: varchar('business_name').notNull(),
     legalName: varchar('legal_name').notNull(),
     businessRegistrationNumber: varchar('business_registration_number').notNull(),
@@ -615,7 +657,7 @@ export const vendors = pgTable(
       .notNull(),
   },
   (columns) => ({
-    vendors_user_idx: uniqueIndex('vendors_user_idx').on(columns.user),
+    vendors_user_idx: index('vendors_user_idx').on(columns.user),
     vendors_business_registration_number_idx: uniqueIndex(
       'vendors_business_registration_number_idx',
     ).on(columns.businessRegistrationNumber),
@@ -672,6 +714,37 @@ export const merchants = pgTable(
     description: varchar('description'),
     specialInstructions: varchar('special_instructions'),
     tags: jsonb('tags'),
+    activeAddress: integer('active_address_id').references(() => addresses.id, {
+      onDelete: 'set null',
+    }),
+    merchant_latitude: numeric('merchant_latitude'),
+    merchant_longitude: numeric('merchant_longitude'),
+    location_accuracy_radius: numeric('location_accuracy_radius'),
+    delivery_radius_meters: numeric('delivery_radius_meters').default('5000'),
+    max_delivery_radius_meters: numeric('max_delivery_radius_meters').default('10000'),
+    min_order_amount: numeric('min_order_amount'),
+    delivery_fee_base: numeric('delivery_fee_base'),
+    delivery_fee_per_km: numeric('delivery_fee_per_km'),
+    free_delivery_threshold: numeric('free_delivery_threshold'),
+    merchant_coordinates: jsonb('merchant_coordinates'),
+    service_area_geometry: jsonb('service_area_geometry'),
+    priority_zones_geometry: jsonb('priority_zones_geometry'),
+    restricted_areas_geometry: jsonb('restricted_areas_geometry'),
+    delivery_zones_geometry: jsonb('delivery_zones_geometry'),
+    service_area: jsonb('service_area'),
+    priority_zones: jsonb('priority_zones'),
+    restricted_areas: jsonb('restricted_areas'),
+    delivery_zones: jsonb('delivery_zones'),
+    avg_delivery_time_minutes: numeric('avg_delivery_time_minutes'),
+    delivery_success_rate: numeric('delivery_success_rate'),
+    peak_hours_multiplier: numeric('peak_hours_multiplier').default('1'),
+    delivery_hours: jsonb('delivery_hours'),
+    is_currently_delivering: boolean('is_currently_delivering').default(true),
+    next_available_slot: timestamp('next_available_slot', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -688,8 +761,26 @@ export const merchants = pgTable(
     merchants_media_media_store_front_image_idx: index(
       'merchants_media_media_store_front_image_idx',
     ).on(columns.media_storeFrontImage),
+    merchants_active_address_idx: index('merchants_active_address_idx').on(columns.activeAddress),
     merchants_updated_at_idx: index('merchants_updated_at_idx').on(columns.updatedAt),
     merchants_created_at_idx: index('merchants_created_at_idx').on(columns.createdAt),
+    vendor_idx: index('vendor_idx').on(columns.vendor),
+    outletCode_idx: index('outletCode_idx').on(columns.outletCode),
+    isActive_isAcceptingOrders_idx: index('isActive_isAcceptingOrders_idx').on(
+      columns.isActive,
+      columns.isAcceptingOrders,
+    ),
+    operationalStatus_idx: index('operationalStatus_idx').on(columns.operationalStatus),
+    delivery_radius_meters_idx: index('delivery_radius_meters_idx').on(
+      columns.delivery_radius_meters,
+    ),
+    is_currently_delivering_idx: index('is_currently_delivering_idx').on(
+      columns.is_currently_delivering,
+    ),
+    avg_delivery_time_minutes_idx: index('avg_delivery_time_minutes_idx').on(
+      columns.avg_delivery_time_minutes,
+    ),
+    delivery_success_rate_idx: index('delivery_success_rate_idx').on(columns.delivery_success_rate),
   }),
 )
 
@@ -1144,11 +1235,6 @@ export const relations_users = relations(users, ({ one, many }) => ({
     references: [media.id],
     relationName: 'profilePicture',
   }),
-  activeAddress: one(addresses, {
-    fields: [users.activeAddress],
-    references: [addresses.id],
-    relationName: 'activeAddress',
-  }),
   sessions: many(users_sessions, {
     relationName: 'sessions',
   }),
@@ -1158,6 +1244,11 @@ export const relations_customers = relations(customers, ({ one }) => ({
     fields: [customers.user],
     references: [users.id],
     relationName: 'user',
+  }),
+  activeAddress: one(addresses, {
+    fields: [customers.activeAddress],
+    references: [addresses.id],
+    relationName: 'activeAddress',
   }),
 }))
 export const relations_admins = relations(admins, ({ one }) => ({
@@ -1280,6 +1371,11 @@ export const relations_merchants = relations(merchants, ({ one }) => ({
     fields: [merchants.media_storeFrontImage],
     references: [media.id],
     relationName: 'media_storeFrontImage',
+  }),
+  activeAddress: one(addresses, {
+    fields: [merchants.activeAddress],
+    references: [addresses.id],
+    relationName: 'activeAddress',
   }),
 }))
 export const relations_prod_categories = relations(prod_categories, ({ one }) => ({
@@ -1434,6 +1530,9 @@ type DatabaseSchema = {
   enum_admins_admin_level: typeof enum_admins_admin_level
   enum_user_events_event_type: typeof enum_user_events_event_type
   enum_emergency_contacts_relationship: typeof enum_emergency_contacts_relationship
+  enum_addresses_geocoding_accuracy: typeof enum_addresses_geocoding_accuracy
+  enum_addresses_coordinate_source: typeof enum_addresses_coordinate_source
+  enum_addresses_verification_method: typeof enum_addresses_verification_method
   enum_addresses_address_type: typeof enum_addresses_address_type
   enum_posts_status: typeof enum_posts_status
   enum__posts_v_version_status: typeof enum__posts_v_version_status

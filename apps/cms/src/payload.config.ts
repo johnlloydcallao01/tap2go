@@ -3,6 +3,7 @@ import { postgresAdapter } from '@payloadcms/db-postgres'
 import { payloadCloudPlugin } from '@payloadcms/payload-cloud'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { cloudStoragePlugin } from '@payloadcms/plugin-cloud-storage'
+import { geometry } from '@payloadcms/db-postgres/drizzle/pg-core'
 import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
@@ -91,6 +92,25 @@ export default buildConfig({
       allowExitOnIdle: false,
       maxUses: parseInt(process.env.DATABASE_MAX_USES || '7500'), // Recycle connections after 7500 uses
     },
+    // Override geometry columns to prevent JSONB conversion
+    afterSchemaInit: [
+      ({ schema, extendTable }) => {
+        // Override merchants table geometry columns with proper PostGIS types
+        extendTable({
+          table: schema.tables.merchants,
+          columns: {
+            // Point geometry for merchant coordinates
+            merchant_coordinates: geometry('merchant_coordinates', { type: 'point', mode: 'xy', srid: 4326 }),
+            // Polygon/MultiPolygon geometries for service areas and zones
+            service_area_geometry: geometry('service_area_geometry', { type: 'polygon', mode: 'xy', srid: 4326 }),
+            priority_zones_geometry: geometry('priority_zones_geometry', { type: 'multipolygon', mode: 'xy', srid: 4326 }),
+            restricted_areas_geometry: geometry('restricted_areas_geometry', { type: 'multipolygon', mode: 'xy', srid: 4326 }),
+            delivery_zones_geometry: geometry('delivery_zones_geometry', { type: 'multipolygon', mode: 'xy', srid: 4326 }),
+          },
+        });
+        return schema;
+      },
+    ],
   }),
 
   // ========================================

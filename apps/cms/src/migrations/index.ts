@@ -34,9 +34,13 @@ import * as migration_20251009_145500_fix_service_area_jsonb from './20251009_14
 import * as migration_20251010_034455_sync_merchants_schema from './20251010_034455_sync_merchants_schema';
 import * as migration_20251012_020017 from './20251012_020017';
 import * as migration_20251012_072054_fix_merchant_coordinates_for_haversine from './20251012_072054_fix_merchant_coordinates_for_haversine';
+import * as migration_20251012_232746 from './20251012_232746';
+import * as migration_20251013_011357 from './20251013_011357';
+import * as migration_20251013_074840_convert_geometry_fields_to_postgis from './20251013_074840_convert_geometry_fields_to_postgis';
 import * as migration_20251201_fix_merchant_coordinates_type_conflict from './20251201_fix_merchant_coordinates_type_conflict';
 import * as migration_20251201_restore_postgis_geometry from './20251201_restore_postgis_geometry';
 import * as migration_20251202_fix_merchant_coordinates_geometry_to_jsonb from './20251202_fix_merchant_coordinates_geometry_to_jsonb';
+import * as migration_20251202_performance_optimization_indexes from './20251202_performance_optimization_indexes';
 
 export const migrations = [
   {
@@ -220,6 +224,21 @@ export const migrations = [
     name: '20251012_072054_fix_merchant_coordinates_for_haversine',
   },
   {
+    up: migration_20251012_232746.up,
+    down: migration_20251012_232746.down,
+    name: '20251012_232746',
+  },
+  {
+    up: migration_20251013_011357.up,
+    down: migration_20251013_011357.down,
+    name: '20251013_011357',
+  },
+  {
+    up: migration_20251013_074840_convert_geometry_fields_to_postgis.up,
+    down: migration_20251013_074840_convert_geometry_fields_to_postgis.down,
+    name: '20251013_074840_convert_geometry_fields_to_postgis',
+  },
+  {
     up: migration_20251201_fix_merchant_coordinates_type_conflict.up,
     down: migration_20251201_fix_merchant_coordinates_type_conflict.down,
     name: '20251201_fix_merchant_coordinates_type_conflict',
@@ -227,11 +246,16 @@ export const migrations = [
   {
     up: migration_20251201_restore_postgis_geometry.up,
     down: migration_20251201_restore_postgis_geometry.down,
-    name: '20251201_restore_postgis_geometry'
+    name: '20251201_restore_postgis_geometry',
   },
   {
     up: migration_20251202_fix_merchant_coordinates_geometry_to_jsonb.up,
     down: migration_20251202_fix_merchant_coordinates_geometry_to_jsonb.down,
-    name: '20251202_fix_merchant_coordinates_geometry_to_jsonb'
+    name: '20251202_fix_merchant_coordinates_geometry_to_jsonb',
+  },
+  {
+    up: migration_20251202_performance_optimization_indexes.up,
+    down: migration_20251202_performance_optimization_indexes.down,
+    name: '20251202_performance_optimization_indexes'
   },
 ];

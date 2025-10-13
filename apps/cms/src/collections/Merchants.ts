@@ -411,6 +411,7 @@ export const Merchants: CollectionConfig = {
     {
       name: 'merchant_coordinates',
       type: 'json',
+      label: 'Merchant Coordinates',
       admin: {
         description: 'PostGIS GEOMETRY(POINT, 4326) for spatial queries - auto-populated from lat/lng',
         readOnly: true,
@@ -419,6 +420,7 @@ export const Merchants: CollectionConfig = {
     {
       name: 'service_area_geometry',
       type: 'json',
+      label: 'Service Area Geometry',
       admin: {
         description: 'PostGIS GEOMETRY(POLYGON, 4326) for delivery coverage area - for spatial queries',
         readOnly: true,
@@ -427,6 +429,7 @@ export const Merchants: CollectionConfig = {
     {
       name: 'priority_zones_geometry',
       type: 'json',
+      label: 'Priority Zones Geometry',
       admin: {
         description: 'PostGIS GEOMETRY(MULTIPOLYGON, 4326) for premium delivery areas - for spatial queries',
         readOnly: true,
@@ -435,6 +438,7 @@ export const Merchants: CollectionConfig = {
     {
       name: 'restricted_areas_geometry',
       type: 'json',
+      label: 'Restricted Areas Geometry',
       admin: {
         description: 'PostGIS GEOMETRY(MULTIPOLYGON, 4326) for no-delivery zones - for spatial queries',
         readOnly: true,
@@ -443,6 +447,7 @@ export const Merchants: CollectionConfig = {
     {
       name: 'delivery_zones_geometry',
       type: 'json',
+      label: 'Delivery Zones Geometry',
       admin: {
         description: 'PostGIS GEOMETRY(MULTIPOLYGON, 4326) for zone-specific delivery areas - for spatial queries',
         readOnly: true,
