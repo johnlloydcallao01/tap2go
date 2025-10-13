@@ -44,13 +44,33 @@ export class MerchantLocationService {
       id: customerId,
     })
 
-    if (!customer || !customer.activeAddress) {
-      throw new Error('Customer not found or no active address')
+    if (!customer) {
+      throw new Error('Customer not found')
     }
 
-    const activeAddressId = typeof customer.activeAddress === 'object' 
-      ? customer.activeAddress.id 
-      : customer.activeAddress
+    if (!customer.activeAddress) {
+      throw new Error('Customer has no active address')
+    }
+
+    // Extract activeAddressId with proper validation
+    let activeAddressId: number
+    if (typeof customer.activeAddress === 'object' && customer.activeAddress !== null) {
+      activeAddressId = customer.activeAddress.id
+    } else if (typeof customer.activeAddress === 'number') {
+      activeAddressId = customer.activeAddress
+    } else if (typeof customer.activeAddress === 'string') {
+      activeAddressId = parseInt(customer.activeAddress, 10)
+      if (isNaN(activeAddressId)) {
+        throw new Error('Invalid activeAddress ID format')
+      }
+    } else {
+      throw new Error('Invalid activeAddress format')
+    }
+
+    // Validate the extracted ID
+    if (!activeAddressId || isNaN(activeAddressId)) {
+      throw new Error('Invalid activeAddress ID')
+    }
 
     // Step 2: Get active address coordinates
     const address = await this.payload.findByID({
@@ -58,12 +78,33 @@ export class MerchantLocationService {
       id: activeAddressId,
     })
 
-    if (!address || !address.latitude || !address.longitude) {
-      throw new Error('Address not found or missing coordinates')
+    if (!address) {
+      throw new Error('Address not found')
     }
 
-    const lat = parseFloat(address.latitude.toString())
-    const lng = parseFloat(address.longitude.toString())
+    if (!address.latitude || !address.longitude) {
+      throw new Error('Address missing coordinates')
+    }
+
+    // Validate coordinates before parsing
+    const latStr = address.latitude.toString()
+    const lngStr = address.longitude.toString()
+    
+    if (!latStr || !lngStr || latStr === 'null' || lngStr === 'null') {
+      throw new Error('Address has null coordinates')
+    }
+
+    const lat = parseFloat(latStr)
+    const lng = parseFloat(lngStr)
+
+    // Validate parsed coordinates
+    if (isNaN(lat) || isNaN(lng)) {
+      throw new Error('Address has invalid coordinate values')
+    }
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new Error('Address coordinates are out of valid range')
+    }
 
     // Step 3: Find merchants using PostGIS spatial queries
     const result = await this.geospatialService.findMerchantsWithinRadiusPostGIS({
