@@ -413,7 +413,7 @@ export const Merchants: CollectionConfig = {
       type: 'json',
       label: 'Merchant Coordinates',
       admin: {
-        description: 'PostGIS GEOMETRY(POINT, 4326) for spatial queries - auto-populated from lat/lng',
+        description: 'GeoJSON Point format for spatial queries - auto-populated from lat/lng',
         readOnly: true,
       },
     },
@@ -576,6 +576,15 @@ export const Merchants: CollectionConfig = {
           const sanitized = data.outletName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
           data.outletCode = `${sanitized}-${Date.now()}`
         }
+
+        // Auto-populate merchant_coordinates from merchant_latitude and merchant_longitude
+        if (data.merchant_latitude && data.merchant_longitude) {
+          data.merchant_coordinates = {
+            type: 'Point',
+            coordinates: [data.merchant_longitude, data.merchant_latitude]
+          }
+        }
+
         return data
       },
     ],

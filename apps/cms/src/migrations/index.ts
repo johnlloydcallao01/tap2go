@@ -36,7 +36,13 @@ import * as migration_20251012_020017 from './20251012_020017';
 import * as migration_20251012_072054_fix_merchant_coordinates_for_haversine from './20251012_072054_fix_merchant_coordinates_for_haversine';
 import * as migration_20251012_232746 from './20251012_232746';
 import * as migration_20251013_011357 from './20251013_011357';
+import * as migration_20251013_074546 from './20251013_074546';
 import * as migration_20251013_074840_convert_geometry_fields_to_postgis from './20251013_074840_convert_geometry_fields_to_postgis';
+import * as migration_20251013_075610 from './20251013_075610';
+import * as migration_20251013_080403 from './20251013_080403';
+import * as migration_20251013_080753 from './20251013_080753';
+import * as migration_20251013_081737 from './20251013_081737';
+import * as migration_20251013_083554 from './20251013_083554';
 import * as migration_20251201_fix_merchant_coordinates_type_conflict from './20251201_fix_merchant_coordinates_type_conflict';
 import * as migration_20251201_restore_postgis_geometry from './20251201_restore_postgis_geometry';
 import * as migration_20251202_fix_merchant_coordinates_geometry_to_jsonb from './20251202_fix_merchant_coordinates_geometry_to_jsonb';
@@ -234,9 +240,39 @@ export const migrations = [
     name: '20251013_011357',
   },
   {
+    up: migration_20251013_074546.up,
+    down: migration_20251013_074546.down,
+    name: '20251013_074546',
+  },
+  {
     up: migration_20251013_074840_convert_geometry_fields_to_postgis.up,
     down: migration_20251013_074840_convert_geometry_fields_to_postgis.down,
     name: '20251013_074840_convert_geometry_fields_to_postgis',
+  },
+  {
+    up: migration_20251013_075610.up,
+    down: migration_20251013_075610.down,
+    name: '20251013_075610',
+  },
+  {
+    up: migration_20251013_080403.up,
+    down: migration_20251013_080403.down,
+    name: '20251013_080403',
+  },
+  {
+    up: migration_20251013_080753.up,
+    down: migration_20251013_080753.down,
+    name: '20251013_080753',
+  },
+  {
+    up: migration_20251013_081737.up,
+    down: migration_20251013_081737.down,
+    name: '20251013_081737',
+  },
+  {
+    up: migration_20251013_083554.up,
+    down: migration_20251013_083554.down,
+    name: '20251013_083554',
   },
   {
     up: migration_20251201_fix_merchant_coordinates_type_conflict.up,

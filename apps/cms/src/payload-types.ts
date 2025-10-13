@@ -963,7 +963,7 @@ export interface Merchant {
    */
   free_delivery_threshold?: number | null;
   /**
-   * PostGIS GEOMETRY(POINT, 4326) for spatial queries - auto-populated from lat/lng
+   * GeoJSON Point format for spatial queries - auto-populated from lat/lng
    */
   merchant_coordinates?:
     | {
