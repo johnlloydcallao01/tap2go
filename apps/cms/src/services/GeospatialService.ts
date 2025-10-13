@@ -710,7 +710,6 @@ export class GeospatialService {
           v.business_name as vendor_business_name,
           v.average_rating as vendor_average_rating,
           v.total_orders as vendor_total_orders,
-          v.is_verified as vendor_is_verified,
           v.cuisine_types as vendor_cuisine_types
         FROM merchants m
         LEFT JOIN vendors v ON m.vendor_id = v.id
@@ -776,7 +775,6 @@ export class GeospatialService {
             average_rating: row.vendor_average_rating,
             total_orders: row.vendor_total_orders,
             isActive: row.vendor_is_active,
-            isVerified: row.vendor_is_verified,
             cuisineTypes: row.vendor_cuisine_types
           } as unknown as Vendor
         } as MerchantWithDistance
@@ -787,10 +785,11 @@ export class GeospatialService {
         SELECT COUNT(*) as total_count
         FROM merchants m
         WHERE 
-         AND m.merchant_latitude IS NOT NULL 
-          AND m.merchant_longitude IS NOT NULL
+          m.merchant_coordinates IS NOT NULL
+          AND m.is_active = true
+          AND m.is_accepting_orders = true
           AND ST_DWithin(
-            ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857),
+            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857),
             ${radiusMeters}
           );
