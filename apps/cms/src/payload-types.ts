@@ -78,6 +78,7 @@ export interface Config {
     vendors: Vendor;
     merchants: Merchant;
     'product-categories': ProductCategory;
+    products: Product;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -95,6 +96,7 @@ export interface Config {
     vendors: VendorsSelect<false> | VendorsSelect<true>;
     merchants: MerchantsSelect<false> | MerchantsSelect<true>;
     'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
+    products: ProductsSelect<false> | ProductsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -1383,6 +1385,103 @@ export interface ProductCategory {
   createdAt: string;
 }
 /**
+ * Master product catalog for vendors and merchants
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products".
+ */
+export interface Product {
+  id: number;
+  /**
+   * Vendor that created this product (mutually exclusive with merchant)
+   */
+  createdByVendor?: (number | null) | Vendor;
+  /**
+   * Merchant that created this product (mutually exclusive with vendor)
+   */
+  createdByMerchant?: (number | null) | Merchant;
+  /**
+   * Type of product (simple, variable for variations, or grouped for bundles)
+   */
+  productType: 'simple' | 'variable' | 'grouped';
+  /**
+   * Parent product (for variations, points to the variable product)
+   */
+  parentProduct?: (number | null) | Product;
+  /**
+   * Product name
+   */
+  name: string;
+  /**
+   * Full product description
+   */
+  description?: {
+    root: {
+      type: string;
+      children: {
+        type: string;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Brief product description (max 500 characters)
+   */
+  shortDescription?: string | null;
+  /**
+   * Product category
+   */
+  category?: (number | null) | ProductCategory;
+  /**
+   * Stock Keeping Unit (unique identifier)
+   */
+  sku?: string | null;
+  /**
+   * Base price of the product
+   */
+  basePrice: number;
+  /**
+   * Original price for showing discounts
+   */
+  compareAtPrice?: number | null;
+  /**
+   * Product images and media
+   */
+  media?: {
+    /**
+     * Primary product image
+     */
+    primaryImage?: (number | null) | Media;
+    /**
+     * Additional product images
+     */
+    images?:
+      | {
+          image: number | Media;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Whether the product is currently active
+   */
+  isActive?: boolean | null;
+  /**
+   * Creation timestamp
+   */
+  createdAt: string;
+  /**
+   * Last update timestamp
+   */
+  updatedAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
@@ -1432,6 +1531,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'product-categories';
         value: number | ProductCategory;
+      } | null)
+    | ({
+        relationTo: 'products';
+        value: number | Product;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1849,6 +1952,37 @@ export interface ProductCategoriesSelect<T extends boolean = true> {
       };
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products_select".
+ */
+export interface ProductsSelect<T extends boolean = true> {
+  createdByVendor?: T;
+  createdByMerchant?: T;
+  productType?: T;
+  parentProduct?: T;
+  name?: T;
+  description?: T;
+  shortDescription?: T;
+  category?: T;
+  sku?: T;
+  basePrice?: T;
+  compareAtPrice?: T;
+  media?:
+    | T
+    | {
+        primaryImage?: T;
+        images?:
+          | T
+          | {
+              image?: T;
+              id?: T;
+            };
+      };
+  isActive?: T;
+  createdAt?: T;
+  updatedAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

@@ -44,7 +44,11 @@ import * as migration_20251013_080753 from './20251013_080753';
 import * as migration_20251013_081737 from './20251013_081737';
 import * as migration_20251013_083554 from './20251013_083554';
 import * as migration_20251013_093331 from './20251013_093331';
-import * as migration_20251014_064708 from './20251014_064708';
+import * as migration_20251014_104809_drop_products_table from './20251014_104809_drop_products_table';
+import * as migration_20251014_110310_product_management_schema from './20251014_110310_product_management_schema';
+import * as migration_20251014_113818_fix_products_description_column from './20251014_113818_fix_products_description_column';
+import * as migration_20251014_131132_force_complete_product_schema from './20251014_131132_force_complete_product_schema';
+import * as migration_20251014_185800_drop_products_media_images from './20251014_185800_drop_products_media_images';
 import * as migration_20251201_fix_merchant_coordinates_type_conflict from './20251201_fix_merchant_coordinates_type_conflict';
 import * as migration_20251201_restore_postgis_geometry from './20251201_restore_postgis_geometry';
 import * as migration_20251202_fix_merchant_coordinates_geometry_to_jsonb from './20251202_fix_merchant_coordinates_geometry_to_jsonb';
@@ -282,9 +286,29 @@ export const migrations = [
     name: '20251013_093331',
   },
   {
-    up: migration_20251014_064708.up,
-    down: migration_20251014_064708.down,
-    name: '20251014_064708',
+    up: migration_20251014_104809_drop_products_table.up,
+    down: migration_20251014_104809_drop_products_table.down,
+    name: '20251014_104809_drop_products_table',
+  },
+  {
+    up: migration_20251014_110310_product_management_schema.up,
+    down: migration_20251014_110310_product_management_schema.down,
+    name: '20251014_110310_product_management_schema',
+  },
+  {
+    up: migration_20251014_113818_fix_products_description_column.up,
+    down: migration_20251014_113818_fix_products_description_column.down,
+    name: '20251014_113818_fix_products_description_column',
+  },
+  {
+    up: migration_20251014_131132_force_complete_product_schema.up,
+    down: migration_20251014_131132_force_complete_product_schema.down,
+    name: '20251014_131132_force_complete_product_schema',
+  },
+  {
+    up: migration_20251014_185800_drop_products_media_images.up,
+    down: migration_20251014_185800_drop_products_media_images.down,
+    name: '20251014_185800_drop_products_media_images',
   },
   {
     up: migration_20251201_fix_merchant_coordinates_type_conflict.up,

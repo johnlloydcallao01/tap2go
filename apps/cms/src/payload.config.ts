@@ -28,6 +28,7 @@ import { Posts } from './collections/Posts'
 import { Vendors } from './collections/Vendors'
 import { Merchants } from './collections/Merchants'
 import { ProductCategories } from './collections/ProductCategories'
+import { Products } from './collections/Products'
 
 
 const filename = fileURLToPath(import.meta.url)
@@ -59,6 +60,7 @@ export default buildConfig({
     Vendors,
     Merchants,
     ProductCategories,
+    Products,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
