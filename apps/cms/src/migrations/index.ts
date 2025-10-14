@@ -44,6 +44,7 @@ import * as migration_20251013_080753 from './20251013_080753';
 import * as migration_20251013_081737 from './20251013_081737';
 import * as migration_20251013_083554 from './20251013_083554';
 import * as migration_20251013_093331 from './20251013_093331';
+import * as migration_20251014_064708 from './20251014_064708';
 import * as migration_20251201_fix_merchant_coordinates_type_conflict from './20251201_fix_merchant_coordinates_type_conflict';
 import * as migration_20251201_restore_postgis_geometry from './20251201_restore_postgis_geometry';
 import * as migration_20251202_fix_merchant_coordinates_geometry_to_jsonb from './20251202_fix_merchant_coordinates_geometry_to_jsonb';
@@ -279,6 +280,11 @@ export const migrations = [
     up: migration_20251013_093331.up,
     down: migration_20251013_093331.down,
     name: '20251013_093331',
+  },
+  {
+    up: migration_20251014_064708.up,
+    down: migration_20251014_064708.down,
+    name: '20251014_064708',
   },
   {
     up: migration_20251201_fix_merchant_coordinates_type_conflict.up,
