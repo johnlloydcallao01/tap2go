@@ -30,6 +30,21 @@ import { Merchants } from './collections/Merchants'
 import { ProductCategories } from './collections/ProductCategories'
 import { Products } from './collections/Products'
 
+// Product Management Collections
+import { ProdAttributes } from './collections/ProdAttributes'
+import { ProdAttributeTerms } from './collections/ProdAttributeTerms'
+import { ProdVariations } from './collections/ProdVariations'
+import { ProdVariationValues } from './collections/ProdVariationValues'
+import { ProdGroupedItems } from './collections/ProdGroupedItems'
+import { VendorProducts } from './collections/VendorProducts'
+import { MerchantProducts } from './collections/MerchantProducts'
+import { ModifierGroups } from './collections/ModifierGroups'
+import { ModifierOptions } from './collections/ModifierOptions'
+import { ProdTags } from './collections/ProdTags'
+import { ProdTagsJunction } from './collections/ProdTagsJunction'
+import { TagGroups } from './collections/TagGroups'
+import { TagGroupMemberships } from './collections/TagGroupMemberships'
+
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -61,6 +76,21 @@ export default buildConfig({
     Merchants,
     ProductCategories,
     Products,
+
+    // Product Management System
+    ProdAttributes,
+    ProdAttributeTerms,
+    ProdVariations,
+    ProdVariationValues,
+    ProdGroupedItems,
+    VendorProducts,
+    MerchantProducts,
+    ModifierGroups,
+    ModifierOptions,
+    ProdTags,
+    ProdTagsJunction,
+    TagGroups,
+    TagGroupMemberships,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

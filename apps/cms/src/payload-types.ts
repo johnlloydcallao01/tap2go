@@ -79,6 +79,19 @@ export interface Config {
     merchants: Merchant;
     'product-categories': ProductCategory;
     products: Product;
+    'prod-attributes': ProdAttribute;
+    'prod-attribute-terms': ProdAttributeTerm;
+    'prod-variations': ProdVariation;
+    'prod-variation-values': ProdVariationValue;
+    'prod-grouped-items': ProdGroupedItem;
+    'vendor-products': VendorProduct;
+    'merchant-products': MerchantProduct;
+    'modifier-groups': ModifierGroup;
+    'modifier-options': ModifierOption;
+    'prod-tags': ProdTag;
+    'prod-tags-junction': ProdTagsJunction;
+    'tag-groups': TagGroup;
+    'tag-group-memberships': TagGroupMembership;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -97,6 +110,19 @@ export interface Config {
     merchants: MerchantsSelect<false> | MerchantsSelect<true>;
     'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
+    'prod-attributes': ProdAttributesSelect<false> | ProdAttributesSelect<true>;
+    'prod-attribute-terms': ProdAttributeTermsSelect<false> | ProdAttributeTermsSelect<true>;
+    'prod-variations': ProdVariationsSelect<false> | ProdVariationsSelect<true>;
+    'prod-variation-values': ProdVariationValuesSelect<false> | ProdVariationValuesSelect<true>;
+    'prod-grouped-items': ProdGroupedItemsSelect<false> | ProdGroupedItemsSelect<true>;
+    'vendor-products': VendorProductsSelect<false> | VendorProductsSelect<true>;
+    'merchant-products': MerchantProductsSelect<false> | MerchantProductsSelect<true>;
+    'modifier-groups': ModifierGroupsSelect<false> | ModifierGroupsSelect<true>;
+    'modifier-options': ModifierOptionsSelect<false> | ModifierOptionsSelect<true>;
+    'prod-tags': ProdTagsSelect<false> | ProdTagsSelect<true>;
+    'prod-tags-junction': ProdTagsJunctionSelect<false> | ProdTagsJunctionSelect<true>;
+    'tag-groups': TagGroupsSelect<false> | TagGroupsSelect<true>;
+    'tag-group-memberships': TagGroupMembershipsSelect<false> | TagGroupMembershipsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -1483,6 +1509,298 @@ export interface Product {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-attributes".
+ */
+export interface ProdAttribute {
+  id: number;
+  /**
+   * e.g., Size, Color, Flavor
+   */
+  name: string;
+  /**
+   * URL-friendly version of the name
+   */
+  slug: string;
+  type: 'select' | 'color' | 'button' | 'radio';
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-attribute-terms".
+ */
+export interface ProdAttributeTerm {
+  id: number;
+  /**
+   * The attribute this term belongs to
+   */
+  attribute_id: number | ProdAttribute;
+  /**
+   * e.g., Small, Red, Vanilla
+   */
+  name: string;
+  /**
+   * URL-friendly version of the name
+   */
+  slug: string;
+  /**
+   * For color type, stores hex code
+   */
+  value?: string | null;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-variations".
+ */
+export interface ProdVariation {
+  id: number;
+  /**
+   * The variable product this variation belongs to
+   */
+  product_id: number | Product;
+  /**
+   * The attribute used for this variation
+   */
+  attribute_id: number | ProdAttribute;
+  /**
+   * Whether this attribute is used to create variations
+   */
+  is_used_for_variations?: boolean | null;
+  /**
+   * Whether shown on product page
+   */
+  is_visible?: boolean | null;
+  sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-variation-values".
+ */
+export interface ProdVariationValue {
+  id: number;
+  /**
+   * The variation (child product)
+   */
+  variation_product_id: number | Product;
+  attribute_id: number | ProdAttribute;
+  /**
+   * The specific value for this attribute
+   */
+  term_id: number | ProdAttributeTerm;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-grouped-items".
+ */
+export interface ProdGroupedItem {
+  id: number;
+  /**
+   * The grouped product
+   */
+  parent_product_id: number | Product;
+  /**
+   * Individual product in the group
+   */
+  child_product_id: number | Product;
+  default_quantity?: number | null;
+  sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "vendor-products".
+ */
+export interface VendorProduct {
+  id: number;
+  vendor_id: number | Vendor;
+  product_id: number | Product;
+  /**
+   * Automatically assign this product to new merchants
+   */
+  auto_assign_to_new_merchants?: boolean | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-products".
+ */
+export interface MerchantProduct {
+  id: number;
+  merchant_id: number | Merchant;
+  product_id: number | Product;
+  /**
+   * Who assigned this product to the merchant
+   */
+  added_by: 'vendor' | 'merchant';
+  /**
+   * Override product price (null = use product default)
+   */
+  price_override?: number | null;
+  is_active?: boolean | null;
+  /**
+   * Quick toggle on/off
+   */
+  is_available?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "modifier-groups".
+ */
+export interface ModifierGroup {
+  id: number;
+  product_id: number | Product;
+  /**
+   * e.g., Size, Extras
+   */
+  name: string;
+  selection_type: 'single' | 'multiple';
+  is_required?: boolean | null;
+  min_selections?: number | null;
+  /**
+   * Leave empty for unlimited
+   */
+  max_selections?: number | null;
+  sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "modifier-options".
+ */
+export interface ModifierOption {
+  id: number;
+  modifier_group_id: number | ModifierGroup;
+  name: string;
+  /**
+   * Additional cost for this option
+   */
+  price_adjustment?: number | null;
+  is_default?: boolean | null;
+  is_available?: boolean | null;
+  sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-tags".
+ */
+export interface ProdTag {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  /**
+   * Hex color code for UI display (e.g., #FF5733)
+   */
+  color?: string | null;
+  tag_type?:
+    | (
+        | 'general'
+        | 'dietary'
+        | 'cuisine'
+        | 'promotion'
+        | 'feature'
+        | 'allergen'
+        | 'spice_level'
+        | 'temperature'
+        | 'size_category'
+      )
+    | null;
+  /**
+   * For nested tags
+   */
+  parent_tag_id?: (number | null) | ProdTag;
+  /**
+   * Auto-updated via triggers
+   */
+  usage_count?: number | null;
+  is_active?: boolean | null;
+  /**
+   * For highlighting important tags
+   */
+  is_featured?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-tags-junction".
+ */
+export interface ProdTagsJunction {
+  id: number;
+  product_id: number | Product;
+  tag_id: number | ProdTag;
+  added_by_type: 'vendor' | 'merchant' | 'system';
+  added_by_vendor_id?: (number | null) | Vendor;
+  added_by_merchant_id?: (number | null) | Merchant;
+  /**
+   * Higher = more important
+   */
+  priority?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tag-groups".
+ */
+export interface TagGroup {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  /**
+   * Hex color for group display
+   */
+  color?: string | null;
+  /**
+   * Icon class or name
+   */
+  icon?: string | null;
+  /**
+   * Show in filter UI
+   */
+  is_filterable?: boolean | null;
+  /**
+   * Include in search
+   */
+  is_searchable?: boolean | null;
+  display_order?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tag-group-memberships".
+ */
+export interface TagGroupMembership {
+  id: number;
+  tag_group_id: number | TagGroup;
+  tag_id: number | ProdTag;
+  sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -1535,6 +1853,58 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'products';
         value: number | Product;
+      } | null)
+    | ({
+        relationTo: 'prod-attributes';
+        value: number | ProdAttribute;
+      } | null)
+    | ({
+        relationTo: 'prod-attribute-terms';
+        value: number | ProdAttributeTerm;
+      } | null)
+    | ({
+        relationTo: 'prod-variations';
+        value: number | ProdVariation;
+      } | null)
+    | ({
+        relationTo: 'prod-variation-values';
+        value: number | ProdVariationValue;
+      } | null)
+    | ({
+        relationTo: 'prod-grouped-items';
+        value: number | ProdGroupedItem;
+      } | null)
+    | ({
+        relationTo: 'vendor-products';
+        value: number | VendorProduct;
+      } | null)
+    | ({
+        relationTo: 'merchant-products';
+        value: number | MerchantProduct;
+      } | null)
+    | ({
+        relationTo: 'modifier-groups';
+        value: number | ModifierGroup;
+      } | null)
+    | ({
+        relationTo: 'modifier-options';
+        value: number | ModifierOption;
+      } | null)
+    | ({
+        relationTo: 'prod-tags';
+        value: number | ProdTag;
+      } | null)
+    | ({
+        relationTo: 'prod-tags-junction';
+        value: number | ProdTagsJunction;
+      } | null)
+    | ({
+        relationTo: 'tag-groups';
+        value: number | TagGroup;
+      } | null)
+    | ({
+        relationTo: 'tag-group-memberships';
+        value: number | TagGroupMembership;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1983,6 +2353,183 @@ export interface ProductsSelect<T extends boolean = true> {
   isActive?: T;
   createdAt?: T;
   updatedAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-attributes_select".
+ */
+export interface ProdAttributesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  type?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-attribute-terms_select".
+ */
+export interface ProdAttributeTermsSelect<T extends boolean = true> {
+  attribute_id?: T;
+  name?: T;
+  slug?: T;
+  value?: T;
+  sort_order?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-variations_select".
+ */
+export interface ProdVariationsSelect<T extends boolean = true> {
+  product_id?: T;
+  attribute_id?: T;
+  is_used_for_variations?: T;
+  is_visible?: T;
+  sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-variation-values_select".
+ */
+export interface ProdVariationValuesSelect<T extends boolean = true> {
+  variation_product_id?: T;
+  attribute_id?: T;
+  term_id?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-grouped-items_select".
+ */
+export interface ProdGroupedItemsSelect<T extends boolean = true> {
+  parent_product_id?: T;
+  child_product_id?: T;
+  default_quantity?: T;
+  sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "vendor-products_select".
+ */
+export interface VendorProductsSelect<T extends boolean = true> {
+  vendor_id?: T;
+  product_id?: T;
+  auto_assign_to_new_merchants?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-products_select".
+ */
+export interface MerchantProductsSelect<T extends boolean = true> {
+  merchant_id?: T;
+  product_id?: T;
+  added_by?: T;
+  price_override?: T;
+  is_active?: T;
+  is_available?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "modifier-groups_select".
+ */
+export interface ModifierGroupsSelect<T extends boolean = true> {
+  product_id?: T;
+  name?: T;
+  selection_type?: T;
+  is_required?: T;
+  min_selections?: T;
+  max_selections?: T;
+  sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "modifier-options_select".
+ */
+export interface ModifierOptionsSelect<T extends boolean = true> {
+  modifier_group_id?: T;
+  name?: T;
+  price_adjustment?: T;
+  is_default?: T;
+  is_available?: T;
+  sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-tags_select".
+ */
+export interface ProdTagsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  color?: T;
+  tag_type?: T;
+  parent_tag_id?: T;
+  usage_count?: T;
+  is_active?: T;
+  is_featured?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-tags-junction_select".
+ */
+export interface ProdTagsJunctionSelect<T extends boolean = true> {
+  product_id?: T;
+  tag_id?: T;
+  added_by_type?: T;
+  added_by_vendor_id?: T;
+  added_by_merchant_id?: T;
+  priority?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tag-groups_select".
+ */
+export interface TagGroupsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  color?: T;
+  icon?: T;
+  is_filterable?: T;
+  is_searchable?: T;
+  display_order?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tag-group-memberships_select".
+ */
+export interface TagGroupMembershipsSelect<T extends boolean = true> {
+  tag_group_id?: T;
+  tag_id?: T;
+  sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
