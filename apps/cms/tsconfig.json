@@ -11,14 +11,22 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "forceConsistentCasingInFileNames": true,
     "typeRoots": [
-      "./node_modules/@types"
+      "./node_modules/@types",
+      "../../../node_modules/@types"
+    ],
+    "types": [
+      "react",
+      "react-dom",
+      "node"
     ],
     "plugins": [
       {
