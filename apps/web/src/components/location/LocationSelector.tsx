@@ -245,6 +245,10 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
       // Update local state to reflect the new active address
       setActiveAddressId(addressId);
       
+      // Clear cache and force fresh fetch to ensure data consistency
+      AddressService.clearCache();
+      await loadUserAddresses();
+      
       // Emit address change event for real-time updates
       emitAddressChange(addressId);
       

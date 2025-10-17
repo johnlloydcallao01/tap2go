@@ -516,9 +516,16 @@ export class AddressService {
   static updateCacheOptimized(newAddress: any, userId?: string | number): void {
     const cached = dataCache.get<AddressCache>(CACHE_KEYS.ADDRESSES);
     if (cached && this.isCacheValid(cached.timestamp)) {
-      // Add new address to existing cache
-      const updatedAddresses = [...cached.addresses, newAddress];
-      this.updateCache(updatedAddresses, userId);
+      // Ensure the new address has all required fields before adding to cache
+      if (newAddress && newAddress.formatted_address && newAddress.id) {
+        // Add new address to existing cache
+        const updatedAddresses = [...cached.addresses, newAddress];
+        this.updateCache(updatedAddresses, userId);
+      } else {
+        // If new address is incomplete, clear cache to force fresh fetch
+        console.warn('New address is incomplete, clearing cache to force fresh fetch:', newAddress);
+        this.clearCache();
+      }
     }
   }
 
