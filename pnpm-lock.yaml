@@ -149,7 +149,7 @@ importers:
         version: 1.50.0
       '@testing-library/react':
         specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.2(@types/react@19.0.14))(@types/react@19.0.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.0(@types/react@19.0.14))(@types/react@19.0.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@types/minimatch':
         specifier: ^6.0.0
         version: 6.0.0
@@ -160,8 +160,8 @@ importers:
         specifier: ~19.0.10
         version: 19.0.14
       '@types/react-dom':
-        specifier: 19.1.2
-        version: 19.1.2(@types/react@19.0.14)
+        specifier: 19.1.0
+        version: 19.1.0(@types/react@19.0.14)
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.38.0
         version: 8.44.1(@typescript-eslint/parser@8.44.1(eslint@9.36.0(jiti@2.6.0))(typescript@5.7.3))(eslint@9.36.0(jiti@2.6.0))(typescript@5.7.3)
@@ -4170,6 +4170,11 @@ packages:
 
   '@types/pg@8.10.2':
     resolution: {integrity: sha512-MKFs9P6nJ+LAeHLU3V0cODEOgyThJ3OAnmOlsZsxux6sfQs3HRXR5bBn7xG5DjckEFhTAxsXi7k7cd0pCMxpJw==}
+
+  '@types/react-dom@19.1.0':
+    resolution: {integrity: sha512-21E2zejNNRtjG4hKIyJz4aWswGEcNFTgttA0bZIRGjj1HA/tbSUxIJnIcYbn98pwJck0cS1bsQhn6eaKqbcFWw==}
+    peerDependencies:
+      '@types/react': ~19.0.10
 
   '@types/react-dom@19.1.2':
     resolution: {integrity: sha512-XGJkWF41Qq305SKWEILa1O8vzhb3aOo3ogBlSmiqNko/WmRb6QIaweuZCXjKygVDXpzXb5wyxKTSOsmkuqj+Qw==}
@@ -13953,7 +13958,7 @@ snapshots:
       picocolors: 1.1.1
       pretty-format: 27.5.1
 
-  '@testing-library/react@16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.2(@types/react@19.0.14))(@types/react@19.0.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+  '@testing-library/react@16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.0(@types/react@19.0.14))(@types/react@19.0.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
     dependencies:
       '@babel/runtime': 7.28.4
       '@testing-library/dom': 10.4.1
@@ -13961,7 +13966,7 @@ snapshots:
       react-dom: 19.1.0(react@19.1.0)
     optionalDependencies:
       '@types/react': 19.0.14
-      '@types/react-dom': 19.1.2(@types/react@19.0.14)
+      '@types/react-dom': 19.1.0(@types/react@19.0.14)
 
   '@tokenizer/token@0.3.0': {}
 
@@ -14130,6 +14135,10 @@ snapshots:
       '@types/node': 22.18.6
       pg-protocol: 1.10.3
       pg-types: 4.1.0
+
+  '@types/react-dom@19.1.0(@types/react@19.0.14)':
+    dependencies:
+      '@types/react': 19.0.14
 
   '@types/react-dom@19.1.2(@types/react@19.0.14)':
     dependencies:
@@ -15932,7 +15941,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.44.1(eslint@9.36.0(jiti@2.6.0))(typescript@5.7.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.0))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.44.1(eslint@9.36.0(jiti@2.6.0))(typescript@5.8.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.0))
     transitivePeerDependencies:
       - supports-color
 
