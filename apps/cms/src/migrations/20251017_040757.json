@@ -1,5 +1,5 @@
 {
-  "id": "1a9b64dd-3df0-4e55-8eee-43e211d04973",
+  "id": "654df47f-7fc9-4d17-8ac0-99ce29aa058f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -413,6 +413,12 @@
           "notNull": false,
           "default": "'beginner'"
         },
+        "active_address_id": {
+          "name": "active_address_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp(3) with time zone",
@@ -459,6 +465,21 @@
           "method": "btree",
           "with": {}
         },
+        "customers_active_address_idx": {
+          "name": "customers_active_address_idx",
+          "columns": [
+            {
+              "expression": "active_address_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "customers_updated_at_idx": {
           "name": "customers_updated_at_idx",
           "columns": [
@@ -497,6 +518,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "customers_active_address_id_addresses_id_fk": {
+          "name": "customers_active_address_id_addresses_id_fk",
+          "tableFrom": "customers",
+          "tableTo": "addresses",
+          "columnsFrom": [
+            "active_address_id"
           ],
           "columnsTo": [
             "id"
@@ -914,6 +948,445 @@
         "emergency_contacts_user_id_users_id_fk": {
           "name": "emergency_contacts_user_id_users_id_fk",
           "tableFrom": "emergency_contacts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.addresses": {
+      "name": "addresses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "formatted_address": {
+          "name": "formatted_address",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "google_place_id": {
+          "name": "google_place_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "street_number": {
+          "name": "street_number",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "route": {
+          "name": "route",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subpremise": {
+          "name": "subpremise",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "barangay": {
+          "name": "barangay",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locality": {
+          "name": "locality",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "administrative_area_level_2": {
+          "name": "administrative_area_level_2",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "administrative_area_level_1": {
+          "name": "administrative_area_level_1",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country": {
+          "name": "country",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'Philippines'"
+        },
+        "postal_code": {
+          "name": "postal_code",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "coordinates": {
+          "name": "coordinates",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "altitude": {
+          "name": "altitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address_quality_score": {
+          "name": "address_quality_score",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "geocoding_accuracy": {
+          "name": "geocoding_accuracy",
+          "type": "enum_addresses_geocoding_accuracy",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "coordinate_source": {
+          "name": "coordinate_source",
+          "type": "enum_addresses_coordinate_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'GOOGLE_GEOCODING'"
+        },
+        "last_geocoded_at": {
+          "name": "last_geocoded_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verification_method": {
+          "name": "verification_method",
+          "type": "enum_addresses_verification_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'UNVERIFIED'"
+        },
+        "address_boundary": {
+          "name": "address_boundary",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_radius_meters": {
+          "name": "service_radius_meters",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accessibility_notes": {
+          "name": "accessibility_notes",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "landmark_description": {
+          "name": "landmark_description",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address_type": {
+          "name": "address_type",
+          "type": "enum_addresses_address_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'home'"
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "is_verified": {
+          "name": "is_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "addresses_user_idx": {
+          "name": "addresses_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "addresses_updated_at_idx": {
+          "name": "addresses_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "addresses_created_at_idx": {
+          "name": "addresses_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_idx": {
+          "name": "user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "latitude_longitude_idx": {
+          "name": "latitude_longitude_idx",
+          "columns": [
+            {
+              "expression": "latitude",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "longitude",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "locality_administrative_area_level_1_idx": {
+          "name": "locality_administrative_area_level_1_idx",
+          "columns": [
+            {
+              "expression": "locality",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "administrative_area_level_1",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "postal_code_idx": {
+          "name": "postal_code_idx",
+          "columns": [
+            {
+              "expression": "postal_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "google_place_id_idx": {
+          "name": "google_place_id_idx",
+          "columns": [
+            {
+              "expression": "google_place_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "address_quality_score_idx": {
+          "name": "address_quality_score_idx",
+          "columns": [
+            {
+              "expression": "address_quality_score",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "is_verified_idx": {
+          "name": "is_verified_idx",
+          "columns": [
+            {
+              "expression": "is_verified",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "geocoding_accuracy_idx": {
+          "name": "geocoding_accuracy_idx",
+          "columns": [
+            {
+              "expression": "geocoding_accuracy",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "coordinate_source_idx": {
+          "name": "coordinate_source_idx",
+          "columns": [
+            {
+              "expression": "coordinate_source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "verification_method_idx": {
+          "name": "verification_method_idx",
+          "columns": [
+            {
+              "expression": "verification_method",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "addresses_user_id_users_id_fk": {
+          "name": "addresses_user_id_users_id_fk",
+          "tableFrom": "addresses",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -1813,6 +2286,12 @@
           "primaryKey": true,
           "notNull": true
         },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "business_name": {
           "name": "business_name",
           "type": "varchar",
@@ -2005,6 +2484,21 @@
         }
       },
       "indexes": {
+        "vendors_user_idx": {
+          "name": "vendors_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "vendors_business_registration_number_idx": {
           "name": "vendors_business_registration_number_idx",
           "columns": [
@@ -2112,6 +2606,19 @@
         }
       },
       "foreignKeys": {
+        "vendors_user_id_users_id_fk": {
+          "name": "vendors_user_id_users_id_fk",
+          "tableFrom": "vendors",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "vendors_business_license_id_media_id_fk": {
           "name": "vendors_business_license_id_media_id_fk",
           "tableFrom": "vendors",
@@ -2185,62 +2692,6 @@
           "type": "varchar",
           "primaryKey": false,
           "notNull": true
-        },
-        "address_street_address": {
-          "name": "address_street_address",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "address_barangay": {
-          "name": "address_barangay",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "address_city": {
-          "name": "address_city",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "address_province": {
-          "name": "address_province",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "address_postal_code": {
-          "name": "address_postal_code",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "address_country": {
-          "name": "address_country",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'Philippines'"
-        },
-        "location_latitude": {
-          "name": "location_latitude",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "location_longitude": {
-          "name": "location_longitude",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "location_delivery_radius_km": {
-          "name": "location_delivery_radius_km",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 5
         },
         "contact_info_phone": {
           "name": "contact_info_phone",
@@ -2334,48 +2785,6 @@
           "notNull": false,
           "default": 60
         },
-        "metrics_average_rating": {
-          "name": "metrics_average_rating",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_total_reviews": {
-          "name": "metrics_total_reviews",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_total_orders": {
-          "name": "metrics_total_orders",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_average_preparation_time_minutes": {
-          "name": "metrics_average_preparation_time_minutes",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 20
-        },
-        "metrics_order_acceptance_rate": {
-          "name": "metrics_order_acceptance_rate",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 100
-        },
-        "metrics_on_time_delivery_rate": {
-          "name": "metrics_on_time_delivery_rate",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 100
-        },
         "media_thumbnail_id": {
           "name": "media_thumbnail_id",
           "type": "integer",
@@ -2400,42 +2809,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "compliance_business_permit_number": {
-          "name": "compliance_business_permit_number",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "compliance_food_safety_license": {
-          "name": "compliance_food_safety_license",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "compliance_fire_permit_number": {
-          "name": "compliance_fire_permit_number",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "compliance_sanitary_permit_number": {
-          "name": "compliance_sanitary_permit_number",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "compliance_last_inspection_date": {
-          "name": "compliance_last_inspection_date",
-          "type": "timestamp(3) with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "compliance_inspection_score": {
-          "name": "compliance_inspection_score",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
         "description": {
           "name": "description",
           "type": "varchar",
@@ -2451,6 +2824,160 @@
         "tags": {
           "name": "tags",
           "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active_address_id": {
+          "name": "active_address_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "merchant_latitude": {
+          "name": "merchant_latitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "merchant_longitude": {
+          "name": "merchant_longitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location_accuracy_radius": {
+          "name": "location_accuracy_radius",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_radius_meters": {
+          "name": "delivery_radius_meters",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 5000
+        },
+        "max_delivery_radius_meters": {
+          "name": "max_delivery_radius_meters",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 10000
+        },
+        "min_order_amount": {
+          "name": "min_order_amount",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_fee_base": {
+          "name": "delivery_fee_base",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_fee_per_km": {
+          "name": "delivery_fee_per_km",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "free_delivery_threshold": {
+          "name": "free_delivery_threshold",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "merchant_coordinates": {
+          "name": "merchant_coordinates",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_area_geometry": {
+          "name": "service_area_geometry",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority_zones_geometry": {
+          "name": "priority_zones_geometry",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "restricted_areas_geometry": {
+          "name": "restricted_areas_geometry",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_zones_geometry": {
+          "name": "delivery_zones_geometry",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_area": {
+          "name": "service_area",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority_zones": {
+          "name": "priority_zones",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "restricted_areas": {
+          "name": "restricted_areas",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_zones": {
+          "name": "delivery_zones",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avg_delivery_time_minutes": {
+          "name": "avg_delivery_time_minutes",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_success_rate": {
+          "name": "delivery_success_rate",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "peak_hours_multiplier": {
+          "name": "peak_hours_multiplier",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 1
+        },
+        "delivery_hours": {
+          "name": "delivery_hours",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_currently_delivering": {
+          "name": "is_currently_delivering",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "next_available_slot": {
+          "name": "next_available_slot",
+          "type": "timestamp(3) with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -2530,6 +3057,21 @@
           "method": "btree",
           "with": {}
         },
+        "merchants_active_address_idx": {
+          "name": "merchants_active_address_idx",
+          "columns": [
+            {
+              "expression": "active_address_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "merchants_updated_at_idx": {
           "name": "merchants_updated_at_idx",
           "columns": [
@@ -2550,6 +3092,132 @@
           "columns": [
             {
               "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "vendor_idx": {
+          "name": "vendor_idx",
+          "columns": [
+            {
+              "expression": "vendor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "outletCode_idx": {
+          "name": "outletCode_idx",
+          "columns": [
+            {
+              "expression": "outlet_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "isActive_isAcceptingOrders_idx": {
+          "name": "isActive_isAcceptingOrders_idx",
+          "columns": [
+            {
+              "expression": "is_active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "is_accepting_orders",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "operationalStatus_idx": {
+          "name": "operationalStatus_idx",
+          "columns": [
+            {
+              "expression": "operational_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "delivery_radius_meters_idx": {
+          "name": "delivery_radius_meters_idx",
+          "columns": [
+            {
+              "expression": "delivery_radius_meters",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "is_currently_delivering_idx": {
+          "name": "is_currently_delivering_idx",
+          "columns": [
+            {
+              "expression": "is_currently_delivering",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "avg_delivery_time_minutes_idx": {
+          "name": "avg_delivery_time_minutes_idx",
+          "columns": [
+            {
+              "expression": "avg_delivery_time_minutes",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "delivery_success_rate_idx": {
+          "name": "delivery_success_rate_idx",
+          "columns": [
+            {
+              "expression": "delivery_success_rate",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2594,6 +3262,19 @@
           "tableTo": "media",
           "columnsFrom": [
             "media_store_front_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "merchants_active_address_id_addresses_id_fk": {
+          "name": "merchants_active_address_id_addresses_id_fk",
+          "tableFrom": "merchants",
+          "tableTo": "addresses",
+          "columnsFrom": [
+            "active_address_id"
           ],
           "columnsTo": [
             "id"
@@ -3070,6 +3751,116 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.products_media_images": {
+      "name": "products_media_images",
+      "schema": "",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "image_id": {
+          "name": "image_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "products_media_images_order_idx": {
+          "name": "products_media_images_order_idx",
+          "columns": [
+            {
+              "expression": "_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_media_images_parent_id_idx": {
+          "name": "products_media_images_parent_id_idx",
+          "columns": [
+            {
+              "expression": "_parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_media_images_image_idx": {
+          "name": "products_media_images_image_idx",
+          "columns": [
+            {
+              "expression": "image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "products_media_images_image_id_media_id_fk": {
+          "name": "products_media_images_image_id_media_id_fk",
+          "tableFrom": "products_media_images",
+          "tableTo": "media",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "products_media_images_parent_id_fk": {
+          "name": "products_media_images_parent_id_fk",
+          "tableFrom": "products_media_images",
+          "tableTo": "products",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.products": {
       "name": "products",
       "schema": "",
@@ -3080,17 +3871,31 @@
           "primaryKey": true,
           "notNull": true
         },
-        "merchant_id": {
-          "name": "merchant_id",
+        "created_by_vendor_id": {
+          "name": "created_by_vendor_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "primary_category_id": {
-          "name": "primary_category_id",
+        "created_by_merchant_id": {
+          "name": "created_by_merchant_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "product_type": {
+          "name": "product_type",
+          "type": "enum_products_product_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'simple'"
+        },
+        "parent_product_id": {
+          "name": "parent_product_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "name": {
           "name": "name",
@@ -3098,15 +3903,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "slug": {
-          "name": "slug",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
         "description": {
           "name": "description",
-          "type": "varchar",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -3116,260 +3915,29 @@
           "primaryKey": false,
           "notNull": false
         },
-        "pricing_base_price": {
-          "name": "pricing_base_price",
+        "category_id": {
+          "name": "category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sku": {
+          "name": "sku",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_price": {
+          "name": "base_price",
           "type": "numeric",
           "primaryKey": false,
           "notNull": true
         },
-        "pricing_discounted_price": {
-          "name": "pricing_discounted_price",
+        "compare_at_price": {
+          "name": "compare_at_price",
           "type": "numeric",
           "primaryKey": false,
           "notNull": false
-        },
-        "pricing_cost_price": {
-          "name": "pricing_cost_price",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "identification_sku": {
-          "name": "identification_sku",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "identification_barcode": {
-          "name": "identification_barcode",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "identification_product_code": {
-          "name": "identification_product_code",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "physical_attributes_weight_grams": {
-          "name": "physical_attributes_weight_grams",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "physical_attributes_dimensions_length": {
-          "name": "physical_attributes_dimensions_length",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "physical_attributes_dimensions_width": {
-          "name": "physical_attributes_dimensions_width",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "physical_attributes_dimensions_height": {
-          "name": "physical_attributes_dimensions_height",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "physical_attributes_volume": {
-          "name": "physical_attributes_volume",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "physical_attributes_serving_size": {
-          "name": "physical_attributes_serving_size",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nutrition_calories": {
-          "name": "nutrition_calories",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nutrition_macronutrients_protein": {
-          "name": "nutrition_macronutrients_protein",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nutrition_macronutrients_carbohydrates": {
-          "name": "nutrition_macronutrients_carbohydrates",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nutrition_macronutrients_fat": {
-          "name": "nutrition_macronutrients_fat",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nutrition_macronutrients_fiber": {
-          "name": "nutrition_macronutrients_fiber",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nutrition_macronutrients_sugar": {
-          "name": "nutrition_macronutrients_sugar",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nutrition_macronutrients_sodium": {
-          "name": "nutrition_macronutrients_sodium",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dietary_is_vegetarian": {
-          "name": "dietary_is_vegetarian",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_is_vegan": {
-          "name": "dietary_is_vegan",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_is_gluten_free": {
-          "name": "dietary_is_gluten_free",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_is_halal": {
-          "name": "dietary_is_halal",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_is_kosher": {
-          "name": "dietary_is_kosher",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_is_organic": {
-          "name": "dietary_is_organic",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_is_dairy_free": {
-          "name": "dietary_is_dairy_free",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_is_nut_free": {
-          "name": "dietary_is_nut_free",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "dietary_spice_level": {
-          "name": "dietary_spice_level",
-          "type": "enum_products_dietary_spice_level",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'none'"
-        },
-        "dietary_allergens": {
-          "name": "dietary_allergens",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dietary_ingredients": {
-          "name": "dietary_ingredients",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "availability_is_available": {
-          "name": "availability_is_available",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": true
-        },
-        "availability_stock_quantity": {
-          "name": "availability_stock_quantity",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "availability_low_stock_threshold": {
-          "name": "availability_low_stock_threshold",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 5
-        },
-        "availability_max_order_quantity": {
-          "name": "availability_max_order_quantity",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "availability_available_hours": {
-          "name": "availability_available_hours",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "availability_seasonal_availability": {
-          "name": "availability_seasonal_availability",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "preparation_preparation_time_minutes": {
-          "name": "preparation_preparation_time_minutes",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 15
-        },
-        "preparation_cooking_method": {
-          "name": "preparation_cooking_method",
-          "type": "enum_products_preparation_cooking_method",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "preparation_special_instructions": {
-          "name": "preparation_special_instructions",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "preparation_requires_special_equipment": {
-          "name": "preparation_requires_special_equipment",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
         },
         "media_primary_image_id": {
           "name": "media_primary_image_id",
@@ -3377,119 +3945,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "media_video_id": {
-          "name": "media_video_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status_is_featured": {
-          "name": "status_is_featured",
+        "is_active": {
+          "name": "is_active",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false,
-          "default": false
-        },
-        "status_is_new_item": {
-          "name": "status_is_new_item",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "status_is_popular": {
-          "name": "status_is_popular",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "status_is_recommended": {
-          "name": "status_is_recommended",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "status_display_order": {
-          "name": "status_display_order",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_average_rating": {
-          "name": "metrics_average_rating",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_total_reviews": {
-          "name": "metrics_total_reviews",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_total_orders": {
-          "name": "metrics_total_orders",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_view_count": {
-          "name": "metrics_view_count",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_popularity_score": {
-          "name": "metrics_popularity_score",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "metrics_reorder_rate": {
-          "name": "metrics_reorder_rate",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "seo_meta_title": {
-          "name": "seo_meta_title",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "seo_meta_description": {
-          "name": "seo_meta_description",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tags": {
-          "name": "tags",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp(3) with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -3497,14 +3958,21 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
-        "products_merchant_idx": {
-          "name": "products_merchant_idx",
+        "products_created_by_vendor_idx": {
+          "name": "products_created_by_vendor_idx",
           "columns": [
             {
-              "expression": "merchant_id",
+              "expression": "created_by_vendor_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3515,11 +3983,11 @@
           "method": "btree",
           "with": {}
         },
-        "products_primary_category_idx": {
-          "name": "products_primary_category_idx",
+        "products_created_by_merchant_idx": {
+          "name": "products_created_by_merchant_idx",
           "columns": [
             {
-              "expression": "primary_category_id",
+              "expression": "created_by_merchant_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3530,26 +3998,41 @@
           "method": "btree",
           "with": {}
         },
-        "products_slug_idx": {
-          "name": "products_slug_idx",
+        "products_parent_product_idx": {
+          "name": "products_parent_product_idx",
           "columns": [
             {
-              "expression": "slug",
+              "expression": "parent_product_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "products_identification_identification_sku_idx": {
-          "name": "products_identification_identification_sku_idx",
+        "products_category_idx": {
+          "name": "products_category_idx",
           "columns": [
             {
-              "expression": "identification_sku",
+              "expression": "category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_sku_idx": {
+          "name": "products_sku_idx",
+          "columns": [
+            {
+              "expression": "sku",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3574,60 +4057,15 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "products_media_media_video_idx": {
-          "name": "products_media_media_video_idx",
-          "columns": [
-            {
-              "expression": "media_video_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "products_updated_at_idx": {
-          "name": "products_updated_at_idx",
-          "columns": [
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "products_created_at_idx": {
-          "name": "products_created_at_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
-        "products_merchant_id_merchants_id_fk": {
-          "name": "products_merchant_id_merchants_id_fk",
+        "products_created_by_vendor_id_vendors_id_fk": {
+          "name": "products_created_by_vendor_id_vendors_id_fk",
           "tableFrom": "products",
-          "tableTo": "merchants",
+          "tableTo": "vendors",
           "columnsFrom": [
-            "merchant_id"
+            "created_by_vendor_id"
           ],
           "columnsTo": [
             "id"
@@ -3635,12 +4073,38 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "products_primary_category_id_prod_categories_id_fk": {
-          "name": "products_primary_category_id_prod_categories_id_fk",
+        "products_created_by_merchant_id_merchants_id_fk": {
+          "name": "products_created_by_merchant_id_merchants_id_fk",
+          "tableFrom": "products",
+          "tableTo": "merchants",
+          "columnsFrom": [
+            "created_by_merchant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "products_parent_product_id_products_id_fk": {
+          "name": "products_parent_product_id_products_id_fk",
+          "tableFrom": "products",
+          "tableTo": "products",
+          "columnsFrom": [
+            "parent_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "products_category_id_prod_categories_id_fk": {
+          "name": "products_category_id_prod_categories_id_fk",
           "tableFrom": "products",
           "tableTo": "prod_categories",
           "columnsFrom": [
-            "primary_category_id"
+            "category_id"
           ],
           "columnsTo": [
             "id"
@@ -3654,19 +4118,6 @@
           "tableTo": "media",
           "columnsFrom": [
             "media_primary_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "products_media_video_id_media_id_fk": {
-          "name": "products_media_video_id_media_id_fk",
-          "tableFrom": "products",
-          "tableTo": "media",
-          "columnsFrom": [
-            "media_video_id"
           ],
           "columnsTo": [
             "id"
@@ -3824,6 +4275,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "addresses_id": {
+          "name": "addresses_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "media_id": {
           "name": "media_id",
           "type": "integer",
@@ -3972,6 +4429,21 @@
           "columns": [
             {
               "expression": "emergency_contacts_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_addresses_id_idx": {
+          "name": "payload_locked_documents_rels_addresses_id_idx",
+          "columns": [
+            {
+              "expression": "addresses_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4145,6 +4617,19 @@
           "tableTo": "emergency_contacts",
           "columnsFrom": [
             "emergency_contacts_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_addresses_fk": {
+          "name": "payload_locked_documents_rels_addresses_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "addresses",
+          "columnsFrom": [
+            "addresses_id"
           ],
           "columnsTo": [
             "id"
@@ -4564,7 +5049,8 @@
       "values": [
         "admin",
         "customer",
-        "service"
+        "service",
+        "vendor"
       ]
     },
     "public.enum_customers_current_level": {
@@ -4611,6 +5097,48 @@
         "friend",
         "relative",
         "other"
+      ]
+    },
+    "public.enum_addresses_geocoding_accuracy": {
+      "name": "enum_addresses_geocoding_accuracy",
+      "schema": "public",
+      "values": [
+        "ROOFTOP",
+        "RANGE_INTERPOLATED",
+        "GEOMETRIC_CENTER",
+        "APPROXIMATE"
+      ]
+    },
+    "public.enum_addresses_coordinate_source": {
+      "name": "enum_addresses_coordinate_source",
+      "schema": "public",
+      "values": [
+        "GPS",
+        "GOOGLE_GEOCODING",
+        "MANUAL",
+        "ESTIMATED"
+      ]
+    },
+    "public.enum_addresses_verification_method": {
+      "name": "enum_addresses_verification_method",
+      "schema": "public",
+      "values": [
+        "GPS_CONFIRMED",
+        "DELIVERY_CONFIRMED",
+        "USER_CONFIRMED",
+        "UNVERIFIED"
+      ]
+    },
+    "public.enum_addresses_address_type": {
+      "name": "enum_addresses_address_type",
+      "schema": "public",
+      "values": [
+        "home",
+        "work",
+        "billing",
+        "shipping",
+        "pickup",
+        "delivery"
       ]
     },
     "public.enum_posts_status": {
@@ -4688,29 +5216,13 @@
         "21_plus"
       ]
     },
-    "public.enum_products_dietary_spice_level": {
-      "name": "enum_products_dietary_spice_level",
+    "public.enum_products_product_type": {
+      "name": "enum_products_product_type",
       "schema": "public",
       "values": [
-        "none",
-        "mild",
-        "medium",
-        "hot",
-        "extra_hot"
-      ]
-    },
-    "public.enum_products_preparation_cooking_method": {
-      "name": "enum_products_preparation_cooking_method",
-      "schema": "public",
-      "values": [
-        "grilled",
-        "fried",
-        "baked",
-        "steamed",
-        "boiled",
-        "raw",
-        "no_cooking",
-        "other"
+        "simple",
+        "variable",
+        "grouped"
       ]
     }
   },

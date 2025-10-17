@@ -993,6 +993,29 @@ export const products = pgTable(
   }),
 )
 
+export const prod_attribute_terms = pgTable(
+  'prod_attribute_terms',
+  {
+    id: serial('id').primaryKey(),
+    attribute_id: integer('attribute_id').notNull(),
+    name: varchar('name').notNull(),
+    slug: varchar('slug').notNull(),
+    value: varchar('value'),
+    sort_order: integer('sort_order').default(0),
+    is_active: boolean('is_active').default(true),
+    created_at: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    prod_attribute_terms_attribute_id_slug_idx: uniqueIndex('prod_attribute_terms_attribute_id_slug_idx').on(
+      columns.attribute_id,
+      columns.slug,
+    ),
+    prod_attribute_terms_created_at_idx: index('prod_attribute_terms_created_at_idx').on(columns.created_at),
+  }),
+)
+
 export const payload_locked_documents = pgTable(
   'payload_locked_documents',
   {
@@ -1037,6 +1060,7 @@ export const payload_locked_documents_rels = pgTable(
     merchantsID: integer('merchants_id'),
     'product-categoriesID': integer('prod_categories_id'),
     productsID: integer('products_id'),
+    'prod-attribute-termsID': integer('prod_attribute_terms_id'),
   },
   (columns) => ({
     order: index('payload_locked_documents_rels_order_idx').on(columns.order),
@@ -1078,6 +1102,9 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_products_id_idx: index(
       'payload_locked_documents_rels_products_id_idx',
     ).on(columns.productsID),
+    payload_locked_documents_rels_prod_attribute_terms_id_idx: index(
+      'payload_locked_documents_rels_prod_attribute_terms_id_idx',
+    ).on(columns['prod-attribute-termsID']),
     parentFk: foreignKey({
       columns: [columns['parent']],
       foreignColumns: [payload_locked_documents.id],
@@ -1142,6 +1169,11 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns['productsID']],
       foreignColumns: [products.id],
       name: 'payload_locked_documents_rels_products_fk',
+    }).onDelete('cascade'),
+    'prod-attribute-termsIdFk': foreignKey({
+      columns: [columns['prod-attribute-termsID']],
+      foreignColumns: [prod_attribute_terms.id],
+      name: 'payload_locked_documents_rels_prod_attribute_terms_fk',
     }).onDelete('cascade'),
   }),
 )
@@ -1490,6 +1522,11 @@ export const relations_payload_locked_documents_rels = relations(
       references: [products.id],
       relationName: 'products',
     }),
+    'prod-attribute-termsID': one(prod_attribute_terms, {
+      fields: [payload_locked_documents_rels['prod-attribute-termsID']],
+      references: [prod_attribute_terms.id],
+      relationName: 'prod-attribute-terms',
+    }),
   }),
 )
 export const relations_payload_locked_documents = relations(
@@ -1559,6 +1596,7 @@ type DatabaseSchema = {
   merchants: typeof merchants
   prod_categories: typeof prod_categories
   products: typeof products
+  prod_attribute_terms: typeof prod_attribute_terms
   payload_locked_documents: typeof payload_locked_documents
   payload_locked_documents_rels: typeof payload_locked_documents_rels
   payload_preferences: typeof payload_preferences
