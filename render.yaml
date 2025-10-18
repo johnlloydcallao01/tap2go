@@ -15,7 +15,7 @@ services:
         value: production
       - key: PAYLOAD_SECRET
         sync: false
-      - key: MONGODB_URI
+      - key: DATABASE_URI
         sync: false
       - key: NEXT_PUBLIC_SERVER_URL
         value: https://cms.tap2goph.com
