@@ -147,7 +147,7 @@ export class AddressService {
   }
 
   /**
-   * Get all addresses for the current user
+   * Get all addresses for the current user with improved error handling
    */
   static async getUserAddresses(useCache: boolean = true): Promise<AddressResponse> {
     try {
@@ -155,6 +155,7 @@ export class AddressService {
       if (useCache) {
         const cachedAddresses = this.getCachedAddresses();
         if (cachedAddresses) {
+          console.log('📦 Using cached addresses:', cachedAddresses.length);
           return { success: true, addresses: cachedAddresses };
         }
       }
@@ -165,20 +166,60 @@ export class AddressService {
         headers: this.getHeaders(),
       });
 
+      if (!response.ok) {
+        // Handle specific error cases
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. Please check your permissions.');
+        } else if (response.status >= 500) {
+          throw new Error('Server error. Please try again later.');
+        }
+        
+        // Try to get error details from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (parseError) {
+          // Use default error message if parsing fails
+        }
+        
+        throw new Error(errorMessage);
+      }
+
       const data: AddressResponse = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch addresses');
       }
 
       // Update cache with fetched addresses
-      if (data.success && data.addresses) {
+      if (data.addresses) {
+        console.log('✅ Fetched addresses successfully:', data.addresses.length);
         this.updateCache(data.addresses);
+      } else {
+        console.log('✅ No addresses found for user');
+        this.updateCache([]);
       }
 
       return data;
     } catch (error) {
-      console.error('Error fetching addresses:', error);
+      console.error('❌ Error fetching addresses:', error);
+      
+      // If we have cached data and the error is network-related, use cache as fallback
+      if (error instanceof Error && (
+        error.message.includes('fetch') || 
+        error.message.includes('network') || 
+        error.message.includes('Server error')
+      )) {
+        const cachedAddresses = this.getCachedAddresses();
+        if (cachedAddresses) {
+          console.log('🔄 Using cached addresses as fallback due to network error');
+          return { success: true, addresses: cachedAddresses };
+        }
+      }
+      
       throw error;
     }
   }
@@ -275,19 +316,14 @@ export class AddressService {
   // === ACTIVE ADDRESS MANAGEMENT ===
   
   /**
-   * Get customer ID from user ID
+   * Get customer ID from user ID using Next.js API route
    */
   private static async getCustomerIdFromUserId(userId: string | number): Promise<string | null> {
     try {
-      // Use proper authentication headers for PayloadCMS API
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Authorization': `users API-Key ${process.env.NEXT_PUBLIC_PAYLOAD_API_KEY}`,
-      };
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api'}/customers?where[user][equals]=${userId}&limit=1`, {
+      // Use Next.js API route instead of direct PayloadCMS call
+      const response = await fetch(`/api/customers/user/${userId}`, {
         method: 'GET',
-        headers,
+        headers: this.getHeaders(),
       });
 
       if (!response.ok) {
@@ -296,8 +332,8 @@ export class AddressService {
       }
 
       const data = await response.json();
-      if (data.docs && data.docs.length > 0) {
-        return data.docs[0].id;
+      if (data.success && data.customer) {
+        return data.customer.id;
       }
       
       console.error('No customer found for user ID:', userId);
@@ -432,11 +468,27 @@ export class AddressService {
 
       console.log('🌐 Fetching active address from API');
       
-      // Step 1: Get customer ID from user ID
+      // Simplified approach: Get customer ID and active address in one call
       const customerId = await this.getCustomerIdFromUserId(userId);
       
       if (!customerId) {
         console.log('No customer found for user ID:', userId);
+        // Fallback: try to get the most recent address from user addresses
+        try {
+          const addressesResponse = await this.getUserAddresses(useCache);
+          if (addressesResponse.success && addressesResponse.addresses && addressesResponse.addresses.length > 0) {
+            // Use the most recent address as fallback
+            const mostRecentAddress = addressesResponse.addresses
+              .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+            
+            // Update cache with fallback address
+            this.updateActiveAddressInCache(userId, mostRecentAddress);
+            return { success: true, address: mostRecentAddress };
+          }
+        } catch (fallbackError) {
+          console.error('Fallback address fetch failed:', fallbackError);
+        }
+        
         return { success: true, address: null };
       }
 
@@ -464,6 +516,23 @@ export class AddressService {
       return { success: true, address: activeAddress };
     } catch (error) {
       console.error('Error getting active address:', error);
+      
+      // Enhanced fallback: try to get any saved address
+      try {
+        console.log('🔄 Attempting fallback to user addresses...');
+        const addressesResponse = await this.getUserAddresses(false); // Skip cache for fallback
+        if (addressesResponse.success && addressesResponse.addresses && addressesResponse.addresses.length > 0) {
+          // Use the most recent address as fallback
+          const mostRecentAddress = addressesResponse.addresses
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+          
+          console.log('✅ Using fallback address:', mostRecentAddress.formatted_address);
+          return { success: true, address: mostRecentAddress };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback address fetch failed:', fallbackError);
+      }
+      
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to get active address' 

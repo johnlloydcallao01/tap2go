@@ -613,7 +613,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Load address from backend only
+  // Load address from backend with improved error handling
   const loadAddressFromBackend = useCallback(async () => {
     if (!user?.id) {
       setIsLoadingAddress(false);
@@ -621,8 +621,11 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
     }
 
     try {
-      // First, try to get user's active address from backend
+      setIsLoadingAddress(true);
+      
+      // Try to get user's active address first
       const activeAddressResponse = await AddressService.getActiveAddress(user.id, true);
+      
       if (activeAddressResponse.success && activeAddressResponse.address) {
         const activeAddress = activeAddressResponse.address;
         
@@ -643,33 +646,11 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
         return; // Exit early, we have the active address
       }
 
-      // Fallback: fetch user's addresses and use default or latest one
-      const response = await AddressService.getUserAddresses(true);
-      if (response.success && response.addresses && response.addresses.length > 0) {
-        // Find default address or use the most recent one (latest saved)
-        const defaultAddress = response.addresses.find((addr: any) => addr.is_default) || 
-                              response.addresses.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-        
-        if (defaultAddress) {
-          // Convert API address back to Google Places format for display
-          const googlePlaceFormat: google.maps.places.PlaceResult = {
-            formatted_address: defaultAddress.formatted_address,
-            place_id: defaultAddress.google_place_id,
-            name: defaultAddress.formatted_address,
-            geometry: defaultAddress.latitude && defaultAddress.longitude ? {
-              location: {
-                lat: () => defaultAddress.latitude,
-                lng: () => defaultAddress.longitude
-              } as google.maps.LatLng
-            } : undefined
-          };
-          
-          setSelectedLocation(googlePlaceFormat);
-        }
-      } else {
-        // No addresses found - reset selected location
-        setSelectedLocation(null);
-      }
+      // If no active address, the getActiveAddress method already handles fallback
+      // So if we reach here, there are truly no addresses
+      console.log('No addresses found for user');
+      setSelectedLocation(null);
+      
     } catch (error) {
       console.error('Error loading address from backend:', error);
       setSelectedLocation(null);
