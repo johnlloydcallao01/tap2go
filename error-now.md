@@ -1,136 +1,231 @@
-2025-10-18T01:29:14.143125114Z               at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-2025-10-18T01:29:14.143127534Z               at async x (/opt/render/project/src/apps/cms/.next/server/chunks/877.js:421:36825)
-2025-10-18T01:29:14.143130284Z               at async eX (/opt/render/project/src/apps/cms/.next/server/chunks/877.js:421:75865)
-2025-10-18T01:29:14.143132394Z               at async u (/opt/render/project/src/apps/cms/.next/server/chunks/7984.js:1:3838)
-2025-10-18T01:29:14.143134544Z               at async /opt/render/project/src/apps/cms/.next/server/chunks/7984.js:1:6641
-2025-10-18T01:29:14.143136634Z               at async /opt/render/project/src/apps/cms/.next/server/app/(payload)/api/[...slug]/route.js:1:4893
-2025-10-18T01:29:14.143139534Z               at async e5.do (/opt/render/project/src/node_modules/.pnpm/next@15.0.0_@babel+core@7.28.4_@playwright+test@1.50.0_react-dom@19.1.0_react@19.1.0__react@19.1.0_sass@1.77.4/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:18:18072)
-2025-10-18T01:29:14.143141685Z               at async e5.handle (/opt/render/project/src/node_modules/.pnpm/next@15.0.0_@babel+core@7.28.4_@playwright+test@1.50.0_react-dom@19.1.0_react@19.1.0__react@19.1.0_sass@1.77.4/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:18:21621)
-2025-10-18T01:29:14.143154775Z               at async doRender (/opt/render/project/src/node_modules/.pnpm/next@15.0.0_@babel+core@7.28.4_@playwright+test@1.50.0_react-dom@19.1.0_react@19.1.0__react@19.1.0_sass@1.77.4/node_modules/next/dist/server/base-server.js:1493:42)
-2025-10-18T01:29:14.143157005Z       "data": null,
-2025-10-18T01:29:14.143159605Z       "isOperational": true,
-2025-10-18T01:29:14.143161645Z       "isPublic": false,
-2025-10-18T01:29:14.143163645Z       "status": 403,
-2025-10-18T01:29:14.143165775Z       "name": "l"
-2025-10-18T01:29:14.143167865Z     }
-2025-10-18T01:29:14.143240257Z === GET REQUEST SUCCESS ===
-2025-10-18T01:29:14.143259248Z Status: 403
-2025-10-18T01:29:15.162101119Z === GET REQUEST START ===
-2025-10-18T01:29:15.16212885Z URL: https://localhost:10000/api/users/me
-2025-10-18T01:29:15.16213285Z Method: GET
-2025-10-18T01:29:15.162211063Z Headers: {
-2025-10-18T01:29:15.162218263Z   accept: '*/*',
-2025-10-18T01:29:15.162222213Z   'accept-encoding': 'gzip, br',
-2025-10-18T01:29:15.162224903Z   'accept-language': '*',
-2025-10-18T01:29:15.162232953Z   authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NCwiY29sbGVjdGlvbiI6InVzZXJzIiwiZW1haWwiOiJjZWxqZW5idWVuQGdtYWlsLmNvbSIsInNpZCI6ImZmMmNkYjI4LWQ1ZWQtNGI0Mi04MjFlLWIxYzVjZDZjOTBhNiIsImlhdCI6MTc2MDY4ODMyNSwiZXhwIjoxNzYzMjgwMzI1fQ.diFk6kmrlmRsZiZQSzXMJcDwCiqu0N50LFnB3KwRZGo',
-2025-10-18T01:29:15.162236653Z   'cdn-loop': 'cloudflare; loops=1',
-2025-10-18T01:29:15.162238504Z   'cf-connecting-ip': '13.221.190.67',
-2025-10-18T01:29:15.162240764Z   'cf-ipcountry': 'US',
-2025-10-18T01:29:15.162242473Z   'cf-ray': '9904437cee76d6fd-SIN',
-2025-10-18T01:29:15.162244174Z   'cf-visitor': '{"scheme":"https"}',
-2025-10-18T01:29:15.162248074Z   'content-type': 'application/json',
-2025-10-18T01:29:15.162249804Z   host: 'cms.tap2goph.com',
-2025-10-18T01:29:15.162251504Z   'render-proxy-ttl': '4',
-2025-10-18T01:29:15.162253274Z   'rndr-id': '3eccdbef-c875-4331',
-2025-10-18T01:29:15.162254914Z   'sec-fetch-mode': 'cors',
-2025-10-18T01:29:15.162256684Z   'true-client-ip': '13.221.190.67',
-2025-10-18T01:29:15.162258384Z   'user-agent': 'node',
-2025-10-18T01:29:15.162260654Z   'x-forwarded-for': '13.221.190.67, 162.158.162.74',
-2025-10-18T01:29:15.162262354Z   'x-forwarded-host': 'cms.tap2goph.com',
-2025-10-18T01:29:15.162264024Z   'x-forwarded-port': '10000',
-2025-10-18T01:29:15.162265644Z   'x-forwarded-proto': 'https',
-2025-10-18T01:29:15.162267334Z   'x-request-start': '1760750955158813',
-2025-10-18T01:29:15.162268984Z   'x-vercel-id': 'sin1::d6ppr-1760750953934-c920083406f8'
-2025-10-18T01:29:15.162270665Z }
-2025-10-18T01:29:15.162272405Z Environment: production
-2025-10-18T01:29:15.418586002Z === GET REQUEST SUCCESS ===
-2025-10-18T01:29:15.418616492Z Status: 200
-2025-10-18T01:29:16.681575176Z === GET REQUEST START ===
-2025-10-18T01:29:16.681609477Z URL: https://localhost:10000/api/users/me
-2025-10-18T01:29:16.681615057Z Method: GET
-2025-10-18T01:29:16.681627838Z Headers: {
-2025-10-18T01:29:16.681632408Z   accept: '*/*',
-2025-10-18T01:29:16.681636738Z   'accept-encoding': 'gzip, br',
-2025-10-18T01:29:16.681640988Z   'accept-language': '*',
-2025-10-18T01:29:16.681650858Z   authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NCwiY29sbGVjdGlvbiI6InVzZXJzIiwiZW1haWwiOiJjZWxqZW5idWVuQGdtYWlsLmNvbSIsInNpZCI6ImZmMmNkYjI4LWQ1ZWQtNGI0Mi04MjFlLWIxYzVjZDZjOTBhNiIsImlhdCI6MTc2MDY4ODMyNSwiZXhwIjoxNzYzMjgwMzI1fQ.diFk6kmrlmRsZiZQSzXMJcDwCiqu0N50LFnB3KwRZGo',
-2025-10-18T01:29:16.681675169Z   'cdn-loop': 'cloudflare; loops=1',
-2025-10-18T01:29:16.681678259Z   'cf-connecting-ip': '13.221.190.67',
-2025-10-18T01:29:16.681681659Z   'cf-ipcountry': 'US',
-2025-10-18T01:29:16.681684179Z   'cf-ray': '99044382ff00d6fd-IAD',
-2025-10-18T01:29:16.681686589Z   'cf-visitor': '{"scheme":"https"}',
-2025-10-18T01:29:16.68168918Z   'content-type': 'application/json',
-2025-10-18T01:29:16.6816919Z   host: 'cms.tap2goph.com',
-2025-10-18T01:29:16.68169463Z   'render-proxy-ttl': '4',
-2025-10-18T01:29:16.6816972Z   'rndr-id': '44163709-8136-4a49',
-2025-10-18T01:29:16.68169955Z   'sec-fetch-mode': 'cors',
-2025-10-18T01:29:16.68170203Z   'true-client-ip': '13.221.190.67',
-2025-10-18T01:29:16.68170462Z   'user-agent': 'node',
-2025-10-18T01:29:16.68170778Z   'x-forwarded-for': '13.221.190.67, 172.71.194.228',
-2025-10-18T01:29:16.68171065Z   'x-forwarded-host': 'cms.tap2goph.com',
-2025-10-18T01:29:16.681726101Z   'x-forwarded-port': '10000',
-2025-10-18T01:29:16.681728721Z   'x-forwarded-proto': 'https',
-2025-10-18T01:29:16.681731351Z   'x-request-start': '1760750956678360',
-2025-10-18T01:29:16.681733971Z   'x-vercel-id': 'sin1::mfgsz-1760750955846-eb5b9a3e922b'
-2025-10-18T01:29:16.681737241Z }
-2025-10-18T01:29:16.681740081Z Environment: production
-2025-10-18T01:29:16.938079949Z === GET REQUEST SUCCESS ===
-2025-10-18T01:29:16.93811202Z Status: 200
-2025-10-18T01:29:20.82492003Z  ⨯ l [Error]: Failed query: select "users"."id", "users"."first_name", "users"."last_name", "users"."middle_name", "users"."name_extension", "users"."username", "users"."gender", "users"."civil_status", "users"."nationality", "users"."birth_date", "users"."place_of_birth", "users"."complete_address", "users"."role", "users"."is_active", "users"."last_login", "users"."profile_picture_id", "users"."updated_at", "users"."created_at", "users"."enable_a_p_i_key", "users"."api_key", "users"."api_key_index", "users"."email", "users"."reset_password_token", "users"."reset_password_expiration", "users"."salt", "users"."hash", "users"."login_attempts", "users"."lock_until", "users_sessions"."data" as "sessions" from "users" "users" left join lateral (select coalesce(json_agg(json_build_array("users_sessions"."_order", "users_sessions"."id", "users_sessions"."created_at", "users_sessions"."expires_at") order by "users_sessions"."_order" asc), '[]'::json) as "data" from (select * from "users_sessions" "users_sessions" where "users_sessions"."_parent_id" = "users"."id" order by "users_sessions"."_order" asc) "users_sessions") "users_sessions" on true order by "users"."created_at" desc limit $1
-2025-10-18T01:29:20.8249407Z params: 1
-2025-10-18T01:29:20.824945901Z     at b.queryWithCache (/opt/render/project/src/apps/cms/.next/server/chunks/877.js:419:718)
-2025-10-18T01:29:20.824950041Z     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-2025-10-18T01:29:20.824954111Z     at async /opt/render/project/src/apps/cms/.next/server/chunks/877.js:412:176065
-2025-10-18T01:29:20.824969332Z     ... 2 lines matching cause stack trace ...
-2025-10-18T01:29:20.824974092Z     at async b (/opt/render/project/src/apps/cms/.next/server/app/(payload)/admin/[[...segments]]/page.js:127:335389) {
-2025-10-18T01:29:20.824979432Z   query: `select "users"."id", "users"."first_name", "users"."last_name", "users"."middle_name", "users"."name_extension", "users"."username", "users"."gender", "users"."civil_status", "users"."nationality", "users"."birth_date", "users"."place_of_birth", "users"."complete_address", "users"."role", "users"."is_active", "users"."last_login", "users"."profile_picture_id", "users"."updated_at", "users"."created_at", "users"."enable_a_p_i_key", "users"."api_key", "users"."api_key_index", "users"."email", "users"."reset_password_token", "users"."reset_password_expiration", "users"."salt", "users"."hash", "users"."login_attempts", "users"."lock_until", "users_sessions"."data" as "sessions" from "users" "users" left join lateral (select coalesce(json_agg(json_build_array("users_sessions"."_order", "users_sessions"."id", "users_sessions"."created_at", "users_sessions"."expires_at") order by "users_sessions"."_order" asc), '[]'::json) as "data" from (select * from "users_sessions" "users_sessions" where "users_sessions"."_parent_id" = "users"."id" order by "users_sessions"."_order" asc) "users_sessions") "users_sessions" on true order by "users"."created_at" desc limit $1`,
-2025-10-18T01:29:20.825008943Z   params: [ 1 ],
-2025-10-18T01:29:20.825011583Z   cause: AggregateError [ECONNREFUSED]: 
-2025-10-18T01:29:20.825014313Z       at /opt/render/project/src/node_modules/.pnpm/pg-pool@3.10.1_pg@8.16.3/node_modules/pg-pool/index.js:45:11
-2025-10-18T01:29:20.825016713Z       at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-2025-10-18T01:29:20.825018873Z       at async /opt/render/project/src/apps/cms/.next/server/chunks/877.js:412:176275
-2025-10-18T01:29:20.825021023Z       at async b.queryWithCache (/opt/render/project/src/apps/cms/.next/server/chunks/877.js:419:693)
-2025-10-18T01:29:20.825023083Z       at async /opt/render/project/src/apps/cms/.next/server/chunks/877.js:412:176065
-2025-10-18T01:29:20.825025173Z       at async p (/opt/render/project/src/apps/cms/.next/server/chunks/877.js:338:14585)
-2025-10-18T01:29:20.825027183Z       at async Object.o [as findOne] (/opt/render/project/src/apps/cms/.next/server/chunks/877.js:338:17555)
-2025-10-18T01:29:20.825029393Z       at async b (/opt/render/project/src/apps/cms/.next/server/app/(payload)/admin/[[...segments]]/page.js:127:335389) {
-2025-10-18T01:29:20.825032153Z     code: 'ECONNREFUSED',
-2025-10-18T01:29:20.825034134Z     [errors]: [ [Error], [Error] ]
-2025-10-18T01:29:20.825036263Z   },
-2025-10-18T01:29:20.825039354Z   digest: '4123030791'
-2025-10-18T01:29:20.825041454Z }
-2025-10-18T01:30:24.670367527Z === GET REQUEST START ===
-2025-10-18T01:30:24.670399397Z URL: https://localhost:10000/api/users/me
-2025-10-18T01:30:24.670403697Z Method: GET
-2025-10-18T01:30:24.67049206Z Headers: {
-2025-10-18T01:30:24.670504531Z   accept: '*/*',
-2025-10-18T01:30:24.670522101Z   'accept-encoding': 'gzip, br',
-2025-10-18T01:30:24.670527451Z   'accept-language': 'en',
-2025-10-18T01:30:24.670532141Z   'cdn-loop': 'cloudflare; loops=1',
-2025-10-18T01:30:24.670535402Z   'cf-connecting-ip': '175.176.85.84',
-2025-10-18T01:30:24.670538902Z   'cf-ipcountry': 'PH',
-2025-10-18T01:30:24.670541752Z   'cf-ray': '9904452ffe77cb79-HKG',
-2025-10-18T01:30:24.670544622Z   'cf-visitor': '{"scheme":"https"}',
-2025-10-18T01:30:24.670549952Z   cookie: 'payload-token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NCwiY29sbGVjdGlvbiI6InVzZXJzIiwiZW1haWwiOiJjZWxqZW5idWVuQGdtYWlsLmNvbSIsInNpZCI6ImZmMmNkYjI4LWQ1ZWQtNGI0Mi04MjFlLWIxYzVjZDZjOTBhNiIsImlhdCI6MTc2MDY4ODMyNSwiZXhwIjoxNzYzMjgwMzI1fQ.diFk6kmrlmRsZiZQSzXMJcDwCiqu0N50LFnB3KwRZGo',
-2025-10-18T01:30:24.670552962Z   host: 'cms.tap2goph.com',
-2025-10-18T01:30:24.670555802Z   priority: 'u=1, i',
-2025-10-18T01:30:24.670558562Z   referer: 'https://cms.tap2goph.com/admin',
-2025-10-18T01:30:24.670561382Z   'render-proxy-ttl': '4',
-2025-10-18T01:30:24.670564182Z   'rndr-id': 'a32bb310-c8b3-483e',
-2025-10-18T01:30:24.670566973Z   'sec-ch-prefers-color-scheme': 'dark',
-2025-10-18T01:30:24.670570533Z   'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-2025-10-18T01:30:24.670573323Z   'sec-ch-ua-mobile': '?0',
-2025-10-18T01:30:24.670576093Z   'sec-ch-ua-platform': '"Windows"',
-2025-10-18T01:30:24.670590233Z   'sec-fetch-dest': 'empty',
-2025-10-18T01:30:24.670592053Z   'sec-fetch-mode': 'cors',
-2025-10-18T01:30:24.670593763Z   'sec-fetch-site': 'same-origin',
-2025-10-18T01:30:24.670595394Z   'true-client-ip': '175.176.85.84',
-2025-10-18T01:30:24.670597743Z   'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-2025-10-18T01:30:24.670599964Z   'x-forwarded-for': '175.176.85.84, 162.158.193.203',
-2025-10-18T01:30:24.670601584Z   'x-forwarded-host': 'cms.tap2goph.com',
-2025-10-18T01:30:24.670603254Z   'x-forwarded-port': '10000',
-2025-10-18T01:30:24.670604984Z   'x-forwarded-proto': 'https',
-2025-10-18T01:30:24.670606654Z   'x-request-start': '1760751024664400'
-2025-10-18T01:30:24.670608334Z }
-2025-10-18T01:30:24.670610094Z Environment: production
-2025-10-18T01:30:24.694129387Z === GET REQUEST SUCCESS ===
-2025-10-18T01:30:24.694150697Z Status: 200
+17:24:01.746 Running build in Portland, USA (West) – pdx1
+17:24:01.747 Build machine configuration: 4 cores, 8 GB
+17:24:01.808 Cloning github.com/johnlloydcallao01/tap2go (Branch: main, Commit: 0c2a935)
+17:24:02.103 Previous build caches not available
+17:24:02.946 Cloning completed: 1.137s
+17:24:03.577 Running "vercel build"
+17:24:03.955 Vercel CLI 48.2.9
+17:24:04.098 > Detected Turbo. Adjusting default settings...
+17:24:04.417 Detected `pnpm-lock.yaml` version 9 generated by pnpm@10.x with package.json#packageManager pnpm@9.12.3
+17:24:04.421 Running "install" command: `cd ../.. && pnpm install`...
+17:24:06.528 Scope: all 13 workspace projects
+17:24:06.626 Lockfile is up to date, resolution step is skipped
+17:24:06.744 Progress: resolved 1, reused 0, downloaded 0, added 0
+17:24:06.990 Packages: +1781
+17:24:06.990 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+17:24:07.746 Progress: resolved 1781, reused 0, downloaded 28, added 14
+17:24:08.749 Progress: resolved 1781, reused 0, downloaded 83, added 69
+17:24:09.751 Progress: resolved 1781, reused 0, downloaded 118, added 109
+17:24:10.751 Progress: resolved 1781, reused 0, downloaded 205, added 199
+17:24:11.751 Progress: resolved 1781, reused 0, downloaded 329, added 322
+17:24:12.754 Progress: resolved 1781, reused 0, downloaded 401, added 394
+17:24:13.755 Progress: resolved 1781, reused 0, downloaded 443, added 438
+17:24:14.756 Progress: resolved 1781, reused 0, downloaded 445, added 439
+17:24:15.756 Progress: resolved 1781, reused 0, downloaded 481, added 469
+17:24:16.760 Progress: resolved 1781, reused 0, downloaded 496, added 487
+17:24:17.761 Progress: resolved 1781, reused 0, downloaded 512, added 504
+17:24:18.764 Progress: resolved 1781, reused 0, downloaded 515, added 510
+17:24:19.765 Progress: resolved 1781, reused 0, downloaded 526, added 518
+17:24:20.766 Progress: resolved 1781, reused 0, downloaded 542, added 530
+17:24:21.767 Progress: resolved 1781, reused 0, downloaded 554, added 542
+17:24:22.768 Progress: resolved 1781, reused 0, downloaded 580, added 572
+17:24:23.768 Progress: resolved 1781, reused 0, downloaded 718, added 713
+17:24:24.769 Progress: resolved 1781, reused 0, downloaded 811, added 806
+17:24:25.770 Progress: resolved 1781, reused 0, downloaded 984, added 991
+17:24:26.769 Progress: resolved 1781, reused 0, downloaded 1164, added 1173
+17:24:27.769 Progress: resolved 1781, reused 0, downloaded 1335, added 1344
+17:24:28.770 Progress: resolved 1781, reused 0, downloaded 1424, added 1425
+17:24:29.771 Progress: resolved 1781, reused 0, downloaded 1529, added 1528
+17:24:30.771 Progress: resolved 1781, reused 0, downloaded 1548, added 1546
+17:24:31.770 Progress: resolved 1781, reused 0, downloaded 1580, added 1582
+17:24:32.771 Progress: resolved 1781, reused 0, downloaded 1602, added 1607
+17:24:33.772 Progress: resolved 1781, reused 0, downloaded 1609, added 1613
+17:24:34.773 Progress: resolved 1781, reused 0, downloaded 1624, added 1621
+17:24:35.775 Progress: resolved 1781, reused 0, downloaded 1636, added 1636
+17:24:36.774 Progress: resolved 1781, reused 0, downloaded 1674, added 1673
+17:24:37.774 Progress: resolved 1781, reused 0, downloaded 1763, added 1771
+17:24:37.849 Progress: resolved 1781, reused 0, downloaded 1764, added 1781, done
+17:24:38.620 .../sharp@0.34.2/node_modules/sharp install$ node install/check
+17:24:38.621 .../node_modules/unrs-resolver postinstall$ napi-postinstall unrs-resolver 1.11.1 check
+17:24:38.623 .../esbuild@0.25.10/node_modules/esbuild postinstall$ node install.js
+17:24:38.623 .../esbuild@0.18.20/node_modules/esbuild postinstall$ node install.js
+17:24:38.701 .../esbuild@0.23.1/node_modules/esbuild postinstall$ node install.js
+17:24:38.749 .../node_modules/unrs-resolver postinstall: Done
+17:24:38.763 .../sharp@0.33.5/node_modules/sharp install$ node install/check
+17:24:38.791 .../esbuild@0.25.10/node_modules/esbuild postinstall: Done
+17:24:38.803 .../esbuild@0.18.20/node_modules/esbuild postinstall: Done
+17:24:38.835 .../sharp@0.34.2/node_modules/sharp install: Done
+17:24:38.857 .../sharp@0.34.4/node_modules/sharp install$ node install/check.js
+17:24:38.879 .../esbuild@0.23.1/node_modules/esbuild postinstall: Done
+17:24:38.894 .../esbuild@0.21.5/node_modules/esbuild postinstall$ node install.js
+17:24:38.919 .../sharp@0.33.5/node_modules/sharp install: Done
+17:24:38.984 .../sharp@0.34.4/node_modules/sharp install: Done
+17:24:38.998 .../esbuild@0.21.5/node_modules/esbuild postinstall: Done
+17:24:39.049 The following dependencies have build scripts that were ignored: @tailwindcss/oxide, core-js-pure
+17:24:39.467 
+17:24:39.467 dependencies:
+17:24:39.467 + @babel/runtime 7.28.4
+17:24:39.467 + @headlessui/react 2.2.9
+17:24:39.468 + @payloadcms/db-postgres 3.49.0
+17:24:39.468 + color 4.2.3
+17:24:39.468 + color-convert 3.1.2
+17:24:39.468 + color-name 2.0.2
+17:24:39.468 + color-string 1.9.1
+17:24:39.468 + hoist-non-react-statics 3.3.2
+17:24:39.468 + nativewind 2.0.11
+17:24:39.468 + react 19.1.0
+17:24:39.468 + react-dom 19.1.0
+17:24:39.468 + redux-persist 6.0.0
+17:24:39.468 + scheduler 0.25.0
+17:24:39.468 + simple-swizzle 0.2.4
+17:24:39.468 + typescript 5.8.3
+17:24:39.468 
+17:24:39.468 devDependencies:
+17:24:39.468 + @turbo/gen 2.5.8
+17:24:39.470 + @types/minimatch 6.0.0
+17:24:39.470 + next 15.3.2
+17:24:39.470 + turbo 2.5.8
+17:24:39.470 
+17:24:39.542 . postinstall$ node scripts/sync-env.js
+17:24:39.589 . postinstall: [36mℹ️ 🔄 Starting environment synchronization...[0m
+17:24:39.589 . postinstall: [36mℹ️ Running in EAS Build/CI environment - skipping .env.local check[0m
+17:24:39.590 . postinstall: [32m✅ 🚀 EAS Build detected - environment variables provided by EAS Dashboard[0m
+17:24:39.590 . postinstall: [36mℹ️ ✅ Skipping local environment synchronization[0m
+17:24:39.590 . postinstall: [32m✅ 🎉 Environment setup complete for EAS Build![0m
+17:24:39.590 . postinstall: Done
+17:24:39.631 Done in 33.5s
+17:24:39.726 Detected Next.js version: 15.4.2
+17:24:39.727 Running "cd ../.. && pnpm turbo run build --filter=@encreasl/web"
+17:24:40.497 
+17:24:40.497 Attention:
+17:24:40.497 Turborepo now collects completely anonymous telemetry regarding usage.
+17:24:40.497 This information is used to shape the Turborepo roadmap and prioritize features.
+17:24:40.498 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+17:24:40.498 https://turborepo.com/docs/telemetry
+17:24:40.498 
+17:24:40.614 • Packages in scope: @encreasl/web
+17:24:40.615 • Running build in 1 packages
+17:24:40.615 • Remote caching enabled
+17:24:40.847 @encreasl/redux:build: cache miss, executing 2109a86c4b59ad4b
+17:24:41.276 @encreasl/redux:build: 
+17:24:41.276 @encreasl/redux:build: > @encreasl/redux@0.1.0 build /vercel/path0/packages/redux
+17:24:41.276 @encreasl/redux:build: > tsc --skipLibCheck
+17:24:41.276 @encreasl/redux:build: 
+17:24:46.312 @encreasl/web:build: cache miss, executing 900d0f88e68199d8
+17:24:46.738 @encreasl/web:build: 
+17:24:46.738 @encreasl/web:build: > @encreasl/web@0.1.0 build /vercel/path0/apps/web
+17:24:46.738 @encreasl/web:build: > next build
+17:24:46.738 @encreasl/web:build: 
+17:24:47.572 @encreasl/web:build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
+17:24:47.572 @encreasl/web:build: This information is used to shape Next.js' roadmap and prioritize features.
+17:24:47.572 @encreasl/web:build: You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+17:24:47.572 @encreasl/web:build: https://nextjs.org/telemetry
+17:24:47.572 @encreasl/web:build: 
+17:24:47.670 @encreasl/web:build:    ▲ Next.js 15.4.2
+17:24:47.671 @encreasl/web:build:    - Experiments (use with caution):
+17:24:47.671 @encreasl/web:build:      ✓ typedRoutes
+17:24:47.671 @encreasl/web:build: 
+17:24:47.702 @encreasl/web:build:    Creating an optimized production build ...
+17:25:02.424 @encreasl/web:build:  ✓ Compiled successfully in 11.0s
+17:25:02.428 @encreasl/web:build:    Linting and checking validity of types ...
+17:25:09.335 @encreasl/web:build:    Collecting page data ...
+17:25:11.214 @encreasl/web:build:    Generating static pages (0/38) ...
+17:25:11.776 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.776 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.776 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.815 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.815 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.815 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.815 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.853 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.897 @encreasl/web:build:    Generating static pages (9/38) 
+17:25:11.968 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.969 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.969 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.970 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.970 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.970 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:11.970 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.006 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.006 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.048 @encreasl/web:build:    Generating static pages (18/38) 
+17:25:12.048 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.048 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.048 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.048 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.076 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.076 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.076 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.076 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.077 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.077 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.160 @encreasl/web:build:    Generating static pages (28/38) 
+17:25:12.161 @encreasl/web:build:  ✓ Generating static pages (38/38)
+17:25:12.172 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.172 @encreasl/web:build: ⏳ PROTECTED ROUTE: Still checking auth...
+17:25:12.934 @encreasl/web:build:    Finalizing page optimization ...
+17:25:12.934 @encreasl/web:build:    Collecting build traces ...
+17:25:20.750 @encreasl/web:build: 
+17:25:20.765 @encreasl/web:build: Route (app)                                 Size  First Load JS
+17:25:20.765 @encreasl/web:build: ┌ ○ /                                    6.71 kB         112 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /_not-found                             1 kB         101 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /addresses                           1.76 kB         102 kB
+17:25:20.765 @encreasl/web:build: ├ ƒ /api/addresses                         151 B         100 kB
+17:25:20.765 @encreasl/web:build: ├ ƒ /api/addresses/[id]                    151 B         100 kB
+17:25:20.765 @encreasl/web:build: ├ ƒ /api/customers/[id]                    151 B         100 kB
+17:25:20.765 @encreasl/web:build: ├ ƒ /api/customers/user/[userId]           151 B         100 kB
+17:25:20.765 @encreasl/web:build: ├ ƒ /api/revalidate                        151 B         100 kB
+17:25:20.765 @encreasl/web:build: ├ ƒ /api/users/[id]                        151 B         100 kB
+17:25:20.765 @encreasl/web:build: ├ ƒ /api/webhook/cms                       151 B         100 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /cart                                2.47 kB         108 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /coupons                             3.26 kB         103 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /gaming                              1.92 kB         108 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /help                                 2.5 kB         103 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /invite-friends                      2.44 kB         103 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /login-status                          777 B         101 kB
+17:25:20.765 @encreasl/web:build: ├ ○ /menu                                4.32 kB         110 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /music                               1.71 kB         107 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /news                                 2.4 kB         108 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /notifications                       2.23 kB         102 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /orders                              2.72 kB         108 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /perks                               2.34 kB         103 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /points                               3.4 kB         104 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /portal                                503 B         101 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /portal/analytics                    1.74 kB         102 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /portal/dashboard                    2.05 kB         105 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /portal/settings                     2.73 kB         103 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /privacy                             4.93 kB         105 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /recently-viewed                     2.87 kB         108 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /register                              20 kB         120 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /settings                            2.42 kB         103 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /signin                               3.2 kB         113 kB
+17:25:20.766 @encreasl/web:build: ├ ○ /sports                              2.18 kB         108 kB
+17:25:20.767 @encreasl/web:build: ├ ○ /subscriptions                        2.1 kB         102 kB
+17:25:20.767 @encreasl/web:build: ├ ○ /terms                               3.84 kB         104 kB
+17:25:20.767 @encreasl/web:build: ├ ○ /trending                            1.54 kB         107 kB
+17:25:20.767 @encreasl/web:build: ├ ○ /vouchers                            2.83 kB         103 kB
+17:25:20.767 @encreasl/web:build: ├ ○ /wallets                             2.37 kB         103 kB
+17:25:20.767 @encreasl/web:build: └ ○ /wishlists                           2.91 kB         109 kB
+17:25:20.767 @encreasl/web:build: + First Load JS shared by all             100 kB
+17:25:20.767 @encreasl/web:build:   ├ chunks/4c976529-f3cd551fa1845e9d.js  54.1 kB
+17:25:20.768 @encreasl/web:build:   ├ chunks/7428-2549aa00c4942b0f.js      44.1 kB
+17:25:20.768 @encreasl/web:build:   └ other shared chunks (total)          1.94 kB
+17:25:20.768 @encreasl/web:build: 
+17:25:20.768 @encreasl/web:build: 
+17:25:20.768 @encreasl/web:build: ƒ Middleware                             33.5 kB
+17:25:20.768 @encreasl/web:build: 
+17:25:20.768 @encreasl/web:build: ○  (Static)   prerendered as static content
+17:25:20.768 @encreasl/web:build: ƒ  (Dynamic)  server-rendered on demand
+17:25:20.768 @encreasl/web:build: 
+17:25:20.823 
+17:25:20.823   Tasks:    2 successful, 2 total
+17:25:20.824  Cached:    0 cached, 2 total
+17:25:20.824    Time:    40.317s 
+17:25:20.824 Summary:    /vercel/path0/.turbo/runs/34KBKkPawFpwHa7dP5z061IXPWZ.json
+17:25:20.824 
+17:25:21.598 Traced Next.js server files in: 80.535ms
+17:25:21.757 Created all serverless functions in: 158.228ms
+17:25:21.825 Collected static files (public/, static/, .next/static): 10.26ms
+17:25:21.970 Build Completed in /vercel/output [1m]
+17:25:22.173 Deploying outputs...
+17:25:57.901 An unexpected error happened when running this build. We have been notified of the problem. This may be a transient error. If the problem persists, please contact Vercel Support https://vercel.com/help

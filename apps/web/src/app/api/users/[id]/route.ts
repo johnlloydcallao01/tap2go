@@ -16,31 +16,21 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  console.log('👤 === USER UPDATE STARTED ===');
-  console.log('📋 User ID:', id);
   
   try {
-    console.log('📥 Parsing request body...');
     const body = await request.json();
-    console.log('✅ Request body parsed:', body);
 
-    // Get user token from Authorization header
-    console.log('🔑 Checking authorization header...');
+    // Check authorization header
     const authHeader = request.headers.get('authorization');
-    
     let headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      headers['Authorization'] = `Bearer ${token}`;
-      console.log('✅ Bearer token authorization added');
-    } else if (authHeader && authHeader.startsWith('users API-Key ')) {
+    if (authHeader?.startsWith('Bearer ')) {
       headers['Authorization'] = authHeader;
-      console.log('✅ API Key authorization added');
+    } else if (authHeader?.startsWith('users API-Key ')) {
+      headers['Authorization'] = authHeader;
     } else {
-      console.error('❌ No valid authorization provided');
       return NextResponse.json(
         { error: 'Authorization required' },
         { status: 401 }
@@ -48,29 +38,20 @@ export async function PATCH(
     }
 
     // Update the user in PayloadCMS
-    console.log('🌐 Updating user in PayloadCMS...');
-    console.log('🔗 API URL:', `${API_BASE_URL}/users/${id}`);
-    
     const updateResponse = await fetch(`${API_BASE_URL}/users/${id}`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify(body),
     });
 
-    console.log('📡 Update response status:', updateResponse.status);
-    console.log('📡 Update response ok:', updateResponse.ok);
-
     if (!updateResponse.ok) {
-      console.error('❌ Failed to update user:', updateResponse.status);
       let errorData;
       try {
         const errorText = await updateResponse.text();
         errorData = errorText ? JSON.parse(errorText) : { error: 'Unknown error' };
-      } catch (parseError) {
-        console.error('❌ Failed to parse error response:', parseError);
+      } catch {
         errorData = { error: 'Invalid error response' };
       }
-      console.error('❌ Update user error response:', errorData);
       return NextResponse.json(
         { error: 'Failed to update user', details: errorData },
         { status: updateResponse.status }
@@ -81,47 +62,25 @@ export async function PATCH(
     try {
       const responseText = await updateResponse.text();
       if (!responseText.trim()) {
-        console.error('❌ Empty response from update user API');
         return NextResponse.json(
           { error: 'Invalid response from user service' },
           { status: 502 }
         );
       }
       updatedUser = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse update user response:', parseError);
-      const responseText = await updateResponse.text();
-      console.error('❌ Raw update user response:', responseText);
+    } catch {
       return NextResponse.json(
-        { error: 'Invalid response from user service' },
+        { error: 'Invalid response format from user service' },
         { status: 502 }
       );
     }
-    console.log('✅ User updated successfully:', {
-      id: updatedUser.doc?.id || updatedUser.id,
-      email: updatedUser.doc?.email || updatedUser.email
-    });
-
-    console.log('👤 === USER UPDATE COMPLETED ===');
 
     return NextResponse.json({
       success: true,
-      user: updatedUser,
-      message: 'User updated successfully',
+      user: updatedUser
     });
 
   } catch (error) {
-    console.error('💥 === USER UPDATE ERROR ===');
-    console.error('❌ Error updating user:', error);
-    
-    if (error instanceof Error) {
-      console.error('❌ Error name:', error.name);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
-    }
-    
-    console.error('💥 === END UPDATE ERROR ===');
-    
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -138,107 +97,68 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  console.log('📖 === USER GET STARTED ===');
-  console.log('📋 User ID:', id);
   
   try {
-    // Get user token from Authorization header
-    console.log('🔑 Checking authorization header...');
+    // Check authorization header
     const authHeader = request.headers.get('authorization');
-    
     let headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      headers['Authorization'] = `Bearer ${token}`;
-      console.log('✅ Bearer token authorization added');
-    } else if (authHeader && authHeader.startsWith('users API-Key ')) {
+    if (authHeader?.startsWith('Bearer ')) {
       headers['Authorization'] = authHeader;
-      console.log('✅ API Key authorization added');
+    } else if (authHeader?.startsWith('users API-Key ')) {
+      headers['Authorization'] = authHeader;
     } else {
-      console.error('❌ No valid authorization provided');
       return NextResponse.json(
         { error: 'Authorization required' },
         { status: 401 }
       );
     }
 
-    // Get the user from PayloadCMS
-    console.log('🌐 Fetching user from PayloadCMS...');
-    console.log('🔗 API URL:', `${API_BASE_URL}/users/${id}`);
-    
-    const getResponse = await fetch(`${API_BASE_URL}/users/${id}`, {
+    // Fetch the user from PayloadCMS
+    const response = await fetch(`${API_BASE_URL}/users/${id}`, {
       method: 'GET',
       headers,
     });
 
-    console.log('📡 Get response status:', getResponse.status);
-    console.log('📡 Get response ok:', getResponse.ok);
-
-    if (!getResponse.ok) {
-      console.error('❌ Failed to get user:', getResponse.status);
+    if (!response.ok) {
       let errorData;
       try {
-        const errorText = await getResponse.text();
+        const errorText = await response.text();
         errorData = errorText ? JSON.parse(errorText) : { error: 'Unknown error' };
-      } catch (parseError) {
-        console.error('❌ Failed to parse error response:', parseError);
+      } catch {
         errorData = { error: 'Invalid error response' };
       }
-      console.error('❌ Get user error response:', errorData);
       return NextResponse.json(
-        { error: 'Failed to get user', details: errorData },
-        { status: getResponse.status }
+        { error: 'Failed to fetch user', details: errorData },
+        { status: response.status }
       );
     }
 
-    let userData;
+    let user;
     try {
-      const responseText = await getResponse.text();
+      const responseText = await response.text();
       if (!responseText.trim()) {
-        console.error('❌ Empty response from get user API');
         return NextResponse.json(
           { error: 'Invalid response from user service' },
           { status: 502 }
         );
       }
-      userData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse get user response:', parseError);
-      const responseText = await getResponse.text();
-      console.error('❌ Raw get user response:', responseText);
+      user = JSON.parse(responseText);
+    } catch {
       return NextResponse.json(
-        { error: 'Invalid response from user service' },
+        { error: 'Invalid response format from user service' },
         { status: 502 }
       );
     }
-    console.log('✅ User fetched successfully:', {
-      id: userData.id,
-      email: userData.email
-    });
-
-    console.log('📖 === USER GET COMPLETED ===');
 
     return NextResponse.json({
       success: true,
-      user: userData,
-      message: 'User fetched successfully',
+      user
     });
 
   } catch (error) {
-    console.error('💥 === USER GET ERROR ===');
-    console.error('❌ Error getting user:', error);
-    
-    if (error instanceof Error) {
-      console.error('❌ Error name:', error.name);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
-    }
-    
-    console.error('💥 === END GET ERROR ===');
-    
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

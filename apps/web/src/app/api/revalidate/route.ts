@@ -8,43 +8,27 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { path, tag, secret } = body;
+    const { path, tag, secret } = await request.json();
 
-    // Optional: Add a secret token for security in production
-    if (process.env.REVALIDATION_SECRET && secret !== process.env.REVALIDATION_SECRET) {
+    // Check for secret to prevent unauthorized revalidation
+    if (process.env.REVALIDATE_SECRET && secret !== process.env.REVALIDATE_SECRET) {
       return NextResponse.json({ message: 'Invalid secret' }, { status: 401 });
     }
 
-    // Revalidate specific path (like home page)
     if (path) {
       revalidatePath(path);
-      console.log(`Revalidated path: ${path}`);
+      return NextResponse.json({ revalidated: true, path });
     }
 
-    // Revalidate specific cache tag
     if (tag) {
       revalidateTag(tag);
-      console.log(`Revalidated tag: ${tag}`);
+      return NextResponse.json({ revalidated: true, tag });
     }
 
-    // If no specific path/tag provided, revalidate the home page by default
-    if (!path && !tag) {
-      revalidatePath('/');
-      console.log('Revalidated home page');
-    }
-
-    return NextResponse.json({ 
-      revalidated: true, 
-      now: Date.now(),
-      path: path || '/',
-      tag: tag || null
-    });
-
+    return NextResponse.json({ message: 'No path or tag provided' }, { status: 400 });
   } catch (error) {
-    console.error('Revalidation error:', error);
     return NextResponse.json(
-      { message: 'Error revalidating', error: error instanceof Error ? error.message : 'Unknown error' }, 
+      { error: 'Error revalidating', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -69,13 +53,11 @@ export async function GET(request: NextRequest) {
     // Revalidate specific path
     if (path) {
       revalidatePath(path);
-      console.log(`Revalidated path: ${path}`);
     }
 
     // Revalidate specific cache tag
     if (tag) {
       revalidateTag(tag);
-      console.log(`Revalidated tag: ${tag}`);
     }
 
     return NextResponse.json({ 
@@ -86,7 +68,6 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Revalidation error:', error);
     return NextResponse.json(
       { message: 'Error revalidating', error: error instanceof Error ? error.message : 'Unknown error' }, 
       { status: 500 }

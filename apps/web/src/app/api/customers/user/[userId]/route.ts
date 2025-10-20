@@ -44,9 +44,15 @@ export async function GET(
     });
 
     if (!response.ok) {
-      console.error('Failed to fetch customer by user ID:', response.status);
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = errorText ? JSON.parse(errorText) : { error: 'Unknown error' };
+      } catch {
+        errorData = { error: 'Invalid error response' };
+      }
       return NextResponse.json(
-        { error: 'Failed to fetch customer' },
+        { error: 'Failed to fetch customer', details: errorData },
         { status: response.status }
       );
     }
@@ -66,9 +72,8 @@ export async function GET(
     }, { status: 404 });
 
   } catch (error) {
-    console.error('Error fetching customer by user ID:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
