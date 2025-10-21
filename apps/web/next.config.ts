@@ -102,7 +102,7 @@ const nextConfig: NextConfig = {
   // Experimental features for better environment variable handling
   experimental: {
     // Enable environment variable validation
-    typedRoutes: true,
+    typedRoutes: false,
   },
 };
 
