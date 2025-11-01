@@ -31,11 +31,52 @@ export const MerchantProducts: CollectionConfig = {
       relationTo: 'products',
       required: true,
       label: 'Product',
+      filterOptions: async ({ relationTo: _relationTo, data, user: _user, req }) => {
+        // Only show products that belong to the same vendor as the selected merchant
+        if (data?.merchant_id) {
+          try {
+            // Get the merchant to find its vendor
+            const merchant = await req.payload.findByID({
+              collection: 'merchants',
+              id: data.merchant_id,
+              depth: 1, // Populate the vendor relationship
+            })
+
+            // Validate that merchant exists and has a valid vendor
+            if (merchant?.vendor) {
+              let vendorId;
+              
+              // Handle both populated vendor object and vendor ID
+              if (typeof merchant.vendor === 'object' && merchant.vendor.id) {
+                vendorId = merchant.vendor.id;
+              } else if (typeof merchant.vendor === 'string' || typeof merchant.vendor === 'number') {
+                vendorId = merchant.vendor;
+              }
+
+              // Ensure vendorId is valid and not NaN
+              if (vendorId && !isNaN(Number(vendorId))) {
+                return {
+                  createdByVendor: {
+                    equals: vendorId,
+                  },
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error filtering products by merchant vendor:', error)
+          }
+        }
+
+        // If no merchant selected, invalid vendor, or error occurred, show no products
+        return false
+      },
+      admin: {
+        description: 'Product (filtered to show only products owned by the merchant\'s vendor)',
+      },
     },
     {
       name: 'added_by',
       type: 'select',
-      required: true,
       options: [
         { label: 'Vendor', value: 'vendor' },
         { label: 'Merchant', value: 'merchant' },

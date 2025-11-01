@@ -1639,11 +1639,14 @@ export interface VendorProduct {
 export interface MerchantProduct {
   id: number;
   merchant_id: number | Merchant;
+  /**
+   * Product (filtered to show only products owned by the merchant's vendor)
+   */
   product_id: number | Product;
   /**
    * Who assigned this product to the merchant
    */
-  added_by: 'vendor' | 'merchant';
+  added_by?: ('vendor' | 'merchant') | null;
   /**
    * Override product price (null = use product default)
    */
