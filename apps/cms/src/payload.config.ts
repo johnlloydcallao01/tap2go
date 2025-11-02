@@ -11,6 +11,7 @@ import { cloudinaryAdapter } from './storage/cloudinary-adapter'
 import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './services/GeospatialService'
 import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
+import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
 import type { PayloadRequest } from 'payload'
 // import sharp from 'sharp'
 
@@ -68,7 +69,6 @@ export default buildConfig({
     Media,
     Posts,
 
-    // Learning Management System (removed)
 
     // Food Delivery System
     Vendors,
@@ -431,6 +431,12 @@ export default buildConfig({
       path: '/merchant/location-based-display',
       method: 'get',
       handler: merchantLocationBasedDisplayHandler,
+    },
+
+    {
+      path: '/merchant/location-based-product-categories',
+      method: 'get',
+      handler: merchantLocationBasedProductCategoriesHandler,
     },
 
     {

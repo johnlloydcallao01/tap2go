@@ -1,7 +1,6 @@
 # Nearby Restaurants Feature Analysis
 
-## CMS Endpoint for Merchant Data
-
+## CMS Endpoint for Location-Based Merchant Display
 **Endpoint URL:** `/merchant/location-based-display`
 
 **File:** `apps/cms/src/endpoints/merchantLocationBasedDisplay.ts`
@@ -132,6 +131,8 @@ When fetching the `/merchant/location-based-display` endpoint, the response cont
 
 # Products Table Payload Data
 
+**Note**: The `vendor_products` junction table has been removed from the schema. Product-vendor relationships are now managed directly through the `Products` table using the `createdByVendor` field and the `assign_to_all_vendor_merchants` checkbox functionality.
+
 ## Product
 ```typescript
 interface Product {
@@ -151,26 +152,123 @@ interface Product {
     images?: (string | Media)[];
   };
   isActive?: boolean;
+  assign_to_all_vendor_merchants?: boolean; // Replaces vendor_products table functionality
   createdAt: string;
   updatedAt: string;
 }
 ```
 
-## ProductCategory
+# Product Categories Table Payload Data
+
+**Note**: The ProductCategories collection (`prod_categories` table) implements a sophisticated hierarchical structure with extensive business logic, visual customization, and enterprise-grade features for organizing products in the food delivery platform.
+
+## ProductCategory (Complete Interface)
 ```typescript
 interface ProductCategory {
   id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  parentCategory?: string | ProductCategory;
-  categoryLevel?: number;
-  categoryPath?: string;
-  displayOrder?: number;
+  
+  // === BASIC CATEGORY INFORMATION ===
+  name: string; // Category name (e.g., "Main Dishes", "Beverages", "Desserts")
+  slug: string; // URL-friendly version of the name (auto-generated if empty)
+  description?: string; // Category description for customers
+  
+  // === HIERARCHICAL STRUCTURE ===
+  parentCategory?: string | ProductCategory; // Parent category (null for top-level categories)
+  categoryLevel?: number; // Hierarchy level (1 = top level, 2 = subcategory, etc.) - min: 1, max: 5
+  categoryPath?: string; // Materialized path for efficient queries (auto-generated)
+  
+  // === DISPLAY AND ORDERING ===
+  displayOrder?: number; // Order for displaying categories (lower numbers appear first)
+  isActive?: boolean; // Whether the category is currently active
+  isFeatured?: boolean; // Whether to feature this category prominently
+  
+  // === VISUAL ELEMENTS ===
+  media?: {
+    icon?: string | Media; // Category icon (SVG preferred)
+    bannerImage?: string | Media; // Banner image for category pages
+    thumbnailImage?: string | Media; // Thumbnail for category listings
+  };
+  
+  // === STYLING AND BRANDING ===
+  styling?: {
+    colorTheme?: string; // Hex color code for category theme (e.g., #FF6B35)
+    backgroundColor?: string; // Background color for category cards
+    textColor?: string; // Text color for category elements
+    gradientColors?: any; // JSON array of hex color strings for gradient backgrounds
+  };
+  
+  // === CATEGORY ATTRIBUTES ===
+  attributes?: {
+    categoryType?: 'food' | 'beverages' | 'desserts' | 'snacks' | 'groceries' | 'pharmacy' | 'personal_care' | 'household' | 'other';
+    dietaryTags?: any; // JSON array of dietary attributes commonly found in this category
+    ageRestriction?: 'none' | '18_plus' | '21_plus'; // Age restriction for products in this category
+    requiresPrescription?: boolean; // Whether products in this category require prescription
+  };
+  
+  // === BUSINESS RULES ===
+  businessRules?: {
+    allowsCustomization?: boolean; // Whether products in this category can be customized
+    requiresSpecialHandling?: boolean; // Whether products need special delivery handling
+    hasExpirationDates?: boolean; // Whether products in this category have expiration dates
+    requiresRefrigeration?: boolean; // Whether products need refrigerated delivery
+    maxDeliveryTimeHours?: number; // Maximum delivery time for products in this category (0.5-72 hours)
+  };
+  
+  // === SEO AND MARKETING ===
+  seo?: {
+    metaTitle?: string; // SEO meta title
+    metaDescription?: string; // SEO meta description
+    keywords?: any; // JSON array of SEO keywords for this category
+    canonicalUrl?: string; // Canonical URL for SEO
+  };
+  
+  // === ANALYTICS AND METRICS (Read-only) ===
+  metrics?: {
+    totalProducts?: number; // Total number of products in this category
+    totalOrders?: number; // Total orders from this category
+    averageRating?: number; // Average rating of products in this category (0-5)
+    popularityScore?: number; // Calculated popularity score
+    viewCount?: number; // Number of times this category has been viewed
+  };
+  
+  // === PROMOTIONAL SETTINGS ===
+  promotions?: {
+    isPromotional?: boolean; // Whether this category is currently promotional
+    promotionalText?: string; // Text to display for promotional categories
+    discountPercentage?: number; // Discount percentage for promotional categories (0-100)
+    promotionStartDate?: string; // Start date for promotional period
+    promotionEndDate?: string; // End date for promotional period
+  };
+  
+  // === AVAILABILITY SETTINGS ===
+  availability?: {
+    availableHours?: any; // JSON format for hours when this category is available
+    seasonalAvailability?: any; // JSON array of season objects for seasonal availability
+    regionRestrictions?: any; // JSON array of region objects for regional availability restrictions
+  };
+  
+  // === AUDIT FIELDS ===
   createdAt: string;
   updatedAt: string;
 }
 ```
+
+### Key Features of ProductCategories Collection:
+
+1. **Hierarchical Structure**: Supports up to 5 levels of category nesting with materialized path optimization
+2. **Auto-generated Fields**: Slug and categoryPath are automatically generated from the name and parent relationships
+3. **Visual Customization**: Comprehensive styling options including colors, gradients, and media assets
+4. **Business Logic**: Category-specific rules for customization, handling, and delivery requirements
+5. **Analytics Integration**: Built-in metrics tracking for performance analysis
+6. **Promotional Support**: Native promotional campaign management at the category level
+7. **Availability Control**: Time-based and regional availability restrictions
+8. **SEO Optimization**: Complete SEO metadata support for category pages
+9. **Access Control**: Role-based permissions for service accounts and admins only
+
+### Database Table: `prod_categories`
+- Uses shortened table name for database efficiency
+- Implements PostGIS spatial indexing for location-based queries
+- Includes comprehensive indexing strategy for performance optimization
 
 ## Media
 ```typescript
