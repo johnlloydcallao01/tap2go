@@ -36,7 +36,6 @@ import { ProdAttributeTerms } from './collections/ProdAttributeTerms'
 import { ProdVariations } from './collections/ProdVariations'
 import { ProdVariationValues } from './collections/ProdVariationValues'
 import { ProdGroupedItems } from './collections/ProdGroupedItems'
-import { VendorProducts } from './collections/VendorProducts'
 import { MerchantProducts } from './collections/MerchantProducts'
 import { ModifierGroups } from './collections/ModifierGroups'
 import { ModifierOptions } from './collections/ModifierOptions'
@@ -83,7 +82,6 @@ export default buildConfig({
     ProdVariations,
     ProdVariationValues,
     ProdGroupedItems,
-    VendorProducts,
     MerchantProducts,
     ModifierGroups,
     ModifierOptions,

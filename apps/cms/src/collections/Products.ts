@@ -195,6 +195,14 @@ export const Products: CollectionConfig = {
         description: 'Whether the product is currently active',
       },
     },
+    {
+      name: 'auto_assign_to_new_merchants',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Automatically assign this product to new merchants of the same vendor',
+      },
+    },
 
     // === METADATA ===
     {
@@ -218,7 +226,8 @@ export const Products: CollectionConfig = {
   ],
   hooks: {
     beforeValidate: [
-      ({ data }) => {
+      ({ data, operation: _operation }) => {
+        // beforeValidate only runs for create/update operations
         // Ensure exactly one owner is specified
         if (!data) {
           throw new Error('Data is required')
@@ -239,7 +248,8 @@ export const Products: CollectionConfig = {
       },
     ],
     beforeChange: [
-      ({ data }) => {
+      ({ data, operation: _operation }) => {
+        // beforeChange only runs for create/update operations
         // Set timestamps
         if (!data) {
           throw new Error('Data is required')
@@ -252,6 +262,26 @@ export const Products: CollectionConfig = {
         data.updatedAt = now
         
         return data
+      },
+    ],
+    afterChange: [
+      async ({ doc, previousDoc: _previousDoc, operation, req }) => {
+        // afterChange runs for create/update/delete operations
+        // Use type assertion since PayloadCMS types don't include 'delete' in CreateOrUpdateOperation
+        if ((operation as string) === 'delete') {
+          return;
+        }
+
+        // Ensure we have valid doc and req objects
+        if (!doc || !req || !req.payload) {
+          console.warn('⚠️ Invalid doc or req object in afterChange hook');
+          return;
+        }
+
+        // Note: VendorProducts table has been removed in favor of simplified architecture
+        // Products now directly belong to vendors via createdByVendor field
+        // MerchantProducts handles the merchant-product relationships
+        console.log(`✅ Product ${operation} completed for product ${doc.id}`);
       },
     ],
   },

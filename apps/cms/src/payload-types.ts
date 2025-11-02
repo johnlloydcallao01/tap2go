@@ -84,7 +84,6 @@ export interface Config {
     'prod-variations': ProdVariation;
     'prod-variation-values': ProdVariationValue;
     'prod-grouped-items': ProdGroupedItem;
-    'vendor-products': VendorProduct;
     'merchant-products': MerchantProduct;
     'modifier-groups': ModifierGroup;
     'modifier-options': ModifierOption;
@@ -115,7 +114,6 @@ export interface Config {
     'prod-variations': ProdVariationsSelect<false> | ProdVariationsSelect<true>;
     'prod-variation-values': ProdVariationValuesSelect<false> | ProdVariationValuesSelect<true>;
     'prod-grouped-items': ProdGroupedItemsSelect<false> | ProdGroupedItemsSelect<true>;
-    'vendor-products': VendorProductsSelect<false> | VendorProductsSelect<true>;
     'merchant-products': MerchantProductsSelect<false> | MerchantProductsSelect<true>;
     'modifier-groups': ModifierGroupsSelect<false> | ModifierGroupsSelect<true>;
     'modifier-options': ModifierOptionsSelect<false> | ModifierOptionsSelect<true>;
@@ -1499,6 +1497,10 @@ export interface Product {
    */
   isActive?: boolean | null;
   /**
+   * Automatically assign this product to new merchants of the same vendor
+   */
+  auto_assign_to_new_merchants?: boolean | null;
+  /**
    * Creation timestamp
    */
   createdAt: string;
@@ -1613,22 +1615,6 @@ export interface ProdGroupedItem {
   child_product_id: number | Product;
   default_quantity?: number | null;
   sort_order?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "vendor-products".
- */
-export interface VendorProduct {
-  id: number;
-  vendor_id: number | Vendor;
-  product_id: number | Product;
-  /**
-   * Automatically assign this product to new merchants
-   */
-  auto_assign_to_new_merchants?: boolean | null;
-  is_active?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1876,10 +1862,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'prod-grouped-items';
         value: number | ProdGroupedItem;
-      } | null)
-    | ({
-        relationTo: 'vendor-products';
-        value: number | VendorProduct;
       } | null)
     | ({
         relationTo: 'merchant-products';
@@ -2354,6 +2336,7 @@ export interface ProductsSelect<T extends boolean = true> {
             };
       };
   isActive?: T;
+  auto_assign_to_new_merchants?: T;
   createdAt?: T;
   updatedAt?: T;
 }
@@ -2416,18 +2399,6 @@ export interface ProdGroupedItemsSelect<T extends boolean = true> {
   child_product_id?: T;
   default_quantity?: T;
   sort_order?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "vendor-products_select".
- */
-export interface VendorProductsSelect<T extends boolean = true> {
-  vendor_id?: T;
-  product_id?: T;
-  auto_assign_to_new_merchants?: T;
-  is_active?: T;
   updatedAt?: T;
   createdAt?: T;
 }
