@@ -1459,9 +1459,9 @@ export interface Product {
    */
   shortDescription?: string | null;
   /**
-   * Product category
+   * Product categories (select multiple categories)
    */
-  category?: (number | null) | ProductCategory;
+  categories?: (number | ProductCategory)[] | null;
   /**
    * Stock Keeping Unit (unique identifier)
    */
@@ -2320,7 +2320,7 @@ export interface ProductsSelect<T extends boolean = true> {
   name?: T;
   description?: T;
   shortDescription?: T;
-  category?: T;
+  categories?: T;
   sku?: T;
   basePrice?: T;
   compareAtPrice?: T;

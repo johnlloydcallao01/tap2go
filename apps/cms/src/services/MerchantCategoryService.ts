@@ -157,27 +157,29 @@ export class MerchantCategoryService {
     const categoriesMap = new Map<string, CategoryWithMetadata>()
 
     products.docs.forEach(product => {
-      // Handle category relationship
-        if (product.category) {
-        const category = typeof product.category === 'object' && product.category !== null
-          ? product.category
-          : null
+      // Handle categories relationship (now hasMany)
+      if (product.categories && Array.isArray(product.categories)) {
+        product.categories.forEach(categoryRef => {
+          const category = typeof categoryRef === 'object' && categoryRef !== null
+            ? categoryRef
+            : null
 
-        if (category && !categoriesMap.has(String(category.id))) {
-          categoriesMap.set(String(category.id), {
-            ...category,
-            productCount: 0,
-            merchantCount: 0
-          })
-        }
-
-        // Increment product count
-        if (category) {
-          const cat = categoriesMap.get(String(category.id))
-          if (cat) {
-            cat.productCount++
+          if (category && !categoriesMap.has(String(category.id))) {
+            categoriesMap.set(String(category.id), {
+              ...category,
+              productCount: 0,
+              merchantCount: 0
+            })
           }
-        }
+
+          // Increment product count
+          if (category) {
+            const cat = categoriesMap.get(String(category.id))
+            if (cat) {
+              cat.productCount++
+            }
+          }
+        })
       }
     })
 
@@ -192,21 +194,23 @@ export class MerchantCategoryService {
         return p.id === productId
       })
 
-      if (product?.category) {
-        const categoryId = typeof product.category === 'object' && product.category !== null
-          ? String(product.category.id)
-          : String(product.category)
+      if (product?.categories && Array.isArray(product.categories)) {
+        product.categories.forEach(categoryRef => {
+          const categoryId = typeof categoryRef === 'object' && categoryRef !== null
+            ? String(categoryRef.id)
+            : String(categoryRef)
 
-        const merchantId = typeof mp.merchant_id === 'object' && mp.merchant_id !== null
-          ? mp.merchant_id.id
-          : mp.merchant_id
+          const merchantId = typeof mp.merchant_id === 'object' && mp.merchant_id !== null
+            ? mp.merchant_id.id
+            : mp.merchant_id
 
-        if (categoryId && merchantId) {
-          if (!merchantCategoryCount.has(categoryId)) {
-            merchantCategoryCount.set(categoryId, new Set())
+          if (categoryId && merchantId) {
+            if (!merchantCategoryCount.has(categoryId)) {
+              merchantCategoryCount.set(categoryId, new Set())
+            }
+            merchantCategoryCount.get(categoryId)?.add(Number(merchantId))
           }
-          merchantCategoryCount.get(categoryId)?.add(Number(merchantId))
-        }
+        })
       }
     })
 

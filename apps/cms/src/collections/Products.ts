@@ -115,11 +115,12 @@ export const Products: CollectionConfig = {
       },
     },
     {
-      name: 'category',
+      name: 'categories',
       type: 'relationship',
       relationTo: 'product-categories',
+      hasMany: true,
       admin: {
-        description: 'Product category',
+        description: 'Product categories (select multiple categories)',
       },
     },
 
