@@ -24,12 +24,6 @@ export interface CategoryCircleProps {
   onClick?: () => void;
 }
 
-export interface CategoryCarouselProps {
-  categories?: string[];
-  activeCategory?: string;
-  onCategoryChange?: (category: string) => void;
-}
-
 export interface HeaderProps {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;

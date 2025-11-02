@@ -158,7 +158,7 @@ export class LocationBasedProductCategoriesService {
     }
 
     // Create cache key based on options
-    const cacheKey = `${CACHE_KEYS.CATEGORIES}-location-${customerId}-${sortBy}-${limit}-${includeInactive}`;
+    const cacheKey = `${CACHE_KEYS.PRODUCT_CATEGORIES}-location-${customerId}-${sortBy}-${limit}-${includeInactive}`;
     
     // Check cache first
     const cachedData = dataCache.get<LocationBasedProductCategory[]>(cacheKey);
@@ -233,7 +233,7 @@ export class LocationBasedProductCategoriesService {
       console.log('✅ Successfully fetched', categories.length, 'location-based product categories');
       
       // Cache the result
-      dataCache.set(cacheKey, categories, CACHE_TTL.CATEGORIES);
+      dataCache.set(cacheKey, categories, CACHE_TTL.PRODUCT_CATEGORIES);
       
       return categories;
     } catch (error) {
@@ -284,7 +284,7 @@ export class LocationBasedProductCategoriesService {
       if (customerId) {
         console.log('✅ Found customer ID:', customerId);
         // Cache the customer ID for future use
-        dataCache.set('current-customer-id', customerId, CACHE_TTL.CATEGORIES);
+        dataCache.set('current-customer-id', customerId, CACHE_TTL.PRODUCT_CATEGORIES);
       } else {
         console.log('❌ No customer ID found for user ID:', userId);
       }

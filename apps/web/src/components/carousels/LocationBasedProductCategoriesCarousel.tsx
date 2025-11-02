@@ -13,16 +13,16 @@ interface LocationBasedProductCategoriesCarouselProps {
 
 /**
  * LocationBasedProductCategoriesCarousel with smooth momentum scrolling
- * Implements physics-based scrolling identical to ProductCategoryCarousel
+ * Implements physics-based scrolling with smooth momentum
  * 100% CSR - fetches data client-side
  */
-export const LocationBasedProductCategoriesCarousel: React.FC<LocationBasedProductCategoriesCarouselProps> = ({
+export const LocationBasedProductCategoriesCarousel = ({
   customerId,
   limit = 20,
   sortBy = 'popularity',
   includeInactive = false,
-}) => {
-  // CSR state management - identical to ProductCategoryCarousel
+}: LocationBasedProductCategoriesCarouselProps): JSX.Element => {
+  // CSR state management for location-based categories
   const [categories, setCategories] = useState<LocationBasedProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>('');
@@ -41,7 +41,7 @@ export const LocationBasedProductCategoriesCarousel: React.FC<LocationBasedProdu
   const boundsCalculatedRef = useRef(false);
 
   // Fetch location-based product categories
-  const fetchLocationBasedProductCategories = async (customerIdToUse: string) => {
+  const fetchLocationBasedProductCategories = useCallback(async (customerIdToUse: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -66,7 +66,7 @@ export const LocationBasedProductCategoriesCarousel: React.FC<LocationBasedProdu
     } finally {
       setLoading(false);
     }
-  };
+  }, [limit, sortBy, includeInactive]);
 
   // Resolve customer ID if not provided
   useEffect(() => {
@@ -103,7 +103,7 @@ export const LocationBasedProductCategoriesCarousel: React.FC<LocationBasedProdu
     if (resolvedCustomerId) {
       fetchLocationBasedProductCategories(resolvedCustomerId);
     }
-  }, [resolvedCustomerId, limit, sortBy, includeInactive]);
+  }, [resolvedCustomerId, fetchLocationBasedProductCategories]);
 
   // Calculate proper maxTranslate to ensure last item is fully visible - identical to ProductCategoryCarousel
   const getMaxTranslate = useCallback(() => {
