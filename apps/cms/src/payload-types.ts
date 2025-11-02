@@ -1497,9 +1497,9 @@ export interface Product {
    */
   isActive?: boolean | null;
   /**
-   * Automatically assign this product to new merchants of the same vendor
+   * Assign this product to all merchants of the same vendor
    */
-  auto_assign_to_new_merchants?: boolean | null;
+  assign_to_all_vendor_merchants?: boolean | null;
   /**
    * Creation timestamp
    */
@@ -2336,7 +2336,7 @@ export interface ProductsSelect<T extends boolean = true> {
             };
       };
   isActive?: T;
-  auto_assign_to_new_merchants?: T;
+  assign_to_all_vendor_merchants?: T;
   createdAt?: T;
   updatedAt?: T;
 }
