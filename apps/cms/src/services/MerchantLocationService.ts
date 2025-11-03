@@ -4,6 +4,7 @@ import { GeospatialService } from './GeospatialService'
 
 export interface MerchantLocationRequest {
   customerId: number
+  categoryId?: string
 }
 
 export interface MerchantLocationResponse {
@@ -36,7 +37,13 @@ export class MerchantLocationService {
   }
 
   async getMerchantsForLocationDisplay(request: MerchantLocationRequest): Promise<MerchantLocationResponse> {
-    const { customerId } = request
+    const { customerId, categoryId } = request
+
+    console.log(`🔍 [MerchantLocationService] Getting merchants for customer ${customerId}`)
+    
+    if (categoryId) {
+      console.log(`🏷️ [MerchantLocationService] Category filter: "${categoryId}"`)
+    }
 
     // Step 1: Get customer data
     const customer = await this.payload.findByID({
@@ -115,6 +122,25 @@ export class MerchantLocationService {
       offset: 0 // First page
     })
 
+    console.log(`📍 [MerchantLocationService] Found ${result.merchants.length} nearby merchants`)
+
+    // Step 4: Apply category filter if provided
+    let filteredMerchants = result.merchants
+
+    if (categoryId) {
+      // Filter directly by category ID - no conversion needed
+      const merchantIdsInCategory = await this.getMerchantIdsByCategoryId(
+        result.merchants.map(m => m.id),
+        categoryId
+      )
+
+      filteredMerchants = result.merchants.filter(m =>
+        merchantIdsInCategory.includes(m.id)
+      )
+
+      console.log(`🏷️ [MerchantLocationService] Category filter applied: ${result.merchants.length} → ${filteredMerchants.length} merchants`)
+    }
+
     return {
       customer: {
         id: customer.id,
@@ -125,8 +151,91 @@ export class MerchantLocationService {
         latitude: lat,
         longitude: lng,
       },
-      merchants: result.merchants,
-      totalCount: result.totalCount,
+      merchants: filteredMerchants,
+      totalCount: filteredMerchants.length,
+    }
+  }
+
+  /**
+   * Get merchant IDs that have products in a specific category (by category ID)
+   * 
+   * This method filters the nearby merchants to only those that have
+   * active products in the specified category.
+   * 
+   * Uses category ID directly for filtering (integer comparison - fastest)
+   * 
+   * @param merchantIds - List of nearby merchant IDs from PostGIS query
+   * @param categoryId - Category ID to filter by
+   * @returns Array of merchant IDs that have products in this category
+   */
+  private async getMerchantIdsByCategoryId(
+    merchantIds: number[],
+    categoryId: string
+  ): Promise<number[]> {
+    console.log(`🔍 [MerchantLocationService] Filtering ${merchantIds.length} merchants by category ID "${categoryId}"`)
+
+    try {
+      // Step 1: Find merchant-products for nearby merchants
+      const merchantProducts = await this.payload.find({
+        collection: 'merchant-products',
+        where: {
+          and: [
+            {
+              merchant_id: {
+                in: merchantIds
+              }
+            },
+            {
+              is_active: { equals: true }
+            },
+            {
+              is_available: { equals: true }
+            }
+          ]
+        },
+        depth: 2, // Populate product and its categories
+        limit: 10000
+      })
+
+      if (merchantProducts.docs.length === 0) {
+        console.log(`✅ [MerchantLocationService] No active products found for merchants`)
+        return []
+      }
+
+      // Step 2: Filter merchants that have products in the specified category
+      const filteredMerchantIds = new Set<number>()
+
+      merchantProducts.docs.forEach(mp => {
+        // Get the product from the relationship
+        const product = mp.product_id
+        if (product && typeof product === 'object' && product.categories) {
+          // Check if any of the product's categories match our target category
+          const categories = Array.isArray(product.categories) ? product.categories : [product.categories]
+          
+          const hasTargetCategory = categories.some(category => {
+            const categoryId_obj = typeof category === 'object' ? category.id : category
+            return String(categoryId_obj) === categoryId
+          })
+
+          if (hasTargetCategory) {
+            // Get the merchant ID
+            const merchantId = typeof mp.merchant_id === 'object' ? mp.merchant_id.id : mp.merchant_id
+            if (merchantId) {
+              filteredMerchantIds.add(parseInt(String(merchantId)))
+            }
+          }
+        }
+      })
+
+      const result = Array.from(filteredMerchantIds)
+      
+      console.log(`✅ [MerchantLocationService] Found ${result.length} merchants with category ID "${categoryId}"`)
+      
+      return result
+
+    } catch (error) {
+      console.error(`🚨 [MerchantLocationService] Error filtering by category:`, error)
+      throw new Error('Failed to filter merchants by category')
     }
   }
 }

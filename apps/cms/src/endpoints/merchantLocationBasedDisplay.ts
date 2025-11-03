@@ -49,8 +49,9 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
     console.log(`✅ [${requestId}] Authentication successful - user: ${req.user.id}, role: ${req.user.role}`)
 
     // Extract and validate query parameters
-    const { customerId } = req.query as {
+    const { customerId, categoryId } = req.query as {
       customerId?: string
+      categoryId?: string  // ← NEW: Category ID from URL (e.g., "9")
     }
 
     // Validation
@@ -79,30 +80,48 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
       }, { status: 400 })
     }
 
-    console.log(`📋 [${requestId}] Processing request for customerId: ${customerIdNum}`)
+    console.log(`📋 [${requestId}] Processing request for customerId: ${customerIdNum}`, {
+      categoryFilter: categoryId || 'none'
+    })
 
     // Initialize the PostGIS-based location service
     console.log(`🔄 [${requestId}] Initializing MerchantLocationService (PostGIS-based)...`)
      const merchantLocationService = new MerchantLocationService(req.payload)
      
-     console.log(`🔍 [${requestId}] Fetching merchants using PostGIS spatial queries for customer ${customerIdNum}...`)
-     const result = await merchantLocationService.getMerchantsForLocationDisplay({ customerId: customerIdNum })
+     console.log(`🔍 [${requestId}] Fetching merchants using PostGIS spatial queries...`)
+     const result = await merchantLocationService.getMerchantsForLocationDisplay({
+       customerId: customerIdNum,
+       categoryId: categoryId || undefined  // ← PASS CATEGORY ID DIRECTLY
+     })
 
     const responseTime = Date.now() - startTime
      console.log(`✅ [${requestId}] Successfully retrieved ${result.merchants?.length || 0} merchants using PostGIS (${responseTime}ms)`)
+     
+    if (categoryId) {
+      console.log(`🏷️ [${requestId}] Category filter applied: "${categoryId}"`)
+    }
+
      console.log(`✅ [${requestId}] Request completed successfully in ${responseTime}ms`)
     console.log(`📊 [${requestId}] Result summary:`, {
       customerFound: !!result.customer,
       addressFound: !!result.address,
-      merchantCount: result.merchants?.length || 0
+      merchantCount: result.merchants?.length || 0,
+      filterApplied: !!categoryId
     })
 
     return Response.json({
       success: true,
       data: result,
-      timestamp: new Date().toISOString(),
-      requestId,
-      responseTime
+      filters: {
+        categoryId: categoryId || null,
+        applied: !!categoryId
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        requestId,
+        responseTime,
+        merchantCount: result.merchants?.length || 0
+      }
     }, { status: 200 })
 
   } catch (error) {
@@ -143,14 +162,15 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
       stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
       responseTime: `${responseTime}ms`,
       context: {
-        userId: req.user?.id,
-        userRole: req.user?.role,
-        customerId: req.query?.customerId,
-        timestamp: new Date().toISOString(),
-        requestId,
-        userAgent: req.headers?.get('user-agent'),
-        ipAddress: req.headers?.get('x-forwarded-for') || req.headers?.get('x-real-ip'),
-      },
+          userId: req.user?.id,
+          userRole: req.user?.role,
+          customerId: req.query?.customerId,
+          categoryId: req.query?.categoryId,
+          timestamp: new Date().toISOString(),
+          requestId,
+          userAgent: req.headers?.get('user-agent'),
+          ipAddress: req.headers?.get('x-forwarded-for') || req.headers?.get('x-real-ip'),
+        },
       performance: {
         responseTimeMs: responseTime,
         slowQuery: responseTime > 5000,
@@ -187,6 +207,7 @@ export const merchantLocationBasedDisplayHandler = async (req: PayloadRequest) =
           stack: errorStack,
           context: {
             customerId: req.query?.customerId,
+            categoryId: req.query?.categoryId,
             userId: req.user?.id,
           }
         }

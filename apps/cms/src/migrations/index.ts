@@ -5,6 +5,7 @@ import * as migration_20251101_112210_merchant_products_added_by_optional from '
 import * as migration_20251102_095049_replace_auto_assign_field from './20251102_095049_replace_auto_assign_field';
 import * as migration_20251102_161143 from './20251102_161143';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
+import * as migration_20250103_category_filtering_indexes from './20250103_category_filtering_indexes';
 
 export const migrations = [
   {
@@ -41,5 +42,10 @@ export const migrations = [
     up: migration_20251202_remove_vendor_products_table.up,
     down: migration_20251202_remove_vendor_products_table.down,
     name: '20251202_remove_vendor_products_table'
+  },
+  {
+    up: migration_20250103_category_filtering_indexes.up,
+    down: migration_20250103_category_filtering_indexes.down,
+    name: '20250103_category_filtering_indexes'
   },
 ];
