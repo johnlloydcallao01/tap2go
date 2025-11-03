@@ -12,6 +12,7 @@ import { useAddressChange } from '@/hooks/useAddressChange';
 interface LocationBasedMerchantsProps {
   customerId?: string;
   limit?: number;
+  categoryId?: string | null;
 }
 
 // Location-based Merchant Card Skeleton
@@ -175,7 +176,7 @@ function LocationMerchantCard({ merchant }: LocationMerchantCardProps) {
 }
 
 // Main LocationBasedMerchants Component
-export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedMerchantsProps) {
+export function LocationBasedMerchants({ customerId, limit = 8, categoryId }: LocationBasedMerchantsProps) {
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -183,7 +184,7 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
 
   // Function to fetch merchants
   const fetchLocationBasedMerchants = useCallback(async (customerIdToUse: string) => {
-    console.log('🚀 Starting merchant fetch with customer ID:', customerIdToUse);
+    console.log('🚀 Starting merchant fetch with customer ID:', customerIdToUse, 'categoryId:', categoryId);
     setIsLoading(true);
     setError(null);
 
@@ -191,6 +192,7 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
       const locationMerchants = await LocationBasedMerchantService.getLocationBasedMerchants({
         customerId: customerIdToUse,
         limit,
+        categoryId: categoryId || undefined,
       });
       console.log('✅ Merchants fetched successfully:', locationMerchants.length, 'merchants');
       setMerchants(locationMerchants);
@@ -201,7 +203,7 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
       console.log('🏁 Merchant fetch completed, setting loading to false');
       setIsLoading(false);
     }
-  }, [limit]);
+  }, [limit, categoryId]);
 
   // Listen for address changes and refetch merchants
   useAddressChange((addressId: string) => {
@@ -357,10 +359,11 @@ export function LocationBasedMerchants({ customerId, limit = 8 }: LocationBasedM
       <div className="container mx-auto px-4">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Nearby Restaurants
+            {categoryId ? 'Filtered Restaurants' : 'Nearby Restaurants'}
           </h2>
           <p className="text-gray-600">
             {merchants.length} merchants found near your location
+            {categoryId && ' in selected category'}
           </p>
         </div>
         

@@ -723,4 +723,4 @@ curl.exe -X GET "http://localhost:3001/api/merchant/location-based-product-categ
 
 
 
-curl.exe -X GET "http://localhost:3001/api/merchant/location-based-display?customerId=3&categoryId=9" -H "Authorization: users API-Key 1331d981-b6b7-4ff5-aab6-b9ddbb0c63ae" -H "Content-Type: application/json" | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty merchants | Select-Object @{Name="merchantName";Expression={$_.outletName}}, @{Name="distanceKm";Expression={$_.distanceKm}} | ConvertTo-Json 
+curl.exe -X GET "https://cms.tap2goph.com/api/merchant/location-based-display?customerId=3&categoryId=9" -H "Authorization: users API-Key 1331d981-b6b7-4ff5-aab6-b9ddbb0c63ae" -H "Content-Type: application/json" | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty merchants | Select-Object @{Name="merchantName";Expression={$_.outletName}}, @{Name="distanceKm";Expression={$_.distanceKm}} | ConvertTo-Json 

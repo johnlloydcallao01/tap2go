@@ -34,6 +34,7 @@ export interface LocationBasedMerchantsResponse {
 export interface LocationBasedMerchantServiceOptions {
   customerId: string;
   limit?: number;
+  categoryId?: string;
 }
 
 export class LocationBasedMerchantService {
@@ -44,9 +45,9 @@ export class LocationBasedMerchantService {
    * Uses NEXT_PUBLIC_PAYLOAD_API_KEY for client-side access
    */
   static async getLocationBasedMerchants(options: LocationBasedMerchantServiceOptions): Promise<LocationBasedMerchant[]> {
-    const { customerId, limit = 10 } = options;
+    const { customerId, limit = 10, categoryId } = options;
 
-    console.log('🛒 Starting location-based merchants fetch with options:', { customerId, limit });
+    console.log('🛒 Starting location-based merchants fetch with options:', { customerId, limit, categoryId });
 
     if (!customerId) {
       console.warn('❌ Customer ID is required for location-based merchants');
@@ -54,7 +55,7 @@ export class LocationBasedMerchantService {
     }
 
     // Create cache key based on options
-    const cacheKey = `${CACHE_KEYS.MERCHANTS}-location-${customerId}-${limit}`;
+    const cacheKey = `${CACHE_KEYS.MERCHANTS}-location-${customerId}-${limit}-${categoryId || 'all'}`;
     
     // Check cache first
     const cachedData = dataCache.get<LocationBasedMerchant[]>(cacheKey);
@@ -76,6 +77,10 @@ export class LocationBasedMerchantService {
 
       if (limit) {
         params.append('limit', limit.toString());
+      }
+
+      if (categoryId) {
+        params.append('categoryId', categoryId.toString());
       }
 
       // Add API key authentication using client-side key

@@ -9,6 +9,8 @@ interface LocationBasedProductCategoriesCarouselProps {
   limit?: number;
   sortBy?: 'name' | 'popularity' | 'productCount';
   includeInactive?: boolean;
+  selectedCategoryId?: string | null;
+  onCategorySelect?: (categoryId: string | null, categoryName?: string) => void;
 }
 
 /**
@@ -21,11 +23,12 @@ export const LocationBasedProductCategoriesCarousel = ({
   limit = 20,
   sortBy = 'popularity',
   includeInactive = false,
+  selectedCategoryId,
+  onCategorySelect,
 }: LocationBasedProductCategoriesCarouselProps): JSX.Element => {
   // CSR state management for location-based categories
   const [categories, setCategories] = useState<LocationBasedProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
@@ -34,6 +37,11 @@ export const LocationBasedProductCategoriesCarousel = ({
   const [lastTime, setLastTime] = useState(0);
   const [velocityX, setVelocityX] = useState(0);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(customerId || null);
+
+  // Find the active category based on selectedCategoryId
+  const activeCategory = selectedCategoryId 
+    ? categories.find(cat => cat.id === selectedCategoryId)?.name || ''
+    : '';
   const [error, setError] = useState<string | null>(null);
   
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -56,9 +64,6 @@ export const LocationBasedProductCategoriesCarousel = ({
 
       console.log('✅ Fetched', fetchedCategories.length, 'location-based product categories');
       setCategories(fetchedCategories);
-      if (fetchedCategories.length > 0) {
-        setActiveCategory(fetchedCategories[0].name);
-      }
     } catch (err) {
       console.error('❌ Error fetching location-based product categories:', err);
       setError('Failed to load product categories');
@@ -114,7 +119,8 @@ export const LocationBasedProductCategoriesCarousel = ({
     const containerWidth = container.getBoundingClientRect().width - 48; // minus padding
     const actualItemWidth = 64; // circle width only
     const gapWidth = 48; // gap between items
-    const totalContentWidth = (categories.length * actualItemWidth) + ((categories.length - 1) * gapWidth);
+    const totalItems = categories.length;
+    const totalContentWidth = (totalItems * actualItemWidth) + ((totalItems - 1) * gapWidth);
 
     return Math.max(0, totalContentWidth - containerWidth);
   }, [categories.length]);
@@ -166,10 +172,14 @@ export const LocationBasedProductCategoriesCarousel = ({
     animateToPosition(newPosition, 400); // Smooth animation like normal swipe
   };
 
-  const handleCategoryClick = (category: string) => {
-    if (!isDragging) {
-      setActiveCategory(category);
-      console.log('📱 Category clicked:', category);
+  const handleCategoryClick = (categoryName: string) => {
+    if (!isDragging && onCategorySelect) {
+      // Find the category by name to get its ID
+      const category = categories.find(cat => cat.name === categoryName);
+      if (category) {
+        console.log('📱 Category clicked:', { name: categoryName, id: category.id });
+        onCategorySelect(category.id, categoryName);
+      }
     }
   };
 
