@@ -12,32 +12,46 @@ import { LocationBasedProductCategoriesCarousel } from "@/components/carousels/L
  * Location Based Merchants: 100% CSR (Client-Side Rendering)
  * 
  * Features:
- * - URL-based category filtering (?categoryId=10)
+ * - URL-based category filtering (?categoryId=burger)
  * - Default view shows all merchants (no filter)
  * - Category clicks update URL and filter merchants
  */
 export default function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   // Read category filter from URL on mount and when URL changes
   useEffect(() => {
-    const categoryId = searchParams.get('categoryId');
-    setSelectedCategoryId(categoryId);
+    const categorySlug = searchParams.get('category');
+    setSelectedCategorySlug(categorySlug);
   }, [searchParams]);
 
   // Handle category selection from carousel
-  const handleCategorySelect = (categoryId: string | null, categoryName?: string) => {
-    console.log('🏷️ Category selected:', { categoryId, categoryName });
+  const handleCategorySelect = (categoryId: string | null, categorySlug: string | null, categoryName?: string) => {
+    console.log('🏷️ Category selected:', { categoryId, categorySlug, categoryName });
     
-    // Update URL with category filter
-    if (categoryId) {
-      router.push(`/?categoryId=${categoryId}`, { scroll: false });
+    // Toggle logic: if the same category is clicked, deactivate it
+    if (categorySlug && categorySlug === selectedCategorySlug) {
+      console.log('🔄 Toggling off active category:', categorySlug);
+      // Remove category filter (show all)
+      router.push('/', { scroll: false });
+      return;
+    }
+    
+    // Update URL with category slug
+    if (categorySlug) {
+      router.push(`/?category=${categorySlug}`, { scroll: false });
     } else {
       // Remove category filter (show all)
       router.push('/', { scroll: false });
     }
+  };
+
+  // Handle category slug to ID conversion from carousel
+  const handleCategoryIdResolved = (categoryId: string | null) => {
+    setSelectedCategoryId(categoryId);
   };
 
   return (
@@ -48,8 +62,9 @@ export default function Home() {
           customerId={undefined} 
           limit={12} 
           sortBy="popularity"
-          selectedCategoryId={selectedCategoryId}
+          selectedCategorySlug={selectedCategorySlug}
           onCategorySelect={handleCategorySelect}
+          onCategoryIdResolved={handleCategoryIdResolved}
         />
       </div>
 

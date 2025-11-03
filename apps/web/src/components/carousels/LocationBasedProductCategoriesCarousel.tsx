@@ -3,14 +3,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { LocationBasedProductCategory, LocationBasedProductCategoriesService } from '@/lib/client-services/location-based-product-categories-service';
 import { ProductCategoryCircle } from '@/components/ui/ProductCategoryCircle';
+import { useAddressChange } from '@/hooks/useAddressChange';
 
 interface LocationBasedProductCategoriesCarouselProps {
   customerId?: string;
   limit?: number;
   sortBy?: 'name' | 'popularity' | 'productCount';
   includeInactive?: boolean;
-  selectedCategoryId?: string | null;
-  onCategorySelect?: (categoryId: string | null, categoryName?: string) => void;
+  selectedCategorySlug?: string | null;
+  onCategorySelect?: (categoryId: string | null, categorySlug: string | null, categoryName?: string) => void;
+  onCategoryIdResolved?: (categoryId: string | null) => void;
 }
 
 /**
@@ -23,8 +25,9 @@ export const LocationBasedProductCategoriesCarousel = ({
   limit = 20,
   sortBy = 'popularity',
   includeInactive = false,
-  selectedCategoryId,
+  selectedCategorySlug,
   onCategorySelect,
+  onCategoryIdResolved,
 }: LocationBasedProductCategoriesCarouselProps): JSX.Element => {
   // CSR state management for location-based categories
   const [categories, setCategories] = useState<LocationBasedProductCategory[]>([]);
@@ -38,10 +41,22 @@ export const LocationBasedProductCategoriesCarousel = ({
   const [velocityX, setVelocityX] = useState(0);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(customerId || null);
 
-  // Find the active category based on selectedCategoryId
-  const activeCategory = selectedCategoryId 
-    ? categories.find(cat => cat.id === selectedCategoryId)?.name || ''
+  // Find the active category based on selectedCategorySlug
+  const activeCategory = selectedCategorySlug 
+    ? categories.find(cat => cat.name.toLowerCase().replace(/\s+/g, '-') === selectedCategorySlug)?.name || ''
     : '';
+  
+  // Resolve category ID from slug and notify parent
+  useEffect(() => {
+    if (selectedCategorySlug && categories.length > 0 && onCategoryIdResolved) {
+      const category = categories.find(cat => 
+        cat.name.toLowerCase().replace(/\s+/g, '-') === selectedCategorySlug
+      );
+      onCategoryIdResolved(category?.id || null);
+    } else if (!selectedCategorySlug && onCategoryIdResolved) {
+      onCategoryIdResolved(null);
+    }
+  }, [selectedCategorySlug, categories, onCategoryIdResolved]);
   const [error, setError] = useState<string | null>(null);
   
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -110,6 +125,22 @@ export const LocationBasedProductCategoriesCarousel = ({
     }
   }, [resolvedCustomerId, fetchLocationBasedProductCategories]);
 
+  // Listen for address changes and refetch categories
+  useAddressChange((addressId: string) => {
+    console.log('🔄 LocationBasedProductCategoriesCarousel received address change event for:', addressId);
+    if (resolvedCustomerId) {
+      console.log('🚀 Refetching categories due to address change...');
+      
+      // Clear the cache first to ensure fresh data
+      console.log('🗑️ Clearing location-based categories cache...');
+      LocationBasedProductCategoriesService.clearCache(resolvedCustomerId);
+      
+      fetchLocationBasedProductCategories(resolvedCustomerId);
+    } else {
+      console.log('⏳ Customer ID not resolved yet, skipping categories refetch');
+    }
+  });
+
   // Calculate proper maxTranslate to ensure last item is fully visible - identical to ProductCategoryCarousel
   const getMaxTranslate = useCallback(() => {
     if (!carouselRef.current) return 0;
@@ -174,11 +205,12 @@ export const LocationBasedProductCategoriesCarousel = ({
 
   const handleCategoryClick = (categoryName: string) => {
     if (!isDragging && onCategorySelect) {
-      // Find the category by name to get its ID
+      // Find the category by name to get its ID and slug
       const category = categories.find(cat => cat.name === categoryName);
       if (category) {
-        console.log('📱 Category clicked:', { name: categoryName, id: category.id });
-        onCategorySelect(category.id, categoryName);
+        const categorySlug = category.name.toLowerCase().replace(/\s+/g, '-');
+        console.log('📱 Category clicked:', { name: categoryName, id: category.id, slug: categorySlug });
+        onCategorySelect(category.id, categorySlug, categoryName);
       }
     }
   };
