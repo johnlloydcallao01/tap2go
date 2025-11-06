@@ -195,6 +195,19 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   const animationRef = useRef<number | null>(null);
   const boundsCalculatedRef = useRef(false);
 
+  // Fastest Delivery carousel independent states
+  const [isDraggingFast, setIsDraggingFast] = useState(false);
+  const [startXFast, setStartXFast] = useState(0);
+  const [currentXFast, setCurrentXFast] = useState(0);
+  const [translateXFast, setTranslateXFast] = useState(0);
+  const [startTranslateXFast, setStartTranslateXFast] = useState(0);
+  const [lastTimeFast, setLastTimeFast] = useState(0);
+  const [velocityXFast, setVelocityXFast] = useState(0);
+  const [maxTranslateFast, setMaxTranslateFast] = useState(0);
+  const carouselRefFast = useRef<HTMLDivElement>(null);
+  const animationRefFast = useRef<number | null>(null);
+  const boundsCalculatedRefFast = useRef(false);
+
   // Function to fetch merchants
   const fetchLocationBasedMerchants = useCallback(async (customerIdToUse: string) => {
     console.log('🚀 Starting merchant fetch with customer ID:', customerIdToUse, 'categoryId:', categoryId);
@@ -217,6 +230,55 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       setIsLoading(false);
     }
   }, [limit, categoryId]);
+
+  // Parse update timestamp robustly from updatedAt/createdAt
+  const getUpdatedTimeMs = useCallback((m: LocationBasedMerchant): number => {
+    const primary = m.updatedAt || m.createdAt || '';
+    const t = Date.parse(primary);
+    return Number.isFinite(t) ? t : 0;
+  }, []);
+
+  // Memoized list sorted by latest updated (desc)
+  const fastestMerchants = React.useMemo(() => {
+    return [...merchants].sort((a, b) => getUpdatedTimeMs(b) - getUpdatedTimeMs(a));
+  }, [merchants, getUpdatedTimeMs]);
+
+  // Viewport width tracking for responsive grid sizing (>1024px)
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 0);
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Show-more counters for desktop grids
+  const [nearbyVisibleCount, setNearbyVisibleCount] = useState<number>(0);
+  const [newlyVisibleCount, setNewlyVisibleCount] = useState<number>(0);
+
+  const getGridStep = useCallback((w: number) => {
+    if (w > 1120) return 8;
+    if (w >= 1025) return 6;
+    return 0;
+  }, []);
+
+  // Initialize counts when data or viewport changes (do not decrease existing counts)
+  useEffect(() => {
+    if (!categoryId && viewportWidth >= 1025) {
+      const step = getGridStep(viewportWidth);
+      setNearbyVisibleCount(prev => (prev > 0 ? Math.min(prev, merchants.length) : Math.min(step, merchants.length)));
+      setNewlyVisibleCount(prev => (prev > 0 ? Math.min(prev, fastestMerchants.length) : Math.min(step, fastestMerchants.length)));
+    }
+  }, [categoryId, viewportWidth, merchants.length, fastestMerchants.length, getGridStep]);
+
+  const showMoreNearby = useCallback(() => {
+    const step = getGridStep(viewportWidth);
+    if (step > 0) setNearbyVisibleCount(c => Math.min(c + step, merchants.length));
+  }, [getGridStep, viewportWidth, merchants.length]);
+
+  const showMoreNewly = useCallback(() => {
+    const step = getGridStep(viewportWidth);
+    if (step > 0) setNewlyVisibleCount(c => Math.min(c + step, fastestMerchants.length));
+  }, [getGridStep, viewportWidth, fastestMerchants.length]);
 
   // Helpers for carousel physics
   const getItemWidth = useCallback(() => {
@@ -242,6 +304,26 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     return Math.max(0, totalContentWidth - containerWidth);
   }, [merchants.length, getItemWidth]);
 
+  // Fastest Delivery carousel helpers
+  const getItemWidthFast = useCallback(() => {
+    if (!carouselRefFast.current) return 280;
+    const firstChild = carouselRefFast.current.children[0] as HTMLElement | undefined;
+    if (!firstChild) return 280;
+    const rect = firstChild.getBoundingClientRect();
+    return rect.width || 280;
+  }, []);
+
+  const getMaxTranslateFast = useCallback(() => {
+    if (!carouselRefFast.current) return 0;
+    const container = carouselRefFast.current.parentElement;
+    if (!container) return 0;
+    const containerWidth = container.getBoundingClientRect().width - 0;
+    const itemWidth = getItemWidthFast();
+    const totalItems = fastestMerchants.length;
+    const totalContentWidth = (totalItems * itemWidth) + ((totalItems - 1) * GAP_WIDTH);
+    return Math.max(0, totalContentWidth - containerWidth);
+  }, [fastestMerchants.length, getItemWidthFast]);
+
   const animateToPosition = useCallback((targetX: number, duration = 400) => {
     const startPos = translateX;
     const distance = targetX - startPos;
@@ -262,6 +344,26 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     animate();
   }, [translateX]);
 
+  const animateToPositionFast = useCallback((targetX: number, duration = 400) => {
+    const startPos = translateXFast;
+    const distance = targetX - startPos;
+    const startTime = Date.now();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = startPos + distance * easeOut;
+      setTranslateXFast(current);
+      if (progress < 1) {
+        animationRefFast.current = requestAnimationFrame(animate);
+      }
+    };
+
+    if (animationRefFast.current) cancelAnimationFrame(animationRefFast.current);
+    animate();
+  }, [translateXFast]);
+
   const scrollLeft = useCallback(() => {
     const swipeDistance = (getItemWidth() + GAP_WIDTH) * 1.2;
     const newPosition = Math.max(0, translateX - swipeDistance);
@@ -274,6 +376,18 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     animateToPosition(newPosition, 400);
   }, [translateX, animateToPosition, maxTranslate, getItemWidth]);
 
+  const scrollLeftFast = useCallback(() => {
+    const swipeDistance = (getItemWidthFast() + GAP_WIDTH) * 1.2;
+    const newPosition = Math.max(0, translateXFast - swipeDistance);
+    animateToPositionFast(newPosition, 400);
+  }, [translateXFast, animateToPositionFast, getItemWidthFast]);
+
+  const scrollRightFast = useCallback(() => {
+    const swipeDistance = (getItemWidthFast() + GAP_WIDTH) * 1.2;
+    const newPosition = Math.min(-maxTranslateFast, translateXFast + swipeDistance);
+    animateToPositionFast(newPosition, 400);
+  }, [translateXFast, animateToPositionFast, maxTranslateFast, getItemWidthFast]);
+
   const handleStart = (clientX: number) => {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
     setIsDragging(true);
@@ -282,6 +396,16 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     setStartTranslateX(translateX);
     setLastTime(Date.now());
     setVelocityX(0);
+  };
+
+  const handleStartFast = (clientX: number) => {
+    if (animationRefFast.current) cancelAnimationFrame(animationRefFast.current);
+    setIsDraggingFast(true);
+    setStartXFast(clientX);
+    setCurrentXFast(clientX);
+    setStartTranslateXFast(translateXFast);
+    setLastTimeFast(Date.now());
+    setVelocityXFast(0);
   };
 
   const handleMove = useCallback((clientX: number) => {
@@ -305,6 +429,27 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     setTranslateX(bounded);
   }, [isDragging, startX, startTranslateX, currentX, lastTime, maxTranslate]);
 
+  const handleMoveFast = useCallback((clientX: number) => {
+    if (!isDraggingFast) return;
+    const currentTime = Date.now();
+    const deltaTime = currentTime - lastTimeFast;
+    const deltaX = clientX - currentXFast;
+    if (deltaTime > 0) setVelocityXFast(deltaX / deltaTime);
+    setCurrentXFast(clientX);
+    setLastTimeFast(currentTime);
+    const dragDistance = clientX - startXFast;
+    const newTranslate = startTranslateXFast + dragDistance;
+
+    let bounded = newTranslate;
+    if (newTranslate > 0) {
+      bounded = newTranslate * 0.3;
+    } else if (newTranslate < -maxTranslateFast) {
+      const overflow = newTranslate + maxTranslateFast;
+      bounded = -maxTranslateFast + overflow * 0.3;
+    }
+    setTranslateXFast(bounded);
+  }, [isDraggingFast, startXFast, startTranslateXFast, currentXFast, lastTimeFast, maxTranslateFast]);
+
   const handleEnd = useCallback(() => {
     if (!isDragging) return;
     setIsDragging(false);
@@ -313,6 +458,15 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     finalPos = Math.max(-maxTranslate, Math.min(0, finalPos));
     animateToPosition(finalPos, 400);
   }, [isDragging, velocityX, translateX, maxTranslate, animateToPosition]);
+
+  const handleEndFast = useCallback(() => {
+    if (!isDraggingFast) return;
+    setIsDraggingFast(false);
+    const momentum = velocityXFast * 200;
+    let finalPos = translateXFast + momentum;
+    finalPos = Math.max(-maxTranslateFast, Math.min(0, finalPos));
+    animateToPositionFast(finalPos, 400);
+  }, [isDraggingFast, velocityXFast, translateXFast, maxTranslateFast, animateToPositionFast]);
 
   // Listen for address changes and refetch merchants
   useAddressChange((addressId: string) => {
@@ -385,6 +539,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     }
   }, [merchants.length, getMaxTranslate, translateX]);
 
+  // Calculate bounds for Fastest Delivery carousel
+  useEffect(() => {
+    const calculateBoundsFast = () => {
+      const newMaxFast = getMaxTranslateFast();
+      setMaxTranslateFast(newMaxFast);
+      if (translateXFast < -newMaxFast) setTranslateXFast(-newMaxFast);
+      boundsCalculatedRefFast.current = true;
+    };
+    if (fastestMerchants.length > 0) {
+      const timer = setTimeout(calculateBoundsFast, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [fastestMerchants.length, getMaxTranslateFast, translateXFast]);
+
   // Handle window resize for carousel bounds
   useEffect(() => {
     const handleResize = () => {
@@ -395,6 +563,17 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [getMaxTranslate, translateX, animateToPosition]);
+
+  // Handle window resize for Fastest Delivery carousel bounds
+  useEffect(() => {
+    const handleResizeFast = () => {
+      const newMaxFast = getMaxTranslateFast();
+      setMaxTranslateFast(newMaxFast);
+      if (translateXFast < -newMaxFast) animateToPositionFast(-newMaxFast);
+    };
+    window.addEventListener('resize', handleResizeFast);
+    return () => window.removeEventListener('resize', handleResizeFast);
+  }, [getMaxTranslateFast, translateXFast, animateToPositionFast]);
 
   // Global mouse events to continue drag outside element
   useEffect(() => {
@@ -410,10 +589,24 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     }
   }, [isDragging, handleMove, handleEnd]);
 
+  // Global mouse events for Fastest Delivery carousel
+  useEffect(() => {
+    if (isDraggingFast) {
+      const handleGlobalMouseMove = (e: MouseEvent) => handleMoveFast(e.clientX);
+      const handleGlobalMouseUp = () => handleEndFast();
+      document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleGlobalMouseMove);
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [isDraggingFast, handleMoveFast, handleEndFast]);
+
   if (isLoading) {
     return (
       <section className="py-4 bg-white">
-        <div className="container mx-auto px-2.5">
+        <div className="w-full px-2.5">
           <div className="mb-[15px]">
             <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
               Nearby Restaurants
@@ -423,17 +616,17 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             </p>
           </div>
           
-          {/* Grid skeleton (visible on large screens or when filtered) */}
-          <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {/* Grid skeleton (visible on >1024px or when filtered) */}
+          <div className="hidden min-[1025px]:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, index) => (
               <LocationMerchantCardSkeleton key={index} />
             ))}
           </div>
           {/* Carousel skeleton (visible on <=1024 when no filter) */}
-          <div className="lg:hidden overflow-hidden px-0">
+          <div className="block min-[1025px]:hidden overflow-hidden px-0">
             <div className="flex" style={{ gap: `${GAP_WIDTH}px` }}>
               {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="w-[75%] flex-shrink-0">
+                <div key={index} className="w-[75%] min-[650px]:w-[30%] flex-shrink-0">
                   <LocationMerchantCardSkeleton />
                 </div>
               ))}
@@ -447,7 +640,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   if (error) {
     return (
       <section className="py-4 bg-white">
-        <div className="container mx-auto px-2.5">
+        <div className="w-full px-2.5">
           <div className="mb-[15px]">
             <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
               Nearby Restaurants
@@ -484,7 +677,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   if (!merchants || merchants.length === 0) {
     return (
       <section className="py-4 bg-white">
-        <div className="container mx-auto px-2.5">
+        <div className="w-full px-2.5">
           <div className="mb-[15px]">
             <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
               Nearby Restaurants
@@ -515,23 +708,35 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
 
   return (
     <section className="py-4 bg-white">
-      <div className="container mx-auto px-2.5">
+      <div className="w-full px-2.5">
         <div className="mb-[15px]">
           <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
             {categoryId ? 'Filtered Restaurants' : 'Nearby Restaurants'}
           </h2>
         </div>
-        {/* Grid view for large screens or when filtered */}
-        <div className={`${categoryId ? 'grid' : 'hidden lg:grid'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6`}>
-          {merchants.map((merchant) => (
+        {/* Grid view for >1024px or when filtered */}
+        <div className={`${categoryId ? 'grid' : 'hidden min-[1025px]:grid'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6`}>
+          {(categoryId ? merchants : merchants.slice(0, nearbyVisibleCount)).map((merchant) => (
             <LocationMerchantCard key={merchant.id} merchant={merchant} />
           ))}
         </div>
 
-        {/* Carousel view: visible only when no filter and <=1024px */}
+        {/* Show More for Nearby grid (>1024px), only when unfiltered */}
+        {!categoryId && viewportWidth >= 1025 && nearbyVisibleCount < merchants.length && (
+          <div className="hidden min-[1025px]:flex justify-center mt-4">
+            <button
+              onClick={showMoreNearby}
+              className="px-4 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200"
+            >
+              Show more
+            </button>
+          </div>
+        )}
+
+        {/* Carousel view: visible only when no filter and <=1024px (inclusive) */}
         {!categoryId && (
           <div
-            className="lg:hidden overflow-hidden px-0 relative"
+            className="block min-[1025px]:hidden overflow-hidden px-0 relative"
             onMouseDown={(e) => { e.preventDefault(); handleStart(e.clientX); }}
             onMouseMove={isDragging ? (e) => handleMove(e.clientX) : undefined}
             onMouseUp={isDragging ? () => handleEnd() : undefined}
@@ -554,7 +759,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
               }}
             >
               {merchants.map((merchant) => (
-                <div key={merchant.id} className="flex-shrink-0 w-[75%]" style={{ pointerEvents: 'auto' }}>
+                <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
                   <LocationMerchantCard merchant={merchant} />
                 </div>
               ))}
@@ -575,10 +780,79 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
           </div>
         )}
 
+        {/* Newly Updated section: visible only when no filter */}
+        {!categoryId && (
+          <>
+            <div className="mb-[15px] mt-[30px]">
+              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">Newly Updated</h2>
+            </div>
+            {/* Grid view for >1024px */}
+            <div className="hidden min-[1025px]:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {fastestMerchants.slice(0, newlyVisibleCount).map((merchant) => (
+                <LocationMerchantCard key={merchant.id} merchant={merchant} />
+              ))}
+            </div>
+
+            {/* Show More for Newly Updated grid (>1024px) */}
+            {viewportWidth >= 1025 && newlyVisibleCount < fastestMerchants.length && (
+              <div className="hidden min-[1025px]:flex justify-center mt-4">
+                <button
+                  onClick={showMoreNewly}
+                  className="px-4 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200"
+                >
+                  Show more
+                </button>
+              </div>
+            )}
+            <div
+              className="block min-[1025px]:hidden overflow-hidden px-0 relative"
+              onMouseDown={(e) => { e.preventDefault(); handleStartFast(e.clientX); }}
+              onMouseMove={isDraggingFast ? (e) => handleMoveFast(e.clientX) : undefined}
+              onMouseUp={isDraggingFast ? () => handleEndFast() : undefined}
+              onTouchStart={(e) => handleStartFast(e.touches[0].clientX)}
+              onTouchMove={(e) => { if (isDraggingFast) e.stopPropagation(); handleMoveFast(e.touches[0].clientX); }}
+              onTouchEnd={() => handleEndFast()}
+              style={{ touchAction: 'pan-x', cursor: isDraggingFast ? 'grabbing' : 'grab' }}
+            >
+              <div
+                ref={carouselRefFast}
+                className="flex select-none"
+                style={{
+                  transform: `translateX(${translateXFast}px)`,
+                  gap: `${GAP_WIDTH}px`,
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  transition: 'none',
+                  willChange: 'transform',
+                  pointerEvents: 'none'
+                }}
+              >
+                {fastestMerchants.map((merchant) => (
+                  <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
+                    <LocationMerchantCard merchant={merchant} />
+                  </div>
+                ))}
+              </div>
+              <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between pointer-events-none">
+                <button
+                  aria-label="Scroll left"
+                  className="pointer-events-auto px-2 py-6 opacity-0"
+                  onClick={scrollLeftFast}
+                />
+                <button
+                  aria-label="Scroll right"
+                  className="pointer-events-auto px-2 py-6 opacity-0"
+                  onClick={scrollRightFast}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Removed View More Merchants button to show all merchants without pagination */}
       </div>
     </section>
   );
 }
 
-export default LocationBasedMerchants;
+export default LocationBasedMerchants;
