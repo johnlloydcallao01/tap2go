@@ -42,9 +42,10 @@ interface LocationMerchantCardProps {
   merchant: LocationBasedMerchant;
   isWishlisted?: boolean;
   onToggleWishlist?: (id: string) => void;
+  addressName?: string | null;
 }
 
-function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist }: LocationMerchantCardProps) {
+function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist, addressName = null }: LocationMerchantCardProps) {
   // Get the best available image URL from thumbnail
   const getImageUrl = (media: Media | null | undefined): string | null => {
     if (!media) return null;
@@ -150,7 +151,7 @@ function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist
       {/* Merchant Info */}
       <div className="space-y-1">
         <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">
-          {merchant.outletName}
+          {addressName ? `${merchant.outletName} - ${addressName}` : merchant.outletName}
         </h3>
         
         {merchant.vendor?.businessName && (
@@ -185,6 +186,8 @@ function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist
 
 // Main LocationBasedMerchants Component
 export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }: LocationBasedMerchantsProps) {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+  const [addressMap, setAddressMap] = useState<Record<string, string>>({});
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -230,6 +233,66 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   const animationRefFast = useRef<number | null>(null);
   const boundsCalculatedRefFast = useRef(false);
 
+  // Helper: build headers with API key
+  const buildHeaders = useCallback((): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+    if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+    return headers;
+  }, []);
+
+  // Fetch active address name for a single merchant with fallback by coordinates
+  const fetchActiveAddressName = useCallback(async (m: LocationBasedMerchant): Promise<string | null> => {
+    const headers = buildHeaders();
+    try {
+      const res = await fetch(`${API_BASE}/merchants/${m.id}?depth=1`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const addr = data?.activeAddress;
+        if (addr?.formatted_address) return addr.formatted_address as string;
+      }
+    } catch (e) {
+      console.warn('Merchant detail fetch failed, will try coords fallback:', e);
+    }
+
+    const lat = (m as any).merchant_latitude ?? (m as any).latitude ?? null;
+    const lng = (m as any).merchant_longitude ?? (m as any).longitude ?? null;
+    if (lat != null && lng != null) {
+      try {
+        const url = `${API_BASE}/addresses?where[latitude][equals]=${lat}&where[longitude][equals]=${lng}&limit=1`;
+        const res2 = await fetch(url, { headers });
+        if (res2.ok) {
+          const j = await res2.json();
+          const doc = j?.docs?.[0];
+          if (doc?.formatted_address) return doc.formatted_address as string;
+        }
+      } catch (e) {
+        console.warn('Address coords lookup failed:', e);
+      }
+    }
+    return null;
+  }, [API_BASE, buildHeaders]);
+
+  // Batch fetch and set address names for merchants
+  const fetchAndSetActiveAddresses = useCallback(async (list: LocationBasedMerchant[]) => {
+    if (!list || list.length === 0) return;
+    const entries = await Promise.all(list.map(async (m) => {
+      const existing = addressMap[m.id];
+      if (existing) return [m.id, existing] as const;
+      const name = await fetchActiveAddressName(m);
+      return [m.id, name] as const;
+    }));
+    let changed = false;
+    const next: Record<string, string> = { ...addressMap };
+    for (const [id, name] of entries) {
+      if (name && (!next[id] || next[id] !== name)) {
+        next[id] = name;
+        changed = true;
+      }
+    }
+    if (changed) setAddressMap(next);
+  }, [addressMap, fetchActiveAddressName]);
+
   // Function to fetch merchants
   const fetchLocationBasedMerchants = useCallback(async (customerIdToUse: string) => {
     console.log('🚀 Starting merchant fetch with customer ID:', customerIdToUse, 'categoryId:', categoryId);
@@ -244,6 +307,8 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       });
       console.log('✅ Merchants fetched successfully:', locationMerchants.length, 'merchants');
       setMerchants(locationMerchants);
+      // Fetch active address names in background
+      fetchAndSetActiveAddresses(locationMerchants);
     } catch (err) {
       console.error('❌ Error fetching location-based merchants:', err);
       setError('Failed to load merchants. Please try again.');
@@ -251,7 +316,8 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       console.log('🏁 Merchant fetch completed, setting loading to false');
       setIsLoading(false);
     }
-  }, [limit, categoryId]);
+  }, [limit, categoryId, fetchAndSetActiveAddresses]);
+
 
   // Parse update timestamp robustly from updatedAt/createdAt
   const getUpdatedTimeMs = useCallback((m: LocationBasedMerchant): number => {
@@ -773,6 +839,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
               merchant={merchant} 
               isWishlisted={wishlistIds.has(merchant.id)} 
               onToggleWishlist={toggleWishlist}
+              addressName={addressMap[merchant.id] || null}
             />
           ))}
         </div>
@@ -820,6 +887,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
                     merchant={merchant} 
                     isWishlisted={wishlistIds.has(merchant.id)} 
                     onToggleWishlist={toggleWishlist}
+                    addressName={addressMap[merchant.id] || null}
                   />
                 </div>
               ))}
@@ -854,6 +922,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
                   merchant={merchant} 
                   isWishlisted={wishlistIds.has(merchant.id)} 
                   onToggleWishlist={toggleWishlist}
+                  addressName={addressMap[merchant.id] || null}
                 />
               ))}
             </div>
@@ -898,6 +967,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
                       merchant={merchant} 
                       isWishlisted={wishlistIds.has(merchant.id)} 
                       onToggleWishlist={toggleWishlist}
+                      addressName={addressMap[merchant.id] || null}
                     />
                   </div>
                 ))}

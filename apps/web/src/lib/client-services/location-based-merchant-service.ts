@@ -10,6 +10,11 @@ export interface LocationBasedMerchant extends Omit<Merchant, 'operationalStatus
   isWithinDeliveryRadius: boolean;
   estimatedDeliveryTime: string;
   operationalStatus: string;
+  // Optional fields that may be present from the API or inferred
+  activeAddressId?: string | number | null;
+  activeFormattedAddress?: string | null;
+  merchant_latitude?: number | null;
+  merchant_longitude?: number | null;
 }
 
 // API Response structure for location-based merchants
