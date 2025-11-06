@@ -25,10 +25,6 @@ function LocationMerchantCardSkeleton() {
         <div className="absolute top-2 left-2 bg-gray-300 rounded-full px-2 py-1">
           <div className="h-3 w-12 bg-gray-400 rounded"></div>
         </div>
-        {/* Delivery status skeleton */}
-        <div className="absolute top-2 right-2 bg-gray-300 rounded-full px-2 py-1">
-          <div className="h-3 w-8 bg-gray-400 rounded"></div>
-        </div>
       </div>
       <div className="space-y-2">
         <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -44,9 +40,11 @@ function LocationMerchantCardSkeleton() {
 // Location-based Merchant Card Component
 interface LocationMerchantCardProps {
   merchant: LocationBasedMerchant;
+  isWishlisted?: boolean;
+  onToggleWishlist?: (id: string) => void;
 }
 
-function LocationMerchantCard({ merchant }: LocationMerchantCardProps) {
+function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist }: LocationMerchantCardProps) {
   // Get the best available image URL from thumbnail
   const getImageUrl = (media: Media | null | undefined): string | null => {
     if (!media) return null;
@@ -112,10 +110,20 @@ function LocationMerchantCard({ merchant }: LocationMerchantCardProps) {
           {formatDistance(merchant.distanceKm)}
         </div>
 
-        {/* Delivery Status Badge */}
-        <div className={`absolute top-2 right-2 text-white text-xs px-2 py-1 rounded-full ${getDeliveryStatusColor(merchant.isWithinDeliveryRadius, merchant.operationalStatus)}`}>
-          {getDeliveryStatusText(merchant.isWithinDeliveryRadius, merchant.operationalStatus)}
-        </div>
+        {/* Wishlist Heart - top-right, white circular background */}
+        <button
+          type="button"
+          aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+          aria-pressed={isWishlisted}
+          onClick={(e) => { e.stopPropagation(); onToggleWishlist && onToggleWishlist(merchant.id); }}
+          className="absolute top-2 right-2 w-[28px] h-[28px] rounded-full bg-white flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
+          style={{ zIndex: 2 }}
+        >
+          <i
+            className={`fas fa-heart text-[16px]`}
+            style={{ color: isWishlisted ? '#f3a823' : '#ffffff', WebkitTextStroke: '2px #333' }}
+          ></i>
+        </button>
 
         {/* Vendor Logo Overlay - Professional delivery platform style */}
         {vendorLogoUrl && (
@@ -181,6 +189,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(customerId || null);
+
+  // Wishlist state (local toggle per merchant)
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const toggleWishlist = useCallback((id: string) => {
+    setWishlistIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   // Momentum carousel states (tailored from category carousel)
   const [isDragging, setIsDragging] = useState(false);
@@ -632,6 +654,35 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
               ))}
             </div>
           </div>
+
+          {!categoryId && (
+            <>
+              <div className="mb-[15px] mt-[30px]">
+                <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+                  Newly Updated
+                </h2>
+                <p className="text-gray-600">
+                  Loading newly updated merchants...
+                </p>
+              </div>
+
+              <div className="hidden min-[1025px]:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <LocationMerchantCardSkeleton key={index} />
+                ))}
+              </div>
+
+              <div className="block min-[1025px]:hidden overflow-hidden px-0">
+                <div className="flex" style={{ gap: `${GAP_WIDTH}px` }}>
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="w-[75%] min-[650px]:w-[30%] flex-shrink-0">
+                      <LocationMerchantCardSkeleton />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </section>
     );
@@ -717,7 +768,12 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         {/* Grid view for >1024px or when filtered */}
         <div className={`${categoryId ? 'grid' : 'hidden min-[1025px]:grid'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6`}>
           {(categoryId ? merchants : merchants.slice(0, nearbyVisibleCount)).map((merchant) => (
-            <LocationMerchantCard key={merchant.id} merchant={merchant} />
+            <LocationMerchantCard 
+              key={merchant.id} 
+              merchant={merchant} 
+              isWishlisted={wishlistIds.has(merchant.id)} 
+              onToggleWishlist={toggleWishlist}
+            />
           ))}
         </div>
 
@@ -760,7 +816,11 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             >
               {merchants.map((merchant) => (
                 <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
-                  <LocationMerchantCard merchant={merchant} />
+                  <LocationMerchantCard 
+                    merchant={merchant} 
+                    isWishlisted={wishlistIds.has(merchant.id)} 
+                    onToggleWishlist={toggleWishlist}
+                  />
                 </div>
               ))}
             </div>
@@ -789,7 +849,12 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             {/* Grid view for >1024px */}
             <div className="hidden min-[1025px]:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {fastestMerchants.slice(0, newlyVisibleCount).map((merchant) => (
-                <LocationMerchantCard key={merchant.id} merchant={merchant} />
+                <LocationMerchantCard 
+                  key={merchant.id} 
+                  merchant={merchant} 
+                  isWishlisted={wishlistIds.has(merchant.id)} 
+                  onToggleWishlist={toggleWishlist}
+                />
               ))}
             </div>
 
@@ -829,7 +894,11 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
               >
                 {fastestMerchants.map((merchant) => (
                   <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
-                    <LocationMerchantCard merchant={merchant} />
+                    <LocationMerchantCard 
+                      merchant={merchant} 
+                      isWishlisted={wishlistIds.has(merchant.id)} 
+                      onToggleWishlist={toggleWishlist}
+                    />
                   </div>
                 ))}
               </div>
