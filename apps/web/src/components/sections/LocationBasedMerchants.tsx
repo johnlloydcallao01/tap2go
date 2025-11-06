@@ -1,7 +1,7 @@
 'use client';
 
 import Image from '@/components/ui/ImageWrapper';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Media } from '@/types/merchant';
 import { 
   LocationBasedMerchantService, 
@@ -19,7 +19,7 @@ interface LocationBasedMerchantsProps {
 function LocationMerchantCardSkeleton() {
   return (
     <div className="group cursor-pointer animate-pulse">
-      <div className="relative aspect-video bg-gray-200 rounded-lg overflow-hidden mb-3">
+      <div className="relative aspect-[2/1] bg-gray-200 rounded-lg overflow-hidden mb-3">
         <div className="w-full h-full bg-gray-300"></div>
         {/* Distance badge skeleton */}
         <div className="absolute top-2 left-2 bg-gray-300 rounded-full px-2 py-1">
@@ -83,7 +83,7 @@ function LocationMerchantCard({ merchant }: LocationMerchantCardProps) {
 
   return (
     <div className="group cursor-pointer">
-      <div className="relative aspect-video bg-gray-100 rounded-lg overflow-visible mb-6 group-hover:shadow-lg transition-shadow duration-200">
+      <div className="relative aspect-[2/1] bg-gray-100 rounded-lg overflow-visible mb-6 group-hover:shadow-lg transition-shadow duration-200">
         {thumbnailImageUrl ? (
           <div className="relative w-full h-full">
             <Image
@@ -119,7 +119,7 @@ function LocationMerchantCard({ merchant }: LocationMerchantCardProps) {
 
         {/* Vendor Logo Overlay - Professional delivery platform style */}
         {vendorLogoUrl && (
-          <div className="absolute -bottom-4 left-0 w-16 h-16 bg-white rounded-full shadow-lg border-2 border-white">
+          <div className="absolute -bottom-4 left-0 w-12 h-12 bg-white rounded-full shadow-lg border-2 border-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={vendorLogoUrl}
@@ -182,6 +182,19 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   const [error, setError] = useState<string | null>(null);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(customerId || null);
 
+  // Momentum carousel states (tailored from category carousel)
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [currentX, setCurrentX] = useState(0);
+  const [translateX, setTranslateX] = useState(0);
+  const [startTranslateX, setStartTranslateX] = useState(0);
+  const [lastTime, setLastTime] = useState(0);
+  const [velocityX, setVelocityX] = useState(0);
+  const [maxTranslate, setMaxTranslate] = useState(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<number | null>(null);
+  const boundsCalculatedRef = useRef(false);
+
   // Function to fetch merchants
   const fetchLocationBasedMerchants = useCallback(async (customerIdToUse: string) => {
     console.log('🚀 Starting merchant fetch with customer ID:', customerIdToUse, 'categoryId:', categoryId);
@@ -204,6 +217,102 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       setIsLoading(false);
     }
   }, [limit, categoryId]);
+
+  // Helpers for carousel physics
+  const getItemWidth = useCallback(() => {
+    if (!carouselRef.current) return 280; // fallback width
+    const firstChild = carouselRef.current.children[0] as HTMLElement | undefined;
+    if (!firstChild) return 280;
+    const rect = firstChild.getBoundingClientRect();
+    return rect.width || 280;
+  }, []);
+
+  const GAP_WIDTH = 10; // spacing between merchant cards in carousel
+
+  const getMaxTranslate = useCallback(() => {
+    if (!carouselRef.current) return 0;
+    const container = carouselRef.current.parentElement;
+    if (!container) return 0;
+
+    const containerWidth = container.getBoundingClientRect().width - 0; // account for padding (0px left + 0px right)
+    const itemWidth = getItemWidth();
+    const totalItems = merchants.length;
+    const totalContentWidth = (totalItems * itemWidth) + ((totalItems - 1) * GAP_WIDTH);
+
+    return Math.max(0, totalContentWidth - containerWidth);
+  }, [merchants.length, getItemWidth]);
+
+  const animateToPosition = useCallback((targetX: number, duration = 400) => {
+    const startPos = translateX;
+    const distance = targetX - startPos;
+    const startTime = Date.now();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = startPos + distance * easeOut;
+      setTranslateX(current);
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    animate();
+  }, [translateX]);
+
+  const scrollLeft = useCallback(() => {
+    const swipeDistance = (getItemWidth() + GAP_WIDTH) * 1.2;
+    const newPosition = Math.max(0, translateX - swipeDistance);
+    animateToPosition(newPosition, 400);
+  }, [translateX, animateToPosition, getItemWidth]);
+
+  const scrollRight = useCallback(() => {
+    const swipeDistance = (getItemWidth() + GAP_WIDTH) * 1.2;
+    const newPosition = Math.min(-maxTranslate, translateX + swipeDistance);
+    animateToPosition(newPosition, 400);
+  }, [translateX, animateToPosition, maxTranslate, getItemWidth]);
+
+  const handleStart = (clientX: number) => {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    setIsDragging(true);
+    setStartX(clientX);
+    setCurrentX(clientX);
+    setStartTranslateX(translateX);
+    setLastTime(Date.now());
+    setVelocityX(0);
+  };
+
+  const handleMove = useCallback((clientX: number) => {
+    if (!isDragging) return;
+    const currentTime = Date.now();
+    const deltaTime = currentTime - lastTime;
+    const deltaX = clientX - currentX;
+    if (deltaTime > 0) setVelocityX(deltaX / deltaTime);
+    setCurrentX(clientX);
+    setLastTime(currentTime);
+    const dragDistance = clientX - startX;
+    const newTranslate = startTranslateX + dragDistance;
+
+    let bounded = newTranslate;
+    if (newTranslate > 0) {
+      bounded = newTranslate * 0.3; // elastic left bound
+    } else if (newTranslate < -maxTranslate) {
+      const overflow = newTranslate + maxTranslate;
+      bounded = -maxTranslate + overflow * 0.3; // elastic right bound
+    }
+    setTranslateX(bounded);
+  }, [isDragging, startX, startTranslateX, currentX, lastTime, maxTranslate]);
+
+  const handleEnd = useCallback(() => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    const momentum = velocityX * 200;
+    let finalPos = translateX + momentum;
+    finalPos = Math.max(-maxTranslate, Math.min(0, finalPos));
+    animateToPosition(finalPos, 400);
+  }, [isDragging, velocityX, translateX, maxTranslate, animateToPosition]);
 
   // Listen for address changes and refetch merchants
   useAddressChange((addressId: string) => {
@@ -262,12 +371,51 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     fetchLocationBasedMerchants(resolvedCustomerId);
   }, [resolvedCustomerId, fetchLocationBasedMerchants]);
 
+  // Calculate bounds when merchants change or component mounts (for carousel)
+  useEffect(() => {
+    const calculateBounds = () => {
+      const newMax = getMaxTranslate();
+      setMaxTranslate(newMax);
+      if (translateX < -newMax) setTranslateX(-newMax);
+      boundsCalculatedRef.current = true;
+    };
+    if (merchants.length > 0) {
+      const timer = setTimeout(calculateBounds, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [merchants.length, getMaxTranslate, translateX]);
+
+  // Handle window resize for carousel bounds
+  useEffect(() => {
+    const handleResize = () => {
+      const newMax = getMaxTranslate();
+      setMaxTranslate(newMax);
+      if (translateX < -newMax) animateToPosition(-newMax);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [getMaxTranslate, translateX, animateToPosition]);
+
+  // Global mouse events to continue drag outside element
+  useEffect(() => {
+    if (isDragging) {
+      const handleGlobalMouseMove = (e: MouseEvent) => handleMove(e.clientX);
+      const handleGlobalMouseUp = () => handleEnd();
+      document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleGlobalMouseMove);
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [isDragging, handleMove, handleEnd]);
+
   if (isLoading) {
     return (
       <section className="py-4 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="container mx-auto px-2.5">
+          <div className="mb-[15px]">
+            <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
               Nearby Restaurants
             </h2>
             <p className="text-gray-600">
@@ -275,10 +423,21 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             </p>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {/* Grid skeleton (visible on large screens or when filtered) */}
+          <div className="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, index) => (
               <LocationMerchantCardSkeleton key={index} />
             ))}
+          </div>
+          {/* Carousel skeleton (visible on <=1024 when no filter) */}
+          <div className="lg:hidden overflow-hidden px-0">
+            <div className="flex" style={{ gap: `${GAP_WIDTH}px` }}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="w-[75%] flex-shrink-0">
+                  <LocationMerchantCardSkeleton />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -288,9 +447,9 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   if (error) {
     return (
       <section className="py-4 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="container mx-auto px-2.5">
+          <div className="mb-[15px]">
+            <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
               Nearby Restaurants
             </h2>
             <p className="text-gray-600">
@@ -325,9 +484,9 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   if (!merchants || merchants.length === 0) {
     return (
       <section className="py-4 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="container mx-auto px-2.5">
+          <div className="mb-[15px]">
+            <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
               Nearby Restaurants
             </h2>
             <p className="text-gray-600">
@@ -356,22 +515,65 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
 
   return (
     <section className="py-4 bg-white">
-      <div className="container mx-auto px-4">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+      <div className="container mx-auto px-2.5">
+        <div className="mb-[15px]">
+          <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
             {categoryId ? 'Filtered Restaurants' : 'Nearby Restaurants'}
           </h2>
-          <p className="text-gray-600">
-            {merchants.length} merchants found near your location
-            {categoryId && ' in selected category'}
-          </p>
         </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {/* Grid view for large screens or when filtered */}
+        <div className={`${categoryId ? 'grid' : 'hidden lg:grid'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6`}>
           {merchants.map((merchant) => (
             <LocationMerchantCard key={merchant.id} merchant={merchant} />
           ))}
         </div>
+
+        {/* Carousel view: visible only when no filter and <=1024px */}
+        {!categoryId && (
+          <div
+            className="lg:hidden overflow-hidden px-0 relative"
+            onMouseDown={(e) => { e.preventDefault(); handleStart(e.clientX); }}
+            onMouseMove={isDragging ? (e) => handleMove(e.clientX) : undefined}
+            onMouseUp={isDragging ? () => handleEnd() : undefined}
+            onTouchStart={(e) => handleStart(e.touches[0].clientX)}
+            onTouchMove={(e) => { if (isDragging) e.stopPropagation(); handleMove(e.touches[0].clientX); }}
+            onTouchEnd={() => handleEnd()}
+            style={{ touchAction: 'pan-x', cursor: isDragging ? 'grabbing' : 'grab' }}
+          >
+            <div
+              ref={carouselRef}
+              className="flex select-none"
+              style={{
+                transform: `translateX(${translateX}px)`,
+                gap: `${GAP_WIDTH}px`,
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+                transition: 'none',
+                willChange: 'transform',
+                pointerEvents: 'none'
+              }}
+            >
+              {merchants.map((merchant) => (
+                <div key={merchant.id} className="flex-shrink-0 w-[75%]" style={{ pointerEvents: 'auto' }}>
+                  <LocationMerchantCard merchant={merchant} />
+                </div>
+              ))}
+            </div>
+            {/* Optional: discrete scroll controls for accessibility on mobile */}
+            <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between pointer-events-none">
+              <button
+                aria-label="Scroll left"
+                className="pointer-events-auto px-2 py-6 opacity-0"
+                onClick={scrollLeft}
+              />
+              <button
+                aria-label="Scroll right"
+                className="pointer-events-auto px-2 py-6 opacity-0"
+                onClick={scrollRight}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Removed View More Merchants button to show all merchants without pagination */}
       </div>
@@ -379,4 +581,4 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   );
 }
 
-export default LocationBasedMerchants;
+export default LocationBasedMerchants;

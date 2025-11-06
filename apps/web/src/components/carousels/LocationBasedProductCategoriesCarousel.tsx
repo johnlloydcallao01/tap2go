@@ -147,7 +147,7 @@ export const LocationBasedProductCategoriesCarousel = ({
     const container = carouselRef.current.parentElement;
     if (!container) return 0;
 
-    const containerWidth = container.getBoundingClientRect().width - 48; // minus padding
+    const containerWidth = container.getBoundingClientRect().width - 20; // minus padding (10px left + 10px right)
     const actualItemWidth = 64; // circle width only
     const gapWidth = 48; // gap between items
     const totalItems = categories.length;
@@ -369,7 +369,7 @@ export const LocationBasedProductCategoriesCarousel = ({
     <div className="relative">
       {/* Loading state - show skeleton while fetching data - identical to ProductCategoryCarousel */}
       {loading ? (
-        <div className="overflow-hidden px-6">
+        <div className="overflow-hidden px-2.5">
           <div className="flex py-2.5" style={{ gap: '48px' }}>
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="flex-shrink-0">
@@ -381,14 +381,14 @@ export const LocationBasedProductCategoriesCarousel = ({
         </div>
       ) : error ? (
         // Error state
-        <div className="overflow-hidden px-6">
+        <div className="overflow-hidden px-2.5">
           <div className="flex items-center justify-center py-8 text-gray-500">
             <p>{error}</p>
           </div>
         </div>
       ) : categories.length === 0 ? (
         // No categories found
-        <div className="overflow-hidden px-6">
+        <div className="overflow-hidden px-2.5">
           <div className="flex items-center justify-center py-8 text-gray-500">
             <p>No categories available in your area</p>
           </div>
@@ -423,7 +423,7 @@ export const LocationBasedProductCategoriesCarousel = ({
 
           {/* Carousel Container - identical to ProductCategoryCarousel */}
           <div
-            className="overflow-hidden px-6"
+            className="overflow-hidden px-2.5"
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}

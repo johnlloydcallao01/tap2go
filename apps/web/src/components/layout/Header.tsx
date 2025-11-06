@@ -141,7 +141,7 @@ export function Header({
       isHeaderVisible ? 'translate-y-0' : 'lg:translate-y-0 -translate-y-full'
     }`} style={{ backgroundColor: '#fff' }}>
       {/* Mobile Header - Professional mobile app layout */}
-      <div className="lg:hidden flex items-center justify-between px-4 py-2 h-14" style={{ backgroundColor: '#fff' }}>
+      <div className="lg:hidden flex items-center justify-between px-2.5 py-2 h-14" style={{ backgroundColor: '#fff' }}>
         {/* Left side - Location Selector */}
         <div className="flex-1">
           <LocationSelector 
