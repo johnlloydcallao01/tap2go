@@ -71,6 +71,21 @@ export class AddressService {
   }
 
   /**
+   * Get headers that strictly require a Bearer token
+   */
+  private static getStrictBearerHeaders(): HeadersInit {
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (!token) {
+      throw new Error('Authentication required. Please log in.');
+    }
+    headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  /**
    * Save a new address
    */
   static async saveAddress(request: AddressCreateRequest): Promise<AddressResponse> {
@@ -84,7 +99,7 @@ export class AddressService {
 
       const response = await fetch(this.API_BASE, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getStrictBearerHeaders(),
         body: JSON.stringify(request),
       });
 
@@ -163,7 +178,7 @@ export class AddressService {
       console.log('🌐 Fetching addresses from API');
       const response = await fetch(this.API_BASE, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: this.getStrictBearerHeaders(),
       });
 
       if (!response.ok) {
@@ -323,7 +338,7 @@ export class AddressService {
       // Use Next.js API route instead of direct PayloadCMS call
       const response = await fetch(`/api/customers/user/${userId}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: this.getStrictBearerHeaders(),
       });
 
       if (!response.ok) {

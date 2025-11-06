@@ -22,6 +22,11 @@ import {
   emitAuthEvent,
   hasValidStoredToken,
 } from '@/lib/auth';
+import { dataCache } from '@/lib/cache/data-cache';
+import AddressService from '@/lib/services/address-service';
+import { MerchantClientService } from '@/lib/client-services/merchant-client-service';
+import { LocationBasedMerchantService } from '@/lib/client-services/location-based-merchant-service';
+import { LocationBasedProductCategoriesService } from '@/lib/client-services/location-based-product-categories-service';
 
 // ========================================
 // AUTHENTICATION REDUCER
@@ -233,6 +238,36 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
     return () => {
       window.removeEventListener('auth:logout', handleAuthEvent as EventListener);
       window.removeEventListener('auth:session_expired', handleAuthEvent as EventListener);
+    };
+  }, []);
+
+  // ========================================
+  // CACHE INVALIDATION ON AUTH EVENTS
+  // ========================================
+
+  useEffect(() => {
+    const clearUserDependentCaches = () => {
+      try { dataCache.delete('current-customer-id'); } catch {}
+      try { AddressService.clearCache(); } catch {}
+      try { MerchantClientService.clearCache(); } catch {}
+      try { LocationBasedMerchantService.clearCache(); } catch {}
+      try { LocationBasedProductCategoriesService.clearCache(); } catch {}
+    };
+
+    const onLoginSuccess = () => { clearUserDependentCaches(); };
+    const onLogout = () => { clearUserDependentCaches(); };
+    const onSessionRefreshed = () => {
+      try { dataCache.delete('current-customer-id'); } catch {}
+    };
+
+    window.addEventListener('auth:login_success', onLoginSuccess as EventListener);
+    window.addEventListener('auth:logout', onLogout as EventListener);
+    window.addEventListener('auth:session_refreshed', onSessionRefreshed as EventListener);
+
+    return () => {
+      window.removeEventListener('auth:login_success', onLoginSuccess as EventListener);
+      window.removeEventListener('auth:logout', onLogout as EventListener);
+      window.removeEventListener('auth:session_refreshed', onSessionRefreshed as EventListener);
     };
   }, []);
 
