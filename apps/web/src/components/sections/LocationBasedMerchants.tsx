@@ -176,7 +176,7 @@ function LocationMerchantCard({ merchant }: LocationMerchantCardProps) {
 }
 
 // Main LocationBasedMerchants Component
-export function LocationBasedMerchants({ customerId, limit = 8, categoryId }: LocationBasedMerchantsProps) {
+export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }: LocationBasedMerchantsProps) {
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -373,14 +373,7 @@ export function LocationBasedMerchants({ customerId, limit = 8, categoryId }: Lo
           ))}
         </div>
 
-        {/* Show more button if there are many merchants */}
-        {merchants.length >= 8 && (
-          <div className="text-center mt-8">
-            <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              View More Merchants
-            </button>
-          </div>
-        )}
+        {/* Removed View More Merchants button to show all merchants without pagination */}
       </div>
     </section>
   );
