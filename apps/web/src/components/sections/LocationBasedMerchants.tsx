@@ -381,6 +381,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   }, []);
 
   const GAP_WIDTH = 10; // spacing between merchant cards in carousel
+  const MOBILE_CAROUSEL_LIMIT = 8; // limit items shown in mobile carousels
 
   const getMaxTranslate = useCallback(() => {
     if (!carouselRef.current) return 0;
@@ -389,8 +390,9 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
 
     const containerWidth = container.getBoundingClientRect().width - 0; // account for padding (0px left + 0px right)
     const itemWidth = getItemWidth();
-    const totalItems = merchants.length;
-    const totalContentWidth = (totalItems * itemWidth) + ((totalItems - 1) * GAP_WIDTH);
+    const totalItems = Math.min(merchants.length, MOBILE_CAROUSEL_LIMIT);
+    const gaps = Math.max(totalItems - 1, 0);
+    const totalContentWidth = (totalItems * itemWidth) + (gaps * GAP_WIDTH);
 
     return Math.max(0, totalContentWidth - containerWidth);
   }, [merchants.length, getItemWidth]);
@@ -410,8 +412,9 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     if (!container) return 0;
     const containerWidth = container.getBoundingClientRect().width - 0;
     const itemWidth = getItemWidthFast();
-    const totalItems = fastestMerchants.length;
-    const totalContentWidth = (totalItems * itemWidth) + ((totalItems - 1) * GAP_WIDTH);
+    const totalItems = Math.min(fastestMerchants.length, MOBILE_CAROUSEL_LIMIT);
+    const gaps = Math.max(totalItems - 1, 0);
+    const totalContentWidth = (totalItems * itemWidth) + (gaps * GAP_WIDTH);
     return Math.max(0, totalContentWidth - containerWidth);
   }, [fastestMerchants.length, getItemWidthFast]);
 
@@ -920,13 +923,13 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         {!categoryId && (
           <div
             className="block min-[1025px]:hidden overflow-hidden px-0 relative"
-            onMouseDown={(e) => { e.preventDefault(); handleStart(e.clientX); }}
+            onMouseDown={(e) => { if (maxTranslate <= 0) return; e.preventDefault(); handleStart(e.clientX); }}
             onMouseMove={isDragging ? (e) => handleMove(e.clientX) : undefined}
             onMouseUp={isDragging ? () => handleEnd() : undefined}
-            onTouchStart={(e) => handleStart(e.touches[0].clientX)}
+            onTouchStart={(e) => { if (maxTranslate <= 0) return; handleStart(e.touches[0].clientX); }}
             onTouchMove={(e) => { if (isDragging) e.stopPropagation(); handleMove(e.touches[0].clientX); }}
             onTouchEnd={() => handleEnd()}
-            style={{ touchAction: 'pan-x', cursor: isDragging ? 'grabbing' : 'grab' }}
+            style={{ touchAction: 'pan-x', cursor: isDragging ? 'grabbing' : (maxTranslate > 0 ? 'grab' : 'default') }}
           >
             <div
               ref={carouselRef}
@@ -953,18 +956,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
               ))}
             </div>
             {/* Optional: discrete scroll controls for accessibility on mobile */}
-            <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between pointer-events-none">
-              <button
-                aria-label="Scroll left"
-                className="pointer-events-auto px-2 py-6 opacity-0"
-                onClick={scrollLeft}
-              />
-              <button
-                aria-label="Scroll right"
-                className="pointer-events-auto px-2 py-6 opacity-0"
-                onClick={scrollRight}
-              />
-            </div>
+            {maxTranslate > 0 && (
+              <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between pointer-events-none">
+                <button
+                  aria-label="Scroll left"
+                  className="pointer-events-auto px-2 py-6 opacity-0"
+                  onClick={scrollLeft}
+                />
+                <button
+                  aria-label="Scroll right"
+                  className="pointer-events-auto px-2 py-6 opacity-0"
+                  onClick={scrollRight}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -1011,13 +1016,13 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             )}
             <div
               className="block min-[1025px]:hidden overflow-hidden px-0 relative"
-              onMouseDown={(e) => { e.preventDefault(); handleStartFast(e.clientX); }}
+              onMouseDown={(e) => { if (maxTranslateFast <= 0) return; e.preventDefault(); handleStartFast(e.clientX); }}
               onMouseMove={isDraggingFast ? (e) => handleMoveFast(e.clientX) : undefined}
               onMouseUp={isDraggingFast ? () => handleEndFast() : undefined}
-              onTouchStart={(e) => handleStartFast(e.touches[0].clientX)}
+              onTouchStart={(e) => { if (maxTranslateFast <= 0) return; handleStartFast(e.touches[0].clientX); }}
               onTouchMove={(e) => { if (isDraggingFast) e.stopPropagation(); handleMoveFast(e.touches[0].clientX); }}
               onTouchEnd={() => handleEndFast()}
-              style={{ touchAction: 'pan-x', cursor: isDraggingFast ? 'grabbing' : 'grab' }}
+              style={{ touchAction: 'pan-x', cursor: isDraggingFast ? 'grabbing' : (maxTranslateFast > 0 ? 'grab' : 'default') }}
             >
               <div
                 ref={carouselRefFast}
@@ -1043,18 +1048,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
                   </div>
                 ))}
               </div>
-              <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between pointer-events-none">
-                <button
-                  aria-label="Scroll left"
-                  className="pointer-events-auto px-2 py-6 opacity-0"
-                  onClick={scrollLeftFast}
-                />
-                <button
-                  aria-label="Scroll right"
-                  className="pointer-events-auto px-2 py-6 opacity-0"
-                  onClick={scrollRightFast}
-                />
-              </div>
+              {maxTranslateFast > 0 && (
+                <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between pointer-events-none">
+                  <button
+                    aria-label="Scroll left"
+                    className="pointer-events-auto px-2 py-6 opacity-0"
+                    onClick={scrollLeftFast}
+                  />
+                  <button
+                    aria-label="Scroll right"
+                    className="pointer-events-auto px-2 py-6 opacity-0"
+                    onClick={scrollRightFast}
+                  />
+                </div>
+              )}
             </div>
           </>
         )}
