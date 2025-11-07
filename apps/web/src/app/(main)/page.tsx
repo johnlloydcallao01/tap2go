@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "@/components/ui/ImageWrapper";
 import { LocationBasedMerchants } from "@/components/sections/LocationBasedMerchants";
 import { LocationBasedProductCategoriesCarousel } from "@/components/carousels/LocationBasedProductCategoriesCarousel";
 import { getCurrentCustomerId } from "@/lib/client-services/location-based-merchant-service";
@@ -76,6 +77,19 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
+      {/* Campaign Banner - displayed above category carousel, preserves 1400x500 resolution */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="px-2.5 py-3 flex justify-center">
+          <Image
+            src="/tap2go-first-campaign (1).png"
+            alt="Tap2Go First Campaign"
+            width={1400}
+            height={300}
+            priority
+            className="w-full max-w-[1400px] h-auto rounded-xl"
+          />
+        </div>
+      </div>
       {/* Location Based Product Categories Carousel - 100% CSR */}
       <div className="bg-white border-b border-gray-200">
         <LocationBasedProductCategoriesCarousel 
