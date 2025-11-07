@@ -21,6 +21,8 @@ export default function MainLayout({
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
+  const isNearbyPage = pathname === '/nearby-restaurants'
+  const isNewlyUpdatedPage = pathname === '/newly-updated'
 
   // No longer need to check for addresses page since it's been removed
   const isAddressesPage = false
@@ -79,7 +81,7 @@ export default function MainLayout({
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
         {/* Header - Persistent across all pages except addresses */}
-        {!isAddressesPage && (
+        {!isAddressesPage && !((isNearbyPage || isNewlyUpdatedPage) && !isDesktop) && (
           <Header
             sidebarOpen={sidebarOpen}
             onToggleSidebar={toggleSidebar}
@@ -104,6 +106,7 @@ export default function MainLayout({
           }`}
           style={{ backgroundColor: '#f9fafb' }}
           data-addresses-page={isAddressesPage ? "true" : undefined}
+          data-hide-header-on-mobile={!isDesktop && (isNearbyPage || isNewlyUpdatedPage) ? "true" : undefined}
         >
           <div className="min-h-full bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
             {children}

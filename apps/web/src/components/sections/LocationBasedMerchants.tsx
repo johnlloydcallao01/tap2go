@@ -1,8 +1,10 @@
 'use client';
 
 import Image from '@/components/ui/ImageWrapper';
+import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Media } from '@/types/merchant';
+import { useRouter } from 'next/navigation';
 import { 
   LocationBasedMerchantService, 
   type LocationBasedMerchant 
@@ -38,14 +40,14 @@ function LocationMerchantCardSkeleton() {
 }
 
 // Location-based Merchant Card Component
-interface LocationMerchantCardProps {
+interface LocationMerchantCardLegacyProps {
   merchant: LocationBasedMerchant;
   isWishlisted?: boolean;
   onToggleWishlist?: (id: string) => void;
   addressName?: string | null;
 }
 
-function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist, addressName = null }: LocationMerchantCardProps) {
+function LocationMerchantCardLegacy({ merchant, isWishlisted = false, onToggleWishlist, addressName = null }: LocationMerchantCardLegacyProps) {
   // Get the best available image URL from thumbnail
   const getImageUrl = (media: Media | null | undefined): string | null => {
     if (!media) return null;
@@ -187,6 +189,7 @@ function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist
 // Main LocationBasedMerchants Component
 export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }: LocationBasedMerchantsProps) {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+  const router = useRouter();
   const [addressMap, setAddressMap] = useState<Record<string, string>>({});
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -696,9 +699,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       <section className="py-4 bg-white">
         <div className="w-full px-2.5">
           <div className="mb-[15px]">
-            <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
-              Nearby Restaurants
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+                Nearby Restaurants
+              </h2>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="View all nearby restaurants"
+                onClick={() => router.push('/nearby-restaurants')}
+                className="min-[1025px]:hidden inline-flex w-7 h-7 items-center justify-center rounded-full bg-white text-[#333] shadow-md"
+              >
+                <i className="fas fa-chevron-right leading-none text-[0.9rem]"></i>
+              </span>
+            </div>
             <p className="text-gray-600">
               Loading merchants near your location...
             </p>
@@ -724,9 +738,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
           {!categoryId && (
             <>
               <div className="mb-[15px] mt-[30px]">
-                <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
-                  Newly Updated
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+                    Newly Updated
+                  </h2>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label="View all newly updated restaurants"
+                    onClick={() => router.push('/newly-updated')}
+                    className="min-[1025px]:hidden inline-flex w-7 h-7 items-center justify-center rounded-full bg-white text-[#333] shadow-md"
+                  >
+                    <i className="fas fa-chevron-right leading-none text-[0.9rem]"></i>
+                  </span>
+                </div>
                 <p className="text-gray-600">
                   Loading newly updated merchants...
                 </p>
@@ -759,9 +784,22 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       <section className="py-4 bg-white">
         <div className="w-full px-2.5">
           <div className="mb-[15px]">
-            <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
-              Nearby Restaurants
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+                Nearby Restaurants
+              </h2>
+              {merchants && merchants.length > 8 && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label="View all nearby restaurants"
+                  onClick={() => router.push('/nearby-restaurants')}
+                  className="min-[1025px]:hidden inline-flex w-7 h-7 items-center justify-center rounded-full bg-white text-[#333] shadow-md"
+                >
+                  <i className="fas fa-chevron-right leading-none text-[0.9rem]"></i>
+                </span>
+              )}
+            </div>
             <p className="text-gray-600">
               Merchants near your location with delivery information
             </p>
@@ -796,9 +834,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       <section className="py-4 bg-white">
         <div className="w-full px-2.5">
           <div className="mb-[15px]">
-            <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
-              Nearby Restaurants
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+                Nearby Restaurants
+              </h2>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="View all nearby restaurants"
+                onClick={() => router.push('/nearby-restaurants')}
+                className="min-[1025px]:hidden inline-flex w-7 h-7 items-center justify-center rounded-full bg-white text-[#333] shadow-md"
+              >
+                <i className="fas fa-chevron-right leading-none text-[0.9rem]"></i>
+              </span>
+            </div>
             <p className="text-gray-600">
               Merchants near your location with delivery information
             </p>
@@ -826,10 +875,21 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   return (
     <section className="py-4 bg-white">
       <div className="w-full px-2.5">
-        <div className="mb-[15px]">
+        <div className="mb-[15px] flex items-center justify-between">
           <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
             {categoryId ? 'Filtered Restaurants' : 'Nearby Restaurants'}
           </h2>
+          {!categoryId && merchants.length > 8 && (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label="View all nearby restaurants"
+              onClick={() => router.push('/nearby-restaurants')}
+              className="min-[1025px]:hidden inline-flex w-7 h-7 items-center justify-center rounded-full bg-white text-[#333] shadow-md"
+            >
+              <i className="fas fa-chevron-right leading-none text-[0.9rem]"></i>
+            </span>
+          )}
         </div>
         {/* Grid view for >1024px or when filtered */}
         <div className={`${categoryId ? 'grid' : 'hidden min-[1025px]:grid'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6`}>
@@ -881,7 +941,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
                 pointerEvents: 'none'
               }}
             >
-              {merchants.map((merchant) => (
+              {merchants.slice(0, 8).map((merchant) => (
                 <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
                   <LocationMerchantCard 
                     merchant={merchant} 
@@ -911,8 +971,19 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         {/* Newly Updated section: visible only when no filter */}
         {!categoryId && (
           <>
-            <div className="mb-[15px] mt-[30px]">
+            <div className="mb-[15px] mt-[30px] flex items-center justify-between">
               <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">Newly Updated</h2>
+              {fastestMerchants.length > 8 && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label="View all newly updated restaurants"
+                  onClick={() => router.push('/newly-updated')}
+                  className="min-[1025px]:hidden inline-flex w-7 h-7 items-center justify-center rounded-full bg-white text-[#333] shadow-md"
+                >
+                  <i className="fas fa-chevron-right leading-none text-[0.9rem]"></i>
+                </span>
+              )}
             </div>
             {/* Grid view for >1024px */}
             <div className="hidden min-[1025px]:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -961,7 +1032,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
                   pointerEvents: 'none'
                 }}
               >
-                {fastestMerchants.map((merchant) => (
+                {fastestMerchants.slice(0, 8).map((merchant) => (
                   <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
                     <LocationMerchantCard 
                       merchant={merchant} 

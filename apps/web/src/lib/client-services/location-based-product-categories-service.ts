@@ -279,7 +279,7 @@ export class LocationBasedProductCategoriesService {
 
       console.log('🔍 Looking up customer ID for user ID:', userId);
       // Get customer ID from user ID using the same pattern as other services
-      const customerId = await this.getCustomerIdFromUserId(userId);
+      const customerId = await LocationBasedProductCategoriesService.getCustomerIdFromUserId(userId);
       
       if (customerId) {
         console.log('✅ Found customer ID:', customerId);

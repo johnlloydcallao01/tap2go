@@ -1,0 +1,217 @@
+"use client";
+
+import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import {
+  getCurrentCustomerId,
+  getLocationBasedMerchants,
+  type LocationBasedMerchant,
+} from "@/lib/client-services/location-based-merchant-service";
+import type { Media } from "@/types/merchant";
+import LocationMerchantCard from "@/components/cards/LocationMerchantCard";
+
+export default function NearbyRestaurantsPage(): JSX.Element {
+  const router = useRouter();
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [addressMap, setAddressMap] = useState<Record<string, string>>({});
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+
+  // Always use the production CMS API for address lookups
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://cms.tap2goph.com/api";
+
+  const buildHeaders = useCallback((): Record<string, string> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+    if (apiKey) headers["Authorization"] = `users API-Key ${apiKey}`;
+    return headers;
+  }, []);
+
+  // Fetch active address name for a merchant with coordinate fallback
+  const fetchActiveAddressName = useCallback(
+    async (m: LocationBasedMerchant): Promise<string | null> => {
+      const headers = buildHeaders();
+      try {
+        const res = await fetch(`${API_BASE}/merchants/${m.id}?depth=1`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const addr = data?.activeAddress;
+          if (addr?.formatted_address) return addr.formatted_address as string;
+        }
+      } catch (e) {
+        console.warn("Nearby page: merchant detail fetch failed, trying coords fallback:", e);
+      }
+
+      const lat = (m as any).merchant_latitude ?? (m as any).latitude ?? null;
+      const lng = (m as any).merchant_longitude ?? (m as any).longitude ?? null;
+      if (lat != null && lng != null) {
+        try {
+          const url = `${API_BASE}/addresses?where[latitude][equals]=${lat}&where[longitude][equals]=${lng}&limit=1`;
+          const res2 = await fetch(url, { headers });
+          if (res2.ok) {
+            const j = await res2.json();
+            const doc = j?.docs?.[0];
+            if (doc?.formatted_address) return doc.formatted_address as string;
+          }
+        } catch (e) {
+          console.warn("Nearby page: address coords lookup failed:", e);
+        }
+      }
+      return null;
+    },
+    [API_BASE, buildHeaders]
+  );
+
+  const fetchAndSetActiveAddresses = useCallback(
+    async (list: LocationBasedMerchant[]) => {
+      if (!list || list.length === 0) return;
+      const entries = await Promise.all(
+        list.map(async (m) => {
+          const existing = addressMap[m.id];
+          if (existing) return [m.id, existing] as const;
+          const name = await fetchActiveAddressName(m);
+          return [m.id, name] as const;
+        })
+      );
+      let changed = false;
+      const next: Record<string, string> = { ...addressMap };
+      for (const [id, name] of entries) {
+        if (name && (!next[id] || next[id] !== name)) {
+          next[id] = name as string;
+          changed = true;
+        }
+      }
+      if (changed) setAddressMap(next);
+    },
+    [addressMap, fetchActiveAddressName]
+  );
+
+  const toggleWishlist = useCallback((id: string) => {
+    setWishlistIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Resolve customer ID locally so this page is fully independent
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const id = await getCurrentCustomerId();
+        if (!mounted) return;
+        setCustomerId(id);
+        if (!id) {
+          setError("No customer session found");
+          setIsLoading(false);
+          return;
+        }
+        setError(null);
+        setIsLoading(true);
+        const data = await getLocationBasedMerchants({ customerId: id, limit: 50 });
+        if (!mounted) return;
+        setMerchants(data || []);
+        // Fetch active address names in background to display after merchant name
+        fetchAndSetActiveAddresses(data || []);
+        setIsLoading(false);
+      } catch (err) {
+        console.error("NearbyRestaurants: Failed to resolve customer ID", err);
+        if (!mounted) return;
+        setCustomerId(null);
+        setError("Failed to load nearby merchants");
+        setIsLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [fetchAndSetActiveAddresses]);
+
+  return (
+    <div className="min-h-screen bg-gray-50" style={{ backgroundColor: "#f9fafb" }}>
+      {/* Mobile-only header for Nearby page (match global header 56px) */}
+      <div className="lg:hidden sticky top-0 z-30 bg-white shadow-sm">
+        <div className="h-14 px-2.5 flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Go back"
+            onClick={() => router.back()}
+            className="inline-flex w-8 h-8 items-center justify-center rounded-full bg-white text-[#333] shadow-md border border-gray-200"
+          >
+            <i className="fas fa-arrow-left leading-none text-[0.9rem]"></i>
+          </button>
+          <h1 className="text-base font-normal text-gray-900">Nearby Restaurants</h1>
+        </div>
+      </div>
+
+      <section className="py-4 bg-white">
+        <div className="w-full px-2.5">
+          {/* Heading removed per request */}
+
+          {isLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} className="animate-pulse">
+                  <div className="relative aspect-[2/1] bg-gray-200 rounded-lg overflow-hidden mb-3" />
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-3 bg-gray-200 rounded w-full" />
+                    <div className="h-3 bg-gray-200 rounded w-2/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!isLoading && error && (
+            <div className="text-center py-12">
+              <div className="text-red-400 mb-4">
+                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to load nearby merchants</h3>
+              <p className="text-gray-600">{error}</p>
+            </div>
+          )}
+
+          {!isLoading && !error && merchants.length === 0 && (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No nearby merchants found</h3>
+              <p className="text-gray-600">Try adjusting your address or check back later.</p>
+            </div>
+          )}
+
+          {!isLoading && !error && merchants.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {merchants.map((m) => (
+                <LocationMerchantCard
+                  key={m.id}
+                  merchant={m}
+                  addressName={addressMap[m.id] || null}
+                  isWishlisted={wishlistIds.has(m.id)}
+                  onToggleWishlist={toggleWishlist}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// Using shared LocationMerchantCard for DRY consistency.

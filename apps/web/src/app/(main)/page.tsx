@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LocationBasedMerchants } from "@/components/sections/LocationBasedMerchants";
 import { LocationBasedProductCategoriesCarousel } from "@/components/carousels/LocationBasedProductCategoriesCarousel";
+import { getCurrentCustomerId } from "@/lib/client-services/location-based-merchant-service";
 
 /**
  * Home page component - 100% CSR (Client-Side Rendering)
@@ -21,12 +22,31 @@ export default function Home() {
   const searchParams = useSearchParams();
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
 
   // Read category filter from URL on mount and when URL changes
   useEffect(() => {
     const categorySlug = searchParams.get('category');
     setSelectedCategorySlug(categorySlug);
   }, [searchParams]);
+
+  // Resolve customer ID once at the page level to ensure consistency across sections
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const currentCustomerId = await getCurrentCustomerId();
+        if (!mounted) return;
+        setCustomerId(currentCustomerId);
+      } catch (err) {
+        // Resolution errors are handled by child components if customerId is undefined
+        console.error('Home: Failed to resolve customer ID', err);
+        if (!mounted) return;
+        setCustomerId(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Handle category selection from carousel
   const handleCategorySelect = (categoryId: string | null, categorySlug: string | null, categoryName?: string) => {
@@ -59,7 +79,7 @@ export default function Home() {
       {/* Location Based Product Categories Carousel - 100% CSR */}
       <div className="bg-white border-b border-gray-200">
         <LocationBasedProductCategoriesCarousel 
-          customerId={undefined} 
+          customerId={customerId ?? undefined} 
           limit={12} 
           sortBy="popularity"
           selectedCategorySlug={selectedCategorySlug}
@@ -70,7 +90,7 @@ export default function Home() {
 
       {/* Location Based Merchants Section */}
       <LocationBasedMerchants 
-        customerId={undefined} 
+        customerId={customerId ?? undefined} 
         limit={8}
         categoryId={selectedCategoryId}
       />

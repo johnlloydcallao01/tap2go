@@ -56,6 +56,12 @@ body {
     box-sizing: border-box;
   }
 
+  /* Nearby page: hide persistent header on mobile/tablet and remove margin */
+  main[data-hide-header-on-mobile="true"] {
+    margin-top: 0 !important;
+    min-height: 100vh !important; /* Full viewport height, header handled inside page */
+  }
+
   /* Override margin for addresses page - full screen experience */
   main[data-addresses-page="true"] {
     margin-top: 0 !important;
@@ -88,6 +94,11 @@ body {
     min-height: calc(100vh - 56px - 55px - env(safe-area-inset-bottom, 0px)); /* Account for header + footer */
     background-color: #ffffff;
   }
+
+  /* Nearby page: adjust content height when persistent header is hidden */
+  main[data-hide-header-on-mobile="true"] > div {
+    min-height: calc(100vh - 55px - env(safe-area-inset-bottom, 0px)) !important; /* Only footer on mobile */
+  }
 }
 
 /* Tablet-only page content adjustments */
@@ -95,6 +106,11 @@ body {
   main > div {
     min-height: calc(100vh - 56px); /* Account for header only, no footer on tablet */
     background-color: #ffffff;
+  }
+
+  /* Nearby page: no persistent header on tablet, use full height */
+  main[data-hide-header-on-mobile="true"] > div {
+    min-height: 100vh !important;
   }
 }
 

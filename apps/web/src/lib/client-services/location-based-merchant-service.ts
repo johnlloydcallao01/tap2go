@@ -175,7 +175,7 @@ export class LocationBasedMerchantService {
 
       console.log('🔍 Looking up customer ID for user ID:', userId);
       // Get customer ID from user ID using the same pattern as address-service
-      const customerId = await this.getCustomerIdFromUserId(userId);
+      const customerId = await LocationBasedMerchantService.getCustomerIdFromUserId(userId);
       
       if (customerId) {
         console.log('✅ Found customer ID:', customerId);
