@@ -1,13 +1,19 @@
+import * as migration_20250103_category_filtering_indexes from './20250103_category_filtering_indexes';
 import * as migration_20251017_040757 from './20251017_040757';
 import * as migration_20251017_042000 from './20251017_042000';
 import * as migration_20251017_052855_product_management_tables from './20251017_052855_product_management_tables';
 import * as migration_20251101_112210_merchant_products_added_by_optional from './20251101_112210_merchant_products_added_by_optional';
 import * as migration_20251102_095049_replace_auto_assign_field from './20251102_095049_replace_auto_assign_field';
 import * as migration_20251102_161143 from './20251102_161143';
+import * as migration_20251108_065341 from './20251108_065341';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
-import * as migration_20250103_category_filtering_indexes from './20250103_category_filtering_indexes';
 
 export const migrations = [
+  {
+    up: migration_20250103_category_filtering_indexes.up,
+    down: migration_20250103_category_filtering_indexes.down,
+    name: '20250103_category_filtering_indexes',
+  },
   {
     up: migration_20251017_040757.up,
     down: migration_20251017_040757.down,
@@ -39,13 +45,13 @@ export const migrations = [
     name: '20251102_161143',
   },
   {
+    up: migration_20251108_065341.up,
+    down: migration_20251108_065341.down,
+    name: '20251108_065341',
+  },
+  {
     up: migration_20251202_remove_vendor_products_table.up,
     down: migration_20251202_remove_vendor_products_table.down,
     name: '20251202_remove_vendor_products_table'
-  },
-  {
-    up: migration_20250103_category_filtering_indexes.up,
-    down: migration_20250103_category_filtering_indexes.down,
-    name: '20250103_category_filtering_indexes'
   },
 ];

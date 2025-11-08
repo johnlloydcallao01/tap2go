@@ -244,28 +244,7 @@ export const Vendors: CollectionConfig = {
       },
     },
 
-    // === FINANCIAL INFORMATION ===
-    {
-      name: 'bankAccountName',
-      type: 'text',
-      admin: {
-        description: 'Bank account holder name',
-      },
-    },
-    {
-      name: 'bankAccountNumber',
-      type: 'text',
-      admin: {
-        description: 'Bank account number for payments',
-      },
-    },
-    {
-      name: 'bankName',
-      type: 'text',
-      admin: {
-        description: 'Bank name',
-      },
-    },
+    
 
     // === ADDITIONAL METADATA ===
     {
