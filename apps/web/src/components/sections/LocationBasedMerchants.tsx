@@ -929,7 +929,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             onTouchStart={(e) => { if (maxTranslate <= 0) return; handleStart(e.touches[0].clientX); }}
             onTouchMove={(e) => { if (isDragging) e.stopPropagation(); handleMove(e.touches[0].clientX); }}
             onTouchEnd={() => handleEnd()}
-            style={{ touchAction: 'pan-x', cursor: isDragging ? 'grabbing' : (maxTranslate > 0 ? 'grab' : 'default') }}
+        style={{ touchAction: 'pan-y', cursor: isDragging ? 'grabbing' : (maxTranslate > 0 ? 'grab' : 'default') }}
           >
             <div
               ref={carouselRef}
@@ -1022,7 +1022,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
               onTouchStart={(e) => { if (maxTranslateFast <= 0) return; handleStartFast(e.touches[0].clientX); }}
               onTouchMove={(e) => { if (isDraggingFast) e.stopPropagation(); handleMoveFast(e.touches[0].clientX); }}
               onTouchEnd={() => handleEndFast()}
-              style={{ touchAction: 'pan-x', cursor: isDraggingFast ? 'grabbing' : (maxTranslateFast > 0 ? 'grab' : 'default') }}
+        style={{ touchAction: 'pan-y', cursor: isDraggingFast ? 'grabbing' : (maxTranslateFast > 0 ? 'grab' : 'default') }}
             >
               <div
                 ref={carouselRefFast}

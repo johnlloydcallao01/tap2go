@@ -431,7 +431,7 @@ export const LocationBasedProductCategoriesCarousel = ({
             onMouseMove={isDragging ? handleMouseMove : undefined}
             onMouseUp={isDragging ? handleMouseUp : undefined}
             style={{
-              touchAction: 'pan-x',
+            touchAction: 'pan-y',
               cursor: isDragging ? 'grabbing' : 'grab'
             }}
           >
