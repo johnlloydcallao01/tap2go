@@ -352,12 +352,19 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     return 0;
   }, []);
 
-  // Initialize counts when data or viewport changes (do not decrease existing counts)
+  // Initialize or adjust counts when data or viewport changes
+  // Ensure counts increase to at least the default step when data grows after unfiltering
   useEffect(() => {
     if (!categoryId && viewportWidth >= 1025) {
       const step = getGridStep(viewportWidth);
-      setNearbyVisibleCount(prev => (prev > 0 ? Math.min(prev, merchants.length) : Math.min(step, merchants.length)));
-      setNewlyVisibleCount(prev => (prev > 0 ? Math.min(prev, fastestMerchants.length) : Math.min(step, fastestMerchants.length)));
+      setNearbyVisibleCount(prev => {
+        const base = Math.max(prev, step);
+        return Math.min(base, merchants.length);
+      });
+      setNewlyVisibleCount(prev => {
+        const base = Math.max(prev, step);
+        return Math.min(base, fastestMerchants.length);
+      });
     }
   }, [categoryId, viewportWidth, merchants.length, fastestMerchants.length, getGridStep]);
 

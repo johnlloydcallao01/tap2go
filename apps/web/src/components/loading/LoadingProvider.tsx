@@ -46,12 +46,10 @@ export function LoadingProvider({ children }: LoadingProviderProps): JSX.Element
       
       // Skip loading screen if user has valid cached authentication
       if (hasAuthToken && hasCachedUser) {
-        console.log('🔄 LOADING PROVIDER: Skipping loading screen - user has cached auth');
         setIsLoading(false);
         return;
       }
 
-      console.log('🔄 LOADING PROVIDER: Full page reload detected, showing loading screen');
       setIsLoading(true);
       setProgress(10); // Start with some progress
 
@@ -80,19 +78,16 @@ export function LoadingProvider({ children }: LoadingProviderProps): JSX.Element
         clearTimeout(autoHideTimeout);
       };
     } else {
-      console.log('🔄 LOADING PROVIDER: No loading screen needed (SPA navigation)');
       setIsLoading(false);
     }
   }, []); // Run once on mount
 
   const showLoadingScreen = () => {
-    console.log('🔄 LOADING PROVIDER: Manually showing loading screen');
     setIsLoading(true);
     setProgress(10);
   };
 
   const hideLoadingScreen = () => {
-    console.log('🔄 LOADING PROVIDER: Hiding loading screen');
     setProgress(100);
     
     // Smooth fade out after reaching 100%

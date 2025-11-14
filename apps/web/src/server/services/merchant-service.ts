@@ -62,7 +62,8 @@ export class MerchantService {
       }
 
       // Add API key authentication
-      const apiKey = process.env.PAYLOAD_API_KEY;
+      // Prefer server-side key; fallback to NEXT_PUBLIC key if not set
+      const apiKey = process.env.PAYLOAD_API_KEY || process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
@@ -73,7 +74,8 @@ export class MerchantService {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch merchants: ${response.status}`);
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`Failed to fetch merchants: ${response.status}${errorText ? ` - ${errorText}` : ''}`);
       }
       
       const data: MerchantsResponse = await response.json();
@@ -96,7 +98,8 @@ export class MerchantService {
       };
 
       // Add API key authentication
-      const apiKey = process.env.PAYLOAD_API_KEY;
+      // Prefer server-side key; fallback to NEXT_PUBLIC key if not set
+      const apiKey = process.env.PAYLOAD_API_KEY || process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
@@ -110,7 +113,8 @@ export class MerchantService {
         if (response.status === 404) {
           return null; // Merchant not found
         }
-        throw new Error(`Failed to fetch merchant: ${response.status}`);
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`Failed to fetch merchant: ${response.status}${errorText ? ` - ${errorText}` : ''}`);
       }
       
       const merchant: Merchant = await response.json();
@@ -142,7 +146,8 @@ export class MerchantService {
       }
 
       // Add API key authentication
-      const apiKey = process.env.PAYLOAD_API_KEY;
+      // Prefer server-side key; fallback to NEXT_PUBLIC key if not set
+      const apiKey = process.env.PAYLOAD_API_KEY || process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
@@ -153,7 +158,8 @@ export class MerchantService {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch merchant count: ${response.status}`);
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`Failed to fetch merchant count: ${response.status}${errorText ? ` - ${errorText}` : ''}`);
       }
       
       const data: MerchantsResponse = await response.json();

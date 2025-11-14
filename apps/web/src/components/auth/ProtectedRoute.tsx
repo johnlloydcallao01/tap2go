@@ -34,7 +34,6 @@ export const ProtectedRoute = ({
   // Redirect to login if not authenticated
   useEffect(() => {
     if (shouldRedirectToLogin) {
-      console.log('🔄 PROTECTED ROUTE: Redirecting to login');
       // Store the current path for redirect after login
       const currentPath = window.location.pathname + window.location.search;
       if (currentPath !== redirectTo) {
@@ -47,18 +46,15 @@ export const ProtectedRoute = ({
 
   // Show loading while checking authentication
   if (isCheckingAuth) {
-    console.log('⏳ PROTECTED ROUTE: Still checking auth...');
     // @ts-expect-error React 19 fallback type compatibility
     return fallback || null;
   }
 
   // Don't render children if not authenticated
   if (!isAuthenticated) {
-    console.log('❌ PROTECTED ROUTE: Not authenticated, will redirect');
     return null;
   }
 
-  console.log('✅ PROTECTED ROUTE: Authenticated, rendering content');
 
   // Render protected content
   return <>{children}</>;
