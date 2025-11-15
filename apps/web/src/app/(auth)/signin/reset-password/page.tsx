@@ -63,8 +63,14 @@ export default function ResetPasswordPage() {
       } else {
         try {
           const txt = await res.text();
-          const data = txt ? JSON.parse(txt) : {};
-          if (data && typeof data.error === 'string') {
+          const data = txt ? JSON.parse(txt) : {} as any;
+          if (data?.errorCode === 'TOKEN_EXPIRED') {
+            setError('Reset link expired. Please request a new link.');
+          } else if (data?.errorCode === 'TOKEN_INVALID') {
+            setError('Invalid reset link. Please request a new link.');
+          } else if (data?.errorCode === 'PASSWORD_POLICY_FAILED') {
+            setError('Password must be 8–20 chars, include uppercase, number, and special.');
+          } else if (typeof data?.error === 'string') {
             setError(data.error);
           } else {
             setError('Invalid or expired reset link.');

@@ -217,6 +217,13 @@ export interface User {
    * User profile picture
    */
   profilePicture?: (number | null) | Media;
+  resetPasswordTokens?:
+    | {
+        token: string;
+        expiresAt: string;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
   enableAPIKey?: boolean | null;
@@ -1941,6 +1948,13 @@ export interface UsersSelect<T extends boolean = true> {
   isActive?: T;
   lastLogin?: T;
   profilePicture?: T;
+  resetPasswordTokens?:
+    | T
+    | {
+        token?: T;
+        expiresAt?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   enableAPIKey?: T;

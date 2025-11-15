@@ -13,6 +13,7 @@ import { GeospatialService } from './services/GeospatialService'
 import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
 import type { PayloadRequest } from 'payload'
+import type { User as PayloadUser } from './payload-types'
 // import sharp from 'sharp'
 
 import { Users } from './collections/Users'
@@ -335,15 +336,18 @@ export default buildConfig({
           if (user && user.isActive !== false) {
             const rawToken = crypto.randomBytes(32).toString('hex');
             const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
-            const ttlMinutes = Number(process.env.RESET_PASSWORD_TTL_MINUTES || 30);
+            const ttlMinutes = Number(process.env.RESET_PASSWORD_TTL_MINUTES || 20);
             const expires = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
 
+            const prevTokens = ((user as PayloadUser)?.resetPasswordTokens) || [];
             await req.payload.update({
               collection: 'users',
               id: user.id,
               data: {
-                resetPasswordToken: hashed,
-                resetPasswordExpiration: expires,
+                resetPasswordTokens: [
+                  ...prevTokens,
+                  { token: hashed, expiresAt: expires },
+                ],
               },
             });
 
@@ -449,7 +453,7 @@ export default buildConfig({
           const users = await req.payload.find({
             collection: 'users',
             where: {
-              resetPasswordToken: { equals: hashed },
+              'resetPasswordTokens.token': { equals: hashed },
             },
             limit: 1,
           });
@@ -465,11 +469,23 @@ export default buildConfig({
             }, { status: 400 });
           }
 
-          if (!user.resetPasswordExpiration || new Date(user.resetPasswordExpiration).getTime() < Date.now()) {
+          const nowIso = new Date().toISOString();
+          const tokensArr = ((user as PayloadUser)?.resetPasswordTokens) || [];
+          const tokenObj = tokensArr.find((t: { token: string; expiresAt: string; id?: string | null }) => t.token === hashed);
+          const expiresIso = tokenObj?.expiresAt || null;
+          const expMs = expiresIso ? new Date(expiresIso).getTime() : NaN;
+          const nowMs = Date.now();
+
+          if (!expiresIso || Number.isNaN(expMs) || expMs < nowMs) {
             return Response.json({
               success: false,
               error: 'Reset link expired',
               errorCode: 'TOKEN_EXPIRED',
+              details: {
+                now: nowIso,
+                expiresAt: expiresIso ?? null,
+                deltaMs: expiresIso ? (expMs - nowMs) : null,
+              },
               requestId,
             }, { status: 400 });
           }
@@ -479,8 +495,7 @@ export default buildConfig({
             id: user.id,
             data: {
               password: newPassword,
-              resetPasswordToken: null,
-              resetPasswordExpiration: null,
+              resetPasswordTokens: tokensArr.filter((t: { token: string; expiresAt: string; id?: string | null }) => t.token !== hashed),
               loginAttempts: 0,
               lockUntil: null,
             },

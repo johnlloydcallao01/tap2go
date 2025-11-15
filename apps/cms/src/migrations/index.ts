@@ -7,6 +7,7 @@ import * as migration_20251102_095049_replace_auto_assign_field from './20251102
 import * as migration_20251102_161143 from './20251102_161143';
 import * as migration_20251108_065341 from './20251108_065341';
 import * as migration_20251115_061448 from './20251115_061448';
+import * as migration_20251115_130118 from './20251115_130118';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
 
 export const migrations = [
@@ -54,6 +55,11 @@ export const migrations = [
     up: migration_20251115_061448.up,
     down: migration_20251115_061448.down,
     name: '20251115_061448',
+  },
+  {
+    up: migration_20251115_130118.up,
+    down: migration_20251115_130118.down,
+    name: '20251115_130118',
   },
   {
     up: migration_20251202_remove_vendor_products_table.up,
