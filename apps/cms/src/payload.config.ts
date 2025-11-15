@@ -297,6 +297,197 @@ export default buildConfig({
       }),
     },
 
+    {
+      path: '/forgot-password',
+      method: 'post',
+      handler: (async (req: PayloadRequest) => {
+        const startTime = Date.now();
+        const requestId = crypto.randomUUID();
+        const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'Unknown';
+        const userAgent = req.headers.get('user-agent') || 'Unknown';
+
+        try {
+          type MaybeJson = { json?: () => Promise<unknown> };
+          type MaybeBody = { body?: unknown };
+          const hasJson = typeof (req as unknown as MaybeJson).json === 'function';
+          const parsed = (await (hasJson
+            ? (req as unknown as Required<MaybeJson>).json()
+            : Promise.resolve((req as unknown as MaybeBody).body))) ?? {};
+          const { email: emailRaw } = parsed as { email?: string };
+          const email = typeof emailRaw === 'string' ? emailRaw.trim().toLowerCase() : '';
+
+          if (!email) {
+            return Response.json({
+              success: true,
+              message: 'If an account exists, an email has been sent',
+              requestId,
+            }, { status: 200 });
+          }
+
+          const users = await req.payload.find({
+            collection: 'users',
+            where: { email: { equals: email } },
+            limit: 1,
+          });
+
+          const user = users.docs?.[0];
+
+          if (user && user.isActive !== false) {
+            const rawToken = crypto.randomBytes(32).toString('hex');
+            const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
+            const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+            await req.payload.update({
+              collection: 'users',
+              id: user.id,
+              data: {
+                resetPasswordToken: hashed,
+                resetPasswordExpiration: expires,
+              },
+            });
+
+            const fromEmail = process.env.RESEND_FROM_EMAIL || 'no-reply@tap2goph.com';
+            const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
+            const fromName = process.env.EMAIL_FROM_NAME || 'Tap2Go';
+            const apiKey = process.env.RESEND_API_KEY || '';
+            const to = user.email;
+            const resetUrl = `https://app.tap2goph.com/reset-password?token=${encodeURIComponent(rawToken)}`;
+
+            if (apiKey && process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true') {
+              await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json',
+                  Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                  from: `${fromName} <${fromEmail}>`,
+                  to,
+                  subject: 'Reset your Tap2Go password',
+                  text: `We received a request to reset your password.\n\nUse this link to set a new password: ${resetUrl}\n\nThis link will expire in 30 minutes. If you did not request this, you can ignore this email.`,
+                  reply_to: replyTo,
+                }),
+              });
+            }
+          }
+
+          return Response.json({
+            success: true,
+            message: 'If an account exists, an email has been sent',
+            metadata: {
+              requestId,
+              ipAddress,
+              userAgent,
+              responseTime: `${Date.now() - startTime}ms`,
+            },
+          }, { status: 200 });
+        } catch (_error) {
+          return Response.json({
+            success: true,
+            message: 'If an account exists, an email has been sent',
+            requestId,
+          }, { status: 200 });
+        }
+      }),
+    },
+
+    {
+      path: '/reset-password',
+      method: 'post',
+      handler: (async (req: PayloadRequest) => {
+        const startTime = Date.now();
+        const requestId = crypto.randomUUID();
+
+        try {
+          type MaybeJson = { json?: () => Promise<unknown> };
+          type MaybeBody = { body?: unknown };
+          const hasJson = typeof (req as unknown as MaybeJson).json === 'function';
+          const parsed = (await (hasJson
+            ? (req as unknown as Required<MaybeJson>).json()
+            : Promise.resolve((req as unknown as MaybeBody).body))) ?? {};
+          const { token: tokenRaw, newPassword: newPasswordRaw } = parsed as { token?: string; newPassword?: string };
+          const token = typeof tokenRaw === 'string' ? tokenRaw.trim() : '';
+          const newPassword = typeof newPasswordRaw === 'string' ? newPasswordRaw : '';
+
+          if (!token || !newPassword || newPassword.length < 8) {
+            return Response.json({
+              success: false,
+              error: 'Invalid or expired reset link',
+              requestId,
+            }, { status: 400 });
+          }
+
+          const hashed = crypto.createHash('sha256').update(token).digest('hex');
+
+          const users = await req.payload.find({
+            collection: 'users',
+            where: {
+              resetPasswordToken: { equals: hashed },
+            },
+            limit: 1,
+          });
+
+          const user = users.docs?.[0];
+
+          if (!user || !user.resetPasswordExpiration || new Date(user.resetPasswordExpiration).getTime() < Date.now()) {
+            return Response.json({
+              success: false,
+              error: 'Invalid or expired reset link',
+              requestId,
+            }, { status: 400 });
+          }
+
+          await req.payload.update({
+            collection: 'users',
+            id: user.id,
+            data: {
+              password: newPassword,
+              resetPasswordToken: null,
+              resetPasswordExpiration: null,
+              loginAttempts: 0,
+              lockUntil: null,
+            },
+          });
+
+          const apiKey = process.env.RESEND_API_KEY || '';
+          const fromEmail = process.env.RESEND_FROM_EMAIL || 'no-reply@tap2goph.com';
+          const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
+          const fromName = process.env.EMAIL_FROM_NAME || 'Tap2Go';
+
+          if (apiKey && process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true') {
+            await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+              },
+              body: JSON.stringify({
+                from: `${fromName} <${fromEmail}>`,
+                to: user.email,
+                subject: 'Your Tap2Go password was changed',
+                text: 'Your password has been changed successfully. If you did not make this change, contact support immediately.',
+                reply_to: replyTo,
+              }),
+            });
+          }
+
+          return Response.json({
+            success: true,
+            message: 'Password updated successfully',
+            metadata: { requestId, responseTime: `${Date.now() - startTime}ms` },
+          }, { status: 200 });
+        } catch (_error) {
+          return Response.json({
+            success: false,
+            error: 'Internal server error',
+            requestId,
+          }, { status: 500 });
+        }
+      }),
+    },
+
     // ========================================
     // HIGH-PERFORMANCE GEOSPATIAL API ENDPOINTS
     // ========================================

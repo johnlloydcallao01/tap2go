@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from '@/components/ui/ImageWrapper';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { PublicRoute } from '@/components/auth';
 import { useLogin } from '@/hooks/useAuth';
 import { validateUserRegistration, type FlatUserRegistrationData } from '@/server/validators/user-registration-schemas';
@@ -22,6 +23,7 @@ type SigninFormData = {
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, isLoading, error, clearError } = useLogin();
 
   // 🚀 ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
@@ -29,6 +31,10 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isForgotSubmitting, setIsForgotSubmitting] = useState(false);
+  const resetToken = searchParams.get('token') || '';
 
   // Helper function to get initial form data - simplified for signin only
   const getInitialFormData = () => {
@@ -108,6 +114,60 @@ export default function SignInPage() {
     } catch (error) {
       console.error('❌ LOGIN ERROR:', error);
       // Error is already handled by useLogin hook and displayed in UI
+    }
+  };
+
+  const handleForgotRequest = async () => {
+    setErrors({});
+    setIsForgotSubmitting(true);
+    try {
+      const res = await fetch('https://cms.tap2goph.com/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      if (res.ok) {
+        setErrors({ success: 'If an account exists, an email has been sent.' });
+        setShowForgot(false);
+        setForgotEmail('');
+      } else {
+        setErrors({ success: 'If an account exists, an email has been sent.' });
+      }
+    } catch {
+      setErrors({ success: 'If an account exists, an email has been sent.' });
+    } finally {
+      setIsForgotSubmitting(false);
+    }
+  };
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+    if (!resetToken) {
+      setErrors({ general: 'Invalid or expired reset link.' });
+      return;
+    }
+    if (!newPassword || newPassword !== confirmPassword || newPassword.length < 8) {
+      setErrors({ general: 'Please enter matching passwords with at least 8 characters.' });
+      return;
+    }
+    try {
+      const res = await fetch('https://cms.tap2goph.com/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, newPassword }),
+      });
+      if (res.ok) {
+        setErrors({ success: 'Password updated. Please sign in.' });
+        router.replace('/signin');
+      } else {
+        setErrors({ general: 'Invalid or expired reset link.' });
+      }
+    } catch {
+      setErrors({ general: 'An unexpected error occurred.' });
     }
   };
 
@@ -304,12 +364,10 @@ export default function SignInPage() {
                 </div>
               )}
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={resetToken ? handleResetSubmit : handleSubmit} className="space-y-6">
 
 
-                {/* Sign In Fields - Email and Password for sign in only */}
-                {!isSignUp && (
+                {!isSignUp && !resetToken && (
                   <>
                     <div>
                       <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
@@ -352,16 +410,63 @@ export default function SignInPage() {
                   </>
                 )}
 
-                {/* Forgot Password (Sign In only) */}
-                {!isSignUp && (
+                {!isSignUp && !resetToken && (
                   <div className="text-right">
-                    <a href="#" className="text-sm text-[#201a7c] hover:underline font-medium">
+                    <a href="#" onClick={() => setShowForgot(true)} className="text-sm text-[#201a7c] hover:underline font-medium">
                       Forgot your password?
                     </a>
                   </div>
                 )}
 
-                {/* Submit Button */}
+                {showForgot && !resetToken && (
+                  <div className="mt-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                    <div className="space-y-3">
+                      <label className="block text-sm font-normal" style={{ color: '#555' }}>Enter your email</label>
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
+                        placeholder="john.smith@example.com"
+                      />
+                      <div className="flex items-center justify-end gap-3">
+                        <button type="button" onClick={() => setShowForgot(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Cancel</button>
+                        <button type="button" onClick={handleForgotRequest} disabled={isForgotSubmitting} className="px-4 py-2 rounded-lg bg-[#eba336] text-white font-semibold disabled:opacity-50">
+                          {isForgotSubmitting ? 'Sending...' : 'Send reset link'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {resetToken && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>New Password *</label>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
+                        placeholder="Enter new password"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>Confirm Password *</label>
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
+                        placeholder="Confirm new password"
+                      />
+                    </div>
+                  </>
+                )}
+
                 <button
                   type="submit"
                   disabled={isLoading}
@@ -374,7 +479,7 @@ export default function SignInPage() {
                       Signing In...
                     </div>
                   ) : (
-                    'Sign In'
+                    resetToken ? 'Reset Password' : 'Sign In'
                   )}
                 </button>
               </form>
