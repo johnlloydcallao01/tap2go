@@ -10,12 +10,14 @@ export default function ResetPasswordPage() {
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isSuccess, setIsSuccess] = useState(false);
   const minLen = 8;
-  const maxLen = 20;
+  const maxLen = 40;
 
   const checks = useMemo(() => {
     const hasUpper = /[A-Z]/.test(newPassword);
@@ -46,7 +48,7 @@ export default function ResetPasswordPage() {
       return;
     }
     if (!(checks.lenOk && checks.hasUpper && checks.hasNumber && checks.hasSpecial && checks.match)) {
-      setError('Password must be 8–20 chars, include uppercase, number, special, and match.');
+      setError('Password must be 8–40 chars, include uppercase, number, special, and match.');
       return;
     }
 
@@ -71,7 +73,7 @@ export default function ResetPasswordPage() {
           } else if (data?.errorCode === 'TOKEN_INVALID') {
             setError('Invalid reset link. Please request a new link.');
           } else if (data?.errorCode === 'PASSWORD_POLICY_FAILED') {
-            setError('Password must be 8–20 chars, include uppercase, number, and special.');
+            setError('Password must be 8–40 chars, include uppercase, number, and special.');
           } else if (typeof data?.error === 'string') {
             setError(data.error);
           } else {
@@ -214,7 +216,7 @@ export default function ResetPasswordPage() {
                             <a
                               href="/signin"
                               onClick={(e) => { e.preventDefault(); router.push('/signin'); }}
-                              className="text-[#201a7c] hover:underline font-medium"
+                              className="text-[#eba336] hover:underline font-medium"
                             >
                               sign in
                             </a>
@@ -231,32 +233,50 @@ export default function ResetPasswordPage() {
                 <form onSubmit={handleReset} className="space-y-6">
                   <div>
                     <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>New Password *</label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                      maxLength={20}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                      placeholder="Enter new password"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        maxLength={40}
+                        className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
+                        placeholder="Enter new password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <i className={`fa ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>Confirm Password *</label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      maxLength={20}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                      placeholder="Confirm new password"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        maxLength={40}
+                        className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
+                        placeholder="Confirm new password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <i className={`fa ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                     <div className={`flex items-center gap-2 ${checks.lenOk ? 'text-green-600' : 'text-gray-600'}`}>
                       <i className={`fa ${checks.lenOk ? 'fa-check-circle' : 'fa-circle'}`}></i>
-                      8–20 characters
+                      8–40 characters
                     </div>
                     <div className={`flex items-center gap-2 ${checks.hasUpper ? 'text-green-600' : 'text-gray-600'}`}>
                       <i className={`fa ${checks.hasUpper ? 'fa-check-circle' : 'fa-circle'}`}></i>

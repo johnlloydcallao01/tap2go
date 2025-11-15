@@ -428,7 +428,7 @@ export default buildConfig({
           const hasNumber = /[0-9]/.test(newPassword);
           const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
           const minLen = 8;
-          const maxLen = 20;
+          const maxLen = 40;
           const lenOk = newPassword.length >= minLen && newPassword.length <= maxLen;
 
           if (!(lenOk && hasUpper && hasNumber && hasSpecial)) {

@@ -581,9 +581,9 @@ export default function RegisterPage() {
                     />
                     <label className="text-sm text-gray-600">
                       I agree to the{' '}
-                      <a href="#" className="text-[#201a7c] hover:underline font-medium">Terms of Service</a>
+                      <a href="#" className="text-[#eba336] hover:underline font-medium">Terms of Service</a>
                       {' '}and{' '}
-                      <a href="#" className="text-[#201a7c] hover:underline font-medium">Privacy Policy</a>
+                      <a href="#" className="text-[#eba336] hover:underline font-medium">Privacy Policy</a>
                     </label>
                   </div>
                 </div>
@@ -622,7 +622,7 @@ export default function RegisterPage() {
                   </p>
                   <button
                     onClick={navigateToSignin}
-                    className="mt-2 text-[#201a7c] font-semibold hover:text-[#1a1569] transition-colors duration-200"
+                    className="mt-2 text-[#eba336] font-semibold hover:text-[#d68e2d] transition-colors duration-200"
                   >
                     Sign In Instead
                   </button>

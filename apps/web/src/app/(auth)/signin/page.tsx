@@ -390,7 +390,7 @@ function SignInContent() {
                   </p>
                   <button
                     onClick={navigateToRegister}
-                    className="mt-2 text-[#201a7c] font-semibold hover:text-[#1a1569] transition-colors duration-200"
+                    className="mt-2 text-[#eba336] font-semibold hover:text-[#d68e2d] transition-colors duration-200"
                   >
                     Create New Account
                   </button>
