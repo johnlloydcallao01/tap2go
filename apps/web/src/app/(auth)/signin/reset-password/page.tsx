@@ -13,6 +13,7 @@ export default function ResetPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [isSuccess, setIsSuccess] = useState(false);
   const minLen = 8;
   const maxLen = 20;
 
@@ -57,7 +58,8 @@ export default function ResetPasswordPage() {
         body: JSON.stringify({ token, newPassword }),
       });
       if (res.ok) {
-        setMessage('Password updated. Please sign in.');
+        setIsSuccess(true);
+        setMessage('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
@@ -199,14 +201,28 @@ export default function ResetPasswordPage() {
                   </div>
                 )}
 
-                {message && (
+                {(isSuccess || message) && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
                     <div className="flex">
                       <div className="flex-shrink-0">
                         <i className="fa fa-check-circle text-green-400"></i>
                       </div>
                       <div className="ml-3">
-                        <p className="text-sm text-green-800">{message}</p>
+                        {isSuccess ? (
+                          <p className="text-sm text-green-800">
+                            Password updated. Please{' '}
+                            <a
+                              href="/signin"
+                              onClick={(e) => { e.preventDefault(); router.push('/signin'); }}
+                              className="text-[#201a7c] hover:underline font-medium"
+                            >
+                              sign in
+                            </a>
+                            .
+                          </p>
+                        ) : (
+                          <p className="text-sm text-green-800">{message}</p>
+                        )}
                       </div>
                     </div>
                   </div>
