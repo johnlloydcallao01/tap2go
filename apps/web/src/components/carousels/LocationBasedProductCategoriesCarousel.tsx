@@ -68,7 +68,6 @@ export const LocationBasedProductCategoriesCarousel = ({
     try {
       setLoading(true);
       setError(null);
-      console.log('🛒 Fetching location-based product categories for customer:', customerIdToUse);
 
       const fetchedCategories = await LocationBasedProductCategoriesService.getLocationBasedProductCategories({
         customerId: customerIdToUse,
@@ -76,8 +75,6 @@ export const LocationBasedProductCategoriesCarousel = ({
         sortBy,
         includeInactive,
       });
-
-      console.log('✅ Fetched', fetchedCategories.length, 'location-based product categories');
       setCategories(fetchedCategories);
     } catch (err) {
       console.error('❌ Error fetching location-based product categories:', err);
@@ -97,14 +94,11 @@ export const LocationBasedProductCategoriesCarousel = ({
       }
 
       try {
-        console.log('🔍 Resolving customer ID from current session...');
         const currentCustomerId = await LocationBasedProductCategoriesService.getCurrentCustomerId();
         
         if (currentCustomerId) {
-          console.log('✅ Resolved customer ID:', currentCustomerId);
           setResolvedCustomerId(currentCustomerId);
         } else {
-          console.log('❌ Could not resolve customer ID');
           setError('Unable to determine customer location');
           setLoading(false);
         }
@@ -127,17 +121,13 @@ export const LocationBasedProductCategoriesCarousel = ({
 
   // Listen for address changes and refetch categories
   useAddressChange((addressId: string) => {
-    console.log('🔄 LocationBasedProductCategoriesCarousel received address change event for:', addressId);
     if (resolvedCustomerId) {
-      console.log('🚀 Refetching categories due to address change...');
       
       // Clear the cache first to ensure fresh data
-      console.log('🗑️ Clearing location-based categories cache...');
       LocationBasedProductCategoriesService.clearCache(resolvedCustomerId);
       
       fetchLocationBasedProductCategories(resolvedCustomerId);
     } else {
-      console.log('⏳ Customer ID not resolved yet, skipping categories refetch');
     }
   });
 
@@ -209,7 +199,6 @@ export const LocationBasedProductCategoriesCarousel = ({
       const category = categories.find(cat => cat.name === categoryName);
       if (category) {
         const categorySlug = category.name.toLowerCase().replace(/\s+/g, '-');
-        console.log('📱 Category clicked:', { name: categoryName, id: category.id, slug: categorySlug });
         onCategorySelect(category.id, categorySlug, categoryName);
       }
     }

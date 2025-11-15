@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
+import Image from '@/components/ui/ImageWrapper';
 import { useRouter } from 'next/navigation';
 import { validateUserRegistration, type FlatUserRegistrationData } from '@/server/validators/user-registration-schemas';
 
@@ -288,7 +288,7 @@ export default function RegisterPage() {
       {/* Modern Split Layout */}
       <div className="min-h-screen flex">
         {/* Left Side - Branding & Info (Hidden on mobile) */}
-        <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-[#201a7c] to-[#ab3b43] relative overflow-hidden">
+        <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-[#222] to-[#222] relative overflow-hidden">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute inset-0" style={{
@@ -314,8 +314,8 @@ export default function RegisterPage() {
                 <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-4">
                   <i className="fa fa-anchor text-3xl text-white"></i>
                 </div>
-                <h1 className="text-3xl font-bold mb-2">Grandline Maritime</h1>
-                <p className="text-blue-100">Training & Development Center</p>
+                <h1 className="text-3xl font-bold mb-2">Tap2Go</h1>
+                <p className="text-blue-100">Food Delivery from Laguna</p>
               </div>
 
               {/* Features */}
@@ -325,8 +325,8 @@ export default function RegisterPage() {
                     <i className="fa fa-shopping-cart text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Quality Products</h3>
-                    <p className="text-blue-100 text-sm">Curated selection from trusted merchants</p>
+                    <h3 className="font-semibold mb-1">Fast Delivery</h3>
+                    <p className="text-blue-100 text-sm">Quick delivery across Laguna</p>
                   </div>
                 </div>
 
@@ -335,8 +335,8 @@ export default function RegisterPage() {
                     <i className="fa fa-certificate text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Industry Recognition</h3>
-                    <p className="text-blue-100 text-sm">Globally recognized certifications for career advancement</p>
+                    <h3 className="font-semibold mb-1">Trusted Restaurants</h3>
+                    <p className="text-blue-100 text-sm">Curated local favorites from verified partners</p>
                   </div>
                 </div>
 
@@ -345,8 +345,8 @@ export default function RegisterPage() {
                     <i className="fa fa-users text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Expert Instructors</h3>
-                    <p className="text-blue-100 text-sm">Learn from experienced captains and chief officers</p>
+                    <h3 className="font-semibold mb-1">Real-Time Tracking</h3>
+                    <p className="text-blue-100 text-sm">Track your order live from kitchen to doorstep</p>
                   </div>
                 </div>
               </div>

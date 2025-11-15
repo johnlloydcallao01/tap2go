@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
+import Image from '@/components/ui/ImageWrapper';
 import { useRouter } from 'next/navigation';
 import { PublicRoute } from '@/components/auth';
 import { useLogin } from '@/hooks/useAuth';
@@ -140,7 +140,7 @@ export default function SignInPage() {
       {/* Modern Split Layout */}
       <div className="min-h-screen flex">
         {/* Left Side - Branding & Info (Hidden on mobile) */}
-        <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-[#201a7c] to-[#ab3b43] relative overflow-hidden">
+        <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-[#222] to-[#222] relative overflow-hidden">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute inset-0" style={{
@@ -164,10 +164,16 @@ export default function SignInPage() {
               {/* Logo */}
               <div className="mb-8">
                 <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-4">
-                  <i className="fa fa-anchor text-3xl text-white"></i>
+                  <Image
+                    src="/logo.png"
+                    alt="Calsiter Inc Logo"
+                    width={64}
+                    height={64}
+                    style={{ objectFit: 'contain' }}
+                  />
                 </div>
-                <h1 className="text-3xl font-bold mb-2">Grandline Maritime</h1>
-                <p className="text-blue-100">Training & Development Center</p>
+                <h1 className="text-3xl font-bold mb-2">Tap2Go</h1>
+                <p className="text-blue-100">Food Delivery from Laguna</p>
               </div>
 
               {/* Features */}
@@ -177,8 +183,8 @@ export default function SignInPage() {
                     <i className="fa fa-shopping-cart text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Quality Products</h3>
-                    <p className="text-blue-100 text-sm">Curated selection from trusted merchants</p>
+                    <h3 className="font-semibold mb-1">Fast Delivery</h3>
+                    <p className="text-blue-100 text-sm">Quick delivery across Laguna</p>
                   </div>
                 </div>
 
@@ -187,8 +193,8 @@ export default function SignInPage() {
                     <i className="fa fa-certificate text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Industry Recognition</h3>
-                    <p className="text-blue-100 text-sm">Globally recognized certifications for career advancement</p>
+                    <h3 className="font-semibold mb-1">Trusted Restaurants</h3>
+                    <p className="text-blue-100 text-sm">Curated local favorites from verified partners</p>
                   </div>
                 </div>
 
@@ -197,27 +203,13 @@ export default function SignInPage() {
                     <i className="fa fa-users text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Expert Instructors</h3>
-                    <p className="text-blue-100 text-sm">Learn from experienced captains and chief officers</p>
+                    <h3 className="font-semibold mb-1">Real-Time Tracking</h3>
+                    <p className="text-blue-100 text-sm">Track your order live from kitchen to doorstep</p>
                   </div>
                 </div>
               </div>
 
-              {/* Stats */}
-              <div className="mt-12 grid grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold">5000+</div>
-                  <div className="text-blue-100 text-sm">Students</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">50+</div>
-                  <div className="text-blue-100 text-sm">Merchants</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">98%</div>
-                  <div className="text-blue-100 text-sm">Success Rate</div>
-                </div>
-              </div>
+              
             </div>
           </div>
         </div>
@@ -225,13 +217,16 @@ export default function SignInPage() {
         {/* Right Side - Form */}
         <div
           className="w-full lg:w-3/5 flex items-center justify-center px-1.5 py-4 lg:p-8 relative"
-          style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=1200&h=800&fit=crop&crop=center')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
-          }}
         >
+          <div
+            className="absolute inset-0 opacity-80"
+            style={{
+              backgroundImage: `url('https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=1200&h=800')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }}
+          ></div>
           <div className="w-full max-w-lg md:max-w-2xl relative z-10">
             {/* Mobile Header */}
             <div className="lg:hidden mb-8">
@@ -244,17 +239,25 @@ export default function SignInPage() {
 
             </div>
 
-            {/* Form Card */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-              {/* Desktop Header */}
-              <div className="hidden lg:block text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Welcome Back
-                </h2>
-                <p className="text-gray-600">
-                  Sign in to continue your learning journey
-                </p>
-              </div>
+              {/* Form Card */}
+              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+                {/* Desktop Header */}
+                <div className="hidden lg:block text-center mb-8">
+                  <Image
+                    src="/logo.png"
+                    alt="Tap2Go Logo"
+                    width={64}
+                    height={64}
+                    className="mx-auto mb-3"
+                    style={{ objectFit: 'contain' }}
+                  />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    Welcome Back
+                  </h2>
+                  <p className="text-gray-600">
+                    Sign in to continue your learning journey
+                  </p>
+                </div>
 
               {/* Mobile Form Header */}
               <div className="lg:hidden text-center mb-6">
@@ -355,7 +358,7 @@ export default function SignInPage() {
                   type="submit"
                   disabled={isLoading}
 
-                  className="w-full bg-gradient-to-r from-[#201a7c] to-[#ab3b43] text-white py-4 px-6 rounded-xl font-semibold hover:from-[#1a1569] hover:to-[#8b2f36] transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+                  className="w-full bg-[#eba336] text-white py-4 px-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
                 >
                   {isLoading ? (
                     <div className="flex items-center justify-center">
@@ -391,16 +394,6 @@ export default function SignInPage() {
                 </div>
               </div>
 
-              {/* Security Info */}
-              <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                <div className="flex items-center justify-center space-x-2 text-sm text-blue-700">
-                  <i className="fa fa-shield-alt"></i>
-                  <span className="font-medium">Secure & Encrypted</span>
-                </div>
-                <p className="text-xs text-blue-600 text-center mt-1">
-                  Your data is protected with industry-standard encryption
-                </p>
-              </div>
             </div>
           </div>
         </div>

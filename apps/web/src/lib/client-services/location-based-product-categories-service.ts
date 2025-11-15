@@ -150,8 +150,6 @@ export class LocationBasedProductCategoriesService {
   static async getLocationBasedProductCategories(options: LocationBasedProductCategoriesServiceOptions): Promise<LocationBasedProductCategory[]> {
     const { customerId, sortBy = 'name', limit = 20, includeInactive = false } = options;
 
-    console.log('🛒 Starting location-based product categories fetch with options:', { customerId, sortBy, limit, includeInactive });
-
     if (!customerId) {
       console.warn('❌ Customer ID is required for location-based product categories');
       return [];
@@ -163,7 +161,6 @@ export class LocationBasedProductCategoriesService {
     // Check cache first
     const cachedData = dataCache.get<LocationBasedProductCategory[]>(cacheKey);
     if (cachedData) {
-      console.log('🎯 Using cached product categories data:', cachedData.length, 'categories');
       return cachedData;
     }
 
@@ -194,19 +191,16 @@ export class LocationBasedProductCategoriesService {
       const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
-        console.log('🔑 API key configured for request');
       } else {
         console.error('❌ NEXT_PUBLIC_PAYLOAD_API_KEY not found in environment');
       }
 
       const url = `${LocationBasedProductCategoriesService.API_BASE}/merchant/location-based-product-categories?${params}`;
-      console.log('🌐 Making request to:', url);
 
       const response = await fetch(url, {
         headers,
       });
       
-      console.log('📡 Response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -215,14 +209,6 @@ export class LocationBasedProductCategoriesService {
       }
       
       const data: LocationBasedProductCategoriesResponse = await response.json();
-      console.log('📊 API Response:', { 
-        success: data.success, 
-        categoryCount: data.data?.categories?.length || 0,
-        customerFound: !!data.data?.customer,
-        addressFound: !!data.data?.address,
-        totalCategories: data.data?.totalCategories,
-        merchantsAnalyzed: data.data?.merchantsAnalyzed
-      });
       
       if (!data.success || !data.data?.categories) {
         console.warn('❌ Invalid response format for location-based product categories');
@@ -230,7 +216,6 @@ export class LocationBasedProductCategoriesService {
       }
       
       const categories = data.data.categories || [];
-      console.log('✅ Successfully fetched', categories.length, 'location-based product categories');
       
       // Cache the result
       dataCache.set(cacheKey, categories, CACHE_TTL.PRODUCT_CATEGORIES);
@@ -251,21 +236,18 @@ export class LocationBasedProductCategoriesService {
       // Check if we have a cached customer ID
       const cachedCustomerId = dataCache.get<string>('current-customer-id');
       if (cachedCustomerId) {
-        console.log('🎯 Using cached customer ID:', cachedCustomerId);
         return cachedCustomerId;
       }
 
       // Get current user from localStorage (where auth context stores it)
       const userDataStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
       if (!userDataStr) {
-        console.log('❌ No user data found in localStorage');
         return null;
       }
 
       let userData;
       try {
         userData = JSON.parse(userDataStr);
-        console.log('👤 User data found:', { id: userData?.id, email: userData?.email, role: userData?.role });
       } catch (parseError) {
         console.error('❌ Failed to parse user data from localStorage:', parseError);
         return null;
@@ -273,20 +255,16 @@ export class LocationBasedProductCategoriesService {
 
       const userId = userData?.id;
       if (!userId) {
-        console.log('❌ No user ID found in user data');
         return null;
       }
 
-      console.log('🔍 Looking up customer ID for user ID:', userId);
       // Get customer ID from user ID using the same pattern as other services
       const customerId = await LocationBasedProductCategoriesService.getCustomerIdFromUserId(userId);
       
       if (customerId) {
-        console.log('✅ Found customer ID:', customerId);
         // Cache the customer ID for future use
         dataCache.set('current-customer-id', customerId, CACHE_TTL.PRODUCT_CATEGORIES);
       } else {
-        console.log('❌ No customer ID found for user ID:', userId);
       }
       
       return customerId;
@@ -302,7 +280,6 @@ export class LocationBasedProductCategoriesService {
    */
   private static async getCustomerIdFromUserId(userId: string | number): Promise<string | null> {
     try {
-      console.log('🔍 Querying CMS for customer with user ID:', userId);
       
       // Use proper authentication headers for PayloadCMS API
       const headers: HeadersInit = {
@@ -311,14 +288,12 @@ export class LocationBasedProductCategoriesService {
       };
 
       const url = `${this.API_BASE}/customers?where[user][equals]=${userId}&limit=1`;
-      console.log('🌐 Making request to:', url);
 
       const response = await fetch(url, {
         method: 'GET',
         headers,
       });
 
-      console.log('📡 Response status:', response.status);
 
       if (!response.ok) {
         console.error('❌ Failed to fetch customer by user ID:', response.status);
@@ -328,19 +303,12 @@ export class LocationBasedProductCategoriesService {
       }
 
       const data = await response.json();
-      console.log('📊 Customer query response:', { 
-        docsCount: data.docs?.length || 0, 
-        totalDocs: data.totalDocs,
-        hasNextPage: data.hasNextPage 
-      });
       
       if (data.docs && data.docs.length > 0) {
         const customerId = data.docs[0].id;
-        console.log('✅ Customer found with ID:', customerId);
         return customerId;
       }
       
-      console.log('❌ No customer found for user ID:', userId);
       return null;
     } catch (error) {
       console.error('❌ Error getting customer ID from user ID:', error);

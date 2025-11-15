@@ -298,7 +298,6 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
 
   // Function to fetch merchants
   const fetchLocationBasedMerchants = useCallback(async (customerIdToUse: string) => {
-    console.log('🚀 Starting merchant fetch with customer ID:', customerIdToUse, 'categoryId:', categoryId);
     setIsLoading(true);
     setError(null);
 
@@ -308,7 +307,6 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         limit,
         categoryId: categoryId || undefined,
       });
-      console.log('✅ Merchants fetched successfully:', locationMerchants.length, 'merchants');
       setMerchants(locationMerchants);
       // Fetch active address names in background
       fetchAndSetActiveAddresses(locationMerchants);
@@ -316,7 +314,6 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
       console.error('❌ Error fetching location-based merchants:', err);
       setError('Failed to load merchants. Please try again.');
     } finally {
-      console.log('🏁 Merchant fetch completed, setting loading to false');
       setIsLoading(false);
     }
   }, [limit, categoryId, fetchAndSetActiveAddresses]);
@@ -571,17 +568,13 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
 
   // Listen for address changes and refetch merchants
   useAddressChange((addressId: string) => {
-    console.log('🔄 LocationBasedMerchants received address change event for:', addressId);
     if (resolvedCustomerId) {
-      console.log('🚀 Refetching merchants due to address change...');
       
       // Clear the cache first to ensure fresh data
-      console.log('🗑️ Clearing location-based merchants cache...');
       LocationBasedMerchantService.clearCache(resolvedCustomerId);
       
       fetchLocationBasedMerchants(resolvedCustomerId);
     } else {
-      console.log('⏳ Customer ID not resolved yet, skipping merchant refetch');
     }
   });
 
@@ -589,15 +582,12 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   useEffect(() => {
     const resolveCustomerId = async () => {
       if (customerId) {
-        console.log('🆔 Using provided customer ID:', customerId);
         setResolvedCustomerId(customerId);
         return;
       }
 
-      console.log('🔍 No customerId provided, attempting to get from service...');
       try {
         const currentCustomerId = await LocationBasedMerchantService.getCurrentCustomerId();
-        console.log('🆔 Retrieved customer ID from service:', currentCustomerId);
         
         if (currentCustomerId) {
           setResolvedCustomerId(currentCustomerId);
@@ -619,7 +609,6 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   // Effect to fetch merchants when customer ID is resolved
   useEffect(() => {
     if (!resolvedCustomerId) {
-      console.log('⏳ Waiting for customer ID to be resolved...');
       return;
     }
 
