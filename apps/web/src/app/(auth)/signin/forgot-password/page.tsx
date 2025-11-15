@@ -138,6 +138,19 @@ export default function ForgotPasswordPage() {
                   <p className="text-gray-600">Enter your email to receive a reset link</p>
                 </div>
 
+                <div className="lg:hidden text-center mb-6">
+                  <Image
+                    src="/logo.png"
+                    alt="Tap2Go Logo"
+                    width={64}
+                    height={64}
+                    className="mx-auto mb-3"
+                    style={{ objectFit: 'contain' }}
+                  />
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Forgot Password</h2>
+                  <p className="text-gray-600 text-sm">Enter your email to receive a reset link</p>
+                </div>
+
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
                     <div className="flex">

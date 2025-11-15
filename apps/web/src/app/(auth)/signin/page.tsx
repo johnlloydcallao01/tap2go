@@ -352,7 +352,7 @@ function SignInContent() {
                   )}
                   {!isSignUp && (
                     <div className="text-right">
-                      <a href="#" onClick={(e) => { e.preventDefault(); router.push('/signin/forgot-password'); }} className="text-sm text-[#201a7c] hover:underline font-medium">
+                      <a href="#" onClick={(e) => { e.preventDefault(); router.push('/signin/forgot-password'); }} className="text-sm text-[#eba336] hover:underline font-medium">
                         Forgot your password?
                       </a>
                     </div>

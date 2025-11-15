@@ -411,12 +411,16 @@ export default function RegisterPage() {
 
               {/* Mobile Form Header */}
               <div className="lg:hidden text-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-1">
-                  Create Account
-                </h2>
-                <p className="text-gray-600 text-sm">
-                   One Tap, Brings Yum
-                </p>
+                <Image
+                  src="/logo.png"
+                  alt="Tap2Go Logo"
+                  width={64}
+                  height={64}
+                  className="mx-auto mb-3"
+                  style={{ objectFit: 'contain' }}
+                />
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Create Account</h2>
+                <p className="text-gray-600 text-sm">One Tap, Brings Yum</p>
               </div>
 
               {/* Error Messages */}
