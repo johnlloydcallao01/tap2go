@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from '@/components/ui/ImageWrapper';
 import { useRouter } from 'next/navigation';
 import { PublicRoute } from '@/components/auth';
@@ -13,6 +13,17 @@ export default function ResetPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const minLen = 8;
+  const maxLen = 20;
+
+  const checks = useMemo(() => {
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+    const lenOk = newPassword.length >= minLen && newPassword.length <= maxLen;
+    const match = newPassword.length > 0 && newPassword === confirmPassword;
+    return { hasUpper, hasNumber, hasSpecial, lenOk, match };
+  }, [newPassword, confirmPassword]);
 
   useEffect(() => {
     try {
@@ -33,8 +44,8 @@ export default function ResetPasswordPage() {
       setError('Invalid or expired reset link.');
       return;
     }
-    if (!newPassword || newPassword !== confirmPassword || newPassword.length < 8) {
-      setError('Please enter matching passwords with at least 8 characters.');
+    if (!(checks.lenOk && checks.hasUpper && checks.hasNumber && checks.hasSpecial && checks.match)) {
+      setError('Password must be 8–20 chars, include uppercase, number, special, and match.');
       return;
     }
 
@@ -50,7 +61,17 @@ export default function ResetPasswordPage() {
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        setError('Invalid or expired reset link.');
+        try {
+          const txt = await res.text();
+          const data = txt ? JSON.parse(txt) : {};
+          if (data && typeof data.error === 'string') {
+            setError(data.error);
+          } else {
+            setError('Invalid or expired reset link.');
+          }
+        } catch {
+          setError('Invalid or expired reset link.');
+        }
       }
     } catch {
       setError('An unexpected error occurred.');
@@ -193,6 +214,7 @@ export default function ResetPasswordPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
+                      maxLength={20}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
                       placeholder="Enter new password"
                     />
@@ -204,9 +226,32 @@ export default function ResetPasswordPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
+                      maxLength={20}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
                       placeholder="Confirm new password"
                     />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                    <div className={`flex items-center gap-2 ${checks.lenOk ? 'text-green-600' : 'text-gray-600'}`}>
+                      <i className={`fa ${checks.lenOk ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                      8–20 characters
+                    </div>
+                    <div className={`flex items-center gap-2 ${checks.hasUpper ? 'text-green-600' : 'text-gray-600'}`}>
+                      <i className={`fa ${checks.hasUpper ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                      1 uppercase letter
+                    </div>
+                    <div className={`flex items-center gap-2 ${checks.hasNumber ? 'text-green-600' : 'text-gray-600'}`}>
+                      <i className={`fa ${checks.hasNumber ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                      1 number
+                    </div>
+                    <div className={`flex items-center gap-2 ${checks.hasSpecial ? 'text-green-600' : 'text-gray-600'}`}>
+                      <i className={`fa ${checks.hasSpecial ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                      1 special character
+                    </div>
+                    <div className={`flex items-center gap-2 ${checks.match ? 'text-green-600' : 'text-gray-600'}`}>
+                      <i className={`fa ${checks.match ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                      Passwords match
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <button type="button" onClick={() => router.push('/signin')} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Previous</button>

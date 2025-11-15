@@ -335,7 +335,8 @@ export default buildConfig({
           if (user && user.isActive !== false) {
             const rawToken = crypto.randomBytes(32).toString('hex');
             const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
-            const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+            const ttlMinutes = Number(process.env.RESET_PASSWORD_TTL_MINUTES || 30);
+            const expires = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
 
             await req.payload.update({
               collection: 'users',
@@ -365,7 +366,7 @@ export default buildConfig({
                   from: `${fromName} <${fromEmail}>`,
                   to,
                   subject: 'Reset your Tap2Go password',
-                  text: `We received a request to reset your password.\n\nUse this link to set a new password: ${resetUrl}\n\nThis link will expire in 30 minutes. If you did not request this, you can ignore this email.`,
+                  text: `We received a request to reset your password.\n\nUse this link to set a new password: ${resetUrl}\n\nThis link will expire in ${ttlMinutes} minutes. If you did not request this, you can ignore this email.`,
                   reply_to: replyTo,
                 }),
               });
@@ -410,10 +411,35 @@ export default buildConfig({
           const token = typeof tokenRaw === 'string' ? tokenRaw.trim() : '';
           const newPassword = typeof newPasswordRaw === 'string' ? newPasswordRaw : '';
 
-          if (!token || !newPassword || newPassword.length < 8) {
+          if (!token || !newPassword) {
             return Response.json({
               success: false,
-              error: 'Invalid or expired reset link',
+              error: 'Missing token or password',
+              errorCode: 'MISSING_FIELDS',
+              requestId,
+            }, { status: 400 });
+          }
+
+          const hasUpper = /[A-Z]/.test(newPassword);
+          const hasNumber = /[0-9]/.test(newPassword);
+          const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+          const minLen = 8;
+          const maxLen = 20;
+          const lenOk = newPassword.length >= minLen && newPassword.length <= maxLen;
+
+          if (!(lenOk && hasUpper && hasNumber && hasSpecial)) {
+            return Response.json({
+              success: false,
+              error: 'Password does not meet policy',
+              errorCode: 'PASSWORD_POLICY_FAILED',
+              details: {
+                minLength: minLen,
+                maxLength: maxLen,
+                lengthOk: lenOk,
+                hasUppercase: hasUpper,
+                hasNumber: hasNumber,
+                hasSpecial: hasSpecial,
+              },
               requestId,
             }, { status: 400 });
           }
@@ -430,10 +456,20 @@ export default buildConfig({
 
           const user = users.docs?.[0];
 
-          if (!user || !user.resetPasswordExpiration || new Date(user.resetPasswordExpiration).getTime() < Date.now()) {
+          if (!user) {
             return Response.json({
               success: false,
-              error: 'Invalid or expired reset link',
+              error: 'Invalid reset link',
+              errorCode: 'TOKEN_INVALID',
+              requestId,
+            }, { status: 400 });
+          }
+
+          if (!user.resetPasswordExpiration || new Date(user.resetPasswordExpiration).getTime() < Date.now()) {
+            return Response.json({
+              success: false,
+              error: 'Reset link expired',
+              errorCode: 'TOKEN_EXPIRED',
               requestId,
             }, { status: 400 });
           }
