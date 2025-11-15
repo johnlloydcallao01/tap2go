@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Image from '@/components/ui/ImageWrapper';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
@@ -21,7 +21,7 @@ type SigninFormData = {
  * Responsive design with split layout for desktop and mobile-optimized forms
  */
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, isLoading, error, clearError } = useLogin();
@@ -176,7 +176,7 @@ export default function SignInPage() {
   };
 
   return (
-    <PublicRoute>
+    <>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100">
       {/* Debug Mode Indicator */}
       {process.env.NEXT_PUBLIC_DEBUG_FORMS === 'true' && (
@@ -512,6 +512,18 @@ export default function SignInPage() {
         </div>
       </div>
       </div>
+    </>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <PublicRoute>
+      {React.createElement(
+        Suspense as unknown as any,
+        { fallback: <div className="flex items-center justify-center min-h-screen"><i className="fa fa-spinner fa-spin mr-2"></i>Loading...</div> },
+        React.createElement(SignInContent as unknown as React.ComponentType<any>, {})
+      )}
     </PublicRoute>
   );
 }
