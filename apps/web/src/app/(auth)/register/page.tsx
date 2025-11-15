@@ -415,7 +415,7 @@ export default function RegisterPage() {
                   Create Account
                 </h2>
                 <p className="text-gray-600 text-sm">
-                  Join the maritime community
+                   One Tap, Brings Yum
                 </p>
               </div>
 
@@ -472,7 +472,7 @@ export default function RegisterPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Middle Name (Optional)
+                          Middle Name
                         </label>
                         <input
                           type="text"

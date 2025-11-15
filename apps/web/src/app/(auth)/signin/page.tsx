@@ -255,7 +255,7 @@ export default function SignInPage() {
                     Welcome Back
                   </h2>
                   <p className="text-gray-600">
-                    Sign in to continue your learning journey
+                    One Tap, Brings Yum
                   </p>
                 </div>
 
@@ -273,7 +273,7 @@ export default function SignInPage() {
                   Welcome Back
                 </h2>
                 <p className="text-gray-600 text-sm">
-                  Sign in to your portal
+                  One Tap, Brings Yum
                 </p>
               </div>
 

@@ -226,12 +226,22 @@ main {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #201a7c 0%, #ab3b43 50%, #201a7c 100%);
+  background: #222;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   animation: fadeIn 0.3s ease-out;
+}
+
+.facebook-bg-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.1;
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+  background-size: cover;
+  pointer-events: none;
 }
 
 /* Main Content Container */
@@ -256,10 +266,10 @@ main {
 
 /* Company Logo */
 .facebook-logo {
-  width: 80px;
-  height: 80px;
+  width: 96px;
+  height: 96px;
   background: white;
-  border-radius: 20px;
+  border-radius: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -271,8 +281,8 @@ main {
 }
 
 .facebook-logo-image {
-  width: 48px !important;
-  height: 48px !important;
+  width: 64px !important;
+  height: 64px !important;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
@@ -283,8 +293,8 @@ main {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
+  width: 96px;
+  height: 96px;
   border: 3px solid rgba(255, 255, 255, 0.4);
   border-radius: 20px;
   animation: pulseRing 2s ease-out infinite;

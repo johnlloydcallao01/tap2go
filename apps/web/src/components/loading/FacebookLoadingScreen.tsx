@@ -26,6 +26,7 @@ export function FacebookLoadingScreen({ isVisible, progress = 0 }: FacebookLoadi
     <div className="facebook-loading-screen">
       {/* Full Screen Overlay */}
       <div className="facebook-loading-overlay">
+        <div className="facebook-bg-grid"></div>
         {/* Main Content Container */}
         <div className="facebook-loading-content">
           {/* Company Logo Animation */}
@@ -35,8 +36,8 @@ export function FacebookLoadingScreen({ isVisible, progress = 0 }: FacebookLoadi
               <Image
                 src="/logo.png"
                 alt="Calsiter Inc Logo"
-                width={48}
-                height={48}
+                width={64}
+                height={64}
                 className="facebook-logo-image"
                 priority
                 style={{ objectFit: 'contain' }}
@@ -50,7 +51,7 @@ export function FacebookLoadingScreen({ isVisible, progress = 0 }: FacebookLoadi
 
           {/* Loading Text */}
           <div className="facebook-loading-text">
-            <h2>Grandline Maritime</h2>
+            <h2>Tap2go</h2>
             <p>Loading your experience...</p>
           </div>
 
