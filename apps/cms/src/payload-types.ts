@@ -270,9 +270,9 @@ export interface Customer {
    */
   user: number | User;
   /**
-   * Student Registration Number (unique identifier)
+   * Student Registration Number (unique identifier) — optional
    */
-  srn: string;
+  srn?: string | null;
   /**
    * Marketing coupon code used during registration
    */
@@ -747,18 +747,6 @@ export interface Vendor {
    * Business logo
    */
   logo?: (number | null) | Media;
-  /**
-   * Bank account holder name
-   */
-  bankAccountName?: string | null;
-  /**
-   * Bank account number for payments
-   */
-  bankAccountNumber?: string | null;
-  /**
-   * Bank name
-   */
-  bankName?: string | null;
   /**
    * Business description and overview
    */
@@ -2141,9 +2129,6 @@ export interface VendorsSelect<T extends boolean = true> {
   businessLicense?: T;
   taxCertificate?: T;
   logo?: T;
-  bankAccountName?: T;
-  bankAccountNumber?: T;
-  bankName?: T;
   description?: T;
   operatingHours?: T;
   socialMediaLinks?:

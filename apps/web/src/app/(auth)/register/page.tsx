@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from '@/components/ui/ImageWrapper';
 import { useRouter } from 'next/navigation';
-import { validateUserRegistration, type FlatUserRegistrationData } from '@/server/validators/user-registration-schemas';
+import { FlatUserRegistrationSchema, type FlatUserRegistrationData } from '@/server/validators/user-registration-schemas';
 
 /**
  * Modern Professional Registration Page
@@ -16,7 +16,6 @@ export default function RegisterPage() {
   // 🚀 ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
   const [isSignUp] = useState(true); // Always true for register page
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -46,19 +45,10 @@ export default function RegisterPage() {
         // Username & Password
         username: 'juancarlos',
         password: '@Iamachessgrandmaster23',
-        confirmPassword: '@Iamachessgrandmaster23',
 
         // Marketing
         couponCode: '',
         referralSource: 'social_media',
-
-        // Emergency Contact
-        emergencyFirstName: 'Maria',
-        emergencyMiddleName: 'Santos',
-        emergencyLastName: 'Enrile',
-        emergencyContactNumber: '+639092809768',
-        emergencyRelationship: 'parent',
-        emergencyCompleteAddress: 'Manila, Philippines',
 
         // Terms
         agreeToTerms: true,
@@ -86,26 +76,21 @@ export default function RegisterPage() {
       // Username & Password
       username: '',
       password: '',
-      confirmPassword: '',
 
       // Marketing
       couponCode: '',
       referralSource: '',
-
-      // Emergency Contact
-      emergencyFirstName: '',
-      emergencyMiddleName: '',
-      emergencyLastName: '',
-      emergencyContactNumber: '',
-      emergencyRelationship: '',
-      emergencyCompleteAddress: '',
 
       // Terms
       agreeToTerms: false,
     };
   };
 
-  const [formData, setFormData] = useState<FlatUserRegistrationData>(getInitialFormData());
+  const [formData, setFormData] = useState<Omit<FlatUserRegistrationData,
+    'emergencyFirstName' | 'emergencyMiddleName' | 'emergencyLastName' |
+    'emergencyContactNumber' | 'emergencyRelationship' | 'emergencyCompleteAddress' |
+    'confirmPassword'
+  >>(getInitialFormData());
 
   // Dropdown options for form fields
   const genderOptions = [
@@ -132,15 +117,7 @@ export default function RegisterPage() {
     { value: 'other', label: 'Other' }
   ];
 
-  const relationshipOptions = [
-    { value: 'parent', label: 'Parent' },
-    { value: 'spouse', label: 'Spouse' },
-    { value: 'sibling', label: 'Sibling' },
-    { value: 'child', label: 'Child' },
-    { value: 'guardian', label: 'Guardian' },
-    { value: 'relative', label: 'Relative' },
-    { value: 'other', label: 'Other' }
-  ];
+  
 
   // Helper function to display field errors
   const getFieldError = (fieldName: string) => {
@@ -192,15 +169,27 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Validate form data for signup
-      const validation = validateUserRegistration(formData);
+      const requiredFields = [
+        'firstName', 'lastName',
+        'email', 'password'
+      ] as const;
 
-      if (!validation.success) {
-        const newErrors: Record<string, string> = {};
-        validation.error.errors.forEach((error) => {
-          const fieldName = error.path.join('.');
-          newErrors[fieldName] = error.message;
-        });
+      const newErrors: Record<string, string> = {};
+
+      requiredFields.forEach((field) => {
+        const value = (formData as any)[field];
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          newErrors[field] = 'This field is required.';
+        }
+      });
+
+      
+
+      if ((formData as any)['agreeToTerms'] !== true) {
+        newErrors['agreeToTerms'] = 'You must agree to the terms and conditions';
+      }
+
+      if (Object.keys(newErrors).length > 0) {
         setErrors(newErrors);
         return;
       }
@@ -208,12 +197,25 @@ export default function RegisterPage() {
       // CORS is completely disabled on the CMS - use direct URL
       const registrationUrl = 'https://cms.tap2goph.com/api/customer-register';
 
+      // Build payload excluding non-processed fields
+      const derivedUsername = (formData.email || '').split('@')[0] || (formData.username || '');
+
+      const payload = {
+        firstName: formData.firstName,
+        middleName: (formData as any).middleName,
+        lastName: formData.lastName,
+        email: formData.email,
+        username: derivedUsername,
+        password: formData.password,
+        agreeToTerms: (formData as any).agreeToTerms,
+      };
+
       const response = await fetch(registrationUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -312,7 +314,13 @@ export default function RegisterPage() {
               {/* Logo */}
               <div className="mb-8">
                 <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-4">
-                  <i className="fa fa-anchor text-3xl text-white"></i>
+                  <Image
+                    src="/logo.png"
+                    alt="Calsiter Inc Logo"
+                    width={64}
+                    height={64}
+                    style={{ objectFit: 'contain' }}
+                  />
                 </div>
                 <h1 className="text-3xl font-bold mb-2">Tap2Go</h1>
                 <p className="text-blue-100">Food Delivery from Laguna</p>
@@ -351,21 +359,7 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Stats */}
-              <div className="mt-12 grid grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold">5000+</div>
-                  <div className="text-blue-100 text-sm">Students</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">50+</div>
-                  <div className="text-blue-100 text-sm">Merchants</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">98%</div>
-                  <div className="text-blue-100 text-sm">Success Rate</div>
-                </div>
-              </div>
+              
             </div>
           </div>
         </div>
@@ -373,13 +367,16 @@ export default function RegisterPage() {
         {/* Right Side - Form */}
         <div
           className="w-full lg:w-3/5 flex items-center justify-center px-1.5 py-4 lg:p-8 relative"
-          style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=1200&h=800&fit=crop&crop=center')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
-          }}
         >
+          <div
+            className="absolute inset-0 opacity-80"
+            style={{
+              backgroundImage: `url('https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=1200&h=800')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }}
+          ></div>
           <div className="w-full max-w-lg md:max-w-2xl relative z-10">
             {/* Mobile Header */}
             <div className="lg:hidden mb-8">
@@ -396,6 +393,14 @@ export default function RegisterPage() {
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
               {/* Desktop Header */}
               <div className="hidden lg:block text-center mb-8">
+                <Image
+                  src="/logo.png"
+                  alt="Tap2Go Logo"
+                  width={64}
+                  height={64}
+                  className="mx-auto mb-3"
+                  style={{ objectFit: 'contain' }}
+                />
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   Create Your Account
                 </h2>
@@ -480,7 +485,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-1 gap-4 mb-4">
                       <div>
                         <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
                           Last Name *
@@ -495,181 +500,23 @@ export default function RegisterPage() {
                           placeholder="Dela Cruz"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Name Extension (e.g. Jr., II)
-                        </label>
-                        <input
-                          type="text"
-                          name="nameExtension"
-                          value={formData.nameExtension}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="Jr."
-                        />
-                      </div>
                     </div>
 
-                    {/* Gender and Civil Status */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Gender *
-                        </label>
-                        <select
-                          name="gender"
-                          value={formData.gender}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                        >
-                          <option value="">Select gender</option>
-                          {genderOptions.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Civil Status *
-                        </label>
-                        <select
-                          name="civilStatus"
-                          value={formData.civilStatus}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                        >
-                          <option value="">Select civil status</option>
-                          {civilStatusOptions.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+                    
 
-                    {/* SRN and Nationality */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          SRN *
-                        </label>
-                        <input
-                          type="text"
-                          name="srn"
-                          value={formData.srn}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="SRN-123456"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Nationality *
-                        </label>
-                        <input
-                          type="text"
-                          name="nationality"
-                          value={formData.nationality}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="Filipino"
-                        />
-                      </div>
-                    </div>
+                    
 
-                    {/* Birth Date and Place of Birth */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Birth Date *
-                        </label>
-                        <input
-                          type="date"
-                          name="birthDate"
-                          value={formData.birthDate}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Place of Birth *
-                        </label>
-                        <input
-                          type="text"
-                          name="placeOfBirth"
-                          value={formData.placeOfBirth}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="Manila, Philippines"
-                        />
-                      </div>
-                    </div>
+                    
 
-                    {/* Complete Address */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                        Complete Address *
-                      </label>
-                      <textarea
-                        name="completeAddress"
-                        value={formData.completeAddress}
-                        onChange={handleInputChange}
-                        required
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white resize-none"
-                        placeholder="123 Main Street, Barangay Sample, City, Province, ZIP Code"
-                      />
-                    </div>
+                    
                   </div>
 
-                  {/* Contact Information Section */}
+                  
+
+                  {/* Email & Password Section */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
-                      Contact Information
-                    </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Email *
-                        </label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="juan.delacruz@example.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Phone Number *
-                        </label>
-                        <input
-                          type="tel"
-                          name="phoneNumber"
-                          value={formData.phoneNumber}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="+63 912 345 6789"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Username & Password Section */}
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
-                      Username & Password
+                      Email & Password
                     </h3>
 
                     <div className="space-y-4">
@@ -677,16 +524,16 @@ export default function RegisterPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                            Username *
+                            Email *
                           </label>
                           <input
-                            type="text"
-                            name="username"
-                            value={formData.username}
+                            type="email"
+                            name="email"
+                            value={formData.email}
                             onChange={handleInputChange}
                             required
                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                            placeholder="juan_delacruz"
+                            placeholder="juan.delacruz@example.com"
                           />
                         </div>
                         <div>
@@ -714,157 +561,13 @@ export default function RegisterPage() {
                         </div>
                       </div>
 
-                      {/* Confirm Password - Full width */}
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Confirm Password *
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showConfirmPassword ? 'text' : 'password'}
-                            name="confirmPassword"
-                            value={formData.confirmPassword}
-                            onChange={handleInputChange}
-                            required
-                            className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                            placeholder="Confirm your password"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                          >
-                            <i className={`fa ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                          </button>
-                        </div>
-                      </div>
+                      
                     </div>
                   </div>
 
-                  {/* Marketing Section */}
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
-                      Marketing
-                    </h3>
+                  
 
-                    <div>
-                      <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                        Coupon Code
-                      </label>
-                      <input
-                        type="text"
-                        name="couponCode"
-                        value={formData.couponCode}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                        placeholder="Enter coupon code (optional)"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Emergency Contact Section */}
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
-                      In Case of Emergency
-                    </h3>
-
-                    {/* Emergency Contact Name */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          First Name *
-                        </label>
-                        <input
-                          type="text"
-                          name="emergencyFirstName"
-                          value={formData.emergencyFirstName}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="Maria"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Middle Name *
-                        </label>
-                        <input
-                          type="text"
-                          name="emergencyMiddleName"
-                          value={formData.emergencyMiddleName}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="Santos"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Last Name *
-                        </label>
-                        <input
-                          type="text"
-                          name="emergencyLastName"
-                          value={formData.emergencyLastName}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="Dela Cruz"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Contact Number *
-                        </label>
-                        <input
-                          type="tel"
-                          name="emergencyContactNumber"
-                          value={formData.emergencyContactNumber}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                          placeholder="+63 912 345 6789"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Relationship *
-                        </label>
-                        <select
-                          name="emergencyRelationship"
-                          value={formData.emergencyRelationship}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white"
-                        >
-                          <option value="">Select relationship</option>
-                          {relationshipOptions.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-normal mb-2" style={{ color: '#555' }}>
-                          Complete Address *
-                        </label>
-                        <textarea
-                          name="emergencyCompleteAddress"
-                          value={formData.emergencyCompleteAddress}
-                          onChange={handleInputChange}
-                          required
-                          rows={3}
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#201a7c]/20 focus:border-[#201a7c] transition-all duration-200 text-gray-900 bg-gray-50 focus:bg-white resize-none"
-                          placeholder="456 Emergency Street, Barangay Sample, City, Province, ZIP Code"
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  
 
                   {/* Terms Agreement */}
                   <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-xl">
@@ -926,16 +629,6 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Security Info */}
-              <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                <div className="flex items-center justify-center space-x-2 text-sm text-blue-700">
-                  <i className="fa fa-shield-alt"></i>
-                  <span className="font-medium">Secure & Encrypted</span>
-                </div>
-                <p className="text-xs text-blue-600 text-center mt-1">
-                  Your data is protected with industry-standard encryption
-                </p>
-              </div>
             </div>
           </div>
         </div>

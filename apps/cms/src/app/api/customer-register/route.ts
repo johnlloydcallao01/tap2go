@@ -7,26 +7,8 @@ interface CustomerRegistrationBody {
   firstName: string
   lastName: string
   middleName?: string
-  nameExtension?: string
-  gender: 'male' | 'female' | 'other' | 'prefer_not_to_say'
-  civilStatus: 'single' | 'married' | 'divorced' | 'widowed' | 'separated'
-  nationality: string
-  birthDate: string
-  placeOfBirth: string
-  completeAddress: string
   email: string
-  phoneNumber: string
-  username: string
   password: string
-  confirmPassword?: string // Optional for logging purposes
-  srn: string
-  couponCode?: string
-  emergencyFirstName: string
-  emergencyMiddleName?: string
-  emergencyLastName: string
-  emergencyContactNumber: string
-  emergencyRelationship: 'parent' | 'spouse' | 'sibling' | 'child' | 'guardian' | 'friend' | 'relative' | 'other'
-  emergencyCompleteAddress: string
 }
 
 // Simple CORS headers - allow all origins
@@ -58,20 +40,12 @@ export async function POST(request: NextRequest) {
       firstName: body.firstName,
       lastName: body.lastName,
       email: body.email,
-      username: body.username,
-      srn: body.srn,
-      emergencyFirstName: body.emergencyFirstName,
-      emergencyLastName: body.emergencyLastName,
-      emergencyMiddleName: body.emergencyMiddleName || 'N/A',
-      hasPassword: !!body.password,
-      hasConfirmPassword: !!body.confirmPassword
+      hasPassword: !!body.password
     })
 
     // Validate required fields with detailed logging
     const requiredFields = [
-      'firstName', 'lastName', 'email', 'password', 'srn', 'username',
-      'emergencyFirstName', 'emergencyLastName', // emergencyMiddleName is optional
-      'emergencyContactNumber', 'emergencyRelationship', 'emergencyCompleteAddress'
+      'firstName', 'lastName', 'email', 'password'
     ]
 
     console.log('🔍 Validating required fields...')
@@ -102,17 +76,7 @@ export async function POST(request: NextRequest) {
       email: body.email,
       password: body.password,
       role: 'customer' as const,
-      // Optional fields that exist in the current schema
       ...(body.middleName && { middleName: body.middleName }),
-      ...(body.nameExtension && { nameExtension: body.nameExtension }),
-      ...(body.gender && { gender: body.gender }),
-      ...(body.civilStatus && { civilStatus: body.civilStatus }),
-      ...(body.nationality && { nationality: body.nationality }),
-      ...(body.birthDate && { birthDate: body.birthDate }),
-      ...(body.placeOfBirth && { placeOfBirth: body.placeOfBirth }),
-      ...(body.completeAddress && { completeAddress: body.completeAddress }),
-      ...(body.phoneNumber && { phone: body.phoneNumber }),
-      ...(body.username && { username: body.username }),
     }
 
     console.log('📋 User data to create:', {
@@ -153,7 +117,7 @@ export async function POST(request: NextRequest) {
       throw new Error(`User creation failed: ${userCreationError instanceof Error ? userCreationError.message : String(userCreationError)}`)
     }
 
-    // Step 2: Check if customer record was created by trigger, if not create manually
+    // Step 2: Check if customer record was created by trigger, if not create manually (without SRN)
     console.log('🎓 Checking/Creating customer record...')
 
     // First, check if customer record was already created by the database trigger
@@ -174,30 +138,13 @@ export async function POST(request: NextRequest) {
         customer = existingCustomers.docs[0]
         console.log('✅ Customer record found (created by trigger):', {
           id: customer.id,
-          srn: customer.srn,
           userId: customer.user
         })
-
-        // Update the SRN if it's different from what was provided
-        if (customer.srn !== body.srn && body.srn) {
-          console.log('🔄 Updating SRN to match registration...')
-          customer = await payload.update({
-            collection: 'customers',
-            id: customer.id,
-            data: {
-              srn: body.srn,
-              couponCode: body.couponCode || ''
-            }
-          })
-          console.log('✅ Customer SRN updated')
-        }
       } else {
         // No customer record found, create manually
         console.log('🔄 Creating customer record manually...')
         const customerData = {
           user: user.id,
-          srn: body.srn,
-          couponCode: body.couponCode || '',
           enrollmentDate: new Date().toISOString(),
           currentLevel: 'beginner' as const
         }
@@ -211,7 +158,6 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Customer created manually:', {
           id: customer.id,
-          srn: customer.srn,
           userId: customer.user
         })
       }
@@ -220,64 +166,7 @@ export async function POST(request: NextRequest) {
       throw new Error(`Customer handling failed: ${customerError instanceof Error ? customerError.message : String(customerError)}`)
     }
 
-    // Step 3: Create emergency contact
-    console.log('🚨 Creating emergency contact...')
-
-    // Validate emergency contact fields
-    console.log('🔍 Validating emergency contact fields...')
-    const emergencyValidation = {
-      emergencyFirstName: !!body.emergencyFirstName,
-      emergencyLastName: !!body.emergencyLastName,
-      emergencyContactNumber: !!body.emergencyContactNumber,
-      emergencyRelationship: !!body.emergencyRelationship,
-      emergencyCompleteAddress: !!body.emergencyCompleteAddress
-    }
-
-    console.log('📋 Emergency field validation:', emergencyValidation)
-
-    const missingEmergencyFields = Object.entries(emergencyValidation)
-      .filter(([_, isValid]) => !isValid)
-      .map(([field, _]) => field)
-
-    if (missingEmergencyFields.length > 0) {
-      console.error('❌ Missing emergency contact fields:', missingEmergencyFields)
-      throw new Error(`Missing required emergency contact fields: ${missingEmergencyFields.join(', ')}`)
-    }
-
-    const emergencyData = {
-      user: user.id,
-      firstName: body.emergencyFirstName,
-      middleName: body.emergencyMiddleName || null, // Make it nullable instead of 'N/A'
-      lastName: body.emergencyLastName,
-      contactNumber: body.emergencyContactNumber,
-      relationship: body.emergencyRelationship,
-      completeAddress: body.emergencyCompleteAddress,
-      isPrimary: true
-    }
-
-    console.log('📋 Emergency contact data to create:', emergencyData)
-
-    let emergencyContact;
-    try {
-      console.log('🔄 Attempting to create emergency contact...')
-      emergencyContact = await payload.create({
-        collection: 'emergency-contacts',
-        data: emergencyData
-      })
-
-      console.log('✅ Emergency contact created successfully:', {
-        id: emergencyContact.id,
-        firstName: emergencyContact.firstName,
-        lastName: emergencyContact.lastName,
-        userId: emergencyContact.user
-      })
-    } catch (emergencyCreationError) {
-      console.error('💥 EMERGENCY CONTACT CREATION FAILED:', emergencyCreationError)
-      console.error('📋 Data that failed:', emergencyData)
-
-      // Re-throw with more context
-      throw new Error(`Emergency contact creation failed: ${emergencyCreationError instanceof Error ? emergencyCreationError.message : String(emergencyCreationError)}`)
-    }
+    // Emergency contact creation removed
 
     console.log('🎉 === CUSTOMER REGISTRATION COMPLETED SUCCESSFULLY ===')
 
@@ -293,14 +182,9 @@ export async function POST(request: NextRequest) {
           role: user.role
         },
         customer: {
-          id: customer.id,
-          srn: customer.srn
+          id: customer.id
         },
-        emergencyContact: {
-          id: emergencyContact.id,
-          firstName: emergencyContact.firstName,
-          lastName: emergencyContact.lastName
-        }
+        emergencyContact: undefined
       }
     }
 
@@ -359,7 +243,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Handle duplicate key errors (email, username, SRN already exists)
+    // Handle duplicate key errors (email already exists)
     if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
       console.error('🔍 HANDLING DUPLICATE KEY ERROR')
       let field = 'field'
@@ -372,12 +256,6 @@ export async function POST(request: NextRequest) {
       if (detail.includes('email') || constraint.includes('email')) {
         field = 'email'
         friendlyField = 'email address'
-      } else if (detail.includes('username') || constraint.includes('username')) {
-        field = 'username'
-        friendlyField = 'username'
-      } else if (detail.includes('srn') || constraint.includes('srn')) {
-        field = 'srn'
-        friendlyField = 'Student Registration Number (SRN)'
       }
 
       return NextResponse.json(

@@ -4,7 +4,7 @@ export const Customers: CollectionConfig = {
   slug: 'customers',
   admin: {
     useAsTitle: 'user',
-    defaultColumns: ['user', 'srn', 'enrollmentDate', 'currentLevel'],
+    defaultColumns: ['user', 'enrollmentDate', 'currentLevel'],
   },
   access: {
     // PayloadCMS automatically authenticates API keys and populates req.user
@@ -50,9 +50,8 @@ export const Customers: CollectionConfig = {
       name: 'srn',
       type: 'text',
       unique: true,
-      required: true,
       admin: {
-        description: 'Student Registration Number (unique identifier)',
+        description: 'Student Registration Number (unique identifier) — optional',
       },
     },
     {

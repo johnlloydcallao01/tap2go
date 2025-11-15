@@ -261,6 +261,14 @@ export default function SignInPage() {
 
               {/* Mobile Form Header */}
               <div className="lg:hidden text-center mb-6">
+                <Image
+                  src="/logo.png"
+                  alt="Tap2Go Logo"
+                  width={64}
+                  height={64}
+                  className="mx-auto mb-3"
+                  style={{ objectFit: 'contain' }}
+                />
                 <h2 className="text-xl font-bold text-gray-900 mb-1">
                   Welcome Back
                 </h2>
