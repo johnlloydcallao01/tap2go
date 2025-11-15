@@ -113,8 +113,8 @@ export async function POST(request: NextRequest) {
         password: '[HIDDEN]'
       })
 
-      // Re-throw with more context
-      throw new Error(`User creation failed: ${userCreationError instanceof Error ? userCreationError.message : String(userCreationError)}`)
+      // Preserve original error for downstream handlers to inspect
+      throw userCreationError
     }
 
     // Step 2: Check if customer record was created by trigger, if not create manually (without SRN)
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
 
     const successResponse = {
       success: true,
-      message: 'Customer registration successful! Welcome to Grandline Maritime Training Center.',
+      message: 'Customer registration successful! Welcome to Tap2Go.',
       data: {
         user: {
           id: user.id,
@@ -244,12 +244,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle duplicate key errors (email already exists)
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const errObj = error as { code?: string | number; detail?: string; constraint?: string }
+      if (String(errObj.code) === '23505') {
       console.error('🔍 HANDLING DUPLICATE KEY ERROR')
       let field = 'field'
       let friendlyField = 'field'
-      const detail = 'detail' in error ? String(error.detail) : ''
-      const constraint = 'constraint' in error ? String(error.constraint) : ''
+      const detail = errObj.detail ? String(errObj.detail) : ''
+      const constraint = errObj.constraint ? String(errObj.constraint) : ''
 
       console.error('🔍 Duplicate key details:', { detail, constraint })
 
@@ -267,6 +269,29 @@ export async function POST(request: NextRequest) {
         },
         { status: 409, headers: corsHeaders }
       )
+      }
+    }
+
+    // Fallback: detect duplicate email from Payload validation errors
+    if (typeof error === 'object' && error !== null) {
+      const errObj = error as { message?: string; data?: { errors?: { path?: string; message?: string }[] } }
+      const message = errObj.message ? String(errObj.message) : ''
+      const errorsList = Array.isArray(errObj.data?.errors) ? errObj.data!.errors! : []
+      const hasEmailDuplicate = (
+        message.toLowerCase().includes('email') && message.toLowerCase().includes('exist')
+      ) || errorsList.some((e) => String(e?.path) === 'email' && /exist|registered|duplicate/i.test(String(e?.message)))
+
+      if (hasEmailDuplicate) {
+        return NextResponse.json(
+          {
+            error: 'This email address is already registered',
+            message: 'A user with this email address already exists. Please use a different email address.',
+            field: 'email',
+            type: 'duplicate'
+          },
+          { status: 409, headers: corsHeaders }
+        )
+      }
     }
 
     // Handle PayloadCMS specific errors

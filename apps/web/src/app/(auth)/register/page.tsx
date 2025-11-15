@@ -405,7 +405,7 @@ export default function RegisterPage() {
                   Create Your Account
                 </h2>
                 <p className="text-gray-600">
-                  Join thousands of maritime professionals
+                  One Tap, Brings Yum
                 </p>
               </div>
 
@@ -593,7 +593,7 @@ export default function RegisterPage() {
                   type="submit"
                   disabled={isLoading}
 
-                  className="w-full bg-gradient-to-r from-[#201a7c] to-[#ab3b43] text-white py-4 px-6 rounded-xl font-semibold hover:from-[#1a1569] hover:to-[#8b2f36] transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+                  className="w-full bg-[#eba336] text-white py-4 px-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
                 >
                   {isLoading ? (
                     <div className="flex items-center justify-center">
