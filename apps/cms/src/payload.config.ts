@@ -351,7 +351,7 @@ export default buildConfig({
             const fromName = process.env.EMAIL_FROM_NAME || 'Tap2Go';
             const apiKey = process.env.RESEND_API_KEY || '';
             const to = user.email;
-            const resetUrl = `https://app.tap2goph.com/reset-password?token=${encodeURIComponent(rawToken)}`;
+            const resetUrl = `https://app.tap2goph.com/signin/reset-password?token=${encodeURIComponent(rawToken)}`;
 
             if (apiKey && process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true') {
               await fetch('https://api.resend.com/emails', {
