@@ -136,11 +136,21 @@ export const Products: CollectionConfig = {
     {
       name: 'basePrice',
       type: 'number',
-      required: true,
       min: 0,
+      validate: (
+        value: number | null | undefined,
+        { data }: { data?: { productType?: 'simple' | 'variable' | 'grouped' } }
+      ) => {
+        if (data?.productType === 'simple') {
+          if (value === null || value === undefined) return 'Base price is required for simple products'
+          if (typeof value === 'number' && value < 0) return 'Base price must be greater than or equal to 0'
+        }
+        return true
+      },
       admin: {
         description: 'Base price of the product',
         step: 0.01,
+        condition: (data: { productType?: 'simple' | 'variable' | 'grouped' }) => data?.productType !== 'grouped',
       },
     },
     {

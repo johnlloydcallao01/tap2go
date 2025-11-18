@@ -62,6 +62,10 @@ export const LocationBasedProductCategoriesCarousel = ({
   const carouselRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
   const boundsCalculatedRef = useRef(false);
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 0);
+  const isUltraWide = viewportWidth >= 1500;
+  const itemWidth = isUltraWide ? 80 : 64;
+  const gapWidth = isUltraWide ? 56 : 48;
 
   // Fetch location-based product categories
   const fetchLocationBasedProductCategories = useCallback(async (customerIdToUse: string) => {
@@ -137,14 +141,12 @@ export const LocationBasedProductCategoriesCarousel = ({
     const container = carouselRef.current.parentElement;
     if (!container) return 0;
 
-    const containerWidth = container.getBoundingClientRect().width - 20; // minus padding (10px left + 10px right)
-    const actualItemWidth = 64; // circle width only
-    const gapWidth = 48; // gap between items
+    const containerWidth = container.getBoundingClientRect().width - 20;
     const totalItems = categories.length;
-    const totalContentWidth = (totalItems * actualItemWidth) + ((totalItems - 1) * gapWidth);
+    const totalContentWidth = (totalItems * itemWidth) + ((totalItems - 1) * gapWidth);
 
     return Math.max(0, totalContentWidth - containerWidth);
-  }, [categories.length]);
+  }, [categories.length, itemWidth, gapWidth]);
 
   const [maxTranslate, setMaxTranslate] = useState(0);
 
@@ -177,8 +179,6 @@ export const LocationBasedProductCategoriesCarousel = ({
 
   const scrollLeft = () => {
     // Equivalent to a gentle swipe gesture (about 1.5 items worth)
-    const itemWidth = 64; // Circle width
-    const gapWidth = 48; // Gap between items
     const swipeDistance = (itemWidth + gapWidth) * 1.5; // Gentle swipe distance
     const newPosition = Math.max(0, translateX - swipeDistance);
     animateToPosition(newPosition, 400); // Smooth animation like normal swipe
@@ -186,8 +186,6 @@ export const LocationBasedProductCategoriesCarousel = ({
 
   const scrollRight = () => {
     // Equivalent to a gentle swipe gesture (about 1.5 items worth)
-    const itemWidth = 64; // Circle width
-    const gapWidth = 48; // Gap between items
     const swipeDistance = (itemWidth + gapWidth) * 1.5; // Gentle swipe distance
     const newPosition = Math.min(-maxTranslate, translateX + swipeDistance);
     animateToPosition(newPosition, 400); // Smooth animation like normal swipe
@@ -319,18 +317,16 @@ export const LocationBasedProductCategoriesCarousel = ({
 
   // Handle window resize - identical to ProductCategoryCarousel
   useEffect(() => {
-    const handleResize = () => {
+    const onResize = () => {
+      setViewportWidth(window.innerWidth);
       const newMaxTranslate = getMaxTranslate();
       setMaxTranslate(newMaxTranslate);
-      
-      // Adjust position if needed
       if (translateX < -newMaxTranslate) {
         animateToPosition(-newMaxTranslate);
       }
     };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, [getMaxTranslate, translateX, animateToPosition]);
 
   // Global mouse events for drag continuation - identical to ProductCategoryCarousel
@@ -429,7 +425,7 @@ export const LocationBasedProductCategoriesCarousel = ({
               className="flex py-2.5 select-none"
               style={{
                 transform: `translateX(${translateX}px)`,
-                gap: '48px',
+                gap: `${gapWidth}px`,
                 WebkitUserSelect: 'none',
                 userSelect: 'none',
                 transition: 'none', // Using requestAnimationFrame for smooth animations

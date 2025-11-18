@@ -1464,7 +1464,7 @@ export interface Product {
   /**
    * Base price of the product
    */
-  basePrice: number;
+  basePrice?: number | null;
   /**
    * Original price for showing discounts
    */

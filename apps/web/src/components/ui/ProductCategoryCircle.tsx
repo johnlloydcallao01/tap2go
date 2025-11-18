@@ -27,7 +27,7 @@ export function ProductCategoryCircle({
       onClick={onClick}
     >
       <div 
-        className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-200 overflow-hidden bg-gray-100 relative ${
+        className={`w-16 h-16 min-[1500px]:w-20 min-[1500px]:h-20 rounded-full flex items-center justify-center transition-all duration-200 overflow-hidden bg-gray-100 relative ${
           active 
             ? 'scale-110 shadow-lg' 
             : 'group-hover:scale-105'
@@ -41,7 +41,7 @@ export function ProductCategoryCircle({
              className="absolute inset-0 w-full h-full object-cover rounded-full"
            />
         ) : (
-          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 min-[1500px]:w-10 min-[1500px]:h-10 bg-gray-300 rounded-full flex items-center justify-center">
             <span className="text-gray-600 text-xs font-medium">
               {category.name.charAt(0).toUpperCase()}
             </span>
@@ -49,13 +49,12 @@ export function ProductCategoryCircle({
         )}
       </div>
       <span 
-        className={`text-xs font-medium transition-colors text-center leading-tight ${
+        className={`w-16 min-[1500px]:w-20 text-xs min-[1500px]:text-sm font-medium transition-colors text-center leading-tight ${
           active 
             ? 'text-gray-900' 
             : 'text-gray-600 group-hover:text-gray-900'
         }`}
         style={{
-          width: '64px', // Match the icon width for consistent spacing
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',

@@ -79,14 +79,15 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
       {/* Campaign Banner - displayed above category carousel, preserves 1400x500 resolution */}
       <div className="bg-white border-b border-gray-200">
-        <div className="px-2.5 py-3 flex justify-center">
+        <div className="px-2.5 py-3">
           <Image
             src="/tap2go-first-campaign (1).png"
             alt="Tap2Go First Campaign"
             width={1400}
-            height={300}
+            height={500}
+            sizes="100vw"
             priority
-            className="w-full max-w-[1400px] h-auto rounded-xl"
+            className="w-full h-auto rounded-xl"
           />
         </div>
       </div>
