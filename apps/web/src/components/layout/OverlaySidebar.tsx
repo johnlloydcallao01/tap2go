@@ -98,14 +98,6 @@ export function OverlaySidebar({ isOpen, onClose }: OverlaySidebarProps) {
           <div className="space-y-1">
             <div className="px-3 py-2 text-sm font-medium text-gray-900">Perks</div>
             <SidebarItem
-              icon="subscription"
-              label="Subscriptions"
-              href="/subscriptions"
-              active={pathname === '/subscriptions'}
-              collapsed={false}
-              onClick={onClose}
-            />
-            <SidebarItem
               icon="voucher"
               label="Vouchers"
               href="/vouchers"

@@ -89,7 +89,7 @@ export default function InviteFriendsPage() {
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-white">
-        <div className="max-w-7xl mx-auto px-2.5 py-3">
+        <div className="w-full px-2.5 py-3">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Invite Friends</h1>
@@ -99,7 +99,7 @@ export default function InviteFriendsPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-2.5 py-4">
+      <div className="w-full px-2.5 py-4">
         {/* Referral Stats Card */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 text-white mb-6">
           <div className="flex items-center justify-between mb-4">

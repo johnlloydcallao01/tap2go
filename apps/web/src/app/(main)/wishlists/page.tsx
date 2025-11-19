@@ -132,7 +132,7 @@ export default function WishlistsPage() {
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-white">
-        <div className="max-w-7xl mx-auto px-2.5 py-3">
+        <div className="w-full px-2.5 py-3">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">My Wishlists</h1>
@@ -157,7 +157,7 @@ export default function WishlistsPage() {
 
       {/* Search and Filters */}
       <div className="bg-white">
-        <div className="max-w-7xl mx-auto px-2.5 py-3">
+        <div className="w-full px-2.5 py-3">
           {/* Search Bar */}
           <div className="relative mb-4">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -203,7 +203,7 @@ export default function WishlistsPage() {
       </div>
 
       {/* Wishlist Content */}
-      <div className="max-w-7xl mx-auto px-2.5 py-4">
+      <div className="w-full px-2.5 py-4">
         {filteredItems.length === 0 ? (
           /* Empty State */
           <div className="text-center py-16">

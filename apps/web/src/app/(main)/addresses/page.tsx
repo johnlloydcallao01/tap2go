@@ -66,7 +66,7 @@ export default function AddressesPage() {
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-white">
-        <div className="max-w-7xl mx-auto px-2.5 py-3">
+        <div className="w-full px-2.5 py-3">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">My Addresses</h1>
@@ -88,7 +88,7 @@ export default function AddressesPage() {
       </div>
 
       {/* Address List */}
-      <div className="max-w-7xl mx-auto px-2.5 py-4">
+      <div className="w-full px-2.5 py-4">
         <div className="space-y-3">
           {addresses.map((address) => (
             <div key={address.id} className="bg-white rounded-lg hover:shadow-md transition-shadow duration-200 overflow-hidden">

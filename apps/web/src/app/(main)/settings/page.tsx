@@ -77,7 +77,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-white">
-        <div className="max-w-7xl mx-auto px-2.5 py-3">
+        <div className="w-full px-2.5 py-3">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
@@ -87,7 +87,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-2.5 py-4">
+      <div className="w-full px-2.5 py-4">
         {/* User Profile Card */}
         <div className="bg-white rounded-lg p-4 mb-6">
           <div className="flex items-center space-x-4">

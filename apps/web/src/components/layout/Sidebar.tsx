@@ -100,13 +100,6 @@ export function Sidebar({ isOpen, onToggle, onScroll }: SidebarProps) {
           <div className="space-y-1">
             {isOpen && <div className="px-3 py-2 text-sm font-medium text-gray-900">Perks</div>}
             <SidebarItem
-              icon="subscription"
-              label="Subscriptions"
-              href="/subscriptions"
-              active={pathname === '/subscriptions'}
-              collapsed={!isOpen}
-            />
-            <SidebarItem
               icon="voucher"
               label="Vouchers"
               href="/vouchers"

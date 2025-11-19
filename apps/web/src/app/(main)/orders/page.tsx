@@ -208,7 +208,7 @@ export default function OrdersPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-2.5 py-4">
+        <div className="w-full px-2.5 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Orders</h1>
@@ -224,7 +224,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-2.5 py-4">
+      <div className="w-full px-2.5 py-4">
         {/* Search and Filter Section */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
           <div className="flex flex-col lg:flex-row gap-4">

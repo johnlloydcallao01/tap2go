@@ -110,7 +110,7 @@ export default function WalletsPage() {
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-white">
-        <div className="max-w-7xl mx-auto px-2.5 py-3">
+        <div className="w-full px-2.5 py-3">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">My Wallet</h1>
@@ -133,7 +133,7 @@ export default function WalletsPage() {
       </div>
 
       {/* Wallet Balance Card */}
-      <div className="max-w-7xl mx-auto px-2.5 py-4">
+      <div className="w-full px-2.5 py-4">
         <div className="bg-gradient-to-r from-gray-900 to-gray-700 rounded-lg p-6 text-white mb-6">
           <div className="flex items-center justify-between">
             <div>

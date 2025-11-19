@@ -699,7 +699,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         <div className="w-full px-2.5">
           <div className="mb-[15px]">
             <div className="flex items-center justify-between">
-              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+              <h2 className="text-[1.2rem] font-bold text-gray-900">
                 Nearby Restaurants
               </h2>
               <span
@@ -738,7 +738,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             <>
               <div className="mb-[15px] mt-[30px]">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+                  <h2 className="text-[1.2rem] font-bold text-gray-900">
                     Newly Updated
                   </h2>
                   <span
@@ -784,7 +784,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         <div className="w-full px-2.5">
           <div className="mb-[15px]">
             <div className="flex items-center justify-between">
-              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+              <h2 className="text-[1.2rem] font-bold text-gray-900">
                 Nearby Restaurants
               </h2>
               {merchants && merchants.length > 8 && (
@@ -834,7 +834,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         <div className="w-full px-2.5">
           <div className="mb-[15px]">
             <div className="flex items-center justify-between">
-              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+              <h2 className="text-[1.2rem] font-bold text-gray-900">
                 Nearby Restaurants
               </h2>
               <span
@@ -875,7 +875,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
     <section className="py-4 bg-white">
       <div className="w-full px-2.5">
         <div className="mb-[15px] flex items-center justify-between">
-          <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">
+          <h2 className="text-[1.2rem] font-bold text-gray-900">
             {categoryId ? 'Filtered Restaurants' : 'Nearby Restaurants'}
           </h2>
           {!categoryId && merchants.length > 8 && (
@@ -973,7 +973,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         {!categoryId && (
           <>
             <div className="mb-[15px] mt-[30px] flex items-center justify-between">
-              <h2 className="text-[1.2rem] font-bold text-gray-900 mb-2">Newly Updated</h2>
+              <h2 className="text-[1.2rem] font-bold text-gray-900">Newly Updated</h2>
               {fastestMerchants.length > 8 && (
                 <span
                   role="button"
