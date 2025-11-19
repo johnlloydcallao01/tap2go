@@ -10,6 +10,8 @@ import * as migration_20251115_061448 from './20251115_061448';
 import * as migration_20251115_130118 from './20251115_130118';
 import * as migration_20251115_132619 from './20251115_132619';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
+import * as migration_20251119_141500_fix_product_fk_delete_behavior from './20251119_141500_fix_product_fk_delete_behavior';
+import * as migration_20251119_200000_fix_product_delete_behavior_cascade from './20251119_200000_fix_product_delete_behavior_cascade';
 
 export const migrations = [
   {
@@ -71,5 +73,15 @@ export const migrations = [
     up: migration_20251202_remove_vendor_products_table.up,
     down: migration_20251202_remove_vendor_products_table.down,
     name: '20251202_remove_vendor_products_table'
+  },
+  {
+    up: migration_20251119_141500_fix_product_fk_delete_behavior.up,
+    down: migration_20251119_141500_fix_product_fk_delete_behavior.down,
+    name: '20251119_141500_fix_product_fk_delete_behavior',
+  },
+  {
+    up: migration_20251119_200000_fix_product_delete_behavior_cascade.up,
+    down: migration_20251119_200000_fix_product_delete_behavior_cascade.down,
+    name: '20251119_200000_fix_product_delete_behavior_cascade',
   },
 ];
