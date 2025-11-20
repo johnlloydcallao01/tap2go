@@ -1492,6 +1492,10 @@ export interface Product {
    */
   isActive?: boolean | null;
   /**
+   * Controls where the product appears in catalog and search
+   */
+  catalogVisibility: 'visible' | 'catalog' | 'search' | 'hidden';
+  /**
    * Assign this product to all merchants of the same vendor
    */
   assign_to_all_vendor_merchants?: boolean | null;
@@ -2335,6 +2339,7 @@ export interface ProductsSelect<T extends boolean = true> {
             };
       };
   isActive?: T;
+  catalogVisibility?: T;
   assign_to_all_vendor_merchants?: T;
   createdAt?: T;
   updatedAt?: T;

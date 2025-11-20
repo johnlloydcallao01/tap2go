@@ -4,7 +4,7 @@ export const Products: CollectionConfig = {
   slug: 'products',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'sku', 'productType', 'basePrice', 'isActive', 'createdByVendor', 'createdByMerchant'],
+    defaultColumns: ['name', 'sku', 'productType', 'basePrice', 'isActive', 'catalogVisibility', 'createdByVendor', 'createdByMerchant'],
     group: 'Food Delivery',
     description: 'Master product catalog for vendors and merchants',
   },
@@ -204,6 +204,22 @@ export const Products: CollectionConfig = {
       defaultValue: true,
       admin: {
         description: 'Whether the product is currently active',
+      },
+    },
+
+    {
+      name: 'catalogVisibility',
+      type: 'select',
+      required: true,
+      defaultValue: 'visible',
+      options: [
+        { label: 'Visible (Shop + Search)', value: 'visible' },
+        { label: 'Catalog Only (Shop)', value: 'catalog' },
+        { label: 'Search Only', value: 'search' },
+        { label: 'Hidden', value: 'hidden' },
+      ],
+      admin: {
+        description: 'Controls where the product appears in catalog and search',
       },
     },
 
