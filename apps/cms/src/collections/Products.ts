@@ -100,6 +100,14 @@ export const Products: CollectionConfig = {
       },
     },
     {
+      name: 'slug',
+      type: 'text',
+      required: true,
+      admin: {
+        description: 'URL-friendly identifier auto-generated from name',
+      },
+    },
+    {
       name: 'description',
       type: 'richText',
       admin: {
@@ -273,6 +281,22 @@ export const Products: CollectionConfig = {
           throw new Error('Product cannot be created by both vendor and merchant')
         }
         
+        return data
+      },
+      ({ data }) => {
+        if (!data) throw new Error('Data is required')
+        const s = String(data.slug || '')
+        const n = String(data.name || '')
+        const base = n
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .trim()
+          .replace(/[\s-]+/g, '-')
+        if (!s || s.trim().length === 0) {
+          data.slug = base
+        }
         return data
       },
     ],

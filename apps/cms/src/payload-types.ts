@@ -1432,6 +1432,10 @@ export interface Product {
    */
   name: string;
   /**
+   * URL-friendly identifier auto-generated from name
+   */
+  slug: string;
+  /**
    * Full product description
    */
   description?: {
@@ -1564,11 +1568,15 @@ export interface ProdVariation {
    * The variable product this variation belongs to
    */
   product_id: number | Product;
+  name?: string | null;
   /**
-   * The attribute used for this variation
+   * Variation image
    */
-  attribute_id: number | ProdAttribute;
-  product_attribute_combo?: string | null;
+  image?: (number | null) | Media;
+  sku?: string | null;
+  base_price?: number | null;
+  compare_at_price?: number | null;
+  stock_quantity?: number | null;
   /**
    * Whether this attribute is used to create variations
    */
@@ -1591,6 +1599,7 @@ export interface ProdVariationValue {
    * Select the declared variation (dimension) of the parent variable product
    */
   variation_id: number | ProdVariation;
+  attribute_id: number | ProdAttribute;
   /**
    * The specific value for this attribute
    */
@@ -1636,6 +1645,10 @@ export interface MerchantProduct {
    * Override product price (null = use product default)
    */
   price_override?: number | null;
+  /**
+   * Per-merchant available units
+   */
+  stock_quantity?: number | null;
   is_active?: boolean | null;
   /**
    * Quick toggle on/off
@@ -2321,6 +2334,7 @@ export interface ProductsSelect<T extends boolean = true> {
   productType?: T;
   parentProduct?: T;
   name?: T;
+  slug?: T;
   description?: T;
   shortDescription?: T;
   categories?: T;
@@ -2376,8 +2390,12 @@ export interface ProdAttributeTermsSelect<T extends boolean = true> {
  */
 export interface ProdVariationsSelect<T extends boolean = true> {
   product_id?: T;
-  attribute_id?: T;
-  product_attribute_combo?: T;
+  name?: T;
+  image?: T;
+  sku?: T;
+  base_price?: T;
+  compare_at_price?: T;
+  stock_quantity?: T;
   is_used_for_variations?: T;
   is_visible?: T;
   sort_order?: T;
@@ -2390,6 +2408,7 @@ export interface ProdVariationsSelect<T extends boolean = true> {
  */
 export interface ProdVariationValuesSelect<T extends boolean = true> {
   variation_id?: T;
+  attribute_id?: T;
   term_id?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -2415,6 +2434,7 @@ export interface MerchantProductsSelect<T extends boolean = true> {
   product_id?: T;
   added_by?: T;
   price_override?: T;
+  stock_quantity?: T;
   is_active?: T;
   is_available?: T;
   updatedAt?: T;

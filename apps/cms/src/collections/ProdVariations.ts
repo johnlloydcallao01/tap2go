@@ -1,5 +1,4 @@
 import { CollectionConfig } from 'payload'
-import type { PayloadRequest } from 'payload'
 
 export const ProdVariations: CollectionConfig = {
   slug: 'prod-variations',
@@ -8,8 +7,8 @@ export const ProdVariations: CollectionConfig = {
     plural: 'Product Variations',
   },
   admin: {
-    useAsTitle: 'product_attribute_combo',
-    defaultColumns: ['product_attribute_combo', 'product_id', 'attribute_id', 'is_used_for_variations', 'is_visible'],
+    useAsTitle: 'sku',
+    defaultColumns: ['name', 'sku', 'product_id', 'base_price', 'compare_at_price', 'stock_quantity'],
     group: 'Product Management',
   },
   access: {
@@ -30,22 +29,39 @@ export const ProdVariations: CollectionConfig = {
       },
     },
     {
-      name: 'attribute_id',
-      type: 'relationship',
-      relationTo: 'prod-attributes',
-      required: true,
-      label: 'Product Attribute',
-      admin: {
-        description: 'The attribute used for this variation',
-      },
+      name: 'name',
+      type: 'text',
+      label: 'Variation Name',
     },
     {
-      name: 'product_attribute_combo',
+      name: 'image',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Image',
+      admin: { description: 'Variation image' },
+    },
+    {
+      name: 'sku',
       type: 'text',
-      label: 'Product Attribute Combo',
-      admin: {
-        readOnly: true,
-      },
+      label: 'SKU',
+    },
+    {
+      name: 'base_price',
+      type: 'number',
+      label: 'Base Price',
+      admin: { step: 0.01 },
+    },
+    {
+      name: 'compare_at_price',
+      type: 'number',
+      label: 'Compare At Price',
+      admin: { step: 0.01 },
+    },
+    {
+      name: 'stock_quantity',
+      type: 'number',
+      label: 'Stock Quantity',
+      defaultValue: 0,
     },
     {
       name: 'is_used_for_variations',
@@ -73,23 +89,28 @@ export const ProdVariations: CollectionConfig = {
     },
   ],
   hooks: {
-    beforeValidate: [
-      async ({ data, req }: { data?: Record<string, unknown>; req: PayloadRequest }) => {
-        if (!data) return data
-        const d = data as { product_id?: number | { id: number }; attribute_id?: number | { id: number }; product_attribute_combo?: string }
-        const productId = typeof d.product_id === 'object' ? d.product_id?.id : d.product_id
-        const attributeId = typeof d.attribute_id === 'object' ? d.attribute_id?.id : d.attribute_id
-        if (!productId || !attributeId) return data
-        try {
-          const prodRes = await req.payload.find({ collection: 'products', where: { id: { equals: productId } }, limit: 1 })
-          const attrRes = await req.payload.find({ collection: 'prod-attributes', where: { id: { equals: attributeId } }, limit: 1 })
-          const prod = prodRes.docs?.[0]
-          const attr = attrRes.docs?.[0]
-          if (prod && attr) {
-            d.product_attribute_combo = `${prod.name} - ${attr.name}`
-          }
-        } catch {}
-        return d
+    afterChange: [
+      async ({ doc, req }) => {
+        if (req?.context?.skipSkuUpdate) return
+        const productRaw = doc?.product_id as unknown
+        const productId =
+          typeof productRaw === 'object' && productRaw !== null && 'id' in (productRaw as object)
+            ? (productRaw as { id: number | string }).id
+            : (productRaw as number | string | undefined)
+        if (!productId || !doc?.id) return
+        const res = await req.payload.find({ collection: 'products', where: { id: { equals: productId } }, limit: 1 })
+        const p = res.docs?.[0]
+        const slug = (p?.slug ?? '') as string
+        if (!slug) return
+        const expected = `${slug}-${String(doc.id)}`.toUpperCase()
+        if (doc.sku !== expected) {
+          await req.payload.update({
+            collection: 'prod-variations',
+            id: String(doc.id),
+            data: { sku: expected },
+            context: { skipSkuUpdate: true },
+          })
+        }
       },
     ],
   },

@@ -96,6 +96,15 @@ export const MerchantProducts: CollectionConfig = {
       },
     },
     {
+      name: 'stock_quantity',
+      type: 'number',
+      label: 'Stock Quantity',
+      defaultValue: 0,
+      admin: {
+        description: 'Per-merchant available units',
+      },
+    },
+    {
       name: 'is_active',
       type: 'checkbox',
       defaultValue: true,
