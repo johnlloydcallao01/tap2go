@@ -1568,6 +1568,7 @@ export interface ProdVariation {
    * The attribute used for this variation
    */
   attribute_id: number | ProdAttribute;
+  product_attribute_combo?: string | null;
   /**
    * Whether this attribute is used to create variations
    */
@@ -1587,10 +1588,9 @@ export interface ProdVariation {
 export interface ProdVariationValue {
   id: number;
   /**
-   * The variation (child product)
+   * Select the declared variation (dimension) of the parent variable product
    */
-  variation_product_id: number | Product;
-  attribute_id: number | ProdAttribute;
+  variation_id: number | ProdVariation;
   /**
    * The specific value for this attribute
    */
@@ -2377,6 +2377,7 @@ export interface ProdAttributeTermsSelect<T extends boolean = true> {
 export interface ProdVariationsSelect<T extends boolean = true> {
   product_id?: T;
   attribute_id?: T;
+  product_attribute_combo?: T;
   is_used_for_variations?: T;
   is_visible?: T;
   sort_order?: T;
@@ -2388,8 +2389,7 @@ export interface ProdVariationsSelect<T extends boolean = true> {
  * via the `definition` "prod-variation-values_select".
  */
 export interface ProdVariationValuesSelect<T extends boolean = true> {
-  variation_product_id?: T;
-  attribute_id?: T;
+  variation_id?: T;
   term_id?: T;
   updatedAt?: T;
   createdAt?: T;
