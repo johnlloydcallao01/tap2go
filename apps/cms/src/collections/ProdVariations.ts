@@ -34,6 +34,15 @@ export const ProdVariations: CollectionConfig = {
       label: 'Variation Name',
     },
     {
+      name: 'short_description',
+      type: 'textarea',
+      label: 'Short Description',
+      admin: {
+        description: 'Brief variation description (max 500 characters)'
+      },
+      maxLength: 500,
+    },
+    {
       name: 'image',
       type: 'upload',
       relationTo: 'media',

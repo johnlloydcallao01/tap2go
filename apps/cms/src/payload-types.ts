@@ -1570,6 +1570,10 @@ export interface ProdVariation {
   product_id: number | Product;
   name?: string | null;
   /**
+   * Brief variation description (max 500 characters)
+   */
+  short_description?: string | null;
+  /**
    * Variation image
    */
   image?: (number | null) | Media;
@@ -2391,6 +2395,7 @@ export interface ProdAttributeTermsSelect<T extends boolean = true> {
 export interface ProdVariationsSelect<T extends boolean = true> {
   product_id?: T;
   name?: T;
+  short_description?: T;
   image?: T;
   sku?: T;
   base_price?: T;
