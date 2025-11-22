@@ -10,6 +10,7 @@ import {
   REST_POST,
   REST_PUT,
 } from '@payloadcms/next/routes'
+ 
 
 // Wrap handlers with error logging
 const wrapHandler = (handler: (req: Request, context: { params: Promise<{ slug: string[] }> }) => Promise<Response>, method: string) => {
@@ -19,6 +20,10 @@ const wrapHandler = (handler: (req: Request, context: { params: Promise<{ slug: 
     console.log('Method:', req.method)
     console.log('Headers:', Object.fromEntries(req.headers.entries()))
     console.log('Environment:', process.env.NODE_ENV)
+    try {
+      const p = await context.params
+      console.log('Params:', p)
+    } catch {}
 
     try {
       const result = await handler(req, context)

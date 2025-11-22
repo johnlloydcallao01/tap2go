@@ -1,4 +1,6 @@
 import { CollectionConfig } from 'payload'
+import config from '@payload-config'
+import { getPayload } from 'payload'
 
 export const ProdVariations: CollectionConfig = {
   slug: 'prod-variations',
@@ -98,28 +100,72 @@ export const ProdVariations: CollectionConfig = {
     },
   ],
   hooks: {
+    beforeChange: [
+      async ({ data, req, operation, originalDoc }) => {
+        const op = operation
+        if (op !== 'create' && op !== 'update') return
+        const raw = (data?.product_id ?? undefined) as unknown
+        const productId =
+          typeof raw === 'object' && raw !== null && 'id' in (raw as object)
+            ? (raw as { id: number | string }).id
+            : (raw as number | string | undefined)
+        if (!productId) return
+        try {
+          const payload = req?.payload ?? (await getPayload({ config }))
+          const res = await payload.find({ collection: 'products', where: { id: { equals: productId } }, limit: 1 })
+          const p = res.docs?.[0]
+          const slug = (p?.slug ?? '') as string
+          if (!slug) return
+          const idForSku = op === 'update' ? (originalDoc?.id as number | string | undefined) : (data?.id as number | string | undefined)
+          const expected = `${slug}-${String(productId)}-VAR-${String(idForSku ?? '')}`.toUpperCase()
+          ;(data as Record<string, unknown>).sku = expected
+        } catch {}
+      },
+    ],
     afterChange: [
-      async ({ doc, req }) => {
+      async ({ doc, req, operation }) => {
         if (req?.context?.skipSkuUpdate) return
+        if (operation !== 'create') return
         const productRaw = doc?.product_id as unknown
         const productId =
           typeof productRaw === 'object' && productRaw !== null && 'id' in (productRaw as object)
             ? (productRaw as { id: number | string }).id
             : (productRaw as number | string | undefined)
         if (!productId || !doc?.id) return
-        const res = await req.payload.find({ collection: 'products', where: { id: { equals: productId } }, limit: 1 })
-        const p = res.docs?.[0]
-        const slug = (p?.slug ?? '') as string
-        if (!slug) return
-        const expected = `${slug}-${String(productId)}-VAR-${String(doc.id)}`.toUpperCase()
-        if (doc.sku !== expected) {
-          await req.payload.update({
+        try {
+          const payload = req?.payload ?? (await getPayload({ config }))
+          const res = await payload.find({ collection: 'products', where: { id: { equals: productId } }, limit: 1 })
+          const p = res.docs?.[0]
+          const slug = (p?.slug ?? '') as string
+          if (!slug) return
+          const expected = `${slug}-${String(productId)}-VAR-${String(doc.id)}`.toUpperCase()
+          doc.sku = expected as unknown as string
+          await payload.update({
             collection: 'prod-variations',
             id: String(doc.id),
             data: { sku: expected },
             context: { skipSkuUpdate: true },
           })
-        }
+        } catch {}
+      },
+    ],
+    afterRead: [
+      async ({ doc, req }) => {
+        const productRaw = doc?.product_id as unknown
+        const productId =
+          typeof productRaw === 'object' && productRaw !== null && 'id' in (productRaw as object)
+            ? (productRaw as { id: number | string }).id
+            : (productRaw as number | string | undefined)
+        if (!productId || !doc?.id) return
+        try {
+          const payload = req?.payload ?? (await getPayload({ config }))
+          const res = await payload.find({ collection: 'products', where: { id: { equals: productId } }, limit: 1 })
+          const p = res.docs?.[0]
+          const slug = (p?.slug ?? '') as string
+          if (!slug) return
+          const expected = `${slug}-${String(productId)}-VAR-${String(doc.id)}`.toUpperCase()
+          doc.sku = expected as unknown as string
+        } catch {}
       },
     ],
   },
