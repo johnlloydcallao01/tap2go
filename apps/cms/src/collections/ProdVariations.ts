@@ -102,7 +102,7 @@ export const ProdVariations: CollectionConfig = {
         const p = res.docs?.[0]
         const slug = (p?.slug ?? '') as string
         if (!slug) return
-        const expected = `${slug}-${String(doc.id)}`.toUpperCase()
+        const expected = `${slug}-${String(productId)}-VAR-${String(doc.id)}`.toUpperCase()
         if (doc.sku !== expected) {
           await req.payload.update({
             collection: 'prod-variations',

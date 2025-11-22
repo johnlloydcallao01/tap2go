@@ -497,6 +497,22 @@ export const Products: CollectionConfig = {
         // MerchantProducts handles the merchant-product relationships
         console.log(`✅ Product ${operation} completed for product ${doc.id}`);
       },
+      async ({ doc, req }) => {
+        if (!doc || !req || !req.payload) return
+        if (req?.context?.skipProductSkuUpdate) return
+        const slug = String(doc.slug || '')
+        const idStr = String(doc.id || '')
+        if (!slug || !idStr) return
+        const expected = `${slug}-${idStr}`
+        if (doc.sku !== expected) {
+          await req.payload.update({
+            collection: 'products',
+            id: String(doc.id),
+            data: { sku: expected },
+            context: { skipProductSkuUpdate: true },
+          })
+        }
+      },
     ],
   },
 }

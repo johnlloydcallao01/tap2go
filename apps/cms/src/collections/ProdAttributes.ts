@@ -60,4 +60,27 @@ export const ProdAttributes: CollectionConfig = {
     },
   ],
   timestamps: true,
+  hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        if (!data) throw new Error('Data is required')
+        const rec = data as Record<string, unknown>
+        const sRaw = rec['slug'] as string | undefined
+        const nRaw = rec['name'] as string | undefined
+        const s = String(sRaw ?? '')
+        const n = String(nRaw ?? '')
+        const base = n
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .trim()
+          .replace(/[\s-]+/g, '-')
+        if (!s || s.trim().length === 0) {
+          ;(rec['slug'] as unknown) = base
+        }
+        return data
+      },
+    ],
+  },
 }
