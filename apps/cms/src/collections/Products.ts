@@ -158,7 +158,7 @@ export const Products: CollectionConfig = {
       admin: {
         description: 'Base price of the product',
         step: 0.01,
-        condition: (data: { productType?: 'simple' | 'variable' | 'grouped' }) => data?.productType !== 'grouped',
+        condition: (data: { productType?: 'simple' | 'variable' | 'grouped' }) => data?.productType === 'simple',
       },
     },
     {
@@ -168,6 +168,7 @@ export const Products: CollectionConfig = {
       admin: {
         description: 'Original price for showing discounts',
         step: 0.01,
+        condition: (data: { productType?: 'simple' | 'variable' | 'grouped' }) => data?.productType === 'simple',
       },
     },
 
@@ -496,22 +497,6 @@ export const Products: CollectionConfig = {
         // Products now directly belong to vendors via createdByVendor field
         // MerchantProducts handles the merchant-product relationships
         console.log(`✅ Product ${operation} completed for product ${doc.id}`);
-      },
-      async ({ doc, req }) => {
-        if (!doc || !req || !req.payload) return
-        if (req?.context?.skipProductSkuUpdate) return
-        const slug = String(doc.slug || '')
-        const idStr = String(doc.id || '')
-        if (!slug || !idStr) return
-        const expected = `${slug}-${idStr}`
-        if (doc.sku !== expected) {
-          await req.payload.update({
-            collection: 'products',
-            id: String(doc.id),
-            data: { sku: expected },
-            context: { skipProductSkuUpdate: true },
-          })
-        }
       },
     ],
   },
