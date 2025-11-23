@@ -5,6 +5,7 @@ import { BackButton } from '@/components/ui/BackButton';
 import { getMerchantById } from '@/server/services/merchant-service';
 import type { Merchant, Media } from '@/types/merchant';
 import MobileStickyHeader from '@/components/merchant/MobileStickyHeader';
+import MerchantProductGrid from '@/components/merchant/MerchantProductGrid';
 
 type RouteParams = { id?: string | string[] };
 type PageProps = { params?: Promise<RouteParams> };
@@ -12,6 +13,87 @@ type PageProps = { params?: Promise<RouteParams> };
 function getImageUrl(media: Media | null | undefined): string | null {
   if (!media) return null;
   return media.cloudinaryURL || media.url || media.thumbnailURL || null;
+}
+
+async function getMerchantProducts(merchantId: string) {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const apiKey = process.env.PAYLOAD_API_KEY || process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+  if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+  const url = `${API_BASE}/merchant-products?where[merchant_id][equals]=${merchantId}&where[is_active][equals]=true&where[is_available][equals]=true&depth=2&limit=48`;
+  try {
+    const res = await fetch(url, { headers, next: { revalidate: 120 } });
+    if (!res.ok) return { items: [], categories: [] } as any;
+    const data = await res.json();
+    const docs: any[] = (data?.docs || []).filter((mp: any) => mp?.product_id?.catalogVisibility !== 'hidden');
+    const categoryMap = new Map<number, any>();
+    const items = docs.map((mp) => {
+      const product = mp?.product_id || null;
+      const primaryImage = product?.media?.primaryImage || null;
+      const imageUrl = primaryImage?.cloudinaryURL || primaryImage?.url || primaryImage?.thumbnailURL || null;
+      const rawCats = Array.isArray(product?.categories) ? product.categories : [];
+      const categoryIds: number[] = [];
+      rawCats.forEach((c: any) => {
+        const id = typeof c === 'number' ? c : (typeof c?.id === 'number' ? c.id : null);
+        if (typeof id === 'number') {
+          categoryIds.push(id);
+          if (typeof c === 'object' && c) {
+            const icon = c?.media?.icon || null;
+            categoryMap.set(id, {
+              id,
+              name: c?.name,
+              slug: c?.slug,
+              media: { icon },
+            });
+          }
+        }
+      });
+      return {
+        id: product?.id ?? mp?.id,
+        name: product?.name ?? '',
+        productType: product?.productType ?? 'simple',
+        basePrice: product?.basePrice ?? null,
+        compareAtPrice: product?.compareAtPrice ?? null,
+        shortDescription: product?.shortDescription ?? '',
+        imageUrl,
+        categoryIds,
+      };
+    });
+    const collectedIds = new Set<number>();
+    items.forEach((it) => (it.categoryIds || []).forEach((cid) => collectedIds.add(cid)));
+    const ids = Array.from(collectedIds);
+    let uniqueCategories = Array.from(categoryMap.values());
+
+    if (ids.length > 0) {
+      const catUrl = `${API_BASE}/product-categories?where[id][in]=${ids.join(',')}&limit=${ids.length}&depth=1`;
+      const catRes = await fetch(catUrl, { headers, next: { revalidate: 300 } });
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        const cats = Array.isArray(catData?.docs) ? catData.docs : [];
+        const byId = new Map<number, any>();
+        cats.forEach((c: any) => {
+          if (typeof c?.id === 'number') {
+            byId.set(c.id, {
+              id: c.id,
+              name: c?.name,
+              slug: c?.slug,
+              media: { icon: c?.media?.icon },
+            });
+          }
+        });
+        uniqueCategories = ids
+          .map((cid) => byId.get(cid) || categoryMap.get(cid))
+          .filter((c: any) => c && c.id);
+      }
+    }
+    return {
+      items: items.filter((p) => p && p.name),
+      categories: uniqueCategories,
+    };
+  } catch {
+    return { items: [], categories: [] } as any;
+  }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -100,6 +182,15 @@ export default async function MerchantPage({ params }: PageProps) {
   const addressName = id ? await getActiveAddressNameByMerchantId(id) : null;
   const displayName = addressName ? `${merchant.outletName} - ${addressName}` : merchant.outletName;
 
+  const result = id ? await getMerchantProducts(id) : { items: [], categories: [] } as any;
+  const products = result.items;
+  const categories = result.categories;
+
+  const formatPrice = (value: number | null) => {
+    if (value == null) return null;
+    return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 }).format(Number(value));
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Page-exclusive sticky transparent header (mobile/tablet) with scroll opacity */}
@@ -127,7 +218,7 @@ export default async function MerchantPage({ params }: PageProps) {
       </div>
 
       {/* Details Section */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="w-full px-2.5 py-6">
         <div className="grid grid-cols-1 gap-6">
           {/* Main column: description, hours, media */}
           <div className="space-y-6">
@@ -183,29 +274,13 @@ export default async function MerchantPage({ params }: PageProps) {
           {/* Right column removed per request */}
         </div>
       </div>
-
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <section className="bg-white rounded-lg shadow-sm p-5">
-          <h2 className="text-lg font-semibold text-gray-900">Lorem Ipsum</h2>
-          <div className="mt-2 space-y-4 text-gray-700 leading-relaxed">
-            <p>
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer nec odio. Praesent libero.
-              Sed cursus ante dapibus diam. Sed nisi. Nulla quis sem at nibh elementum imperdiet.
-            </p>
-            <p>
-              Duis sagittis ipsum. Praesent mauris. Fusce nec tellus sed augue semper porta. Mauris massa.
-              Vestibulum lacinia arcu eget nulla. Class aptent taciti sociosqu ad litora torquent.
-            </p>
-            <p>
-              Curabitur sodales ligula in libero. Sed dignissim lacinia nunc. Curabitur tortor. Pellentesque
-              nibh. Aenean quam. In scelerisque sem at dolor. Maecenas mattis. Sed convallis tristique sem.
-            </p>
-            <p>
-              Proin ut ligula vel nunc egestas porttitor. Morbi lectus risus, iaculis vel, suscipit quis,
-              luctus non, massa. Fusce ac turpis quis ligula lacinia aliquet. Mauris ipsum.
-            </p>
-          </div>
-        </section>
+    
+      <div className="w-full py-6 bg-white rounded-t-[25px] shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
+        {products && products.length > 0 ? (
+          <MerchantProductGrid products={products} categories={categories} />
+        ) : (
+          <div className="text-center text-gray-500">No products available</div>
+        )}
       </div>
     </div>
   );

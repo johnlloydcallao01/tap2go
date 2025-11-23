@@ -171,7 +171,7 @@ export function Header({
       </div>
 
       {/* Desktop Header - existing design */}
-      <div className="hidden lg:flex items-center justify-between px-4">
+      <div className="hidden lg:flex items-center justify-between px-4 lg:min-h-[65px] lg:max-h-[65px]">
         {/* Left section */}
         <div className="flex items-center space-x-4">
           {/* Sidebar toggle button - only visible on desktop */}

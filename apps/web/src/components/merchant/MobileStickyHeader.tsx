@@ -30,7 +30,7 @@ export default function MobileStickyHeader() {
     <div className="sticky top-0 left-0 right-0 z-50 lg:block lg:top-16">
       <div
         className={
-          "w-full px-[10px] h-12 flex items-center justify-between transition-colors duration-200 " +
+          "w-full px-[10px] h-[45px] min-h-[45px] max-h-[45px] flex items-center justify-between transition-colors duration-200 " +
           (scrolled ? "bg-white/60 backdrop-blur-sm shadow-sm" : "")
         }
       >
