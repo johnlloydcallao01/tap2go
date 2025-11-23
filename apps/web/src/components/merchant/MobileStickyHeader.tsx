@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function MobileStickyHeader() {
-  const [scrolled, setScrolled] = useState(false);
+  const [bgAlpha, setBgAlpha] = useState(0);
   const router = useRouter();
 
   const handleBack = () => {
@@ -18,8 +18,9 @@ export default function MobileStickyHeader() {
 
   useEffect(() => {
     const onScroll = () => {
-      // Small threshold so the background appears once user starts scrolling
-      setScrolled(window.scrollY > 8);
+      const y = typeof window !== "undefined" ? window.scrollY : 0;
+      const alpha = Math.max(0, Math.min(1, y / 350));
+      setBgAlpha(alpha);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -31,8 +32,9 @@ export default function MobileStickyHeader() {
       <div
         className={
           "w-full px-[10px] h-[45px] min-h-[45px] max-h-[45px] flex items-center justify-between transition-colors duration-200 " +
-          (scrolled ? "bg-white/60 backdrop-blur-sm shadow-sm" : "")
+          (bgAlpha > 0 ? "shadow-sm" : "")
         }
+        style={{ backgroundColor: `rgba(255,255,255,${bgAlpha})` }}
       >
         <button
           aria-label="Back"

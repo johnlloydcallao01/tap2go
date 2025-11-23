@@ -28,6 +28,14 @@ export default function MerchantProductGrid({ products, categories }: { products
   const sectionRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
   const sentinelRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
   const [visibleCounts, setVisibleCounts] = React.useState<Record<number, number>>({});
+  const handleAddToCart = React.useCallback((p: ProductCardItem) => {
+    try {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cart:add", { detail: { id: p.id, name: p.name, price: p.basePrice } }));
+      }
+      console.log("Add to cart", p.id);
+    } catch {}
+  }, []);
 
   const formatPrice = (value: number | null) => {
     if (value == null) return null;
@@ -168,15 +176,23 @@ export default function MerchantProductGrid({ products, categories }: { products
             return (
               <section key={g.id} ref={(el) => { if (el) sectionRefs.current.set(g.id, el); }} className="scroll-mt-[100px]">
                 <h3 className={`text-base md:text-lg font-semibold text-gray-900 mb-3 ${idx === 0 ? '' : 'pt-5'}`}>{g.name}</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 min-[1500px]:grid-cols-[repeat(6,180px)] min-[1500px]:justify-center gap-4 min-[1500px]:gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 min-[1500px]:flex min-[1500px]:flex-wrap gap-4 min-[1500px]:gap-[1.5%]">
                   {slice.map((p) => (
-                    <div key={p.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+                    <div key={p.id} className="bg-white rounded-lg shadow-sm overflow-hidden min-[1500px]:w-[15%] min-[1500px]:flex-none">
                       <div className="relative aspect-square bg-gray-100">
                         {p.imageUrl ? (
                           <Image src={p.imageUrl} alt={p.name} fill className="object-cover" />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center text-gray-400">No image</div>
                         )}
+                        <button
+                          type="button"
+                          aria-label="Add to cart"
+                          onClick={() => handleAddToCart(p)}
+                          className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors"
+                        >
+                          <i className="fas fa-plus text-[12px]" style={{ color: "#333" }} />
+                        </button>
                       </div>
                       <div className="p-4">
                         <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">{p.name}</h3>
