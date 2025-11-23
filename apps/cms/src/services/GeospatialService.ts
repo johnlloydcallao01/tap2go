@@ -733,6 +733,15 @@ export class GeospatialService {
           v.average_rating as vendor_average_rating,
           v.total_orders as vendor_total_orders,
           v.cuisine_types as vendor_cuisine_types,
+          -- Merchant Categories (IDs)
+          COALESCE(
+            (
+              SELECT json_agg(DISTINCT mc2.id)
+              FROM merchants_rels mr2
+              LEFT JOIN merchant_categories mc2 ON mc2.id = mr2.merchant_categories_id
+              WHERE mr2.parent_id = m.id AND mr2.path = 'merchant_categories'
+            ), '[]'::json
+          ) as merchant_category_ids,
           -- Merchant thumbnail media
           mt.id as merchant_thumbnail_id,
           mt.cloudinary_public_id as merchant_thumbnail_cloudinary_public_id,
@@ -790,6 +799,8 @@ export class GeospatialService {
       // Transform results to match expected format
       const merchantsWithDistance: MerchantWithDistance[] = (result as DatabaseQueryResult).rows.map((row: DatabaseRow) => {
         const distanceMeters = parseFloat(row.distance_meters)
+        const merchantCategoryIdsRaw = (row as unknown as { merchant_category_ids?: unknown }).merchant_category_ids
+        const merchantCategoryIds = Array.isArray(merchantCategoryIdsRaw) ? merchantCategoryIdsRaw.filter(id => typeof id === 'number') as number[] : []
         
         return {
           id: row.id,
@@ -842,6 +853,7 @@ export class GeospatialService {
             distanceMeters,
             row.avg_delivery_time_minutes || undefined
           ),
+          merchant_categories: merchantCategoryIds,
           // Vendor information
           vendor: {
             id: row.vendor_id,

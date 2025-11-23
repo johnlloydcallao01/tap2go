@@ -27,6 +27,7 @@ import * as migration_20251121_231500_backfill_products_sku from './20251121_231
 import * as migration_20251121_233000_products_sku_trigger from './20251121_233000_products_sku_trigger';
 import * as migration_20251121_235000_uppercase_products_sku from './20251121_235000_uppercase_products_sku';
 import * as migration_20251122_090515_add_short_description_to_prod_variations from './20251122_090515_add_short_description_to_prod_variations';
+import * as migration_20251123_023957_add_merchant_categories from './20251123_023957_add_merchant_categories';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
 
 export const migrations = [
@@ -174,6 +175,11 @@ export const migrations = [
     up: migration_20251122_090515_add_short_description_to_prod_variations.up,
     down: migration_20251122_090515_add_short_description_to_prod_variations.down,
     name: '20251122_090515_add_short_description_to_prod_variations',
+  },
+  {
+    up: migration_20251123_023957_add_merchant_categories.up,
+    down: migration_20251123_023957_add_merchant_categories.down,
+    name: '20251123_023957_add_merchant_categories',
   },
   {
     up: migration_20251202_remove_vendor_products_table.up,

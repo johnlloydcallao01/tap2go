@@ -77,6 +77,7 @@ export interface Config {
     posts: Post;
     vendors: Vendor;
     merchants: Merchant;
+    'merchant-categories': MerchantCategory;
     'product-categories': ProductCategory;
     products: Product;
     'prod-attributes': ProdAttribute;
@@ -107,6 +108,7 @@ export interface Config {
     posts: PostsSelect<false> | PostsSelect<true>;
     vendors: VendorsSelect<false> | VendorsSelect<true>;
     merchants: MerchantsSelect<false> | MerchantsSelect<true>;
+    'merchant-categories': MerchantCategoriesSelect<false> | MerchantCategoriesSelect<true>;
     'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
     'prod-attributes': ProdAttributesSelect<false> | ProdAttributesSelect<true>;
@@ -942,6 +944,10 @@ export interface Merchant {
     | boolean
     | null;
   /**
+   * Merchant Categories
+   */
+  merchant_categories?: (number | MerchantCategory)[] | null;
+  /**
    * Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user
    */
   activeAddress?: (number | null) | Address;
@@ -1121,6 +1127,22 @@ export interface Merchant {
    * Next available delivery time slot
    */
   next_available_slot?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-categories".
+ */
+export interface MerchantCategory {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  displayOrder?: number | null;
+  isActive?: boolean | null;
+  isFeatured?: boolean | null;
+  icon?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -1852,6 +1874,10 @@ export interface PayloadLockedDocument {
         value: number | Merchant;
       } | null)
     | ({
+        relationTo: 'merchant-categories';
+        value: number | MerchantCategory;
+      } | null)
+    | ({
         relationTo: 'product-categories';
         value: number | ProductCategory;
       } | null)
@@ -2218,6 +2244,7 @@ export interface MerchantsSelect<T extends boolean = true> {
   description?: T;
   specialInstructions?: T;
   tags?: T;
+  merchant_categories?: T;
   activeAddress?: T;
   merchant_latitude?: T;
   merchant_longitude?: T;
@@ -2243,6 +2270,21 @@ export interface MerchantsSelect<T extends boolean = true> {
   delivery_hours?: T;
   is_currently_delivering?: T;
   next_available_slot?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-categories_select".
+ */
+export interface MerchantCategoriesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  displayOrder?: T;
+  isActive?: T;
+  isFeatured?: T;
+  icon?: T;
   updatedAt?: T;
   createdAt?: T;
 }

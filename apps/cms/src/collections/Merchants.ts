@@ -283,6 +283,15 @@ export const Merchants: CollectionConfig = {
       },
     },
     {
+      name: 'merchant_categories',
+      type: 'relationship',
+      relationTo: 'merchant-categories',
+      hasMany: true,
+      admin: {
+        description: 'Merchant Categories',
+      },
+    },
+    {
       name: 'activeAddress',
       type: 'relationship',
       relationTo: 'addresses',

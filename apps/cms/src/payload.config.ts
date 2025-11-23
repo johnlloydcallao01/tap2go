@@ -29,6 +29,7 @@ import { Posts } from './collections/Posts'
 // Food Delivery Collections
 import { Vendors } from './collections/Vendors'
 import { Merchants } from './collections/Merchants'
+import { MerchantCategories } from './collections/MerchantCategories'
 import { ProductCategories } from './collections/ProductCategories'
 import { Products } from './collections/Products'
 
@@ -74,6 +75,7 @@ export default buildConfig({
     // Food Delivery System
     Vendors,
     Merchants,
+    MerchantCategories,
     ProductCategories,
     Products,
 
