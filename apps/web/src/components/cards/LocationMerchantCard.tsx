@@ -38,8 +38,16 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
     <>
       {(() => {
         const LinkComponent = Link as any;
+        const slug = (merchant.outletName || `${merchant.vendor?.businessName || ''}` || `${merchant.id}`)
+          .toString()
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-');
+        const slugId = `${slug}-${merchant.id}`;
         return (
-          <LinkComponent href={`/merchant/${merchant.id}`} className="group cursor-pointer block">
+          <LinkComponent href={`/merchant/${slugId}`} className="group cursor-pointer block">
             <div className="relative aspect-[2/1] bg-gray-100 rounded-lg overflow-visible mb-6 group-hover:shadow-lg transition-shadow duration-200">
               {thumbnailImageUrl ? (
                 <div className="relative w-full h-full">

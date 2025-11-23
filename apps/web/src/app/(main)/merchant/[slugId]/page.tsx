@@ -7,7 +7,7 @@ import type { Merchant, Media } from '@/types/merchant';
 import MobileStickyHeader from '@/components/merchant/MobileStickyHeader';
 import MerchantProductGrid from '@/components/merchant/MerchantProductGrid';
 
-type RouteParams = { id?: string | string[] };
+type RouteParams = { slugId?: string | string[] };
 type PageProps = { params?: Promise<RouteParams> };
 
 function getImageUrl(media: Media | null | undefined): string | null {
@@ -98,8 +98,9 @@ async function getMerchantProducts(merchantId: string) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolved = (await params) ?? {};
-  const rawId = resolved.id;
-  const id = Array.isArray(rawId) ? rawId?.[0] : rawId;
+  const rawSlugId = resolved.slugId;
+  const slugId = Array.isArray(rawSlugId) ? rawSlugId?.[0] : rawSlugId;
+  const id = slugId ? slugId.toString().split('-').pop() || '' : '';
   if (!id) {
     return {
       title: 'Restaurant Not Found | Tap2Go',
@@ -161,8 +162,9 @@ async function getActiveAddressNameByMerchantId(merchantId: string): Promise<str
 
 export default async function MerchantPage({ params }: PageProps) {
   const resolved = (await params) ?? {};
-  const rawId = resolved.id;
-  const id = Array.isArray(rawId) ? rawId?.[0] : rawId;
+  const rawSlugId = resolved.slugId;
+  const slugId = Array.isArray(rawSlugId) ? rawSlugId?.[0] : rawSlugId;
+  const id = slugId ? slugId.toString().split('-').pop() || '' : '';
   const merchant: Merchant | null = id ? await getMerchantById(id) : null;
   if (!merchant) {
     notFound();
