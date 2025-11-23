@@ -29,6 +29,7 @@ export default function MerchantProductCategoriesCarousel({
   const animationRef = React.useRef<number | null>(null);
   const boundsCalculatedRef = React.useRef(false);
   const chipRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
+  const [autoFollow, setAutoFollow] = React.useState(true);
   const [viewportWidth, setViewportWidth] = React.useState<number>(typeof window !== "undefined" ? window.innerWidth : 0);
   const isUltraWide = viewportWidth >= 1500;
   const gapWidth = isUltraWide ? 16 : 12;
@@ -67,6 +68,7 @@ export default function MerchantProductCategoriesCarousel({
   );
 
   const scrollLeft = () => {
+    setAutoFollow(false);
     const container = carouselRef.current?.parentElement;
     const containerWidth = container ? container.getBoundingClientRect().width : 300;
     const swipeDistance = Math.max(180, Math.min(containerWidth * 0.6, containerWidth * 0.8));
@@ -75,6 +77,7 @@ export default function MerchantProductCategoriesCarousel({
   };
 
   const scrollRight = () => {
+    setAutoFollow(false);
     const container = carouselRef.current?.parentElement;
     const containerWidth = container ? container.getBoundingClientRect().width : 300;
     const swipeDistance = Math.max(180, Math.min(containerWidth * 0.6, containerWidth * 0.8));
@@ -85,6 +88,7 @@ export default function MerchantProductCategoriesCarousel({
   const handleStart = (clientX: number) => {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
     setIsDragging(true);
+    setAutoFollow(false);
     setStartX(clientX);
     setCurrentX(clientX);
     setStartTranslateX(translateX);
@@ -148,7 +152,7 @@ export default function MerchantProductCategoriesCarousel({
   }, [getMaxTranslate, translateX, animateToPosition]);
 
   React.useEffect(() => {
-    if (!activeCategoryId || isDragging) return;
+    if (!activeCategoryId || isDragging || !autoFollow) return;
     const list = carouselRef.current;
     const container = list?.parentElement;
     if (!list || !container) return;
@@ -160,7 +164,15 @@ export default function MerchantProductCategoriesCarousel({
     const target = -(chipLeft - (containerWidth - chipWidth) / 2);
     const clamped = Math.max(-maxTranslate, Math.min(0, target));
     animateToPosition(clamped, 350);
-  }, [activeCategoryId, isDragging, maxTranslate, animateToPosition]);
+  }, [activeCategoryId, isDragging, autoFollow, maxTranslate, animateToPosition]);
+
+  React.useEffect(() => {
+    const onWindowScroll = () => {
+      setAutoFollow(true);
+    };
+    window.addEventListener("scroll", onWindowScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onWindowScroll);
+  }, []);
 
   React.useEffect(() => {
     if (isDragging) {
@@ -224,6 +236,11 @@ export default function MerchantProductCategoriesCarousel({
             onTouchEnd={() => handleEnd()}
             onMouseMove={isDragging ? (e) => handleMove(e.clientX) : undefined}
             onMouseUp={isDragging ? () => handleEnd() : undefined}
+            onWheel={(e) => {
+              if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                setAutoFollow(false);
+              }
+            }}
             style={{ touchAction: "pan-y", cursor: isDragging ? "grabbing" : "grab" }}
           >
             <div
