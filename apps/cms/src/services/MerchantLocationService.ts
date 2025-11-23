@@ -113,33 +113,19 @@ export class MerchantLocationService {
       throw new Error('Address coordinates are out of valid range')
     }
 
-    // Step 3: Find merchants using PostGIS spatial queries
+    const parsedCategoryId = categoryId ? parseInt(String(categoryId), 10) : undefined
     const result = await this.geospatialService.findMerchantsWithinRadiusPostGIS({
       latitude: lat,
       longitude: lng,
-      radiusMeters: 50000, // 50km radius for location display
-      limit: 50, // More merchants for location display
-      offset: 0 // First page
+      radiusMeters: 50000,
+      limit: 50,
+      offset: 0,
+      categoryId: typeof parsedCategoryId === 'number' && !isNaN(parsedCategoryId) ? parsedCategoryId : undefined
     })
 
     console.log(`📍 [MerchantLocationService] Found ${result.merchants.length} nearby merchants`)
 
-    // Step 4: Apply category filter if provided
-    let filteredMerchants = result.merchants
-
-    if (categoryId) {
-      // Filter directly by category ID - no conversion needed
-      const merchantIdsInCategory = await this.getMerchantIdsByCategoryId(
-        result.merchants.map(m => m.id),
-        categoryId
-      )
-
-      filteredMerchants = result.merchants.filter(m =>
-        merchantIdsInCategory.includes(m.id)
-      )
-
-      console.log(`🏷️ [MerchantLocationService] Category filter applied: ${result.merchants.length} → ${filteredMerchants.length} merchants`)
-    }
+    const filteredMerchants = result.merchants
 
     return {
       customer: {

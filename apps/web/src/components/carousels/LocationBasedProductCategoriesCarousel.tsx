@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { LocationBasedProductCategory, LocationBasedProductCategoriesService } from '@/lib/client-services/location-based-product-categories-service';
 import { ProductCategoryCircle } from '@/components/ui/ProductCategoryCircle';
 import { useAddressChange } from '@/hooks/useAddressChange';
+import { LocationBasedMerchantService } from '@/lib/client-services/location-based-merchant-service';
+import type { Media } from '@/types/merchant';
 
 interface LocationBasedProductCategoriesCarouselProps {
   customerId?: string;
@@ -20,6 +21,19 @@ interface LocationBasedProductCategoriesCarouselProps {
  * Implements physics-based scrolling with smooth momentum
  * 100% CSR - fetches data client-side
  */
+type MerchantCategoryDisplay = {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  media?: { icon?: Media | null };
+  updatedAt?: string;
+  createdAt?: string;
+};
+
 export const LocationBasedProductCategoriesCarousel = ({
   customerId,
   limit = 20,
@@ -30,7 +44,7 @@ export const LocationBasedProductCategoriesCarousel = ({
   onCategoryIdResolved,
 }: LocationBasedProductCategoriesCarouselProps): JSX.Element => {
   // CSR state management for location-based categories
-  const [categories, setCategories] = useState<LocationBasedProductCategory[]>([]);
+  const [categories, setCategories] = useState<MerchantCategoryDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -41,18 +55,17 @@ export const LocationBasedProductCategoriesCarousel = ({
   const [velocityX, setVelocityX] = useState(0);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(customerId || null);
 
-  // Find the active category based on selectedCategorySlug
   const activeCategory = selectedCategorySlug 
-    ? categories.find(cat => cat.name.toLowerCase().replace(/\s+/g, '-') === selectedCategorySlug)?.name || ''
+    ? (categories.find(cat => cat.slug === selectedCategorySlug)?.name 
+        || categories.find(cat => cat.name.toLowerCase().replace(/\s+/g, '-') === selectedCategorySlug)?.name 
+        || '')
     : '';
   
-  // Resolve category ID from slug and notify parent
   useEffect(() => {
     if (selectedCategorySlug && categories.length > 0 && onCategoryIdResolved) {
-      const category = categories.find(cat => 
-        cat.name.toLowerCase().replace(/\s+/g, '-') === selectedCategorySlug
-      );
-      onCategoryIdResolved(category?.id || null);
+      const category = categories.find(cat => cat.slug === selectedCategorySlug) 
+        || categories.find(cat => cat.name.toLowerCase().replace(/\s+/g, '-') === selectedCategorySlug);
+      onCategoryIdResolved(category ? String(category.id) : null);
     } else if (!selectedCategorySlug && onCategoryIdResolved) {
       onCategoryIdResolved(null);
     }
@@ -67,27 +80,78 @@ export const LocationBasedProductCategoriesCarousel = ({
   const itemWidth = isUltraWide ? 80 : 64;
   const gapWidth = isUltraWide ? 56 : 48;
 
-  // Fetch location-based product categories
-  const fetchLocationBasedProductCategories = useCallback(async (customerIdToUse: string) => {
+  const fetchMerchantCategories = useCallback(async (customerIdToUse: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      const fetchedCategories = await LocationBasedProductCategoriesService.getLocationBasedProductCategories({
+      const merchants = await LocationBasedMerchantService.getLocationBasedMerchants({
         customerId: customerIdToUse,
-        limit,
-        sortBy,
-        includeInactive,
+        limit: 9999,
       });
-      setCategories(fetchedCategories);
+
+      const ids = Array.from(new Set(
+        merchants.flatMap((m: any) => {
+          const raw = (m as any).merchant_categories;
+          if (!raw) return [] as number[];
+          if (Array.isArray(raw)) {
+            return raw
+              .map((v: any) => typeof v === 'number' ? v : (typeof v?.id === 'number' ? v.id : null))
+              .filter((v: any) => typeof v === 'number') as number[];
+          }
+          return [] as number[];
+        })
+      ));
+
+      if (ids.length === 0) {
+        setCategories([]);
+        return;
+      }
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+      const base = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+
+      const inParam = ids.join(',');
+      const url = `${base}/merchant-categories?where[isActive][equals]=${includeInactive ? '' : 'true'}&where[id][in]=${encodeURIComponent(inParam)}&limit=${ids.length}`;
+
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        const t = await response.text();
+        throw new Error(`Failed to fetch merchant categories: ${response.status} ${t}`);
+      }
+      const json = await response.json();
+      const docs: any[] = json.docs || json.data?.docs || [];
+
+      let mapped: MerchantCategoryDisplay[] = docs.map((c: any) => ({
+        id: typeof c.id === 'number' ? c.id : Number(c.id),
+        name: c.name,
+        slug: c.slug,
+        description: c.description || undefined,
+        displayOrder: c.displayOrder ?? undefined,
+        isActive: c.isActive ?? undefined,
+        isFeatured: c.isFeatured ?? undefined,
+        media: { icon: c.icon || null },
+        updatedAt: c.updatedAt,
+        createdAt: c.createdAt,
+      }));
+
+      if (sortBy === 'name') {
+        mapped = mapped.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (sortBy === 'productCount') {
+        mapped = mapped.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      }
+
+      setCategories(mapped.slice(0, limit));
     } catch (err) {
-      console.error('❌ Error fetching location-based product categories:', err);
-      setError('Failed to load product categories');
+      console.error('❌ Error fetching location-based merchant categories:', err);
+      setError('Failed to load categories');
       setCategories([]);
     } finally {
       setLoading(false);
     }
-  }, [limit, sortBy, includeInactive]);
+  }, [includeInactive, limit, sortBy]);
 
   // Resolve customer ID if not provided
   useEffect(() => {
@@ -98,8 +162,7 @@ export const LocationBasedProductCategoriesCarousel = ({
       }
 
       try {
-        const currentCustomerId = await LocationBasedProductCategoriesService.getCurrentCustomerId();
-        
+        const currentCustomerId = await LocationBasedMerchantService.getCurrentCustomerId();
         if (currentCustomerId) {
           setResolvedCustomerId(currentCustomerId);
         } else {
@@ -119,18 +182,14 @@ export const LocationBasedProductCategoriesCarousel = ({
   // Fetch categories when customer ID is resolved
   useEffect(() => {
     if (resolvedCustomerId) {
-      fetchLocationBasedProductCategories(resolvedCustomerId);
+      fetchMerchantCategories(resolvedCustomerId);
     }
-  }, [resolvedCustomerId, fetchLocationBasedProductCategories]);
+  }, [resolvedCustomerId, fetchMerchantCategories]);
 
-  // Listen for address changes and refetch categories
   useAddressChange((addressId: string) => {
     if (resolvedCustomerId) {
-      
-      // Clear the cache first to ensure fresh data
-      LocationBasedProductCategoriesService.clearCache(resolvedCustomerId);
-      
-      fetchLocationBasedProductCategories(resolvedCustomerId);
+      LocationBasedMerchantService.clearCache(resolvedCustomerId);
+      fetchMerchantCategories(resolvedCustomerId);
     } else {
     }
   });
@@ -192,12 +251,14 @@ export const LocationBasedProductCategoriesCarousel = ({
   };
 
   const handleCategoryClick = (categoryName: string) => {
-    if (!isDragging && onCategorySelect) {
-      // Find the category by name to get its ID and slug
-      const category = categories.find(cat => cat.name === categoryName);
-      if (category) {
-        const categorySlug = category.name.toLowerCase().replace(/\s+/g, '-');
-        onCategorySelect(category.id, categorySlug, categoryName);
+    const category = categories.find(cat => cat.name === categoryName);
+    if (!isDragging && category) {
+      const categorySlug = category.slug || category.name.toLowerCase().replace(/\s+/g, '-');
+      if (onCategorySelect) {
+        onCategorySelect(String(category.id), categorySlug, categoryName);
+      }
+      if (onCategoryIdResolved) {
+        onCategoryIdResolved(String(category.id));
       }
     }
   };
@@ -441,12 +502,10 @@ export const LocationBasedProductCategoriesCarousel = ({
                 >
                   <ProductCategoryCircle
                     category={{
-                      id: category.id,
+                      id: category.id as any,
                       name: category.name,
                       slug: category.slug,
                       description: category.description,
-                      parentCategory: category.parentCategory,
-                      categoryLevel: category.categoryLevel,
                       displayOrder: category.displayOrder,
                       isActive: category.isActive,
                       isFeatured: category.isFeatured,

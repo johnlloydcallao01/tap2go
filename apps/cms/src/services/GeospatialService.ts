@@ -693,8 +693,9 @@ export class GeospatialService {
     radiusMeters: number
     limit?: number
     offset?: number
+    categoryId?: number
   }) {
-    const { latitude, longitude, radiusMeters, limit = 20, offset = 0 } = params
+    const { latitude, longitude, radiusMeters, limit = 20, offset = 0, categoryId } = params
     const startTime = Date.now()
 
     // Validate coordinates
@@ -785,6 +786,12 @@ export class GeospatialService {
             ST_Transform(${customerPoint}, 3857),
             ${radiusMeters}
           )
+          ${categoryId ? `AND EXISTS (
+            SELECT 1 FROM merchants_rels mr2
+            WHERE mr2.parent_id = m.id
+              AND mr2.path = 'merchant_categories'
+              AND mr2.merchant_categories_id = ${categoryId}
+          )` : ''}
         ORDER BY 
           ST_Distance(
             ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
@@ -891,7 +898,13 @@ export class GeospatialService {
             ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857),
             ${radiusMeters}
-          );
+          )
+          ${categoryId ? `AND EXISTS (
+            SELECT 1 FROM merchants_rels mr2
+            WHERE mr2.parent_id = m.id
+              AND mr2.path = 'merchant_categories'
+              AND mr2.merchant_categories_id = ${categoryId}
+          )` : ''};
       `)
 
       const totalCount = parseInt((countResult as CountQueryResult).rows[0]?.total_count || '0')
