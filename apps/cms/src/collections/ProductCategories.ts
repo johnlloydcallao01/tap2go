@@ -152,44 +152,7 @@ export const ProductCategories: CollectionConfig = {
       },
     },
 
-    // === STYLING AND BRANDING ===
-    {
-      name: 'styling',
-      type: 'group',
-      fields: [
-        {
-          name: 'colorTheme',
-          type: 'text',
-          admin: {
-            description: 'Hex color code for category theme (e.g., #FF6B35)',
-          },
-        },
-        {
-          name: 'backgroundColor',
-          type: 'text',
-          admin: {
-            description: 'Background color for category cards',
-          },
-        },
-        {
-          name: 'textColor',
-          type: 'text',
-          admin: {
-            description: 'Text color for category elements',
-          },
-        },
-        {
-          name: 'gradientColors',
-          type: 'json',
-          admin: {
-            description: 'Colors for gradient backgrounds (JSON array of hex color strings)',
-          },
-        },
-      ],
-      admin: {
-        description: 'Visual styling options',
-      },
-    },
+    
 
     // === CATEGORY ATTRIBUTES ===
     {
@@ -248,58 +211,7 @@ export const ProductCategories: CollectionConfig = {
       },
     },
 
-    // === BUSINESS RULES ===
-    {
-      name: 'businessRules',
-      type: 'group',
-      fields: [
-        {
-          name: 'allowsCustomization',
-          type: 'checkbox',
-          defaultValue: true,
-          admin: {
-            description: 'Whether products in this category can be customized',
-          },
-        },
-        {
-          name: 'requiresSpecialHandling',
-          type: 'checkbox',
-          defaultValue: false,
-          admin: {
-            description: 'Whether products need special delivery handling',
-          },
-        },
-        {
-          name: 'hasExpirationDates',
-          type: 'checkbox',
-          defaultValue: false,
-          admin: {
-            description: 'Whether products in this category have expiration dates',
-          },
-        },
-        {
-          name: 'requiresRefrigeration',
-          type: 'checkbox',
-          defaultValue: false,
-          admin: {
-            description: 'Whether products need refrigerated delivery',
-          },
-        },
-        {
-          name: 'maxDeliveryTimeHours',
-          type: 'number',
-          min: 0.5,
-          max: 72,
-          admin: {
-            description: 'Maximum delivery time for products in this category (hours)',
-            step: 0.5,
-          },
-        },
-      ],
-      admin: {
-        description: 'Business rules and handling requirements',
-      },
-    },
+    
 
     // === SEO AND MARKETING ===
     {
@@ -340,150 +252,11 @@ export const ProductCategories: CollectionConfig = {
       },
     },
 
-    // === ANALYTICS AND METRICS ===
-    {
-      name: 'metrics',
-      type: 'group',
-      fields: [
-        {
-          name: 'totalProducts',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          admin: {
-            description: 'Total number of products in this category',
-            readOnly: true,
-          },
-        },
-        {
-          name: 'totalOrders',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          admin: {
-            description: 'Total orders from this category',
-            readOnly: true,
-          },
-        },
-        {
-          name: 'averageRating',
-          type: 'number',
-          min: 0,
-          max: 5,
-          defaultValue: 0,
-          admin: {
-            description: 'Average rating of products in this category',
-            readOnly: true,
-            step: 0.1,
-          },
-        },
-        {
-          name: 'popularityScore',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          admin: {
-            description: 'Calculated popularity score',
-            readOnly: true,
-          },
-        },
-        {
-          name: 'viewCount',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          admin: {
-            description: 'Number of times this category was viewed',
-            readOnly: true,
-          },
-        },
-      ],
-      admin: {
-        description: 'Analytics and performance metrics',
-      },
-    },
+    
 
-    // === PROMOTIONAL SETTINGS ===
-    {
-      name: 'promotions',
-      type: 'group',
-      fields: [
-        {
-          name: 'isPromotional',
-          type: 'checkbox',
-          defaultValue: false,
-          admin: {
-            description: 'Whether this category is currently being promoted',
-          },
-        },
-        {
-          name: 'promotionalText',
-          type: 'text',
-          admin: {
-            description: 'Promotional text to display with the category',
-          },
-        },
-        {
-          name: 'discountPercentage',
-          type: 'number',
-          min: 0,
-          max: 100,
-          admin: {
-            description: 'Category-wide discount percentage',
-            step: 0.1,
-          },
-        },
-        {
-          name: 'promotionStartDate',
-          type: 'date',
-          admin: {
-            description: 'When the promotion starts',
-          },
-        },
-        {
-          name: 'promotionEndDate',
-          type: 'date',
-          admin: {
-            description: 'When the promotion ends',
-          },
-        },
-      ],
-      admin: {
-        description: 'Promotional campaigns and discounts',
-      },
-    },
+    
 
-    // === AVAILABILITY SETTINGS ===
-    {
-      name: 'availability',
-      type: 'group',
-      fields: [
-        {
-          name: 'availableHours',
-          type: 'json',
-          admin: {
-            description: 'Hours when this category is available (JSON format)',
-          },
-        },
-        {
-          name: 'seasonalAvailability',
-          type: 'json',
-          admin: {
-            description: 'Seasonal availability settings (JSON array of season objects)',
-          },
-        },
-        {
-          name: 'regionRestrictions',
-          type: 'json',
-          admin: {
-            description: 'Regional availability restrictions (JSON array of region objects)',
-          },
-        },
-      ],
-      admin: {
-        description: 'Availability and restriction settings',
-      },
-    },
+    
   ],
   hooks: {
     beforeChange: [

@@ -48,58 +48,18 @@ export interface LocationBasedProductCategory {
       height?: number;
       alt?: string;
     };
-  };
-  styling: {
-    colorTheme: string;
-    backgroundColor: string;
-    textColor: string;
-    gradientColors: string[];
-  };
+    };
   attributes: {
     categoryType: string;
     dietaryTags: string[];
     ageRestriction?: number;
     requiresPrescription: boolean;
   };
-  businessRules: {
-    allowsCustomization: boolean;
-    requiresSpecialHandling: boolean;
-    hasExpirationDates: boolean;
-    requiresRefrigeration: boolean;
-    maxDeliveryTimeHours: number;
-  };
   seo: {
     metaTitle: string;
     metaDescription: string;
     keywords: string[];
     canonicalUrl?: string;
-  };
-  metrics: {
-    totalProducts: number;
-    totalOrders: number;
-    averageRating: number;
-    popularityScore: number;
-    viewCount: number;
-  };
-  promotions: {
-    isPromotional: boolean;
-    promotionalText?: string;
-    discountPercentage?: number;
-    promotionStartDate?: string;
-    promotionEndDate?: string;
-  };
-  availability: {
-    availableHours: {
-      monday: { start: string; end: string; isOpen: boolean };
-      tuesday: { start: string; end: string; isOpen: boolean };
-      wednesday: { start: string; end: string; isOpen: boolean };
-      thursday: { start: string; end: string; isOpen: boolean };
-      friday: { start: string; end: string; isOpen: boolean };
-      saturday: { start: string; end: string; isOpen: boolean };
-      sunday: { start: string; end: string; isOpen: boolean };
-    };
-    seasonalAvailability: string[];
-    regionRestrictions: string[];
   };
   updatedAt: string;
   createdAt: string;

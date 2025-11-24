@@ -1208,35 +1208,6 @@ export interface ProductCategory {
     thumbnailImage?: (number | null) | Media;
   };
   /**
-   * Visual styling options
-   */
-  styling?: {
-    /**
-     * Hex color code for category theme (e.g., #FF6B35)
-     */
-    colorTheme?: string | null;
-    /**
-     * Background color for category cards
-     */
-    backgroundColor?: string | null;
-    /**
-     * Text color for category elements
-     */
-    textColor?: string | null;
-    /**
-     * Colors for gradient backgrounds (JSON array of hex color strings)
-     */
-    gradientColors?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-  };
-  /**
    * Category-specific attributes and restrictions
    */
   attributes?: {
@@ -1278,31 +1249,6 @@ export interface ProductCategory {
     requiresPrescription?: boolean | null;
   };
   /**
-   * Business rules and handling requirements
-   */
-  businessRules?: {
-    /**
-     * Whether products in this category can be customized
-     */
-    allowsCustomization?: boolean | null;
-    /**
-     * Whether products need special delivery handling
-     */
-    requiresSpecialHandling?: boolean | null;
-    /**
-     * Whether products in this category have expiration dates
-     */
-    hasExpirationDates?: boolean | null;
-    /**
-     * Whether products need refrigerated delivery
-     */
-    requiresRefrigeration?: boolean | null;
-    /**
-     * Maximum delivery time for products in this category (hours)
-     */
-    maxDeliveryTimeHours?: number | null;
-  };
-  /**
    * SEO optimization settings
    */
   seo?: {
@@ -1330,97 +1276,6 @@ export interface ProductCategory {
      * Canonical URL for SEO
      */
     canonicalUrl?: string | null;
-  };
-  /**
-   * Analytics and performance metrics
-   */
-  metrics?: {
-    /**
-     * Total number of products in this category
-     */
-    totalProducts?: number | null;
-    /**
-     * Total orders from this category
-     */
-    totalOrders?: number | null;
-    /**
-     * Average rating of products in this category
-     */
-    averageRating?: number | null;
-    /**
-     * Calculated popularity score
-     */
-    popularityScore?: number | null;
-    /**
-     * Number of times this category was viewed
-     */
-    viewCount?: number | null;
-  };
-  /**
-   * Promotional campaigns and discounts
-   */
-  promotions?: {
-    /**
-     * Whether this category is currently being promoted
-     */
-    isPromotional?: boolean | null;
-    /**
-     * Promotional text to display with the category
-     */
-    promotionalText?: string | null;
-    /**
-     * Category-wide discount percentage
-     */
-    discountPercentage?: number | null;
-    /**
-     * When the promotion starts
-     */
-    promotionStartDate?: string | null;
-    /**
-     * When the promotion ends
-     */
-    promotionEndDate?: string | null;
-  };
-  /**
-   * Availability and restriction settings
-   */
-  availability?: {
-    /**
-     * Hours when this category is available (JSON format)
-     */
-    availableHours?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-    /**
-     * Seasonal availability settings (JSON array of season objects)
-     */
-    seasonalAvailability?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-    /**
-     * Regional availability restrictions (JSON array of region objects)
-     */
-    regionRestrictions?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -2309,14 +2164,6 @@ export interface ProductCategoriesSelect<T extends boolean = true> {
         bannerImage?: T;
         thumbnailImage?: T;
       };
-  styling?:
-    | T
-    | {
-        colorTheme?: T;
-        backgroundColor?: T;
-        textColor?: T;
-        gradientColors?: T;
-      };
   attributes?:
     | T
     | {
@@ -2325,15 +2172,6 @@ export interface ProductCategoriesSelect<T extends boolean = true> {
         ageRestriction?: T;
         requiresPrescription?: T;
       };
-  businessRules?:
-    | T
-    | {
-        allowsCustomization?: T;
-        requiresSpecialHandling?: T;
-        hasExpirationDates?: T;
-        requiresRefrigeration?: T;
-        maxDeliveryTimeHours?: T;
-      };
   seo?:
     | T
     | {
@@ -2341,31 +2179,6 @@ export interface ProductCategoriesSelect<T extends boolean = true> {
         metaDescription?: T;
         keywords?: T;
         canonicalUrl?: T;
-      };
-  metrics?:
-    | T
-    | {
-        totalProducts?: T;
-        totalOrders?: T;
-        averageRating?: T;
-        popularityScore?: T;
-        viewCount?: T;
-      };
-  promotions?:
-    | T
-    | {
-        isPromotional?: T;
-        promotionalText?: T;
-        discountPercentage?: T;
-        promotionStartDate?: T;
-        promotionEndDate?: T;
-      };
-  availability?:
-    | T
-    | {
-        availableHours?: T;
-        seasonalAvailability?: T;
-        regionRestrictions?: T;
       };
   updatedAt?: T;
   createdAt?: T;

@@ -74,15 +74,6 @@ export interface ProductCategory {
     } | null;
   } | null;
   /**
-   * Styling and branding
-   */
-  styling?: {
-    colorTheme?: string | null;
-    backgroundColor?: string | null;
-    textColor?: string | null;
-    gradientColors?: string[] | null;
-  } | null;
-  /**
    * Category-specific attributes and restrictions
    */
   attributes?: {
@@ -92,51 +83,13 @@ export interface ProductCategory {
     requiresPrescription?: boolean;
   } | null;
   /**
-   * Business rules
-   */
-  businessRules?: {
-    allowsCustomization?: boolean;
-    requiresSpecialHandling?: boolean;
-    hasExpirationDates?: boolean;
-    requiresRefrigeration?: boolean;
-    maxDeliveryTimeHours?: number | null;
-  } | null;
-  /**
-   * SEO optimization settings
-   */
+    * SEO optimization settings
+    */
   seo?: {
     metaTitle?: string | null;
     metaDescription?: string | null;
     keywords?: string[] | null;
     canonicalUrl?: string | null;
-  } | null;
-  /**
-   * Analytics and performance metrics
-   */
-  metrics?: {
-    totalProducts?: number;
-    totalOrders?: number;
-    averageRating?: number;
-    popularityScore?: number;
-    viewCount?: number;
-  } | null;
-  /**
-   * Promotional campaigns and discounts
-   */
-  promotions?: {
-    isPromotional?: boolean;
-    promotionalText?: string | null;
-    discountPercentage?: number | null;
-    promotionStartDate?: string | null;
-    promotionEndDate?: string | null;
-  } | null;
-  /**
-   * Availability and restriction settings
-   */
-  availability?: {
-    availableHours?: any | null;
-    seasonalAvailability?: any | null;
-    regionRestrictions?: any | null;
   } | null;
   updatedAt: string;
   createdAt: string;

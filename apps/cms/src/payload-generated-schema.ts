@@ -139,16 +139,69 @@ export const enum_prod_categories_attributes_age_restriction = pgEnum(
   'enum_prod_categories_attributes_age_restriction',
   ['none', '18_plus', '21_plus'],
 )
-export const enum_products_dietary_spice_level = pgEnum('enum_products_dietary_spice_level', [
-  'none',
-  'mild',
-  'medium',
-  'hot',
-  'extra_hot',
+export const enum_products_product_type = pgEnum('enum_products_product_type', [
+  'simple',
+  'variable',
+  'grouped',
 ])
-export const enum_products_preparation_cooking_method = pgEnum(
-  'enum_products_preparation_cooking_method',
-  ['grilled', 'fried', 'baked', 'steamed', 'boiled', 'raw', 'no_cooking', 'other'],
+export const enum_products_catalog_visibility = pgEnum('enum_products_catalog_visibility', [
+  'visible',
+  'catalog',
+  'search',
+  'hidden',
+])
+export const enum_prod_attributes_type = pgEnum('enum_prod_attributes_type', [
+  'select',
+  'color',
+  'button',
+  'radio',
+])
+export const enum_merchant_products_added_by = pgEnum('enum_merchant_products_added_by', [
+  'vendor',
+  'merchant',
+])
+export const enum_modifier_groups_selection_type = pgEnum('enum_modifier_groups_selection_type', [
+  'single',
+  'multiple',
+])
+export const enum_prod_tags_tag_type = pgEnum('enum_prod_tags_tag_type', [
+  'general',
+  'dietary',
+  'cuisine',
+  'promotion',
+  'feature',
+  'allergen',
+  'spice_level',
+  'temperature',
+  'size_category',
+])
+export const enum_prod_tags_junction_added_by_type = pgEnum(
+  'enum_prod_tags_junction_added_by_type',
+  ['vendor', 'merchant', 'system'],
+)
+
+export const users_reset_password_tokens = pgTable(
+  'users_reset_password_tokens',
+  {
+    _order: integer('_order').notNull(),
+    _parentID: integer('_parent_id').notNull(),
+    id: varchar('id').primaryKey(),
+    token: varchar('token').notNull(),
+    expiresAt: timestamp('expires_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+  },
+  (columns) => ({
+    _orderIdx: index('users_reset_password_tokens_order_idx').on(columns._order),
+    _parentIDIdx: index('users_reset_password_tokens_parent_id_idx').on(columns._parentID),
+    _parentIDFk: foreignKey({
+      columns: [columns['_parentID']],
+      foreignColumns: [users.id],
+      name: 'users_reset_password_tokens_parent_id_fk',
+    }).onDelete('cascade'),
+  }),
 )
 
 export const users_sessions = pgTable(
@@ -235,7 +288,7 @@ export const customers = pgTable(
       .references(() => users.id, {
         onDelete: 'set null',
       }),
-    srn: varchar('srn').notNull(),
+    srn: varchar('srn'),
     couponCode: varchar('coupon_code'),
     enrollmentDate: timestamp('enrollment_date', {
       mode: 'string',
@@ -640,9 +693,6 @@ export const vendors = pgTable(
     logo: integer('logo_id').references(() => media.id, {
       onDelete: 'set null',
     }),
-    bankAccountName: varchar('bank_account_name'),
-    bankAccountNumber: varchar('bank_account_number'),
-    bankName: varchar('bank_name'),
     description: varchar('description'),
     operatingHours: jsonb('operating_hours'),
     socialMediaLinks_facebook: varchar('social_media_links_facebook'),
@@ -784,6 +834,73 @@ export const merchants = pgTable(
   }),
 )
 
+export const merchants_rels = pgTable(
+  'merchants_rels',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order'),
+    parent: integer('parent_id').notNull(),
+    path: varchar('path').notNull(),
+    'merchant-categoriesID': integer('merchant_categories_id'),
+  },
+  (columns) => ({
+    order: index('merchants_rels_order_idx').on(columns.order),
+    parentIdx: index('merchants_rels_parent_idx').on(columns.parent),
+    pathIdx: index('merchants_rels_path_idx').on(columns.path),
+    merchants_rels_merchant_categories_id_idx: index(
+      'merchants_rels_merchant_categories_id_idx',
+    ).on(columns['merchant-categoriesID']),
+    parentFk: foreignKey({
+      columns: [columns['parent']],
+      foreignColumns: [merchants.id],
+      name: 'merchants_rels_parent_fk',
+    }).onDelete('cascade'),
+    'merchant-categoriesIdFk': foreignKey({
+      columns: [columns['merchant-categoriesID']],
+      foreignColumns: [merchant_categories.id],
+      name: 'merchants_rels_merchant_categories_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const merchant_categories = pgTable(
+  'merchant_categories',
+  {
+    id: serial('id').primaryKey(),
+    name: varchar('name').notNull(),
+    slug: varchar('slug').notNull(),
+    description: varchar('description'),
+    displayOrder: numeric('display_order').default('0'),
+    isActive: boolean('is_active').default(true),
+    isFeatured: boolean('is_featured').default(false),
+    icon: integer('icon_id').references(() => media.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    merchant_categories_slug_idx: uniqueIndex('merchant_categories_slug_idx').on(columns.slug),
+    merchant_categories_icon_idx: index('merchant_categories_icon_idx').on(columns.icon),
+    merchant_categories_updated_at_idx: index('merchant_categories_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    merchant_categories_created_at_idx: index('merchant_categories_created_at_idx').on(
+      columns.createdAt,
+    ),
+    slug_idx: index('slug_idx').on(columns.slug),
+    isActive_isFeatured_idx: index('isActive_isFeatured_idx').on(
+      columns.isActive,
+      columns.isFeatured,
+    ),
+    displayOrder_idx: index('displayOrder_idx').on(columns.displayOrder),
+  }),
+)
+
 export const prod_categories = pgTable(
   'prod_categories',
   {
@@ -811,10 +928,6 @@ export const prod_categories = pgTable(
     media_thumbnailImage: integer('media_thumbnail_image_id').references(() => media.id, {
       onDelete: 'set null',
     }),
-    styling_colorTheme: varchar('styling_color_theme'),
-    styling_backgroundColor: varchar('styling_background_color'),
-    styling_textColor: varchar('styling_text_color'),
-    styling_gradientColors: jsonb('styling_gradient_colors'),
     attributes_categoryType: enum_prod_categories_attributes_category_type(
       'attributes_category_type',
     ),
@@ -823,40 +936,10 @@ export const prod_categories = pgTable(
       'attributes_age_restriction',
     ).default('none'),
     attributes_requiresPrescription: boolean('attributes_requires_prescription').default(false),
-    businessRules_allowsCustomization: boolean('business_rules_allows_customization').default(true),
-    businessRules_requiresSpecialHandling: boolean(
-      'business_rules_requires_special_handling',
-    ).default(false),
-    businessRules_hasExpirationDates: boolean('business_rules_has_expiration_dates').default(false),
-    businessRules_requiresRefrigeration: boolean('business_rules_requires_refrigeration').default(
-      false,
-    ),
-    businessRules_maxDeliveryTimeHours: numeric('business_rules_max_delivery_time_hours'),
     seo_metaTitle: varchar('seo_meta_title'),
     seo_metaDescription: varchar('seo_meta_description'),
     seo_keywords: jsonb('seo_keywords'),
     seo_canonicalUrl: varchar('seo_canonical_url'),
-    metrics_totalProducts: numeric('metrics_total_products').default('0'),
-    metrics_totalOrders: numeric('metrics_total_orders').default('0'),
-    metrics_averageRating: numeric('metrics_average_rating').default('0'),
-    metrics_popularityScore: numeric('metrics_popularity_score').default('0'),
-    metrics_viewCount: numeric('metrics_view_count').default('0'),
-    promotions_isPromotional: boolean('promotions_is_promotional').default(false),
-    promotions_promotionalText: varchar('promotions_promotional_text'),
-    promotions_discountPercentage: numeric('promotions_discount_percentage'),
-    promotions_promotionStartDate: timestamp('promotions_promotion_start_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }),
-    promotions_promotionEndDate: timestamp('promotions_promotion_end_date', {
-      mode: 'string',
-      withTimezone: true,
-      precision: 3,
-    }),
-    availability_availableHours: jsonb('availability_available_hours'),
-    availability_seasonalAvailability: jsonb('availability_seasonal_availability'),
-    availability_regionRestrictions: jsonb('availability_region_restrictions'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -883,91 +966,118 @@ export const prod_categories = pgTable(
   }),
 )
 
+export const products_media_images = pgTable(
+  'products_media_images',
+  {
+    _order: integer('_order').notNull(),
+    _parentID: integer('_parent_id').notNull(),
+    id: varchar('id').primaryKey(),
+    image: integer('image_id')
+      .notNull()
+      .references(() => media.id, {
+        onDelete: 'set null',
+      }),
+  },
+  (columns) => ({
+    _orderIdx: index('products_media_images_order_idx').on(columns._order),
+    _parentIDIdx: index('products_media_images_parent_id_idx').on(columns._parentID),
+    products_media_images_image_idx: index('products_media_images_image_idx').on(columns.image),
+    _parentIDFk: foreignKey({
+      columns: [columns['_parentID']],
+      foreignColumns: [products.id],
+      name: 'products_media_images_parent_id_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
 export const products = pgTable(
   'products',
   {
     id: serial('id').primaryKey(),
-    merchant: integer('merchant_id')
-      .notNull()
-      .references(() => merchants.id, {
-        onDelete: 'set null',
-      }),
-    primaryCategory: integer('primary_category_id')
-      .notNull()
-      .references(() => prod_categories.id, {
-        onDelete: 'set null',
-      }),
+    createdByVendor: integer('created_by_vendor_id').references(() => vendors.id, {
+      onDelete: 'set null',
+    }),
+    createdByMerchant: integer('created_by_merchant_id').references(() => merchants.id, {
+      onDelete: 'set null',
+    }),
+    productType: enum_products_product_type('product_type').notNull().default('simple'),
+    parentProduct: integer('parent_product_id').references((): AnyPgColumn => products.id, {
+      onDelete: 'set null',
+    }),
     name: varchar('name').notNull(),
-    slug: varchar('slug'),
-    description: varchar('description'),
+    slug: varchar('slug').notNull(),
+    description: jsonb('description'),
     shortDescription: varchar('short_description'),
-    pricing_basePrice: numeric('pricing_base_price').notNull(),
-    pricing_discountedPrice: numeric('pricing_discounted_price'),
-    pricing_costPrice: numeric('pricing_cost_price'),
-    identification_sku: varchar('identification_sku'),
-    identification_barcode: varchar('identification_barcode'),
-    identification_productCode: varchar('identification_product_code'),
-    physicalAttributes_weightGrams: numeric('physical_attributes_weight_grams'),
-    physicalAttributes_dimensions_length: numeric('physical_attributes_dimensions_length'),
-    physicalAttributes_dimensions_width: numeric('physical_attributes_dimensions_width'),
-    physicalAttributes_dimensions_height: numeric('physical_attributes_dimensions_height'),
-    physicalAttributes_volume: numeric('physical_attributes_volume'),
-    physicalAttributes_servingSize: varchar('physical_attributes_serving_size'),
-    nutrition_calories: numeric('nutrition_calories'),
-    nutrition_macronutrients_protein: numeric('nutrition_macronutrients_protein'),
-    nutrition_macronutrients_carbohydrates: numeric('nutrition_macronutrients_carbohydrates'),
-    nutrition_macronutrients_fat: numeric('nutrition_macronutrients_fat'),
-    nutrition_macronutrients_fiber: numeric('nutrition_macronutrients_fiber'),
-    nutrition_macronutrients_sugar: numeric('nutrition_macronutrients_sugar'),
-    nutrition_macronutrients_sodium: numeric('nutrition_macronutrients_sodium'),
-    dietary_isVegetarian: boolean('dietary_is_vegetarian').default(false),
-    dietary_isVegan: boolean('dietary_is_vegan').default(false),
-    dietary_isGlutenFree: boolean('dietary_is_gluten_free').default(false),
-    dietary_isHalal: boolean('dietary_is_halal').default(false),
-    dietary_isKosher: boolean('dietary_is_kosher').default(false),
-    dietary_isOrganic: boolean('dietary_is_organic').default(false),
-    dietary_isDairyFree: boolean('dietary_is_dairy_free').default(false),
-    dietary_isNutFree: boolean('dietary_is_nut_free').default(false),
-    dietary_spiceLevel: enum_products_dietary_spice_level('dietary_spice_level').default('none'),
-    dietary_allergens: jsonb('dietary_allergens'),
-    dietary_ingredients: jsonb('dietary_ingredients'),
-    availability_isAvailable: boolean('availability_is_available').default(true),
-    availability_stockQuantity: numeric('availability_stock_quantity'),
-    availability_lowStockThreshold: numeric('availability_low_stock_threshold').default('5'),
-    availability_maxOrderQuantity: numeric('availability_max_order_quantity'),
-    availability_availableHours: jsonb('availability_available_hours'),
-    availability_seasonalAvailability: jsonb('availability_seasonal_availability'),
-    preparation_preparationTimeMinutes: numeric('preparation_preparation_time_minutes').default(
-      '15',
-    ),
-    preparation_cookingMethod: enum_products_preparation_cooking_method(
-      'preparation_cooking_method',
-    ),
-    preparation_specialInstructions: varchar('preparation_special_instructions'),
-    preparation_requiresSpecialEquipment: boolean('preparation_requires_special_equipment').default(
-      false,
-    ),
+    sku: varchar('sku'),
+    basePrice: numeric('base_price'),
+    compareAtPrice: numeric('compare_at_price'),
     media_primaryImage: integer('media_primary_image_id').references(() => media.id, {
       onDelete: 'set null',
     }),
-    media_video: integer('media_video_id').references(() => media.id, {
-      onDelete: 'set null',
-    }),
-    status_isFeatured: boolean('status_is_featured').default(false),
-    status_isNewItem: boolean('status_is_new_item').default(false),
-    status_isPopular: boolean('status_is_popular').default(false),
-    status_isRecommended: boolean('status_is_recommended').default(false),
-    status_displayOrder: numeric('status_display_order').default('0'),
-    metrics_averageRating: numeric('metrics_average_rating').default('0'),
-    metrics_totalReviews: numeric('metrics_total_reviews').default('0'),
-    metrics_totalOrders: numeric('metrics_total_orders').default('0'),
-    metrics_viewCount: numeric('metrics_view_count').default('0'),
-    metrics_popularityScore: numeric('metrics_popularity_score').default('0'),
-    metrics_reorderRate: numeric('metrics_reorder_rate').default('0'),
-    seo_metaTitle: varchar('seo_meta_title'),
-    seo_metaDescription: varchar('seo_meta_description'),
-    tags: jsonb('tags'),
-    notes: varchar('notes'),
+    isActive: boolean('is_active').default(true),
+    catalogVisibility: enum_products_catalog_visibility('catalog_visibility')
+      .notNull()
+      .default('visible'),
+    assign_to_all_vendor_merchants: boolean('assign_to_all_vendor_merchants').default(false),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    products_created_by_vendor_idx: index('products_created_by_vendor_idx').on(
+      columns.createdByVendor,
+    ),
+    products_created_by_merchant_idx: index('products_created_by_merchant_idx').on(
+      columns.createdByMerchant,
+    ),
+    products_parent_product_idx: index('products_parent_product_idx').on(columns.parentProduct),
+    products_sku_idx: uniqueIndex('products_sku_idx').on(columns.sku),
+    products_media_media_primary_image_idx: index('products_media_media_primary_image_idx').on(
+      columns.media_primaryImage,
+    ),
+  }),
+)
+
+export const products_rels = pgTable(
+  'products_rels',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order'),
+    parent: integer('parent_id').notNull(),
+    path: varchar('path').notNull(),
+    'product-categoriesID': integer('prod_categories_id'),
+  },
+  (columns) => ({
+    order: index('products_rels_order_idx').on(columns.order),
+    parentIdx: index('products_rels_parent_idx').on(columns.parent),
+    pathIdx: index('products_rels_path_idx').on(columns.path),
+    products_rels_prod_categories_id_idx: index('products_rels_prod_categories_id_idx').on(
+      columns['product-categoriesID'],
+    ),
+    parentFk: foreignKey({
+      columns: [columns['parent']],
+      foreignColumns: [products.id],
+      name: 'products_rels_parent_fk',
+    }).onDelete('cascade'),
+    'product-categoriesIdFk': foreignKey({
+      columns: [columns['product-categoriesID']],
+      foreignColumns: [prod_categories.id],
+      name: 'products_rels_product_categories_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const prod_attributes = pgTable(
+  'prod_attributes',
+  {
+    id: serial('id').primaryKey(),
+    name: varchar('name').notNull(),
+    slug: varchar('slug').notNull(),
+    type: enum_prod_attributes_type('type').notNull().default('select'),
+    is_active: boolean('is_active').default(true),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -976,20 +1086,9 @@ export const products = pgTable(
       .notNull(),
   },
   (columns) => ({
-    products_merchant_idx: index('products_merchant_idx').on(columns.merchant),
-    products_primary_category_idx: index('products_primary_category_idx').on(
-      columns.primaryCategory,
-    ),
-    products_slug_idx: uniqueIndex('products_slug_idx').on(columns.slug),
-    products_identification_identification_sku_idx: uniqueIndex(
-      'products_identification_identification_sku_idx',
-    ).on(columns.identification_sku),
-    products_media_media_primary_image_idx: index('products_media_media_primary_image_idx').on(
-      columns.media_primaryImage,
-    ),
-    products_media_media_video_idx: index('products_media_media_video_idx').on(columns.media_video),
-    products_updated_at_idx: index('products_updated_at_idx').on(columns.updatedAt),
-    products_created_at_idx: index('products_created_at_idx').on(columns.createdAt),
+    prod_attributes_slug_idx: uniqueIndex('prod_attributes_slug_idx').on(columns.slug),
+    prod_attributes_updated_at_idx: index('prod_attributes_updated_at_idx').on(columns.updatedAt),
+    prod_attributes_created_at_idx: index('prod_attributes_created_at_idx').on(columns.createdAt),
   }),
 )
 
@@ -997,22 +1096,397 @@ export const prod_attribute_terms = pgTable(
   'prod_attribute_terms',
   {
     id: serial('id').primaryKey(),
-    attribute_id: integer('attribute_id').notNull(),
+    attribute_id: integer('attribute_id_id')
+      .notNull()
+      .references(() => prod_attributes.id, {
+        onDelete: 'set null',
+      }),
     name: varchar('name').notNull(),
     slug: varchar('slug').notNull(),
     value: varchar('value'),
-    sort_order: integer('sort_order').default(0),
+    sort_order: numeric('sort_order').default('0'),
     is_active: boolean('is_active').default(true),
-    created_at: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
   },
   (columns) => ({
-    prod_attribute_terms_attribute_id_slug_idx: uniqueIndex('prod_attribute_terms_attribute_id_slug_idx').on(
+    prod_attribute_terms_attribute_id_idx: index('prod_attribute_terms_attribute_id_idx').on(
       columns.attribute_id,
-      columns.slug,
     ),
-    prod_attribute_terms_created_at_idx: index('prod_attribute_terms_created_at_idx').on(columns.created_at),
+    prod_attribute_terms_updated_at_idx: index('prod_attribute_terms_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    prod_attribute_terms_created_at_idx: index('prod_attribute_terms_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const prod_variations = pgTable(
+  'prod_variations',
+  {
+    id: serial('id').primaryKey(),
+    product_id: integer('product_id_id')
+      .notNull()
+      .references(() => products.id, {
+        onDelete: 'set null',
+      }),
+    name: varchar('name'),
+    short_description: varchar('short_description'),
+    image: integer('image_id').references(() => media.id, {
+      onDelete: 'set null',
+    }),
+    sku: varchar('sku'),
+    base_price: numeric('base_price'),
+    compare_at_price: numeric('compare_at_price'),
+    stock_quantity: numeric('stock_quantity').default('0'),
+    is_used_for_variations: boolean('is_used_for_variations').default(true),
+    is_visible: boolean('is_visible').default(true),
+    sort_order: numeric('sort_order').default('0'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    prod_variations_product_id_idx: index('prod_variations_product_id_idx').on(columns.product_id),
+    prod_variations_image_idx: index('prod_variations_image_idx').on(columns.image),
+    prod_variations_updated_at_idx: index('prod_variations_updated_at_idx').on(columns.updatedAt),
+    prod_variations_created_at_idx: index('prod_variations_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const prod_variation_values = pgTable(
+  'prod_variation_values',
+  {
+    id: serial('id').primaryKey(),
+    variation_id: integer('variation_id_id')
+      .notNull()
+      .references(() => prod_variations.id, {
+        onDelete: 'set null',
+      }),
+    attribute_id: integer('attribute_id_id')
+      .notNull()
+      .references(() => prod_attributes.id, {
+        onDelete: 'set null',
+      }),
+    term_id: integer('term_id_id')
+      .notNull()
+      .references(() => prod_attribute_terms.id, {
+        onDelete: 'set null',
+      }),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    prod_variation_values_variation_id_idx: index('prod_variation_values_variation_id_idx').on(
+      columns.variation_id,
+    ),
+    prod_variation_values_attribute_id_idx: index('prod_variation_values_attribute_id_idx').on(
+      columns.attribute_id,
+    ),
+    prod_variation_values_term_id_idx: index('prod_variation_values_term_id_idx').on(
+      columns.term_id,
+    ),
+    prod_variation_values_updated_at_idx: index('prod_variation_values_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    prod_variation_values_created_at_idx: index('prod_variation_values_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const prod_grouped_items = pgTable(
+  'prod_grouped_items',
+  {
+    id: serial('id').primaryKey(),
+    parent_product_id: integer('parent_product_id_id')
+      .notNull()
+      .references(() => products.id, {
+        onDelete: 'set null',
+      }),
+    child_product_id: integer('child_product_id_id')
+      .notNull()
+      .references(() => products.id, {
+        onDelete: 'set null',
+      }),
+    default_quantity: numeric('default_quantity').default('1'),
+    sort_order: numeric('sort_order').default('0'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    prod_grouped_items_parent_product_id_idx: index('prod_grouped_items_parent_product_id_idx').on(
+      columns.parent_product_id,
+    ),
+    prod_grouped_items_child_product_id_idx: index('prod_grouped_items_child_product_id_idx').on(
+      columns.child_product_id,
+    ),
+    prod_grouped_items_updated_at_idx: index('prod_grouped_items_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    prod_grouped_items_created_at_idx: index('prod_grouped_items_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const merchant_products = pgTable(
+  'merchant_products',
+  {
+    id: serial('id').primaryKey(),
+    merchant_id: integer('merchant_id_id')
+      .notNull()
+      .references(() => merchants.id, {
+        onDelete: 'set null',
+      }),
+    product_id: integer('product_id_id')
+      .notNull()
+      .references(() => products.id, {
+        onDelete: 'set null',
+      }),
+    added_by: enum_merchant_products_added_by('added_by'),
+    price_override: numeric('price_override'),
+    stock_quantity: numeric('stock_quantity').default('0'),
+    is_active: boolean('is_active').default(true),
+    is_available: boolean('is_available').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    merchant_products_merchant_id_idx: index('merchant_products_merchant_id_idx').on(
+      columns.merchant_id,
+    ),
+    merchant_products_product_id_idx: index('merchant_products_product_id_idx').on(
+      columns.product_id,
+    ),
+    merchant_products_updated_at_idx: index('merchant_products_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    merchant_products_created_at_idx: index('merchant_products_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const modifier_groups = pgTable(
+  'modifier_groups',
+  {
+    id: serial('id').primaryKey(),
+    product_id: integer('product_id_id')
+      .notNull()
+      .references(() => products.id, {
+        onDelete: 'set null',
+      }),
+    name: varchar('name').notNull(),
+    selection_type: enum_modifier_groups_selection_type('selection_type').notNull(),
+    is_required: boolean('is_required').default(false),
+    min_selections: numeric('min_selections').default('0'),
+    max_selections: numeric('max_selections'),
+    sort_order: numeric('sort_order').default('0'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    modifier_groups_product_id_idx: index('modifier_groups_product_id_idx').on(columns.product_id),
+    modifier_groups_updated_at_idx: index('modifier_groups_updated_at_idx').on(columns.updatedAt),
+    modifier_groups_created_at_idx: index('modifier_groups_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const modifier_options = pgTable(
+  'modifier_options',
+  {
+    id: serial('id').primaryKey(),
+    modifier_group_id: integer('modifier_group_id_id')
+      .notNull()
+      .references(() => modifier_groups.id, {
+        onDelete: 'set null',
+      }),
+    name: varchar('name').notNull(),
+    price_adjustment: numeric('price_adjustment').default('0'),
+    is_default: boolean('is_default').default(false),
+    is_available: boolean('is_available').default(true),
+    sort_order: numeric('sort_order').default('0'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    modifier_options_modifier_group_id_idx: index('modifier_options_modifier_group_id_idx').on(
+      columns.modifier_group_id,
+    ),
+    modifier_options_updated_at_idx: index('modifier_options_updated_at_idx').on(columns.updatedAt),
+    modifier_options_created_at_idx: index('modifier_options_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const prod_tags = pgTable(
+  'prod_tags',
+  {
+    id: serial('id').primaryKey(),
+    name: varchar('name').notNull(),
+    slug: varchar('slug').notNull(),
+    description: varchar('description'),
+    color: varchar('color'),
+    tag_type: enum_prod_tags_tag_type('tag_type').default('general'),
+    parent_tag_id: integer('parent_tag_id_id').references((): AnyPgColumn => prod_tags.id, {
+      onDelete: 'set null',
+    }),
+    usage_count: numeric('usage_count').default('0'),
+    is_active: boolean('is_active').default(true),
+    is_featured: boolean('is_featured').default(false),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    prod_tags_slug_idx: uniqueIndex('prod_tags_slug_idx').on(columns.slug),
+    prod_tags_parent_tag_id_idx: index('prod_tags_parent_tag_id_idx').on(columns.parent_tag_id),
+    prod_tags_updated_at_idx: index('prod_tags_updated_at_idx').on(columns.updatedAt),
+    prod_tags_created_at_idx: index('prod_tags_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const prod_tags_junction = pgTable(
+  'prod_tags_junction',
+  {
+    id: serial('id').primaryKey(),
+    product_id: integer('product_id_id')
+      .notNull()
+      .references(() => products.id, {
+        onDelete: 'set null',
+      }),
+    tag_id: integer('tag_id_id')
+      .notNull()
+      .references(() => prod_tags.id, {
+        onDelete: 'set null',
+      }),
+    added_by_type: enum_prod_tags_junction_added_by_type('added_by_type').notNull(),
+    added_by_vendor_id: integer('added_by_vendor_id_id').references(() => vendors.id, {
+      onDelete: 'set null',
+    }),
+    added_by_merchant_id: integer('added_by_merchant_id_id').references(() => merchants.id, {
+      onDelete: 'set null',
+    }),
+    priority: numeric('priority').default('0'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    prod_tags_junction_product_id_idx: index('prod_tags_junction_product_id_idx').on(
+      columns.product_id,
+    ),
+    prod_tags_junction_tag_id_idx: index('prod_tags_junction_tag_id_idx').on(columns.tag_id),
+    prod_tags_junction_added_by_vendor_id_idx: index(
+      'prod_tags_junction_added_by_vendor_id_idx',
+    ).on(columns.added_by_vendor_id),
+    prod_tags_junction_added_by_merchant_id_idx: index(
+      'prod_tags_junction_added_by_merchant_id_idx',
+    ).on(columns.added_by_merchant_id),
+    prod_tags_junction_updated_at_idx: index('prod_tags_junction_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    prod_tags_junction_created_at_idx: index('prod_tags_junction_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const tag_groups = pgTable(
+  'tag_groups',
+  {
+    id: serial('id').primaryKey(),
+    name: varchar('name').notNull(),
+    slug: varchar('slug').notNull(),
+    description: varchar('description'),
+    color: varchar('color'),
+    icon: varchar('icon'),
+    is_filterable: boolean('is_filterable').default(true),
+    is_searchable: boolean('is_searchable').default(true),
+    display_order: numeric('display_order').default('0'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    tag_groups_slug_idx: uniqueIndex('tag_groups_slug_idx').on(columns.slug),
+    tag_groups_updated_at_idx: index('tag_groups_updated_at_idx').on(columns.updatedAt),
+    tag_groups_created_at_idx: index('tag_groups_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const tag_group_memberships = pgTable(
+  'tag_group_memberships',
+  {
+    id: serial('id').primaryKey(),
+    tag_group_id: integer('tag_group_id_id')
+      .notNull()
+      .references(() => tag_groups.id, {
+        onDelete: 'set null',
+      }),
+    tag_id: integer('tag_id_id')
+      .notNull()
+      .references(() => prod_tags.id, {
+        onDelete: 'set null',
+      }),
+    sort_order: numeric('sort_order').default('0'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    tag_group_memberships_tag_group_id_idx: index('tag_group_memberships_tag_group_id_idx').on(
+      columns.tag_group_id,
+    ),
+    tag_group_memberships_tag_id_idx: index('tag_group_memberships_tag_id_idx').on(columns.tag_id),
+    tag_group_memberships_updated_at_idx: index('tag_group_memberships_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    tag_group_memberships_created_at_idx: index('tag_group_memberships_created_at_idx').on(
+      columns.createdAt,
+    ),
   }),
 )
 
@@ -1058,9 +1532,21 @@ export const payload_locked_documents_rels = pgTable(
     postsID: integer('posts_id'),
     vendorsID: integer('vendors_id'),
     merchantsID: integer('merchants_id'),
+    'merchant-categoriesID': integer('merchant_categories_id'),
     'product-categoriesID': integer('prod_categories_id'),
     productsID: integer('products_id'),
+    'prod-attributesID': integer('prod_attributes_id'),
     'prod-attribute-termsID': integer('prod_attribute_terms_id'),
+    'prod-variationsID': integer('prod_variations_id'),
+    'prod-variation-valuesID': integer('prod_variation_values_id'),
+    'prod-grouped-itemsID': integer('prod_grouped_items_id'),
+    'merchant-productsID': integer('merchant_products_id'),
+    'modifier-groupsID': integer('modifier_groups_id'),
+    'modifier-optionsID': integer('modifier_options_id'),
+    'prod-tagsID': integer('prod_tags_id'),
+    'prod-tags-junctionID': integer('prod_tags_junction_id'),
+    'tag-groupsID': integer('tag_groups_id'),
+    'tag-group-membershipsID': integer('tag_group_memberships_id'),
   },
   (columns) => ({
     order: index('payload_locked_documents_rels_order_idx').on(columns.order),
@@ -1096,15 +1582,51 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_merchants_id_idx: index(
       'payload_locked_documents_rels_merchants_id_idx',
     ).on(columns.merchantsID),
+    payload_locked_documents_rels_merchant_categories_id_idx: index(
+      'payload_locked_documents_rels_merchant_categories_id_idx',
+    ).on(columns['merchant-categoriesID']),
     payload_locked_documents_rels_prod_categories_id_idx: index(
       'payload_locked_documents_rels_prod_categories_id_idx',
     ).on(columns['product-categoriesID']),
     payload_locked_documents_rels_products_id_idx: index(
       'payload_locked_documents_rels_products_id_idx',
     ).on(columns.productsID),
+    payload_locked_documents_rels_prod_attributes_id_idx: index(
+      'payload_locked_documents_rels_prod_attributes_id_idx',
+    ).on(columns['prod-attributesID']),
     payload_locked_documents_rels_prod_attribute_terms_id_idx: index(
       'payload_locked_documents_rels_prod_attribute_terms_id_idx',
     ).on(columns['prod-attribute-termsID']),
+    payload_locked_documents_rels_prod_variations_id_idx: index(
+      'payload_locked_documents_rels_prod_variations_id_idx',
+    ).on(columns['prod-variationsID']),
+    payload_locked_documents_rels_prod_variation_values_id_idx: index(
+      'payload_locked_documents_rels_prod_variation_values_id_idx',
+    ).on(columns['prod-variation-valuesID']),
+    payload_locked_documents_rels_prod_grouped_items_id_idx: index(
+      'payload_locked_documents_rels_prod_grouped_items_id_idx',
+    ).on(columns['prod-grouped-itemsID']),
+    payload_locked_documents_rels_merchant_products_id_idx: index(
+      'payload_locked_documents_rels_merchant_products_id_idx',
+    ).on(columns['merchant-productsID']),
+    payload_locked_documents_rels_modifier_groups_id_idx: index(
+      'payload_locked_documents_rels_modifier_groups_id_idx',
+    ).on(columns['modifier-groupsID']),
+    payload_locked_documents_rels_modifier_options_id_idx: index(
+      'payload_locked_documents_rels_modifier_options_id_idx',
+    ).on(columns['modifier-optionsID']),
+    payload_locked_documents_rels_prod_tags_id_idx: index(
+      'payload_locked_documents_rels_prod_tags_id_idx',
+    ).on(columns['prod-tagsID']),
+    payload_locked_documents_rels_prod_tags_junction_id_idx: index(
+      'payload_locked_documents_rels_prod_tags_junction_id_idx',
+    ).on(columns['prod-tags-junctionID']),
+    payload_locked_documents_rels_tag_groups_id_idx: index(
+      'payload_locked_documents_rels_tag_groups_id_idx',
+    ).on(columns['tag-groupsID']),
+    payload_locked_documents_rels_tag_group_memberships_id_idx: index(
+      'payload_locked_documents_rels_tag_group_memberships_id_idx',
+    ).on(columns['tag-group-membershipsID']),
     parentFk: foreignKey({
       columns: [columns['parent']],
       foreignColumns: [payload_locked_documents.id],
@@ -1160,6 +1682,11 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [merchants.id],
       name: 'payload_locked_documents_rels_merchants_fk',
     }).onDelete('cascade'),
+    'merchant-categoriesIdFk': foreignKey({
+      columns: [columns['merchant-categoriesID']],
+      foreignColumns: [merchant_categories.id],
+      name: 'payload_locked_documents_rels_merchant_categories_fk',
+    }).onDelete('cascade'),
     'product-categoriesIdFk': foreignKey({
       columns: [columns['product-categoriesID']],
       foreignColumns: [prod_categories.id],
@@ -1170,10 +1697,65 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [products.id],
       name: 'payload_locked_documents_rels_products_fk',
     }).onDelete('cascade'),
+    'prod-attributesIdFk': foreignKey({
+      columns: [columns['prod-attributesID']],
+      foreignColumns: [prod_attributes.id],
+      name: 'payload_locked_documents_rels_prod_attributes_fk',
+    }).onDelete('cascade'),
     'prod-attribute-termsIdFk': foreignKey({
       columns: [columns['prod-attribute-termsID']],
       foreignColumns: [prod_attribute_terms.id],
       name: 'payload_locked_documents_rels_prod_attribute_terms_fk',
+    }).onDelete('cascade'),
+    'prod-variationsIdFk': foreignKey({
+      columns: [columns['prod-variationsID']],
+      foreignColumns: [prod_variations.id],
+      name: 'payload_locked_documents_rels_prod_variations_fk',
+    }).onDelete('cascade'),
+    'prod-variation-valuesIdFk': foreignKey({
+      columns: [columns['prod-variation-valuesID']],
+      foreignColumns: [prod_variation_values.id],
+      name: 'payload_locked_documents_rels_prod_variation_values_fk',
+    }).onDelete('cascade'),
+    'prod-grouped-itemsIdFk': foreignKey({
+      columns: [columns['prod-grouped-itemsID']],
+      foreignColumns: [prod_grouped_items.id],
+      name: 'payload_locked_documents_rels_prod_grouped_items_fk',
+    }).onDelete('cascade'),
+    'merchant-productsIdFk': foreignKey({
+      columns: [columns['merchant-productsID']],
+      foreignColumns: [merchant_products.id],
+      name: 'payload_locked_documents_rels_merchant_products_fk',
+    }).onDelete('cascade'),
+    'modifier-groupsIdFk': foreignKey({
+      columns: [columns['modifier-groupsID']],
+      foreignColumns: [modifier_groups.id],
+      name: 'payload_locked_documents_rels_modifier_groups_fk',
+    }).onDelete('cascade'),
+    'modifier-optionsIdFk': foreignKey({
+      columns: [columns['modifier-optionsID']],
+      foreignColumns: [modifier_options.id],
+      name: 'payload_locked_documents_rels_modifier_options_fk',
+    }).onDelete('cascade'),
+    'prod-tagsIdFk': foreignKey({
+      columns: [columns['prod-tagsID']],
+      foreignColumns: [prod_tags.id],
+      name: 'payload_locked_documents_rels_prod_tags_fk',
+    }).onDelete('cascade'),
+    'prod-tags-junctionIdFk': foreignKey({
+      columns: [columns['prod-tags-junctionID']],
+      foreignColumns: [prod_tags_junction.id],
+      name: 'payload_locked_documents_rels_prod_tags_junction_fk',
+    }).onDelete('cascade'),
+    'tag-groupsIdFk': foreignKey({
+      columns: [columns['tag-groupsID']],
+      foreignColumns: [tag_groups.id],
+      name: 'payload_locked_documents_rels_tag_groups_fk',
+    }).onDelete('cascade'),
+    'tag-group-membershipsIdFk': foreignKey({
+      columns: [columns['tag-group-membershipsID']],
+      foreignColumns: [tag_group_memberships.id],
+      name: 'payload_locked_documents_rels_tag_group_memberships_fk',
     }).onDelete('cascade'),
   }),
 )
@@ -1254,6 +1836,16 @@ export const payload_migrations = pgTable(
   }),
 )
 
+export const relations_users_reset_password_tokens = relations(
+  users_reset_password_tokens,
+  ({ one }) => ({
+    _parentID: one(users, {
+      fields: [users_reset_password_tokens._parentID],
+      references: [users.id],
+      relationName: 'resetPasswordTokens',
+    }),
+  }),
+)
 export const relations_users_sessions = relations(users_sessions, ({ one }) => ({
   _parentID: one(users, {
     fields: [users_sessions._parentID],
@@ -1266,6 +1858,9 @@ export const relations_users = relations(users, ({ one, many }) => ({
     fields: [users.profilePicture],
     references: [media.id],
     relationName: 'profilePicture',
+  }),
+  resetPasswordTokens: many(users_reset_password_tokens, {
+    relationName: 'resetPasswordTokens',
   }),
   sessions: many(users_sessions, {
     relationName: 'sessions',
@@ -1388,7 +1983,19 @@ export const relations_vendors = relations(vendors, ({ one }) => ({
     relationName: 'logo',
   }),
 }))
-export const relations_merchants = relations(merchants, ({ one }) => ({
+export const relations_merchants_rels = relations(merchants_rels, ({ one }) => ({
+  parent: one(merchants, {
+    fields: [merchants_rels.parent],
+    references: [merchants.id],
+    relationName: '_rels',
+  }),
+  'merchant-categoriesID': one(merchant_categories, {
+    fields: [merchants_rels['merchant-categoriesID']],
+    references: [merchant_categories.id],
+    relationName: 'merchant-categories',
+  }),
+}))
+export const relations_merchants = relations(merchants, ({ one, many }) => ({
   vendor: one(vendors, {
     fields: [merchants.vendor],
     references: [vendors.id],
@@ -1408,6 +2015,16 @@ export const relations_merchants = relations(merchants, ({ one }) => ({
     fields: [merchants.activeAddress],
     references: [addresses.id],
     relationName: 'activeAddress',
+  }),
+  _rels: many(merchants_rels, {
+    relationName: '_rels',
+  }),
+}))
+export const relations_merchant_categories = relations(merchant_categories, ({ one }) => ({
+  icon: one(media, {
+    fields: [merchant_categories.icon],
+    references: [media.id],
+    relationName: 'icon',
   }),
 }))
 export const relations_prod_categories = relations(prod_categories, ({ one }) => ({
@@ -1432,26 +2049,173 @@ export const relations_prod_categories = relations(prod_categories, ({ one }) =>
     relationName: 'media_thumbnailImage',
   }),
 }))
-export const relations_products = relations(products, ({ one }) => ({
-  merchant: one(merchants, {
-    fields: [products.merchant],
-    references: [merchants.id],
-    relationName: 'merchant',
+export const relations_products_media_images = relations(products_media_images, ({ one }) => ({
+  _parentID: one(products, {
+    fields: [products_media_images._parentID],
+    references: [products.id],
+    relationName: 'media_images',
   }),
-  primaryCategory: one(prod_categories, {
-    fields: [products.primaryCategory],
+  image: one(media, {
+    fields: [products_media_images.image],
+    references: [media.id],
+    relationName: 'image',
+  }),
+}))
+export const relations_products_rels = relations(products_rels, ({ one }) => ({
+  parent: one(products, {
+    fields: [products_rels.parent],
+    references: [products.id],
+    relationName: '_rels',
+  }),
+  'product-categoriesID': one(prod_categories, {
+    fields: [products_rels['product-categoriesID']],
     references: [prod_categories.id],
-    relationName: 'primaryCategory',
+    relationName: 'product-categories',
+  }),
+}))
+export const relations_products = relations(products, ({ one, many }) => ({
+  createdByVendor: one(vendors, {
+    fields: [products.createdByVendor],
+    references: [vendors.id],
+    relationName: 'createdByVendor',
+  }),
+  createdByMerchant: one(merchants, {
+    fields: [products.createdByMerchant],
+    references: [merchants.id],
+    relationName: 'createdByMerchant',
+  }),
+  parentProduct: one(products, {
+    fields: [products.parentProduct],
+    references: [products.id],
+    relationName: 'parentProduct',
   }),
   media_primaryImage: one(media, {
     fields: [products.media_primaryImage],
     references: [media.id],
     relationName: 'media_primaryImage',
   }),
-  media_video: one(media, {
-    fields: [products.media_video],
+  media_images: many(products_media_images, {
+    relationName: 'media_images',
+  }),
+  _rels: many(products_rels, {
+    relationName: '_rels',
+  }),
+}))
+export const relations_prod_attributes = relations(prod_attributes, () => ({}))
+export const relations_prod_attribute_terms = relations(prod_attribute_terms, ({ one }) => ({
+  attribute_id: one(prod_attributes, {
+    fields: [prod_attribute_terms.attribute_id],
+    references: [prod_attributes.id],
+    relationName: 'attribute_id',
+  }),
+}))
+export const relations_prod_variations = relations(prod_variations, ({ one }) => ({
+  product_id: one(products, {
+    fields: [prod_variations.product_id],
+    references: [products.id],
+    relationName: 'product_id',
+  }),
+  image: one(media, {
+    fields: [prod_variations.image],
     references: [media.id],
-    relationName: 'media_video',
+    relationName: 'image',
+  }),
+}))
+export const relations_prod_variation_values = relations(prod_variation_values, ({ one }) => ({
+  variation_id: one(prod_variations, {
+    fields: [prod_variation_values.variation_id],
+    references: [prod_variations.id],
+    relationName: 'variation_id',
+  }),
+  attribute_id: one(prod_attributes, {
+    fields: [prod_variation_values.attribute_id],
+    references: [prod_attributes.id],
+    relationName: 'attribute_id',
+  }),
+  term_id: one(prod_attribute_terms, {
+    fields: [prod_variation_values.term_id],
+    references: [prod_attribute_terms.id],
+    relationName: 'term_id',
+  }),
+}))
+export const relations_prod_grouped_items = relations(prod_grouped_items, ({ one }) => ({
+  parent_product_id: one(products, {
+    fields: [prod_grouped_items.parent_product_id],
+    references: [products.id],
+    relationName: 'parent_product_id',
+  }),
+  child_product_id: one(products, {
+    fields: [prod_grouped_items.child_product_id],
+    references: [products.id],
+    relationName: 'child_product_id',
+  }),
+}))
+export const relations_merchant_products = relations(merchant_products, ({ one }) => ({
+  merchant_id: one(merchants, {
+    fields: [merchant_products.merchant_id],
+    references: [merchants.id],
+    relationName: 'merchant_id',
+  }),
+  product_id: one(products, {
+    fields: [merchant_products.product_id],
+    references: [products.id],
+    relationName: 'product_id',
+  }),
+}))
+export const relations_modifier_groups = relations(modifier_groups, ({ one }) => ({
+  product_id: one(products, {
+    fields: [modifier_groups.product_id],
+    references: [products.id],
+    relationName: 'product_id',
+  }),
+}))
+export const relations_modifier_options = relations(modifier_options, ({ one }) => ({
+  modifier_group_id: one(modifier_groups, {
+    fields: [modifier_options.modifier_group_id],
+    references: [modifier_groups.id],
+    relationName: 'modifier_group_id',
+  }),
+}))
+export const relations_prod_tags = relations(prod_tags, ({ one }) => ({
+  parent_tag_id: one(prod_tags, {
+    fields: [prod_tags.parent_tag_id],
+    references: [prod_tags.id],
+    relationName: 'parent_tag_id',
+  }),
+}))
+export const relations_prod_tags_junction = relations(prod_tags_junction, ({ one }) => ({
+  product_id: one(products, {
+    fields: [prod_tags_junction.product_id],
+    references: [products.id],
+    relationName: 'product_id',
+  }),
+  tag_id: one(prod_tags, {
+    fields: [prod_tags_junction.tag_id],
+    references: [prod_tags.id],
+    relationName: 'tag_id',
+  }),
+  added_by_vendor_id: one(vendors, {
+    fields: [prod_tags_junction.added_by_vendor_id],
+    references: [vendors.id],
+    relationName: 'added_by_vendor_id',
+  }),
+  added_by_merchant_id: one(merchants, {
+    fields: [prod_tags_junction.added_by_merchant_id],
+    references: [merchants.id],
+    relationName: 'added_by_merchant_id',
+  }),
+}))
+export const relations_tag_groups = relations(tag_groups, () => ({}))
+export const relations_tag_group_memberships = relations(tag_group_memberships, ({ one }) => ({
+  tag_group_id: one(tag_groups, {
+    fields: [tag_group_memberships.tag_group_id],
+    references: [tag_groups.id],
+    relationName: 'tag_group_id',
+  }),
+  tag_id: one(prod_tags, {
+    fields: [tag_group_memberships.tag_id],
+    references: [prod_tags.id],
+    relationName: 'tag_id',
   }),
 }))
 export const relations_payload_locked_documents_rels = relations(
@@ -1512,6 +2276,11 @@ export const relations_payload_locked_documents_rels = relations(
       references: [merchants.id],
       relationName: 'merchants',
     }),
+    'merchant-categoriesID': one(merchant_categories, {
+      fields: [payload_locked_documents_rels['merchant-categoriesID']],
+      references: [merchant_categories.id],
+      relationName: 'merchant-categories',
+    }),
     'product-categoriesID': one(prod_categories, {
       fields: [payload_locked_documents_rels['product-categoriesID']],
       references: [prod_categories.id],
@@ -1522,10 +2291,65 @@ export const relations_payload_locked_documents_rels = relations(
       references: [products.id],
       relationName: 'products',
     }),
+    'prod-attributesID': one(prod_attributes, {
+      fields: [payload_locked_documents_rels['prod-attributesID']],
+      references: [prod_attributes.id],
+      relationName: 'prod-attributes',
+    }),
     'prod-attribute-termsID': one(prod_attribute_terms, {
       fields: [payload_locked_documents_rels['prod-attribute-termsID']],
       references: [prod_attribute_terms.id],
       relationName: 'prod-attribute-terms',
+    }),
+    'prod-variationsID': one(prod_variations, {
+      fields: [payload_locked_documents_rels['prod-variationsID']],
+      references: [prod_variations.id],
+      relationName: 'prod-variations',
+    }),
+    'prod-variation-valuesID': one(prod_variation_values, {
+      fields: [payload_locked_documents_rels['prod-variation-valuesID']],
+      references: [prod_variation_values.id],
+      relationName: 'prod-variation-values',
+    }),
+    'prod-grouped-itemsID': one(prod_grouped_items, {
+      fields: [payload_locked_documents_rels['prod-grouped-itemsID']],
+      references: [prod_grouped_items.id],
+      relationName: 'prod-grouped-items',
+    }),
+    'merchant-productsID': one(merchant_products, {
+      fields: [payload_locked_documents_rels['merchant-productsID']],
+      references: [merchant_products.id],
+      relationName: 'merchant-products',
+    }),
+    'modifier-groupsID': one(modifier_groups, {
+      fields: [payload_locked_documents_rels['modifier-groupsID']],
+      references: [modifier_groups.id],
+      relationName: 'modifier-groups',
+    }),
+    'modifier-optionsID': one(modifier_options, {
+      fields: [payload_locked_documents_rels['modifier-optionsID']],
+      references: [modifier_options.id],
+      relationName: 'modifier-options',
+    }),
+    'prod-tagsID': one(prod_tags, {
+      fields: [payload_locked_documents_rels['prod-tagsID']],
+      references: [prod_tags.id],
+      relationName: 'prod-tags',
+    }),
+    'prod-tags-junctionID': one(prod_tags_junction, {
+      fields: [payload_locked_documents_rels['prod-tags-junctionID']],
+      references: [prod_tags_junction.id],
+      relationName: 'prod-tags-junction',
+    }),
+    'tag-groupsID': one(tag_groups, {
+      fields: [payload_locked_documents_rels['tag-groupsID']],
+      references: [tag_groups.id],
+      relationName: 'tag-groups',
+    }),
+    'tag-group-membershipsID': one(tag_group_memberships, {
+      fields: [payload_locked_documents_rels['tag-group-membershipsID']],
+      references: [tag_group_memberships.id],
+      relationName: 'tag-group-memberships',
     }),
   }),
 )
@@ -1578,8 +2402,14 @@ type DatabaseSchema = {
   enum_merchants_operational_status: typeof enum_merchants_operational_status
   enum_prod_categories_attributes_category_type: typeof enum_prod_categories_attributes_category_type
   enum_prod_categories_attributes_age_restriction: typeof enum_prod_categories_attributes_age_restriction
-  enum_products_dietary_spice_level: typeof enum_products_dietary_spice_level
-  enum_products_preparation_cooking_method: typeof enum_products_preparation_cooking_method
+  enum_products_product_type: typeof enum_products_product_type
+  enum_products_catalog_visibility: typeof enum_products_catalog_visibility
+  enum_prod_attributes_type: typeof enum_prod_attributes_type
+  enum_merchant_products_added_by: typeof enum_merchant_products_added_by
+  enum_modifier_groups_selection_type: typeof enum_modifier_groups_selection_type
+  enum_prod_tags_tag_type: typeof enum_prod_tags_tag_type
+  enum_prod_tags_junction_added_by_type: typeof enum_prod_tags_junction_added_by_type
+  users_reset_password_tokens: typeof users_reset_password_tokens
   users_sessions: typeof users_sessions
   users: typeof users
   customers: typeof customers
@@ -1594,14 +2424,30 @@ type DatabaseSchema = {
   _posts_v: typeof _posts_v
   vendors: typeof vendors
   merchants: typeof merchants
+  merchants_rels: typeof merchants_rels
+  merchant_categories: typeof merchant_categories
   prod_categories: typeof prod_categories
+  products_media_images: typeof products_media_images
   products: typeof products
+  products_rels: typeof products_rels
+  prod_attributes: typeof prod_attributes
   prod_attribute_terms: typeof prod_attribute_terms
+  prod_variations: typeof prod_variations
+  prod_variation_values: typeof prod_variation_values
+  prod_grouped_items: typeof prod_grouped_items
+  merchant_products: typeof merchant_products
+  modifier_groups: typeof modifier_groups
+  modifier_options: typeof modifier_options
+  prod_tags: typeof prod_tags
+  prod_tags_junction: typeof prod_tags_junction
+  tag_groups: typeof tag_groups
+  tag_group_memberships: typeof tag_group_memberships
   payload_locked_documents: typeof payload_locked_documents
   payload_locked_documents_rels: typeof payload_locked_documents_rels
   payload_preferences: typeof payload_preferences
   payload_preferences_rels: typeof payload_preferences_rels
   payload_migrations: typeof payload_migrations
+  relations_users_reset_password_tokens: typeof relations_users_reset_password_tokens
   relations_users_sessions: typeof relations_users_sessions
   relations_users: typeof relations_users
   relations_customers: typeof relations_customers
@@ -1615,9 +2461,25 @@ type DatabaseSchema = {
   relations__posts_v_version_tags: typeof relations__posts_v_version_tags
   relations__posts_v: typeof relations__posts_v
   relations_vendors: typeof relations_vendors
+  relations_merchants_rels: typeof relations_merchants_rels
   relations_merchants: typeof relations_merchants
+  relations_merchant_categories: typeof relations_merchant_categories
   relations_prod_categories: typeof relations_prod_categories
+  relations_products_media_images: typeof relations_products_media_images
+  relations_products_rels: typeof relations_products_rels
   relations_products: typeof relations_products
+  relations_prod_attributes: typeof relations_prod_attributes
+  relations_prod_attribute_terms: typeof relations_prod_attribute_terms
+  relations_prod_variations: typeof relations_prod_variations
+  relations_prod_variation_values: typeof relations_prod_variation_values
+  relations_prod_grouped_items: typeof relations_prod_grouped_items
+  relations_merchant_products: typeof relations_merchant_products
+  relations_modifier_groups: typeof relations_modifier_groups
+  relations_modifier_options: typeof relations_modifier_options
+  relations_prod_tags: typeof relations_prod_tags
+  relations_prod_tags_junction: typeof relations_prod_tags_junction
+  relations_tag_groups: typeof relations_tag_groups
+  relations_tag_group_memberships: typeof relations_tag_group_memberships
   relations_payload_locked_documents_rels: typeof relations_payload_locked_documents_rels
   relations_payload_locked_documents: typeof relations_payload_locked_documents
   relations_payload_preferences_rels: typeof relations_payload_preferences_rels

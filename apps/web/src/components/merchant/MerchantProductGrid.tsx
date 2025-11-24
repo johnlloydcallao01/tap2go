@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "@/components/ui/ImageWrapper";
+import SearchField from "@/components/ui/SearchField";
 import MerchantProductCategoriesCarousel from "@/components/merchant/MerchantProductCategoriesCarousel";
 
 type ProductCardItem = {
@@ -146,16 +147,7 @@ export default function MerchantProductGrid({ products, categories }: { products
   return (
     <div>
       <div className="mb-4 px-2.5">
-        <div className="relative flex items-center">
-          <input
-            type="text"
-            placeholder="Search menu"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full h-10 pl-10 pr-4 rounded-full border border-gray-300 bg-white shadow-sm focus:ring-2 focus:ring-[#eba236] focus:border-transparent"
-          />
-          <i className="fas fa-search absolute left-3 text-gray-400" />
-        </div>
+        <SearchField placeholder="Search menu" value={query} onChange={setQuery} />
       </div>
 
       {Array.isArray(categories) && categories.length > 0 && (
