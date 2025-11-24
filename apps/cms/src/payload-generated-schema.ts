@@ -36,7 +36,13 @@ export const enum_users_civil_status = pgEnum('enum_users_civil_status', [
   'widowed',
   'separated',
 ])
-export const enum_users_role = pgEnum('enum_users_role', ['admin', 'customer', 'service', 'vendor'])
+export const enum_users_role = pgEnum('enum_users_role', [
+  'admin',
+  'customer',
+  'service',
+  'vendor',
+  'driver',
+])
 export const enum_customers_current_level = pgEnum('enum_customers_current_level', [
   'beginner',
   'intermediate',
@@ -120,6 +126,18 @@ export const enum_merchants_operational_status = pgEnum('enum_merchants_operatio
   'busy',
   'temp_closed',
   'maintenance',
+])
+export const enum_drivers_status = pgEnum('enum_drivers_status', [
+  'offline',
+  'online',
+  'on_delivery',
+  'paused',
+])
+export const enum_drivers_vehicle_type = pgEnum('enum_drivers_vehicle_type', [
+  'bicycle',
+  'motorcycle',
+  'scooter',
+  'car',
 ])
 export const enum_prod_categories_attributes_category_type = pgEnum(
   'enum_prod_categories_attributes_category_type',
@@ -863,6 +881,84 @@ export const merchants_rels = pgTable(
   }),
 )
 
+export const drivers = pgTable(
+  'drivers',
+  {
+    id: serial('id').primaryKey(),
+    user: integer('user_id')
+      .notNull()
+      .references(() => users.id, {
+        onDelete: 'set null',
+      }),
+    status: enum_drivers_status('status').default('offline'),
+    isActive: boolean('is_active').default(true),
+    onboardingDate: timestamp('onboarding_date', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    licenseNumber: varchar('license_number').notNull(),
+    licenseExpiry: timestamp('license_expiry', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    vehicleType: enum_drivers_vehicle_type('vehicle_type'),
+    vehicleModel: varchar('vehicle_model'),
+    vehiclePlateNumber: varchar('vehicle_plate_number'),
+    vehicleColor: varchar('vehicle_color'),
+    ratingAverage: numeric('rating_average').default('0'),
+    totalDeliveries: numeric('total_deliveries').default('0'),
+    current_latitude: numeric('current_latitude'),
+    current_longitude: numeric('current_longitude'),
+    current_coordinates: jsonb('current_coordinates'),
+    preferred_service_radius_meters: numeric('preferred_service_radius_meters'),
+    service_area: jsonb('service_area'),
+    activeAddress: integer('active_address_id').references(() => addresses.id, {
+      onDelete: 'set null',
+    }),
+    driving_license_image: integer('driving_license_image_id').references(() => media.id, {
+      onDelete: 'set null',
+    }),
+    vehicle_registration_image: integer('vehicle_registration_image_id').references(
+      () => media.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    drivers_user_idx: uniqueIndex('drivers_user_idx').on(columns.user),
+    drivers_license_number_idx: uniqueIndex('drivers_license_number_idx').on(columns.licenseNumber),
+    drivers_vehicle_plate_number_idx: uniqueIndex('drivers_vehicle_plate_number_idx').on(
+      columns.vehiclePlateNumber,
+    ),
+    drivers_active_address_idx: index('drivers_active_address_idx').on(columns.activeAddress),
+    drivers_driving_license_image_idx: index('drivers_driving_license_image_idx').on(
+      columns.driving_license_image,
+    ),
+    drivers_vehicle_registration_image_idx: index('drivers_vehicle_registration_image_idx').on(
+      columns.vehicle_registration_image,
+    ),
+    drivers_updated_at_idx: index('drivers_updated_at_idx').on(columns.updatedAt),
+    drivers_created_at_idx: index('drivers_created_at_idx').on(columns.createdAt),
+    user_1_idx: index('user_1_idx').on(columns.user),
+    status_idx: index('status_idx').on(columns.status),
+    isActive_idx: index('isActive_idx').on(columns.isActive),
+    current_latitude_current_longitude_idx: index('current_latitude_current_longitude_idx').on(
+      columns.current_latitude,
+      columns.current_longitude,
+    ),
+    vehiclePlateNumber_idx: index('vehiclePlateNumber_idx').on(columns.vehiclePlateNumber),
+  }),
+)
+
 export const merchant_categories = pgTable(
   'merchant_categories',
   {
@@ -1532,6 +1628,7 @@ export const payload_locked_documents_rels = pgTable(
     postsID: integer('posts_id'),
     vendorsID: integer('vendors_id'),
     merchantsID: integer('merchants_id'),
+    driversID: integer('drivers_id'),
     'merchant-categoriesID': integer('merchant_categories_id'),
     'product-categoriesID': integer('prod_categories_id'),
     productsID: integer('products_id'),
@@ -1582,6 +1679,9 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_merchants_id_idx: index(
       'payload_locked_documents_rels_merchants_id_idx',
     ).on(columns.merchantsID),
+    payload_locked_documents_rels_drivers_id_idx: index(
+      'payload_locked_documents_rels_drivers_id_idx',
+    ).on(columns.driversID),
     payload_locked_documents_rels_merchant_categories_id_idx: index(
       'payload_locked_documents_rels_merchant_categories_id_idx',
     ).on(columns['merchant-categoriesID']),
@@ -1681,6 +1781,11 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns['merchantsID']],
       foreignColumns: [merchants.id],
       name: 'payload_locked_documents_rels_merchants_fk',
+    }).onDelete('cascade'),
+    driversIdFk: foreignKey({
+      columns: [columns['driversID']],
+      foreignColumns: [drivers.id],
+      name: 'payload_locked_documents_rels_drivers_fk',
     }).onDelete('cascade'),
     'merchant-categoriesIdFk': foreignKey({
       columns: [columns['merchant-categoriesID']],
@@ -2020,6 +2125,28 @@ export const relations_merchants = relations(merchants, ({ one, many }) => ({
     relationName: '_rels',
   }),
 }))
+export const relations_drivers = relations(drivers, ({ one }) => ({
+  user: one(users, {
+    fields: [drivers.user],
+    references: [users.id],
+    relationName: 'user',
+  }),
+  activeAddress: one(addresses, {
+    fields: [drivers.activeAddress],
+    references: [addresses.id],
+    relationName: 'activeAddress',
+  }),
+  driving_license_image: one(media, {
+    fields: [drivers.driving_license_image],
+    references: [media.id],
+    relationName: 'driving_license_image',
+  }),
+  vehicle_registration_image: one(media, {
+    fields: [drivers.vehicle_registration_image],
+    references: [media.id],
+    relationName: 'vehicle_registration_image',
+  }),
+}))
 export const relations_merchant_categories = relations(merchant_categories, ({ one }) => ({
   icon: one(media, {
     fields: [merchant_categories.icon],
@@ -2276,6 +2403,11 @@ export const relations_payload_locked_documents_rels = relations(
       references: [merchants.id],
       relationName: 'merchants',
     }),
+    driversID: one(drivers, {
+      fields: [payload_locked_documents_rels.driversID],
+      references: [drivers.id],
+      relationName: 'drivers',
+    }),
     'merchant-categoriesID': one(merchant_categories, {
       fields: [payload_locked_documents_rels['merchant-categoriesID']],
       references: [merchant_categories.id],
@@ -2400,6 +2532,8 @@ type DatabaseSchema = {
   enum_vendors_business_type: typeof enum_vendors_business_type
   enum_vendors_verification_status: typeof enum_vendors_verification_status
   enum_merchants_operational_status: typeof enum_merchants_operational_status
+  enum_drivers_status: typeof enum_drivers_status
+  enum_drivers_vehicle_type: typeof enum_drivers_vehicle_type
   enum_prod_categories_attributes_category_type: typeof enum_prod_categories_attributes_category_type
   enum_prod_categories_attributes_age_restriction: typeof enum_prod_categories_attributes_age_restriction
   enum_products_product_type: typeof enum_products_product_type
@@ -2425,6 +2559,7 @@ type DatabaseSchema = {
   vendors: typeof vendors
   merchants: typeof merchants
   merchants_rels: typeof merchants_rels
+  drivers: typeof drivers
   merchant_categories: typeof merchant_categories
   prod_categories: typeof prod_categories
   products_media_images: typeof products_media_images
@@ -2463,6 +2598,7 @@ type DatabaseSchema = {
   relations_vendors: typeof relations_vendors
   relations_merchants_rels: typeof relations_merchants_rels
   relations_merchants: typeof relations_merchants
+  relations_drivers: typeof relations_drivers
   relations_merchant_categories: typeof relations_merchant_categories
   relations_prod_categories: typeof relations_prod_categories
   relations_products_media_images: typeof relations_products_media_images

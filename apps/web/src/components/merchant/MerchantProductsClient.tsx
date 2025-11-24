@@ -103,7 +103,7 @@ export default function MerchantProductsClient({ merchantId }: { merchantId: str
         if (!active) return;
         const initialItems = items.filter((p) => p && p.name);
         setProducts(initialItems);
-        setCategories([{ id: 0, name: "All", slug: "all" }, ...uniqueCategories]);
+        setCategories([...uniqueCategories, { id: 0, name: "Uncategorized", slug: "uncategorized" }]);
         const currentPage = Number(data?.page ?? 1);
         const totalPages = Number(data?.totalPages ?? (data?.hasNextPage ? currentPage + 1 : currentPage));
         const nextPossible = Boolean(data?.hasNextPage ?? (currentPage < totalPages));
@@ -185,7 +185,7 @@ export default function MerchantProductsClient({ merchantId }: { merchantId: str
               byId.set(c.id, { id: c.id, name: c?.name, slug: c?.slug, media: { icon: c?.media?.icon } });
             }
           });
-          mergedCategories = Array.from(byId.values()).sort((a, b) => (a.id === 0 ? -1 : b.id === 0 ? 1 : 0));
+          mergedCategories = Array.from(byId.values()).sort((a, b) => (a.id === 0 ? 1 : b.id === 0 ? -1 : 0));
         }
       }
       const dedup = new Map<string | number, ProductCardItem>();

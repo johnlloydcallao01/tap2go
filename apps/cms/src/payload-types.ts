@@ -77,6 +77,7 @@ export interface Config {
     posts: Post;
     vendors: Vendor;
     merchants: Merchant;
+    drivers: Driver;
     'merchant-categories': MerchantCategory;
     'product-categories': ProductCategory;
     products: Product;
@@ -108,6 +109,7 @@ export interface Config {
     posts: PostsSelect<false> | PostsSelect<true>;
     vendors: VendorsSelect<false> | VendorsSelect<true>;
     merchants: MerchantsSelect<false> | MerchantsSelect<true>;
+    drivers: DriversSelect<false> | DriversSelect<true>;
     'merchant-categories': MerchantCategoriesSelect<false> | MerchantCategoriesSelect<true>;
     'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
@@ -206,7 +208,7 @@ export interface User {
   /**
    * User role determines access permissions. Service accounts are for API key authentication.
    */
-  role: 'admin' | 'customer' | 'service' | 'vendor';
+  role: 'admin' | 'customer' | 'service' | 'vendor' | 'driver';
   /**
    * Inactive users cannot log in
    */
@@ -1147,6 +1149,51 @@ export interface MerchantCategory {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "drivers".
+ */
+export interface Driver {
+  id: number;
+  user: number | User;
+  status?: ('offline' | 'online' | 'on_delivery' | 'paused') | null;
+  isActive?: boolean | null;
+  onboardingDate?: string | null;
+  licenseNumber: string;
+  licenseExpiry?: string | null;
+  vehicleType?: ('bicycle' | 'motorcycle' | 'scooter' | 'car') | null;
+  vehicleModel?: string | null;
+  vehiclePlateNumber?: string | null;
+  vehicleColor?: string | null;
+  ratingAverage?: number | null;
+  totalDeliveries?: number | null;
+  current_latitude?: number | null;
+  current_longitude?: number | null;
+  current_coordinates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  preferred_service_radius_meters?: number | null;
+  service_area?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  activeAddress?: (number | null) | Address;
+  driving_license_image?: (number | null) | Media;
+  vehicle_registration_image?: (number | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Organize products into hierarchical categories for easy browsing
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1729,6 +1776,10 @@ export interface PayloadLockedDocument {
         value: number | Merchant;
       } | null)
     | ({
+        relationTo: 'drivers';
+        value: number | Driver;
+      } | null)
+    | ({
         relationTo: 'merchant-categories';
         value: number | MerchantCategory;
       } | null)
@@ -2125,6 +2176,34 @@ export interface MerchantsSelect<T extends boolean = true> {
   delivery_hours?: T;
   is_currently_delivering?: T;
   next_available_slot?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "drivers_select".
+ */
+export interface DriversSelect<T extends boolean = true> {
+  user?: T;
+  status?: T;
+  isActive?: T;
+  onboardingDate?: T;
+  licenseNumber?: T;
+  licenseExpiry?: T;
+  vehicleType?: T;
+  vehicleModel?: T;
+  vehiclePlateNumber?: T;
+  vehicleColor?: T;
+  ratingAverage?: T;
+  totalDeliveries?: T;
+  current_latitude?: T;
+  current_longitude?: T;
+  current_coordinates?: T;
+  preferred_service_radius_meters?: T;
+  service_area?: T;
+  activeAddress?: T;
+  driving_license_image?: T;
+  vehicle_registration_image?: T;
   updatedAt?: T;
   createdAt?: T;
 }

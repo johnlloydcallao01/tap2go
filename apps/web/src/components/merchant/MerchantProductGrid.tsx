@@ -62,8 +62,10 @@ export default function MerchantProductGrid({ products, categories }: { products
     const orderedIds = Array.isArray(categories) ? categories.map((c) => c.id) : [];
     const result: { id: number; name: string; items: ProductCardItem[] }[] = [];
     orderedIds.forEach((cid) => {
-      const items = cid === 0 ? filteredProducts : filteredProducts.filter((p) => (p.categoryIds || []).includes(cid));
-      const name = cid === 0 ? "All" : categoryMap.get(cid)?.name || "Category";
+      const items = cid === 0
+        ? filteredProducts.filter((p) => !p.categoryIds || p.categoryIds.length === 0)
+        : filteredProducts.filter((p) => (p.categoryIds || []).includes(cid));
+      const name = cid === 0 ? "Uncategorized" : categoryMap.get(cid)?.name || "Category";
       result.push({ id: cid, name, items });
     });
     const others = filteredProducts.filter((p) => !p.categoryIds || p.categoryIds.length === 0);

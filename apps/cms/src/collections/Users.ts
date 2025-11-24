@@ -83,6 +83,18 @@ export const Users: CollectionConfig = {
             });
           }
 
+          const drivers = await payload.find({
+            collection: 'drivers',
+            where: { user: { equals: id } },
+          })
+
+          for (const driver of drivers.docs) {
+            await payload.delete({
+              collection: 'drivers',
+              id: driver.id,
+            })
+          }
+
           console.log(`✅ Successfully cleaned up related records for user ${id}`);
         } catch (error) {
           console.error(`❌ Error cleaning up related records for user ${id}:`, error);
@@ -202,6 +214,10 @@ export const Users: CollectionConfig = {
         {
           label: 'Vendor',
           value: 'vendor',
+        },
+        {
+          label: 'Driver',
+          value: 'driver',
         },
       ],
       defaultValue: 'customer',

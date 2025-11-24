@@ -32,6 +32,7 @@ import { Merchants } from './collections/Merchants'
 import { MerchantCategories } from './collections/MerchantCategories'
 import { ProductCategories } from './collections/ProductCategories'
 import { Products } from './collections/Products'
+import { Drivers } from './collections/Drivers'
 
 // Product Management Collections
 import { ProdAttributes } from './collections/ProdAttributes'
@@ -75,6 +76,7 @@ export default buildConfig({
     // Food Delivery System
     Vendors,
     Merchants,
+    Drivers,
     MerchantCategories,
     ProductCategories,
     Products,
