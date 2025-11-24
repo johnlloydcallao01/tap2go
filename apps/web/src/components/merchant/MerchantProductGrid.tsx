@@ -62,8 +62,9 @@ export default function MerchantProductGrid({ products, categories }: { products
     const orderedIds = Array.isArray(categories) ? categories.map((c) => c.id) : [];
     const result: { id: number; name: string; items: ProductCardItem[] }[] = [];
     orderedIds.forEach((cid) => {
-      const items = filteredProducts.filter((p) => (p.categoryIds || []).includes(cid));
-      result.push({ id: cid, name: categoryMap.get(cid)?.name || "Category", items });
+      const items = cid === 0 ? filteredProducts : filteredProducts.filter((p) => (p.categoryIds || []).includes(cid));
+      const name = cid === 0 ? "All" : categoryMap.get(cid)?.name || "Category";
+      result.push({ id: cid, name, items });
     });
     const others = filteredProducts.filter((p) => !p.categoryIds || p.categoryIds.length === 0);
     if (others.length > 0 && orderedIds.length === 0) {
@@ -73,11 +74,19 @@ export default function MerchantProductGrid({ products, categories }: { products
   }, [filteredProducts, categories, categoryMap]);
 
   React.useEffect(() => {
-    const initial: Record<number, number> = {};
-    groups.forEach((g) => {
-      if (g.id !== -1) initial[g.id] = Math.min(12, g.items.length);
+    setVisibleCounts((prev) => {
+      const next: Record<number, number> = { ...prev };
+      groups.forEach((g) => {
+        if (g.id === -1) return;
+        const current = next[g.id];
+        if (current == null) {
+          next[g.id] = Math.min(12, g.items.length);
+        } else {
+          next[g.id] = Math.min(current, g.items.length);
+        }
+      });
+      return next;
     });
-    setVisibleCounts(initial);
   }, [groups]);
 
   React.useEffect(() => {
@@ -168,9 +177,9 @@ export default function MerchantProductGrid({ products, categories }: { products
             return (
               <section key={g.id} ref={(el) => { if (el) sectionRefs.current.set(g.id, el); }} className="scroll-mt-[100px]">
                 <h3 className={`text-base md:text-lg font-semibold text-gray-900 mb-3 ${idx === 0 ? '' : 'pt-5'}`}>{g.name}</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 min-[1500px]:flex min-[1500px]:flex-wrap gap-4 min-[1500px]:gap-[1.5%]">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6 gap-x-4 gap-y-6">
                   {slice.map((p) => (
-                    <div key={p.id} className="bg-white rounded-lg shadow-sm overflow-hidden min-[1500px]:w-[15%] min-[1500px]:flex-none">
+                    <div key={p.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
                       <div className="relative aspect-square bg-gray-100">
                         {p.imageUrl ? (
                           <Image src={p.imageUrl} alt={p.name} fill className="object-cover" />

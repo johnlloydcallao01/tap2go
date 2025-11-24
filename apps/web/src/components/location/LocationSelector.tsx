@@ -8,7 +8,7 @@ import { AddressService } from '@/lib/services/address-service';
 import { useUser } from '@/hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { emitAddressChange } from '@/hooks/useAddressChange';
-import { AddressSkeleton } from '@/components/ui/Skeleton';
+import { AddressSkeleton, ListItemSkeleton } from '@/components/ui/Skeleton';
 
 interface LocationSelectorProps {
   onLocationSelect?: (location: google.maps.places.PlaceResult) => void;
@@ -422,9 +422,10 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Address</h3>
                   
                   {isLoadingAddresses ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
-                      <span className="ml-2 text-gray-600">Loading addresses...</span>
+                    <div className="space-y-2">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <ListItemSkeleton key={i} />
+                      ))}
                     </div>
                   ) : userAddresses.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
