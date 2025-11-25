@@ -2,6 +2,8 @@
 
 import React from "react";
 import Image from "@/components/ui/ImageWrapper";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import SearchField from "@/components/ui/SearchField";
 import MerchantProductCategoriesCarousel from "@/components/merchant/MerchantProductCategoriesCarousel";
 
@@ -29,6 +31,7 @@ export default function MerchantProductGrid({ products, categories }: { products
   const sectionRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
   const sentinelRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
   const [visibleCounts, setVisibleCounts] = React.useState<Record<number, number>>({});
+  const pathname = usePathname();
   const handleAddToCart = React.useCallback((p: ProductCardItem) => {
     try {
       if (typeof window !== "undefined") {
@@ -42,6 +45,23 @@ export default function MerchantProductGrid({ products, categories }: { products
     if (value == null) return null;
     return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(Number(value));
   };
+
+  const toSlug = (name: string | null | undefined): string => {
+    const base = String(name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+    return base || "item";
+  };
+
+  const merchantSlugId = React.useMemo(() => {
+    const p = String(pathname || "")
+    const parts = p.split("/").filter(Boolean)
+    const idx = parts.indexOf("merchant")
+    return idx >= 0 && parts[idx + 1] ? parts[idx + 1] : "";
+  }, [pathname]);
 
   const filteredProducts = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -180,47 +200,53 @@ export default function MerchantProductGrid({ products, categories }: { products
               <section key={g.id} ref={(el) => { if (el) sectionRefs.current.set(g.id, el); }} className="scroll-mt-[100px]">
                 <h3 className={`text-base md:text-lg font-semibold text-gray-900 mb-3 ${idx === 0 ? '' : 'pt-5'}`}>{g.name}</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6 gap-x-4 gap-y-6">
-                  {slice.map((p) => (
-                    <div key={p.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                      <div className="relative aspect-square bg-gray-100">
-                        {p.imageUrl ? (
-                          <Image src={p.imageUrl} alt={p.name} fill className="object-cover" />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-gray-400">No image</div>
-                        )}
-                        <button
-                          type="button"
-                          aria-label="Add to cart"
-                          onClick={() => handleAddToCart(p)}
-                          className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors"
-                        >
-                          <i className="fas fa-plus text-[12px]" style={{ color: "#333" }} />
-                        </button>
-                      </div>
-                      <div className="p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">{p.name}</h3>
-                        <div className="mt-1 flex items-center gap-2">
-                          {p.productType === "simple" ? (
-                            <>
-                              {formatPrice(p.basePrice) && (
-                                <span className="text-base font-bold text-gray-900">{formatPrice(p.basePrice)}</span>
-                              )}
-                              {formatPrice(p.compareAtPrice) && (p.compareAtPrice as number) > (p.basePrice ?? 0) && (
-                                <span className="text-sm text-gray-500 line-through">{formatPrice(p.compareAtPrice)}</span>
-                              )}
-                            </>
-                          ) : p.productType === "variable" ? (
-                            <span className="text-sm font-medium text-[#eba236]">Show Variations</span>
-                          ) : p.productType === "grouped" ? (
-                            <span className="text-sm font-medium text-[#eba236]">Show Grouped Items</span>
-                          ) : null}
+                  {slice.map((p) => {
+                    const slug = toSlug(p.name)
+                    const productSlugId = `${slug}-${p.id}`
+                    const href = merchantSlugId ? `/merchant/${merchantSlugId}/${productSlugId}` : `/merchant/${productSlugId}`
+                    const LinkComponent = Link as any
+                    return (
+                      <LinkComponent key={p.id} href={href} className="bg-white rounded-lg shadow-sm overflow-hidden block">
+                        <div className="relative aspect-square bg-gray-100">
+                          {p.imageUrl ? (
+                            <Image src={p.imageUrl} alt={p.name} fill className="object-cover" />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">No image</div>
+                          )}
+                          <button
+                            type="button"
+                            aria-label="Add to cart"
+                            onClick={(e) => { e.preventDefault(); handleAddToCart(p); }}
+                            className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors"
+                          >
+                            <i className="fas fa-plus text-[12px]" style={{ color: "#333" }} />
+                          </button>
                         </div>
-                        {p.shortDescription && (
-                          <p className="mt-2 text-xs text-gray-600 line-clamp-3">{p.shortDescription}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                        <div className="p-4">
+                          <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">{p.name}</h3>
+                          <div className="mt-1 flex items-center gap-2">
+                            {p.productType === "simple" ? (
+                              <>
+                                {formatPrice(p.basePrice) && (
+                                  <span className="text-base font-bold text-gray-900">{formatPrice(p.basePrice)}</span>
+                                )}
+                                {formatPrice(p.compareAtPrice) && (p.compareAtPrice as number) > (p.basePrice ?? 0) && (
+                                  <span className="text-sm text-gray-500 line-through">{formatPrice(p.compareAtPrice)}</span>
+                                )}
+                              </>
+                            ) : p.productType === "variable" ? (
+                              <span className="text-sm font-medium text-[#eba236]">Show Variations</span>
+                            ) : p.productType === "grouped" ? (
+                              <span className="text-sm font-medium text-[#eba236]">Show Grouped Items</span>
+                            ) : null}
+                          </div>
+                          {p.shortDescription && (
+                            <p className="mt-2 text-xs text-gray-600 line-clamp-3">{p.shortDescription}</p>
+                          )}
+                        </div>
+                      </LinkComponent>
+                    )
+                  })}
                 </div>
                 <div ref={(el) => { if (el) sentinelRefs.current.set(g.id, el); }} />
               </section>
