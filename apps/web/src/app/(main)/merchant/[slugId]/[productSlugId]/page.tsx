@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Image from '@/components/ui/ImageWrapper'
-import Link from 'next/link'
+import ProductBackButton from '@/components/ui/ProductBackButton'
 
 type RouteParams = { slugId?: string | string[]; productSlugId?: string | string[] }
 type PageProps = { params?: Promise<RouteParams> }
@@ -80,19 +80,11 @@ export default async function ProductPage({ params }: PageProps) {
   const compareAtPrice: number | null = product?.compareAtPrice ?? null
   const shortDescription: string | null = product?.shortDescription ?? null
 
-  const LinkComponent = Link as any
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="relative w-full aspect-[72/26] lg:aspect-[72/22]">
+      <div className="relative w-full aspect-[72/26] lg:aspect-[72/20]">
         <div className="absolute top-2 left-2 z-10">
-          {(() => {
-            const LinkComponent = Link as any;
-            return (
-              <LinkComponent href={`/merchant/${merchantSlugId}`} aria-label="Back" className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center">
-                <i className="fas fa-arrow-left text-[14px]" style={{ color: '#333' }}></i>
-              </LinkComponent>
-            );
-          })()}
+          <ProductBackButton fallbackHref={`/merchant/${merchantSlugId}`} />
         </div>
         {primaryImage ? (
           <Image src={primaryImage} alt={name} fill className="object-cover" priority />

@@ -7,6 +7,7 @@ import { HeaderProps } from '@/types';
 import { useUser, useLogout } from '@/hooks/useAuth';
 import { UserAvatar, UserInfo } from '@/components/auth';
 import { LocationSelector } from '@/components/location';
+import SearchModal from '@/components/search/SearchModal';
 
 /**
  * Header component with navigation, search, and user controls
@@ -26,6 +27,7 @@ export function Header({
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Authentication hooks
   const { user, displayName, initials, isAuthenticated } = useUser();
@@ -156,7 +158,7 @@ export function Header({
         {/* Right side - Icons grouped together professionally */}
         <div className="flex items-center space-x-3">
           {/* Search Icon */}
-          <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+          <button className="p-2 rounded-full hover:bg-gray-100 transition-colors" onClick={() => setIsSearchOpen(true)} aria-label="Open search">
             <i className="fa fa-search text-gray-600 text-lg"></i>
           </button>
 
@@ -343,6 +345,7 @@ export function Header({
         </div>
       </div>
     </header>
+    <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </>
   );
 }
