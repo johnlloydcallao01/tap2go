@@ -7,7 +7,6 @@ import SearchField from "@/components/ui/SearchField";
 export default function MobileStickyHeader() {
   const [bgAlpha, setBgAlpha] = useState(0);
   const [hideActions, setHideActions] = useState(false);
-  const [headerSearch, setHeaderSearch] = useState("");
   const router = useRouter();
 
   const handleBack = () => {
@@ -31,6 +30,7 @@ export default function MobileStickyHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+
   return (
     <div className="sticky top-0 left-0 right-0 z-50 lg:block lg:top-16">
       <div
@@ -50,8 +50,14 @@ export default function MobileStickyHeader() {
           <div className="flex-1 px-2">
             <SearchField
               placeholder="Search menu"
-              value={headerSearch}
-              onChange={setHeaderSearch}
+              value={""}
+              onChange={() => {}}
+              readOnly
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("merchant:open-search"));
+                }
+              }}
             />
           </div>
         )}

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SearchField from "@/components/ui/SearchField";
 import MerchantProductCategoriesCarousel from "@/components/merchant/MerchantProductCategoriesCarousel";
+import MerchantSearchModal from "@/components/merchant/MerchantSearchModal";
 
 type ProductCardItem = {
   id: string | number;
@@ -26,11 +27,11 @@ type MerchantCategoryDisplay = {
 };
 
 export default function MerchantProductGrid({ products, categories }: { products: ProductCardItem[]; categories?: MerchantCategoryDisplay[] }) {
-  const [query, setQuery] = React.useState("");
   const [selectedCategoryId, setSelectedCategoryId] = React.useState<number | null>(null);
   const sectionRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
   const sentinelRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
   const [visibleCounts, setVisibleCounts] = React.useState<Record<number, number>>({});
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const pathname = usePathname();
   const handleAddToCart = React.useCallback((p: ProductCardItem) => {
     try {
@@ -64,13 +65,8 @@ export default function MerchantProductGrid({ products, categories }: { products
   }, [pathname]);
 
   const filteredProducts = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return products.filter((p) => {
-      const n = (p.name || "").toLowerCase();
-      const d = (p.shortDescription || "").toLowerCase();
-      return !q || n.includes(q) || d.includes(q);
-    });
-  }, [products, query]);
+    return products;
+  }, [products]);
 
   const categoryMap = React.useMemo(() => {
     const m = new Map<number, MerchantCategoryDisplay>();
@@ -80,20 +76,42 @@ export default function MerchantProductGrid({ products, categories }: { products
 
   const groups = React.useMemo(() => {
     const orderedIds = Array.isArray(categories) ? categories.map((c) => c.id) : [];
+    const others = filteredProducts.filter((p) => !p.categoryIds || p.categoryIds.length === 0);
+    const hasUncategorized = others.length > 0;
     const result: { id: number; name: string; items: ProductCardItem[] }[] = [];
     orderedIds.forEach((cid) => {
+      const include = cid !== 0 || hasUncategorized;
+      if (!include) return;
       const items = cid === 0
-        ? filteredProducts.filter((p) => !p.categoryIds || p.categoryIds.length === 0)
+        ? others
         : filteredProducts.filter((p) => (p.categoryIds || []).includes(cid));
       const name = cid === 0 ? "Uncategorized" : categoryMap.get(cid)?.name || "Category";
       result.push({ id: cid, name, items });
     });
-    const others = filteredProducts.filter((p) => !p.categoryIds || p.categoryIds.length === 0);
     if (others.length > 0 && orderedIds.length === 0) {
       result.push({ id: -1, name: "Items", items: others });
     }
     return result;
   }, [filteredProducts, categories, categoryMap]);
+
+  const displayCategories = React.useMemo(() => {
+    const others = filteredProducts.filter((p) => !p.categoryIds || p.categoryIds.length === 0);
+    const hasUncategorized = others.length > 0;
+    return (categories || []).filter((c) => c.id !== 0 || hasUncategorized);
+  }, [categories, filteredProducts]);
+
+  React.useEffect(() => {
+    const onOpenSearch = () => setIsSearchOpen(true);
+    if (typeof window !== "undefined") {
+      window.addEventListener("merchant:open-search", onOpenSearch as any);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("merchant:open-search", onOpenSearch as any);
+      }
+    };
+  }, []);
+
 
   React.useEffect(() => {
     setVisibleCounts((prev) => {
@@ -177,14 +195,20 @@ export default function MerchantProductGrid({ products, categories }: { products
 
   return (
     <div>
+      <MerchantSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        products={products}
+        categories={(categories || []).map((c) => ({ id: c.id, name: c.name, slug: c.slug }))}
+      />
       <div className="mb-4 px-2.5">
-        <SearchField placeholder="Search menu" value={query} onChange={setQuery} />
+        <SearchField placeholder="Search menu" value={""} onChange={() => {}} readOnly onClick={() => setIsSearchOpen(true)} />
       </div>
 
-      {Array.isArray(categories) && categories.length > 0 && (
+      {Array.isArray(displayCategories) && displayCategories.length > 0 && (
         <div className="mb-4 px-2.5 sticky top-[45px] lg:top-[105px] z-40 bg-white">
           <MerchantProductCategoriesCarousel
-            categories={categories}
+            categories={displayCategories}
             activeCategoryId={selectedCategoryId}
             onSelect={(id) => scrollToCategory(id)}
           />

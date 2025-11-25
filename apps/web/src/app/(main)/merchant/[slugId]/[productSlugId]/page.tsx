@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Image from '@/components/ui/ImageWrapper'
-import ProductBackButton from '@/components/ui/ProductBackButton'
+import ProductStickyHeader from '@/components/merchant/ProductStickyHeader'
 
 type RouteParams = { slugId?: string | string[]; productSlugId?: string | string[] }
 type PageProps = { params?: Promise<RouteParams> }
@@ -82,10 +82,8 @@ export default async function ProductPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="relative w-full aspect-[72/26] lg:aspect-[72/20]">
-        <div className="absolute top-2 left-2 z-10">
-          <ProductBackButton fallbackHref={`/merchant/${merchantSlugId}`} />
-        </div>
+      <ProductStickyHeader fallbackHref={`/merchant/${merchantSlugId}`} />
+      <div className="relative w-full aspect-[72/26] lg:aspect-[72/20] -mt-12 lg:-mt-12">
         {primaryImage ? (
           <Image src={primaryImage} alt={name} fill className="object-cover" priority />
         ) : (
