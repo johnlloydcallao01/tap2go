@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from "@/components/ui/ImageWrapper";
 import { useRouter, usePathname } from 'next/navigation';
 import { HeaderProps } from '@/types';
@@ -8,6 +8,11 @@ import { useUser, useLogout } from '@/hooks/useAuth';
 import { UserAvatar, UserInfo } from '@/components/auth';
 import { LocationSelector } from '@/components/location';
 import SearchModal from '@/components/search/SearchModal';
+import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
+import SearchField from '@/components/ui/SearchField';
+import AddressService from '@/lib/services/address-service';
+import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, type LocationBasedMerchant } from '@/lib/client-services/location-based-merchant-service';
+import { getLocationBasedProductCategories, type LocationBasedProductCategory } from '@/lib/client-services/location-based-product-categories-service';
 
 /**
  * Header component with navigation, search, and user controls
@@ -28,6 +33,33 @@ export function Header({
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRootRef = useRef<HTMLDivElement>(null);
+  const searchFormRef = useRef<HTMLFormElement>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [categories, setCategories] = useState<LocationBasedProductCategory[]>([]);
+  const [matchedCategory, setMatchedCategory] = useState<LocationBasedProductCategory | null>(null);
+  const [categoryMerchants, setCategoryMerchants] = useState<LocationBasedMerchant[]>([]);
+  const [isCategoryLoading, setIsCategoryLoading] = useState(false);
+  const [hasCommittedSearch, setHasCommittedSearch] = useState(false);
+  const [serverRecentQueries, setServerRecentQueries] = useState<string[]>([]);
+  const [activeAddressName, setActiveAddressName] = useState<string | null>(null);
+  const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
+  const [productMatchedMerchants, setProductMatchedMerchants] = useState<LocationBasedMerchant[]>([]);
+  type Suggestion = { text: string; source: 'merchant' | 'category' | 'product' | 'tag' };
+  const [isProductLoading, setIsProductLoading] = useState(false);
+
+  const normalizeQuery = useCallback((input: string): string => {
+    let q = (input || '').toLowerCase().trim();
+    if (!q) return '';
+    if (q.includes(' near me')) q = q.replace(' near me', '').trim();
+    const idx = q.indexOf(' in ');
+    if (idx > -1) q = q.slice(0, idx).trim();
+    q = q.replace(/\s+/g, ' ').trim();
+    return q;
+  }, []);
 
   // Authentication hooks
   const { user, displayName, initials, isAuthenticated } = useUser();
@@ -70,6 +102,18 @@ export function Header({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  const recentList = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    serverRecentQueries.forEach((t) => {
+      const k = t.trim().toLowerCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      out.push(t.trim());
+    });
+    return out.slice(0, 10);
+  }, [serverRecentQueries]);
 
   // Authentication removed - no logout functionality
 
@@ -130,11 +174,200 @@ export function Header({
     };
   }, [lastScrollY]);
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const root = dropdownRootRef.current;
+      const formEl = searchFormRef.current;
+      const target = e.target as Node;
+      if (root && root.contains(target)) return;
+      if (formEl && formEl.contains(target)) return;
+      setIsDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setIsLoading(true);
+      const cid = await getCustomerIdForMerchants();
+      if (!active) return;
+      setCustomerId(cid);
+      if (cid) {
+        const [list, cats] = await Promise.all([
+          getLocationBasedMerchants({ customerId: cid, limit: 24 }),
+          getLocationBasedProductCategories({ customerId: cid, limit: 100, sortBy: 'name' })
+        ]);
+        if (!active) return;
+        setMerchants(list || []);
+        setCategories(cats || []);
+      } else {
+        setMerchants([]);
+        setCategories([]);
+      }
+      setIsLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
+      const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
+      if (!userId) { setServerRecentQueries([]); return; }
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+      const url = `${API_BASE}/recent-searches?where[user][equals]=${encodeURIComponent(String(userId))}&where[scope][equals]=restaurants&sort=-updatedAt&limit=10`;
+      const res = await fetch(url, { headers });
+      if (!res.ok) { setServerRecentQueries([]); return; }
+      const data = await res.json();
+      const docs = Array.isArray(data?.docs) ? data.docs : [];
+      const queries: string[] = docs.map((d: any) => (d?.query || '')).filter((v) => typeof v === 'string' && v.trim().length > 0);
+      if (!cancelled) setServerRecentQueries(queries);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const q = normalizeQuery(searchQuery);
+      if (!q) { setProductSuggestions([]); return; }
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+      try {
+        const url = `${API_BASE}/products?where[name][contains]=${encodeURIComponent(q)}&limit=12&depth=0`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) { setProductSuggestions([]); return; }
+        const data = await res.json();
+        const docs = Array.isArray(data?.docs) ? data.docs : Array.isArray(data) ? data : [];
+        const names: string[] = docs.map((p: any) => p?.name).filter((n: any) => typeof n === 'string' && n.trim().length > 0);
+        const uniq: string[] = Array.from(new Set(names.map((n) => n.trim())));
+        if (!cancelled) setProductSuggestions(uniq.slice(0, 12));
+      } catch {
+        if (!cancelled) setProductSuggestions([]);
+      }
+    };
+    const t = setTimeout(run, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [searchQuery, normalizeQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setIsProductLoading(true);
+      if (!hasCommittedSearch) { setProductMatchedMerchants([]); setIsProductLoading(false); return; }
+      const q = normalizeQuery(searchQuery);
+      if (!q) { setProductMatchedMerchants([]); setIsProductLoading(false); return; }
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+      try {
+        const pUrl = `${API_BASE}/products?where[name][contains]=${encodeURIComponent(q)}&limit=50&depth=0`;
+        const pRes = await fetch(pUrl, { headers });
+        if (!pRes.ok) { setProductMatchedMerchants([]); setIsProductLoading(false); return; }
+        const pData = await pRes.json();
+        const pDocs = Array.isArray(pData?.docs) ? pData.docs : Array.isArray(pData) ? pData : [];
+        const pIds: (string | number)[] = pDocs.map((p: any) => p?.id).filter((id: any) => typeof id === 'number' || typeof id === 'string');
+        if (pIds.length === 0) { setProductMatchedMerchants([]); setIsProductLoading(false); return; }
+        const mpUrl = `${API_BASE}/merchant-products?where[product_id][in]=${pIds.join(',')}&where[is_active][equals]=true&where[is_available][equals]=true&limit=${Math.max(200, pIds.length * 10)}&depth=0`;
+        const mpRes = await fetch(mpUrl, { headers });
+        if (!mpRes.ok) { setProductMatchedMerchants([]); setIsProductLoading(false); return; }
+        const mpData = await mpRes.json();
+        const mpDocs = Array.isArray(mpData?.docs) ? mpData.docs : Array.isArray(mpData) ? mpData : [];
+        const mIds = mpDocs.map((d: any) => {
+          const val = d?.merchant_id;
+          if (val && typeof val === 'object' && val.id != null) return val.id;
+          return val;
+        }).filter((id: any) => typeof id === 'number' || typeof id === 'string');
+        const idSet = new Set<string>(mIds.map((x: any) => String(x)));
+        const matched = (merchants || []).filter((m) => idSet.has(String((m as any).id)));
+        if (!cancelled) { setProductMatchedMerchants(matched); setIsProductLoading(false); }
+      } catch {
+        if (!cancelled) { setProductMatchedMerchants([]); setIsProductLoading(false); }
+      }
+    };
+    const t = setTimeout(run, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [hasCommittedSearch, searchQuery, merchants, normalizeQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
+        const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
+        if (!userId) return;
+        const res = await AddressService.getActiveAddress(userId);
+        if (!cancelled && res?.success && res.address?.formatted_address) {
+          setActiveAddressName(res.address.formatted_address);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length === 0) setHasCommittedSearch(false);
+  }, [searchQuery]);
+
+
+  const commitSearch = useCallback((val?: string) => {
+    const v = (val ?? searchQuery).trim();
+    if (!v) return;
+    setIsProductLoading(true);
+    setHasCommittedSearch(true);
+    setServerRecentQueries((prev) => {
+      const list = [v, ...prev];
+      const seen = new Set<string>();
+      const dedup: string[] = [];
+      for (const t of list) {
+        const k = String(t).trim().toLowerCase();
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        dedup.push(String(t).trim());
+      }
+      return dedup.slice(0, 10);
+    });
+    (async () => {
+      try {
+        const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
+        const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
+        if (!userId) return;
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+        const scope = 'restaurants';
+        const normalized = normalizeQuery(v);
+        const compositeKey = `${userId}:${scope}:${normalized}`;
+        const body = JSON.stringify({ user: userId, query: v, scope, source: 'web', addressText: activeAddressName || undefined });
+        const res = await fetch(`${API_BASE}/recent-searches`, { method: 'POST', headers, body });
+        if (res.ok) return;
+        const existsUrl = `${API_BASE}/recent-searches?where[compositeKey][equals]=${encodeURIComponent(compositeKey)}&limit=1`;
+        const getRes = await fetch(existsUrl, { headers });
+        if (!getRes.ok) return;
+        const data = await getRes.json();
+        const id = data?.docs?.[0]?.id;
+        if (!id) return;
+        await fetch(`${API_BASE}/recent-searches/${id}`, { method: 'PATCH', headers, body: '{}' });
+      } catch {}
+    })();
+    if (onSearch) onSearch(v);
+  }, [searchQuery, onSearch, activeAddressName, normalizeQuery]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (onSearch) {
-      onSearch(searchQuery);
-    }
+    setIsDropdownOpen(true);
+    commitSearch();
   };
 
   return (
@@ -209,19 +442,159 @@ export function Header({
 
         {/* Center search - Desktop */}
         <div className="flex flex-1 max-w-2xl mx-8">
-          <form onSubmit={handleSearch} className="flex w-full">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                placeholder="Search"
+          <form onSubmit={handleSearch} className="flex w-full" ref={searchFormRef}>
+            <div className="flex-1 relative" ref={dropdownRootRef}>
+              <SearchField
+                placeholder="Search restaurants and foods"
                 value={searchQuery}
-                onChange={(e: any) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-l-full focus:outline-none focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                onChange={(v) => { setSearchQuery(v); setIsDropdownOpen(true); }}
+                onClick={() => setIsDropdownOpen(true)}
+                className=""
+                inputClassName="pl-10 pr-4 py-2 border border-gray-300 rounded-l-full rounded-r-none focus:outline-none focus:ring-0 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setIsDropdownOpen(true); commitSearch(); } }}
               />
+              {isDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+                  <div className="p-3 max-h-[70vh] overflow-y-auto">
+                    {searchQuery.trim().length === 0 ? (
+                      recentList.length > 0 ? (
+                        <div>
+                          <div className="text-sm text-gray-500 mb-2">Recent searches</div>
+                          <ul className="bg-white text-left">
+                            {recentList.map((text) => (
+                              <li key={text}>
+                                <button
+                                  onClick={() => { setSearchQuery(text); commitSearch(text); }}
+                                  className="w-full flex items-center gap-3 px-0 py-3 hover:bg-gray-50 text-gray-900 text-left"
+                                >
+                                  <i className="fas fa-history text-gray-400"></i>
+                                  <span className="flex-1">{text}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null
+                    ) : (
+                      !hasCommittedSearch ? (
+                        <div>
+                          <div className="text-sm text-gray-500 mb-2">Suggested searches</div>
+                          <ul className="bg-white text-left">
+                            {(() => {
+                              const q = searchQuery.trim();
+                              if (!q) return null;
+                              const lower = q.toLowerCase();
+                              const loc = activeAddressName ? ` in ${activeAddressName}` : '';
+                              const withLoc = (base: string) => [base, `${base} near me`, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
+                              const merchantMatches = (merchants || [])
+                                .filter((m) => {
+                                  const name = (m.outletName || '').toLowerCase();
+                                  const vendor = (m.vendor?.businessName || '').toLowerCase();
+                                  return name.includes(lower) || vendor.includes(lower);
+                                })
+                                .map((m) => (m.outletName || m.vendor?.businessName || '').trim())
+                                .filter((v) => v.length > 0);
+                              const categoryMatches = (categories || [])
+                                .filter((c) => (c.name || '').toLowerCase().includes(lower) || (c.slug || '').toLowerCase().includes(lower))
+                                .map((c) => c.name)
+                                .filter((v) => v && v.length > 0);
+                              const tagMatches = (() => {
+                                const set = new Set<string>();
+                                (merchants || []).forEach((m) => (m.tags || []).forEach((t) => {
+                                  const k = (t || '').trim();
+                                  if (!k) return;
+                                  if (k.toLowerCase().includes(lower)) set.add(k);
+                                }));
+                                return Array.from(set);
+                              })();
+                              const coll: Suggestion[] = [];
+                              merchantMatches.slice(0, 6).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'merchant' })));
+                              categoryMatches.slice(0, 6).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'category' })));
+                              productSuggestions.slice(0, 6).forEach((name) => coll.push({ text: name, source: 'product' }));
+                              tagMatches.slice(0, 4).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'tag' })));
+                              const seen = new Set<string>();
+                              const list = coll.filter((s) => {
+                                const k = s.text.toLowerCase();
+                                if (seen.has(k)) return false;
+                                seen.add(k);
+                                return true;
+                              }).slice(0, 12);
+                              return list.map((s) => (
+                                <li key={s.text}>
+                                  <button
+                                    onClick={() => { setSearchQuery(s.text); commitSearch(s.text); }}
+                                    className="w-full flex items-center gap-3 px-0 py-3 hover:bg-gray-50 text-gray-900 text-left"
+                                  >
+                                    <i className="fas fa-search text-gray-400"></i>
+                                    <div className="flex-1">
+                                      <div>{s.text}</div>
+                                      {s.source === 'product' && (
+                                        <div className="mt-1">
+                                          <span className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded">in Restaurants</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </button>
+                                </li>
+                              ));
+                            })()}
+                          </ul>
+                        </div>
+                      ) : (
+                        (() => {
+                          const q = normalizeQuery(searchQuery);
+                          const textMatches = (merchants || []).filter((m) => {
+                            const name = (m.outletName || '').toLowerCase();
+                            const vendor = (m.vendor?.businessName || '').toLowerCase();
+                            const desc = (m.description || '').toLowerCase();
+                            const tags = Array.isArray(m.tags) ? m.tags.join(' ').toLowerCase() : '';
+                            return name.includes(q) || vendor.includes(q) || desc.includes(q) || tags.includes(q);
+                          });
+                          const byId = new Map<string, LocationBasedMerchant>();
+                          for (const m of (categoryMerchants || [])) byId.set(m.id, m);
+                          for (const m of (productMatchedMerchants || [])) if (!byId.has(m.id)) byId.set(m.id, m);
+                          const combined: LocationBasedMerchant[] = [...(categoryMerchants || []), ...(productMatchedMerchants || [])];
+                          for (const m of textMatches) if (!byId.has(m.id)) combined.push(m);
+                          const isFetching = isLoading || isCategoryLoading || isProductLoading;
+                          if (combined.length === 0 && isFetching) {
+                            return (
+                              <div className="grid grid-cols-1 gap-6">
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                  <div key={i} className="animate-pulse flex items-center gap-4">
+                                    <div className="w-20 h-20 rounded-xl bg-gray-200" />
+                                    <div className="flex-1">
+                                      <div className="h-4 bg-gray-200 rounded w-2/3" />
+                                      <div className="mt-2 h-3 bg-gray-200 rounded w-1/2" />
+                                      <div className="mt-3 flex gap-2">
+                                        <div className="h-4 bg-gray-200 rounded w-16" />
+                                        <div className="h-4 bg-gray-200 rounded w-12" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+                          if (combined.length === 0) {
+                            return <div className="text-left text-gray-500">No matching merchants</div>;
+                          }
+                          return (
+                            <div className="grid grid-cols-1 gap-6">
+                              {combined.map((merchant) => (
+                                <LocationMerchantCard key={merchant.id} merchant={merchant} />
+                              ))}
+                            </div>
+                          );
+                        })()
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <button
               type="submit"
-              className="px-6 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-full hover:bg-gray-200 text-gray-700"
+              className="h-10 px-6 bg-gray-100 border border-l-0 border-gray-300 rounded-r-full hover:bg-gray-200 text-gray-700 flex items-center justify-center shadow-sm"
               aria-label="Search"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

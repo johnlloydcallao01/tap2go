@@ -24,7 +24,8 @@ export default function SearchModal({ isOpen, onClose }: Props) {
   const [categoryMerchants, setCategoryMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isCategoryLoading, setIsCategoryLoading] = useState(false);
   const [hasCommittedSearch, setHasCommittedSearch] = useState(false);
-  const [recentQueries, setRecentQueries] = useState<string[]>([]);
+  
+  const [serverRecentQueries, setServerRecentQueries] = useState<string[]>([]);
   const [activeAddressName, setActiveAddressName] = useState<string | null>(null);
   const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
   const [productMatchedMerchants, setProductMatchedMerchants] = useState<LocationBasedMerchant[]>([]);
@@ -69,17 +70,32 @@ export default function SearchModal({ isOpen, onClose }: Props) {
     };
   }, [isOpen, isMobile]);
 
+  
+
   useEffect(() => {
-    if (!isOpen) return;
-    try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('search_recent_queries') : null;
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) {
-          setRecentQueries(arr.slice(0, 10));
-        }
+    let cancelled = false;
+    (async () => {
+      if (!isOpen) return;
+      try {
+        const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
+        const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
+        if (!userId) { setServerRecentQueries([]); return; }
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+        const url = `${API_BASE}/recent-searches?where[user][equals]=${encodeURIComponent(String(userId))}&where[scope][equals]=restaurants&sort=-updatedAt&limit=10`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) { setServerRecentQueries([]); return; }
+        const data = await res.json();
+        const docs = Array.isArray(data?.docs) ? data.docs : [];
+        const queries: string[] = docs.map((d: any) => (d?.query || '')).filter((v) => typeof v === 'string' && v.trim().length > 0);
+        if (!cancelled) setServerRecentQueries(queries);
+      } catch {
+        if (!cancelled) setServerRecentQueries([]);
       }
-    } catch {}
+    })();
+    return () => { cancelled = true; };
   }, [isOpen]);
 
   useEffect(() => {
@@ -302,23 +318,50 @@ export default function SearchModal({ isOpen, onClose }: Props) {
     return list.slice(0, 12);
   }, [query, merchants, categories, productSuggestions, activeAddressName]);
 
-  const saveRecent = useCallback((val: string) => {
-    const trimmed = val.trim();
-    if (!trimmed) return;
-    const next = [trimmed, ...recentQueries.filter((r) => r.toLowerCase() !== trimmed.toLowerCase())].slice(0, 10);
-    setRecentQueries(next);
-    try {
-      if (typeof window !== 'undefined') localStorage.setItem('search_recent_queries', JSON.stringify(next));
-    } catch {}
-  }, [recentQueries]);
+  const recentList = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    serverRecentQueries.forEach((t) => {
+      const k = t.trim().toLowerCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      out.push(t.trim());
+    });
+    return out.slice(0, 10);
+  }, [serverRecentQueries]);
+
+  
 
   const commitSearch = useCallback((val?: string) => {
     const v = (val ?? query).trim();
     if (!v) return;
     setIsProductLoading(true);
     setHasCommittedSearch(true);
-    saveRecent(v);
-  }, [query, saveRecent]);
+    (async () => {
+      try {
+        const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
+        const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
+        if (!userId) return;
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+        const scope = 'restaurants';
+        const normalized = normalizeQuery(v);
+        const compositeKey = `${userId}:${scope}:${normalized}`;
+        const body = JSON.stringify({ user: userId, query: v, scope, source: 'web', addressText: activeAddressName || undefined });
+        const res = await fetch(`${API_BASE}/recent-searches`, { method: 'POST', headers, body });
+        if (res.ok) return;
+        const existsUrl = `${API_BASE}/recent-searches?where[compositeKey][equals]=${encodeURIComponent(compositeKey)}&limit=1`;
+        const getRes = await fetch(existsUrl, { headers });
+        if (!getRes.ok) return;
+        const data = await getRes.json();
+        const id = data?.docs?.[0]?.id;
+        if (!id) return;
+        await fetch(`${API_BASE}/recent-searches/${id}`, { method: 'PATCH', headers, body: '{}' });
+      } catch {}
+    })();
+  }, [query, activeAddressName, normalizeQuery]);
 
   if (!isOpen || !isMobile) return null;
 
@@ -349,7 +392,26 @@ export default function SearchModal({ isOpen, onClose }: Props) {
           </div>
         </div>
         <div className="flex-1 px-4 py-4 overflow-y-auto">
-          {query.trim().length === 0 ? null : (
+          {query.trim().length === 0 ? (
+            recentList.length > 0 ? (
+              <div>
+                <div className="text-sm text-gray-500 mb-2">Recent searches</div>
+                <ul className="bg-white text-left">
+                  {recentList.map((text) => (
+                    <li key={text}>
+                      <button
+                        onClick={() => { setQuery(text); commitSearch(text); }}
+                        className="w-full flex items-center gap-3 px-0 py-3 hover:bg-gray-50 text-gray-900 text-left"
+                      >
+                        <i className="fas fa-history text-gray-400"></i>
+                        <span className="flex-1">{text}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null
+          ) : (
             !hasCommittedSearch ? (
               <div>
                 <div className="text-sm text-gray-500 mb-2">Suggested searches</div>
