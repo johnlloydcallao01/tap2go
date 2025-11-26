@@ -120,7 +120,7 @@ export default function MerchantSearchModal({ isOpen, onClose, products = [], ca
               value={query}
               onChange={setQuery}
               autoFocus
-              inputClassName="focus:ring-[#777]"
+              inputClassName="pr-10 focus:ring-[#777]"
             />
           </div>
         </div>
