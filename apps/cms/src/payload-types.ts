@@ -71,6 +71,7 @@ export interface Config {
     customers: Customer;
     admins: Admin;
     'user-events': UserEvent;
+    'recent-searches': RecentSearch;
     'emergency-contacts': EmergencyContact;
     addresses: Address;
     media: Media;
@@ -103,6 +104,7 @@ export interface Config {
     customers: CustomersSelect<false> | CustomersSelect<true>;
     admins: AdminsSelect<false> | AdminsSelect<true>;
     'user-events': UserEventsSelect<false> | UserEventsSelect<true>;
+    'recent-searches': RecentSearchesSelect<false> | RecentSearchesSelect<true>;
     'emergency-contacts': EmergencyContactsSelect<false> | EmergencyContactsSelect<true>;
     addresses: AddressesSelect<false> | AddressesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
@@ -525,6 +527,51 @@ export interface UserEvent {
    * User agent string from the request
    */
   userAgent?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "recent-searches".
+ */
+export interface RecentSearch {
+  id: number;
+  /**
+   * Owning user account (actor-agnostic across roles)
+   */
+  user: number | User;
+  /**
+   * Raw query as entered/clicked by the user
+   */
+  query: string;
+  /**
+   * Canonical lowercase, trimmed, single-spaced form
+   */
+  normalizedQuery: string;
+  /**
+   * Search context to drive suggestion/result relevance
+   */
+  scope: 'restaurants' | 'merchant_menu' | 'global';
+  /**
+   * Unique per user + scope + normalizedQuery
+   */
+  compositeKey?: string | null;
+  /**
+   * Number of times this query has been used
+   */
+  frequency: number;
+  /**
+   * Platform source for analytics
+   */
+  source?: ('web' | 'mobile' | 'unknown') | null;
+  /**
+   * Optional device identifier to merge anon history after login
+   */
+  deviceId?: string | null;
+  /**
+   * Snapshot of active address when the query was made
+   */
+  addressText?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1752,6 +1799,10 @@ export interface PayloadLockedDocument {
         value: number | UserEvent;
       } | null)
     | ({
+        relationTo: 'recent-searches';
+        value: number | RecentSearch;
+      } | null)
+    | ({
         relationTo: 'emergency-contacts';
         value: number | EmergencyContact;
       } | null)
@@ -1965,6 +2016,23 @@ export interface UserEventsSelect<T extends boolean = true> {
   timestamp?: T;
   ipAddress?: T;
   userAgent?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "recent-searches_select".
+ */
+export interface RecentSearchesSelect<T extends boolean = true> {
+  user?: T;
+  query?: T;
+  normalizedQuery?: T;
+  scope?: T;
+  compositeKey?: T;
+  frequency?: T;
+  source?: T;
+  deviceId?: T;
+  addressText?: T;
   updatedAt?: T;
   createdAt?: T;
 }

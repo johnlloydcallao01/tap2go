@@ -47,6 +47,7 @@ import { ProdTags } from './collections/ProdTags'
 import { ProdTagsJunction } from './collections/ProdTagsJunction'
 import { TagGroups } from './collections/TagGroups'
 import { TagGroupMemberships } from './collections/TagGroupMemberships'
+import { RecentSearches } from './collections/RecentSearches'
 
 
 const filename = fileURLToPath(import.meta.url)
@@ -65,6 +66,7 @@ export default buildConfig({
     Customers,
     Admins,
     UserEvents,
+    RecentSearches,
     EmergencyContacts,
     Addresses,
 
