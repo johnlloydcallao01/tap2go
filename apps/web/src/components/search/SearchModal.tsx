@@ -4,8 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import SearchField from '@/components/ui/SearchField';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
-import { getCurrentCustomerId, getLocationBasedMerchants, type LocationBasedMerchant } from '@/lib/client-services/location-based-merchant-service';
-import { getLocationBasedProductCategories, type LocationBasedProductCategory } from '@/lib/client-services/location-based-product-categories-service';
+import { getCurrentCustomerId, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
 import AddressService from '@/lib/services/address-service';
 
 type Props = {
@@ -19,12 +18,12 @@ export default function SearchModal({ isOpen, onClose }: Props) {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [categories, setCategories] = useState<LocationBasedProductCategory[]>([]);
-  const [matchedCategory, setMatchedCategory] = useState<LocationBasedProductCategory | null>(null);
+  const [categories, setCategories] = useState<MerchantCategoryDisplay[]>([]);
+  const [matchedCategory, setMatchedCategory] = useState<MerchantCategoryDisplay | null>(null);
   const [categoryMerchants, setCategoryMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isCategoryLoading, setIsCategoryLoading] = useState(false);
   const [hasCommittedSearch, setHasCommittedSearch] = useState(false);
-  
+
   const [serverRecentQueries, setServerRecentQueries] = useState<string[]>([]);
   const [activeAddressName, setActiveAddressName] = useState<string | null>(null);
   const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
@@ -70,7 +69,7 @@ export default function SearchModal({ isOpen, onClose }: Props) {
     };
   }, [isOpen, isMobile]);
 
-  
+
 
   useEffect(() => {
     let cancelled = false;
@@ -113,12 +112,11 @@ export default function SearchModal({ isOpen, onClose }: Props) {
       if (!active) return;
       setCustomerId(cid);
       if (cid) {
-        const [list, cats] = await Promise.all([
-          getLocationBasedMerchants({ customerId: cid, limit: 24 }),
-          getLocationBasedProductCategories({ customerId: cid, limit: 100, sortBy: 'name' })
-        ]);
+        const list = await getLocationBasedMerchants({ customerId: cid, limit: 9999 });
         if (!active) return;
         setMerchants(list || []);
+        const cats = await getLocationBasedMerchantCategories({ customerId: cid, limit: 100 });
+        if (!active) return;
         setCategories(cats || []);
       } else {
         setMerchants([]);
@@ -141,7 +139,7 @@ export default function SearchModal({ isOpen, onClose }: Props) {
         if (!cancelled && res?.success && res.address?.formatted_address) {
           setActiveAddressName(res.address.formatted_address);
         }
-      } catch {}
+      } catch { }
     })();
     return () => { cancelled = true; };
   }, [isOpen]);
@@ -154,7 +152,7 @@ export default function SearchModal({ isOpen, onClose }: Props) {
       setCategoryMerchants([]);
       return;
     }
-    const score = (c: LocationBasedProductCategory): number => {
+    const score = (c: MerchantCategoryDisplay): number => {
       const name = (c.name || '').toLowerCase();
       const slug = (c.slug || '').toLowerCase();
       if (name === q || slug === q) return 3;
@@ -245,7 +243,7 @@ export default function SearchModal({ isOpen, onClose }: Props) {
         return;
       }
       setIsCategoryLoading(true);
-      const list = await getLocationBasedMerchants({ customerId, limit: 24, categoryId: matchedCategory.id });
+      const list = await getLocationBasedMerchants({ customerId, limit: 24, categoryId: String(matchedCategory.id) });
       if (cancel) return;
       setCategoryMerchants(list || []);
       setIsCategoryLoading(false);
@@ -276,7 +274,8 @@ export default function SearchModal({ isOpen, onClose }: Props) {
     if (!q) return [] as Suggestion[];
     const lower = q.toLowerCase();
     const loc = activeAddressName ? ` in ${activeAddressName}` : '';
-    const withLoc = (base: string) => [base, `${base} near me`, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
+    const withLoc = (base: string) => [base, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
+    const withLocNearMe = (base: string) => [base, `${base} near me`, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
 
     const merchantMatches = (merchants || [])
       .filter((m) => {
@@ -303,7 +302,7 @@ export default function SearchModal({ isOpen, onClose }: Props) {
     })();
 
     const coll: Suggestion[] = [];
-    merchantMatches.slice(0, 6).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'merchant' })));
+    merchantMatches.slice(0, 6).forEach((name) => withLocNearMe(name).forEach((text) => coll.push({ text, source: 'merchant' })));
     categoryMatches.slice(0, 6).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'category' })));
     productSuggestions.slice(0, 6).forEach((name) => coll.push({ text: name, source: 'product' }));
     tagMatches.slice(0, 4).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'tag' })));
@@ -330,7 +329,7 @@ export default function SearchModal({ isOpen, onClose }: Props) {
     return out.slice(0, 10);
   }, [serverRecentQueries]);
 
-  
+
 
   const commitSearch = useCallback((val?: string) => {
     const v = (val ?? query).trim();
@@ -359,7 +358,7 @@ export default function SearchModal({ isOpen, onClose }: Props) {
         const id = data?.docs?.[0]?.id;
         if (!id) return;
         await fetch(`${API_BASE}/recent-searches/${id}`, { method: 'PATCH', headers, body: '{}' });
-      } catch {}
+      } catch { }
     })();
   }, [query, activeAddressName, normalizeQuery]);
 

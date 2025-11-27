@@ -33,6 +33,7 @@ import { MerchantCategories } from './collections/MerchantCategories'
 import { ProductCategories } from './collections/ProductCategories'
 import { Products } from './collections/Products'
 import { Drivers } from './collections/Drivers'
+import { CartItems } from './collections/CartItems'
 
 // Product Management Collections
 import { ProdAttributes } from './collections/ProdAttributes'
@@ -82,6 +83,7 @@ export default buildConfig({
     MerchantCategories,
     ProductCategories,
     Products,
+    CartItems,
 
     // Product Management System
     ProdAttributes,
@@ -141,7 +143,7 @@ export default buildConfig({
         const requestId = crypto.randomUUID();
         const userAgent = req.headers.get('user-agent') || 'Unknown';
         const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'Unknown';
-        
+
         try {
           console.log(`🔄 [${requestId}] REFRESH TOKEN REQUEST:`, {
             timestamp: new Date().toISOString(),
@@ -150,14 +152,14 @@ export default buildConfig({
           });
 
           const { payload, user } = req;
-          
+
           // Security Check 1: Verify user authentication
           if (!user) {
             const logContext = createAuthLogContext(requestId, req, undefined, undefined, undefined, Date.now() - startTime);
             authLogger.logRefreshFailure(logContext, 'Not authenticated', { endpoint: '/refresh-token' });
-            
+
             return new Response(
-              JSON.stringify({ 
+              JSON.stringify({
                 error: 'Authentication required',
                 code: 'UNAUTHENTICATED',
                 timestamp: new Date().toISOString(),
@@ -170,15 +172,15 @@ export default buildConfig({
           // Security Check 2: Verify user is active
           if (!user.isActive) {
             const logContext = createAuthLogContext(requestId, req, user.id, user.email, user.role, Date.now() - startTime);
-            authLogger.logRefreshFailure(logContext, 'Account inactive', { 
+            authLogger.logRefreshFailure(logContext, 'Account inactive', {
               endpoint: '/refresh-token',
               securityIssue: 'INACTIVE_ACCOUNT'
             });
-            
+
             return new Response(
-              JSON.stringify({ 
+              JSON.stringify({
                 error: 'Account is inactive',
-                code: 'ACCOUNT_INACTIVE', 
+                code: 'ACCOUNT_INACTIVE',
                 timestamp: new Date().toISOString(),
                 requestId
               }),
@@ -190,18 +192,18 @@ export default buildConfig({
           if (user.role !== 'customer') {
             const logContext = createAuthLogContext(requestId, req, user.id, user.email, user.role, Date.now() - startTime);
             authLogger.logRoleViolation(logContext, 'customer', user.role);
-            
-            return Response.json({ 
-                error: 'Access denied. Only customers can access this application.',
-                code: 'ROLE_DENIED',
-                timestamp: new Date().toISOString(), 
-                requestId
-              }, { status: 403 });
+
+            return Response.json({
+              error: 'Access denied. Only customers can access this application.',
+              code: 'ROLE_DENIED',
+              timestamp: new Date().toISOString(),
+              requestId
+            }, { status: 403 });
           }
 
           // Security Check 4: Rate limiting check (basic implementation)
           const now = Date.now();
-          
+
           // For PayloadCMS v3, use the existing token from the authenticated user
           // The 30-day expiration is already configured in the Users collection
           const token = 'refreshed-token-placeholder'; // Will be replaced with actual PayloadCMS token
@@ -222,7 +224,7 @@ export default buildConfig({
           }
 
           const responseTime = Date.now() - startTime;
-          
+
           // Log successful refresh with enterprise logging
           const successLogContext = createAuthLogContext(requestId, req, user.id, user.email, user.role, responseTime);
           authLogger.logRefreshSuccess(successLogContext, {
@@ -270,7 +272,7 @@ export default buildConfig({
           const responseTime = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const errorStack = error instanceof Error ? error.stack : undefined;
-          
+
           // Log error with enterprise logging
           const errorLogContext = createAuthLogContext(requestId, req, req.user?.id, req.user?.email, req.user?.role, responseTime);
           authLogger.logRefreshFailure(errorLogContext, errorMessage, {
@@ -278,7 +280,7 @@ export default buildConfig({
             errorType: 'INTERNAL_SERVER_ERROR',
             stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
           });
-          
+
           console.error(`🚨 [${requestId}] REFRESH ERROR:`, {
             error: errorMessage,
             stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
@@ -554,7 +556,7 @@ export default buildConfig({
       handler: (async (req: PayloadRequest) => {
         const startTime = Date.now();
         const requestId = crypto.randomUUID();
-        
+
         try {
           console.log(`🗺️ [${requestId}] MERCHANTS BY LOCATION REQUEST:`, {
             timestamp: new Date().toISOString(),
@@ -596,12 +598,12 @@ export default buildConfig({
           // Validation
           if (!latitude || !longitude) {
             return Response.json({
-                success: false,
-                error: 'Missing required parameters: latitude and longitude',
-                code: 'MISSING_PARAMETERS',
-                timestamp: new Date().toISOString(),
-                requestId,
-              }, { status: 400 });
+              success: false,
+              error: 'Missing required parameters: latitude and longitude',
+              code: 'MISSING_PARAMETERS',
+              timestamp: new Date().toISOString(),
+              requestId,
+            }, { status: 400 });
           }
 
           const lat = parseFloat(latitude);
@@ -612,12 +614,12 @@ export default buildConfig({
 
           if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
             return Response.json({
-                success: false,
-                error: 'Invalid coordinates',
-                code: 'INVALID_COORDINATES',
-                timestamp: new Date().toISOString(),
-                requestId,
-              }, { status: 400 });
+              success: false,
+              error: 'Invalid coordinates',
+              code: 'INVALID_COORDINATES',
+              timestamp: new Date().toISOString(),
+              requestId,
+            }, { status: 400 });
           }
 
           // Use GeospatialService to find merchants
@@ -631,7 +633,7 @@ export default buildConfig({
           });
 
           const responseTime = Date.now() - startTime;
-          
+
           console.log(`✅ [${requestId}] MERCHANTS BY LOCATION SUCCESS:`, {
             merchantsFound: result.merchants.length,
             totalCount: result.totalCount,
@@ -639,21 +641,21 @@ export default buildConfig({
           });
 
           return Response.json({
-              success: true,
-              data: result,
-              metadata: {
-                query: { latitude: lat, longitude: lng, radius: radiusMeters },
-                pagination: { limit: limitNum, offset: offsetNum },
-                performance: { responseTime, requestId },
-                timestamp: new Date().toISOString(),
-              },
-            }, { status: 200 });
+            success: true,
+            data: result,
+            metadata: {
+              query: { latitude: lat, longitude: lng, radius: radiusMeters },
+              pagination: { limit: limitNum, offset: offsetNum },
+              performance: { responseTime, requestId },
+              timestamp: new Date().toISOString(),
+            },
+          }, { status: 200 });
 
         } catch (error) {
           const responseTime = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const errorStack = error instanceof Error ? error.stack : undefined;
-          
+
           console.error(`🚨 [${requestId}] MERCHANTS BY LOCATION ERROR:`, {
             error: errorMessage,
             stack: errorStack,
@@ -663,14 +665,14 @@ export default buildConfig({
           });
 
           return Response.json({
-              success: false,
-              error: 'Internal server error',
-              code: 'INTERNAL_SERVER_ERROR',
-              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
-              timestamp: new Date().toISOString(),
-              requestId,
-              responseTime,
-            }, { status: 500 });
+            success: false,
+            error: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+            message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+            timestamp: new Date().toISOString(),
+            requestId,
+            responseTime,
+          }, { status: 500 });
         }
       }),
     },
@@ -693,7 +695,7 @@ export default buildConfig({
       handler: (async (req: PayloadRequest) => {
         const startTime = Date.now();
         const requestId = crypto.randomUUID();
-        
+
         try {
           console.log(`🚚 [${requestId}] MERCHANTS IN DELIVERY RADIUS REQUEST:`, {
             timestamp: new Date().toISOString(),
@@ -734,12 +736,12 @@ export default buildConfig({
           // Validation
           if (!latitude || !longitude) {
             return Response.json({
-                success: false,
-                error: 'Missing required parameters: latitude and longitude',
-                code: 'MISSING_PARAMETERS',
-                timestamp: new Date().toISOString(),
-                requestId,
-              }, { status: 400 });
+              success: false,
+              error: 'Missing required parameters: latitude and longitude',
+              code: 'MISSING_PARAMETERS',
+              timestamp: new Date().toISOString(),
+              requestId,
+            }, { status: 400 });
           }
 
           const lat = parseFloat(latitude);
@@ -749,12 +751,12 @@ export default buildConfig({
 
           if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
             return Response.json({
-                success: false,
-                error: 'Invalid coordinates',
-                code: 'INVALID_COORDINATES',
-                timestamp: new Date().toISOString(),
-                requestId,
-              }, { status: 400 });
+              success: false,
+              error: 'Invalid coordinates',
+              code: 'INVALID_COORDINATES',
+              timestamp: new Date().toISOString(),
+              requestId,
+            }, { status: 400 });
           }
 
           // Use GeospatialService to find merchants in delivery radius
@@ -767,7 +769,7 @@ export default buildConfig({
           });
 
           const responseTime = Date.now() - startTime;
-          
+
           console.log(`✅ [${requestId}] MERCHANTS IN DELIVERY RADIUS SUCCESS:`, {
             merchantsFound: result.merchants.length,
             totalCount: result.totalCount,
@@ -775,21 +777,21 @@ export default buildConfig({
           });
 
           return Response.json({
-              success: true,
-              data: result,
-              metadata: {
-                query: { latitude: lat, longitude: lng },
-                pagination: { limit: limitNum, offset: offsetNum },
-                performance: { responseTime, requestId },
-                timestamp: new Date().toISOString(),
-              },
-            }, { status: 200 });
+            success: true,
+            data: result,
+            metadata: {
+              query: { latitude: lat, longitude: lng },
+              pagination: { limit: limitNum, offset: offsetNum },
+              performance: { responseTime, requestId },
+              timestamp: new Date().toISOString(),
+            },
+          }, { status: 200 });
 
         } catch (error) {
           const responseTime = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const errorStack = error instanceof Error ? error.stack : undefined;
-          
+
           console.error(`🚨 [${requestId}] MERCHANTS IN DELIVERY RADIUS ERROR:`, {
             error: errorMessage,
             stack: errorStack,
@@ -799,14 +801,14 @@ export default buildConfig({
           });
 
           return Response.json({
-              success: false,
-              error: 'Internal server error',
-              code: 'INTERNAL_SERVER_ERROR',
-              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
-              timestamp: new Date().toISOString(),
-              requestId,
-              responseTime,
-            }, { status: 500 });
+            success: false,
+            error: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+            message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+            timestamp: new Date().toISOString(),
+            requestId,
+            responseTime,
+          }, { status: 500 });
         }
       }),
     },
@@ -817,7 +819,7 @@ export default buildConfig({
       handler: (async (req: PayloadRequest) => {
         const startTime = Date.now();
         const requestId = crypto.randomUUID();
-        
+
         try {
           console.log(`🏢 [${requestId}] MERCHANTS IN SERVICE AREA REQUEST:`, {
             timestamp: new Date().toISOString(),
@@ -858,12 +860,12 @@ export default buildConfig({
           // Validation
           if (!latitude || !longitude) {
             return Response.json({
-                success: false,
-                error: 'Missing required parameters: latitude and longitude',
-                code: 'MISSING_PARAMETERS',
-                timestamp: new Date().toISOString(),
-                requestId,
-              }, { status: 400 });
+              success: false,
+              error: 'Missing required parameters: latitude and longitude',
+              code: 'MISSING_PARAMETERS',
+              timestamp: new Date().toISOString(),
+              requestId,
+            }, { status: 400 });
           }
 
           const lat = parseFloat(latitude);
@@ -873,12 +875,12 @@ export default buildConfig({
 
           if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
             return Response.json({
-                success: false,
-                error: 'Invalid coordinates',
-                code: 'INVALID_COORDINATES',
-                timestamp: new Date().toISOString(),
-                requestId,
-              }, { status: 400 });
+              success: false,
+              error: 'Invalid coordinates',
+              code: 'INVALID_COORDINATES',
+              timestamp: new Date().toISOString(),
+              requestId,
+            }, { status: 400 });
           }
 
           // Use GeospatialService to find merchants in service area
@@ -891,7 +893,7 @@ export default buildConfig({
           });
 
           const responseTime = Date.now() - startTime;
-          
+
           console.log(`✅ [${requestId}] MERCHANTS IN SERVICE AREA SUCCESS:`, {
             merchantsFound: result.merchants.length,
             totalCount: result.totalCount,
@@ -899,21 +901,21 @@ export default buildConfig({
           });
 
           return Response.json({
-              success: true,
-              data: result,
-              metadata: {
-                query: { latitude: lat, longitude: lng },
-                pagination: { limit: limitNum, offset: offsetNum },
-                performance: { responseTime, requestId },
-                timestamp: new Date().toISOString(),
-              },
-            }, { status: 200 });
+            success: true,
+            data: result,
+            metadata: {
+              query: { latitude: lat, longitude: lng },
+              pagination: { limit: limitNum, offset: offsetNum },
+              performance: { responseTime, requestId },
+              timestamp: new Date().toISOString(),
+            },
+          }, { status: 200 });
 
         } catch (error) {
           const responseTime = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const errorStack = error instanceof Error ? error.stack : undefined;
-          
+
           console.error(`🚨 [${requestId}] MERCHANTS IN SERVICE AREA ERROR:`, {
             error: errorMessage,
             stack: errorStack,
@@ -923,14 +925,14 @@ export default buildConfig({
           });
 
           return Response.json({
-              success: false,
-              error: 'Internal server error',
-              code: 'INTERNAL_SERVER_ERROR',
-              message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
-              timestamp: new Date().toISOString(),
-              requestId,
-              responseTime,
-            }, { status: 500 });
+            success: false,
+            error: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+            message: process.env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred',
+            timestamp: new Date().toISOString(),
+            requestId,
+            responseTime,
+          }, { status: 500 });
         }
       }),
     },

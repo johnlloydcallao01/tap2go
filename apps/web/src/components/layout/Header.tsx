@@ -11,8 +11,7 @@ import SearchModal from '@/components/search/SearchModal';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import SearchField from '@/components/ui/SearchField';
 import AddressService from '@/lib/services/address-service';
-import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, type LocationBasedMerchant } from '@/lib/client-services/location-based-merchant-service';
-import { getLocationBasedProductCategories, type LocationBasedProductCategory } from '@/lib/client-services/location-based-product-categories-service';
+import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
 import { NotificationPopup, mockNotifications } from '@/components/notifications/NotificationPopup';
 
 /**
@@ -40,8 +39,8 @@ export function Header({
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [categories, setCategories] = useState<LocationBasedProductCategory[]>([]);
-  const [matchedCategory, setMatchedCategory] = useState<LocationBasedProductCategory | null>(null);
+  const [categories, setCategories] = useState<MerchantCategoryDisplay[]>([]);
+  const [matchedCategory, setMatchedCategory] = useState<MerchantCategoryDisplay | null>(null);
   const [categoryMerchants, setCategoryMerchants] = useState<LocationBasedMerchant[]>([]);
   const [isCategoryLoading, setIsCategoryLoading] = useState(false);
   const [hasCommittedSearch, setHasCommittedSearch] = useState(false);
@@ -245,12 +244,11 @@ export function Header({
       if (!active) return;
       setCustomerId(cid);
       if (cid) {
-        const [list, cats] = await Promise.all([
-          getLocationBasedMerchants({ customerId: cid, limit: 24 }),
-          getLocationBasedProductCategories({ customerId: cid, limit: 100, sortBy: 'name' })
-        ]);
+        const list = await getLocationBasedMerchants({ customerId: cid, limit: 9999 });
         if (!active) return;
         setMerchants(list || []);
+        const cats = await getLocationBasedMerchantCategories({ customerId: cid, limit: 100 });
+        if (!active) return;
         setCategories(cats || []);
       } else {
         setMerchants([]);
@@ -307,6 +305,44 @@ export function Header({
     const t = setTimeout(run, 200);
     return () => { cancelled = true; clearTimeout(t); };
   }, [searchQuery, normalizeQuery]);
+
+  useEffect(() => {
+    const q = normalizeQuery(searchQuery);
+    if (!q) {
+      setMatchedCategory(null);
+      setCategoryMerchants([]);
+      return;
+    }
+    const score = (c: MerchantCategoryDisplay): number => {
+      const name = (c.name || '').toLowerCase();
+      const slug = (c.slug || '').toLowerCase();
+      if (name === q || slug === q) return 3;
+      if (name.startsWith(q) || slug.startsWith(q)) return 2;
+      if (name.includes(q) || slug.includes(q)) return 1;
+      return 0;
+    };
+    const best = (categories || [])
+      .map((c) => ({ c, s: score(c) }))
+      .filter(({ s }) => s > 0)
+      .sort((a, b) => b.s - a.s)[0]?.c || null;
+    setMatchedCategory(best);
+  }, [searchQuery, categories, normalizeQuery]);
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      if (!matchedCategory || !customerId) {
+        setCategoryMerchants([]);
+        return;
+      }
+      setIsCategoryLoading(true);
+      const list = await getLocationBasedMerchants({ customerId, limit: 24, categoryId: String(matchedCategory.id) });
+      if (cancel) return;
+      setCategoryMerchants(list || []);
+      setIsCategoryLoading(false);
+    })();
+    return () => { cancel = true; };
+  }, [matchedCategory, customerId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -533,7 +569,8 @@ export function Header({
                                 if (!q) return null;
                                 const lower = q.toLowerCase();
                                 const loc = activeAddressName ? ` in ${activeAddressName}` : '';
-                                const withLoc = (base: string) => [base, `${base} near me`, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
+                                const withLoc = (base: string) => [base, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
+                                const withLocNearMe = (base: string) => [base, `${base} near me`, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
                                 const merchantMatches = (merchants || [])
                                   .filter((m) => {
                                     const name = (m.outletName || '').toLowerCase();
@@ -556,7 +593,7 @@ export function Header({
                                   return Array.from(set);
                                 })();
                                 const coll: Suggestion[] = [];
-                                merchantMatches.slice(0, 6).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'merchant' })));
+                                merchantMatches.slice(0, 6).forEach((name) => withLocNearMe(name).forEach((text) => coll.push({ text, source: 'merchant' })));
                                 categoryMatches.slice(0, 6).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'category' })));
                                 productSuggestions.slice(0, 6).forEach((name) => coll.push({ text: name, source: 'product' }));
                                 tagMatches.slice(0, 4).forEach((name) => withLoc(name).forEach((text) => coll.push({ text, source: 'tag' })));

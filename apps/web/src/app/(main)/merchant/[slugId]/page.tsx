@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from '@/components/ui/ImageWrapper';
 import { BackButton } from '@/components/ui/BackButton';
-import { getMerchantById } from '@/server/services/merchant-service';
+import { getMerchantById, getActiveAddressNameByMerchantId } from '@/server/services/merchant-service';
 import type { Merchant, Media } from '@/types/merchant';
 import MobileStickyHeader from '@/components/merchant/MobileStickyHeader';
 import MerchantProductsClient from '@/components/merchant/MerchantProductsClient';
@@ -61,24 +61,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-// Fetch the merchant's active address display name from the production CMS
-async function getActiveAddressNameByMerchantId(merchantId: string): Promise<string | null> {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const apiKey = process.env.PAYLOAD_API_KEY || process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
-  if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
-
-  try {
-    const res = await fetch(`${API_BASE}/merchants/${merchantId}?depth=1`, { headers, next: { revalidate: 120 } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const addr = data?.activeAddress;
-    const name: string | null = addr?.formatted_address ?? null;
-    return name;
-  } catch (e) {
-    return null;
-  }
-}
 
 export default async function MerchantPage({ params }: PageProps) {
   const resolved = (await params) ?? {};

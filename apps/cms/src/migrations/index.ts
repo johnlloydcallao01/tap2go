@@ -32,6 +32,7 @@ import * as migration_20251124_021145 from './20251124_021145';
 import * as migration_20251124_021940 from './20251124_021940';
 import * as migration_20251124_120500_add_driver_role_and_drivers_table from './20251124_120500_add_driver_role_and_drivers_table';
 import * as migration_20251126_070002 from './20251126_070002';
+import * as migration_20251127_022816 from './20251127_022816';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
 
 export const migrations = [
@@ -204,6 +205,11 @@ export const migrations = [
     up: migration_20251126_070002.up,
     down: migration_20251126_070002.down,
     name: '20251126_070002',
+  },
+  {
+    up: migration_20251127_022816.up,
+    down: migration_20251127_022816.down,
+    name: '20251127_022816',
   },
   {
     up: migration_20251202_remove_vendor_products_table.up,

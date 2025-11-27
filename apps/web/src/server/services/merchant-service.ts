@@ -125,6 +125,22 @@ export class MerchantService {
     }
   }
 
+  static async getActiveAddressNameByMerchantId(id: string): Promise<string | null> {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = process.env.PAYLOAD_API_KEY || process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+      const res = await fetch(`${MerchantService.API_BASE}/merchants/${id}?depth=1`, { next: { revalidate: 120 }, headers });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const addr = data?.activeAddress;
+      const name: string | null = addr?.formatted_address ?? null;
+      return name;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Get merchant count for pagination/display purposes
    */
@@ -175,3 +191,4 @@ export class MerchantService {
 export const getMerchants = MerchantService.getMerchants;
 export const getMerchantCount = MerchantService.getMerchantCount;
 export const getMerchantById = MerchantService.getMerchantById;
+export const getActiveAddressNameByMerchantId = MerchantService.getActiveAddressNameByMerchantId;

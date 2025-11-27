@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   getCurrentCustomerId,
   getLocationBasedMerchants,
+  getActiveAddressNamesForMerchants,
   type LocationBasedMerchant,
 } from "@/lib/client-services/location-based-merchant-service";
 import type { Media } from "@/types/merchant";
@@ -22,62 +23,14 @@ export default function NearbyRestaurantsPage(): JSX.Element {
   // Always use the production CMS API for address lookups
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://cms.tap2goph.com/api";
 
-  const buildHeaders = useCallback((): Record<string, string> => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
-    if (apiKey) headers["Authorization"] = `users API-Key ${apiKey}`;
-    return headers;
-  }, []);
-
-  // Fetch active address name for a merchant with coordinate fallback
-  const fetchActiveAddressName = useCallback(
-    async (m: LocationBasedMerchant): Promise<string | null> => {
-      const headers = buildHeaders();
-      try {
-        const res = await fetch(`${API_BASE}/merchants/${m.id}?depth=1`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const addr = data?.activeAddress;
-          if (addr?.formatted_address) return addr.formatted_address as string;
-        }
-      } catch (e) {
-        console.warn("Nearby page: merchant detail fetch failed, trying coords fallback:", e);
-      }
-
-      const lat = (m as any).merchant_latitude ?? (m as any).latitude ?? null;
-      const lng = (m as any).merchant_longitude ?? (m as any).longitude ?? null;
-      if (lat != null && lng != null) {
-        try {
-          const url = `${API_BASE}/addresses?where[latitude][equals]=${lat}&where[longitude][equals]=${lng}&limit=1`;
-          const res2 = await fetch(url, { headers });
-          if (res2.ok) {
-            const j = await res2.json();
-            const doc = j?.docs?.[0];
-            if (doc?.formatted_address) return doc.formatted_address as string;
-          }
-        } catch (e) {
-          console.warn("Nearby page: address coords lookup failed:", e);
-        }
-      }
-      return null;
-    },
-    [API_BASE, buildHeaders]
-  );
-
   const fetchAndSetActiveAddresses = useCallback(
     async (list: LocationBasedMerchant[]) => {
       if (!list || list.length === 0) return;
-      const entries = await Promise.all(
-        list.map(async (m) => {
-          const existing = addressMap[m.id];
-          if (existing) return [m.id, existing] as const;
-          const name = await fetchActiveAddressName(m);
-          return [m.id, name] as const;
-        })
-      );
+      const map = await getActiveAddressNamesForMerchants(list);
       let changed = false;
       const next: Record<string, string> = { ...addressMap };
-      for (const [id, name] of entries) {
+      for (const id of Object.keys(map)) {
+        const name = map[id];
         if (name && (!next[id] || next[id] !== name)) {
           next[id] = name as string;
           changed = true;
@@ -85,7 +38,7 @@ export default function NearbyRestaurantsPage(): JSX.Element {
       }
       if (changed) setAddressMap(next);
     },
-    [addressMap, fetchActiveAddressName]
+    [addressMap]
   );
 
   const toggleWishlist = useCallback((id: string) => {

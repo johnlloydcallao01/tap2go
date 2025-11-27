@@ -82,6 +82,7 @@ export interface Config {
     'merchant-categories': MerchantCategory;
     'product-categories': ProductCategory;
     products: Product;
+    'cart-items': CartItem;
     'prod-attributes': ProdAttribute;
     'prod-attribute-terms': ProdAttributeTerm;
     'prod-variations': ProdVariation;
@@ -115,6 +116,7 @@ export interface Config {
     'merchant-categories': MerchantCategoriesSelect<false> | MerchantCategoriesSelect<true>;
     'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
+    'cart-items': CartItemsSelect<false> | CartItemsSelect<true>;
     'prod-attributes': ProdAttributesSelect<false> | ProdAttributesSelect<true>;
     'prod-attribute-terms': ProdAttributeTermsSelect<false> | ProdAttributeTermsSelect<true>;
     'prod-variations': ProdVariationsSelect<false> | ProdVariationsSelect<true>;
@@ -1484,6 +1486,140 @@ export interface Product {
   updatedAt: string;
 }
 /**
+ * Customer shopping cart items
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cart-items".
+ */
+export interface CartItem {
+  id: number;
+  /**
+   * Customer who owns this cart item
+   */
+  customer: number | Customer;
+  /**
+   * Merchant from which product is being ordered
+   */
+  merchant: number | Merchant;
+  /**
+   * Product being added to cart
+   */
+  product: number | Product;
+  /**
+   * Merchant-product junction record for price and availability
+   */
+  merchantProduct: number | MerchantProduct;
+  /**
+   * Quantity of this product
+   */
+  quantity: number;
+  /**
+   * Price snapshot when added to cart (from merchant-products or product basePrice)
+   */
+  priceAtAdd: number;
+  /**
+   * Original price before discount. Shows strike-through price in UI when item is on sale. E.g., ₱150 (crossed out) → ₱120
+   */
+  compareAtPrice?: number | null;
+  /**
+   * Calculated: (priceAtAdd + modifier costs + addon costs) * quantity
+   */
+  subtotal: number;
+  /**
+   * Product size variant if applicable
+   */
+  productSize?: ('small' | 'medium' | 'large' | 'extra_large') | null;
+  /**
+   * Selected product variation (if product type is variable)
+   */
+  selectedVariation?: (number | null) | Product;
+  /**
+   * Modifiers/options: [{ groupId, optionId, name, price }]. E.g., spice level, cooking preference
+   */
+  selectedModifiers?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Add-ons/extras: [{ id, name, price, quantity }]. E.g., extra cheese, drinks, sides
+   */
+  selectedAddons?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Cooking/preparation instructions. E.g., "No onions", "Extra spicy", "Well done"
+   */
+  specialInstructions?: string | null;
+  /**
+   * Delivery instructions for rider. E.g., "Ring doorbell twice", "Leave at gate"
+   */
+  notesForRider?: string | null;
+  /**
+   * MD5 hash of product+size+modifiers+addons+variation+instructions for duplicate detection
+   */
+  itemHash?: string | null;
+  /**
+   * Whether item is currently available (merchant-product availability, NOT price changes)
+   */
+  isAvailable?: boolean | null;
+  /**
+   * Reason if unavailable. E.g., "Out of stock", "Merchant closed"
+   */
+  unavailableReason?: string | null;
+  /**
+   * Cart item expiration date (30 days from last update). For automated cleanup jobs.
+   */
+  expiresAt?: string | null;
+  /**
+   * Session identifier for guest checkout (future feature)
+   */
+  sessionId?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-products".
+ */
+export interface MerchantProduct {
+  id: number;
+  merchant_id: number | Merchant;
+  /**
+   * Product (filtered to show only products owned by the merchant's vendor)
+   */
+  product_id: number | Product;
+  /**
+   * Who assigned this product to the merchant
+   */
+  added_by?: ('vendor' | 'merchant') | null;
+  /**
+   * Override product price (null = use product default)
+   */
+  price_override?: number | null;
+  /**
+   * Per-merchant available units
+   */
+  stock_quantity?: number | null;
+  is_active?: boolean | null;
+  /**
+   * Quick toggle on/off
+   */
+  is_available?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "prod-attributes".
  */
@@ -1598,37 +1734,6 @@ export interface ProdGroupedItem {
   child_product_id: number | Product;
   default_quantity?: number | null;
   sort_order?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "merchant-products".
- */
-export interface MerchantProduct {
-  id: number;
-  merchant_id: number | Merchant;
-  /**
-   * Product (filtered to show only products owned by the merchant's vendor)
-   */
-  product_id: number | Product;
-  /**
-   * Who assigned this product to the merchant
-   */
-  added_by?: ('vendor' | 'merchant') | null;
-  /**
-   * Override product price (null = use product default)
-   */
-  price_override?: number | null;
-  /**
-   * Per-merchant available units
-   */
-  stock_quantity?: number | null;
-  is_active?: boolean | null;
-  /**
-   * Quick toggle on/off
-   */
-  is_available?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1841,6 +1946,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'products';
         value: number | Product;
+      } | null)
+    | ({
+        relationTo: 'cart-items';
+        value: number | CartItem;
       } | null)
     | ({
         relationTo: 'prod-attributes';
@@ -2363,6 +2472,33 @@ export interface ProductsSelect<T extends boolean = true> {
   assign_to_all_vendor_merchants?: T;
   createdAt?: T;
   updatedAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cart-items_select".
+ */
+export interface CartItemsSelect<T extends boolean = true> {
+  customer?: T;
+  merchant?: T;
+  product?: T;
+  merchantProduct?: T;
+  quantity?: T;
+  priceAtAdd?: T;
+  compareAtPrice?: T;
+  subtotal?: T;
+  productSize?: T;
+  selectedVariation?: T;
+  selectedModifiers?: T;
+  selectedAddons?: T;
+  specialInstructions?: T;
+  notesForRider?: T;
+  itemHash?: T;
+  isAvailable?: T;
+  unavailableReason?: T;
+  expiresAt?: T;
+  sessionId?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

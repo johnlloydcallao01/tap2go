@@ -7,7 +7,9 @@ import type { Media } from '@/types/merchant';
 import { useRouter } from 'next/navigation';
 import { 
   LocationBasedMerchantService, 
-  type LocationBasedMerchant 
+  type LocationBasedMerchant,
+  getActiveAddressNamesForMerchants,
+  sortMerchantsByRecentlyUpdated,
 } from '@/lib/client-services/location-based-merchant-service';
 import { useAddressChange } from '@/hooks/useAddressChange';
 
@@ -245,56 +247,20 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   }, []);
 
   // Fetch active address name for a single merchant with fallback by coordinates
-  const fetchActiveAddressName = useCallback(async (m: LocationBasedMerchant): Promise<string | null> => {
-    const headers = buildHeaders();
-    try {
-      const res = await fetch(`${API_BASE}/merchants/${m.id}?depth=1`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        const addr = data?.activeAddress;
-        if (addr?.formatted_address) return addr.formatted_address as string;
-      }
-    } catch (e) {
-      console.warn('Merchant detail fetch failed, will try coords fallback:', e);
-    }
-
-    const lat = (m as any).merchant_latitude ?? (m as any).latitude ?? null;
-    const lng = (m as any).merchant_longitude ?? (m as any).longitude ?? null;
-    if (lat != null && lng != null) {
-      try {
-        const url = `${API_BASE}/addresses?where[latitude][equals]=${lat}&where[longitude][equals]=${lng}&limit=1`;
-        const res2 = await fetch(url, { headers });
-        if (res2.ok) {
-          const j = await res2.json();
-          const doc = j?.docs?.[0];
-          if (doc?.formatted_address) return doc.formatted_address as string;
-        }
-      } catch (e) {
-        console.warn('Address coords lookup failed:', e);
-      }
-    }
-    return null;
-  }, [API_BASE, buildHeaders]);
-
-  // Batch fetch and set address names for merchants
   const fetchAndSetActiveAddresses = useCallback(async (list: LocationBasedMerchant[]) => {
     if (!list || list.length === 0) return;
-    const entries = await Promise.all(list.map(async (m) => {
-      const existing = addressMap[m.id];
-      if (existing) return [m.id, existing] as const;
-      const name = await fetchActiveAddressName(m);
-      return [m.id, name] as const;
-    }));
+    const map = await getActiveAddressNamesForMerchants(list);
     let changed = false;
     const next: Record<string, string> = { ...addressMap };
-    for (const [id, name] of entries) {
+    for (const id of Object.keys(map)) {
+      const name = map[id];
       if (name && (!next[id] || next[id] !== name)) {
         next[id] = name;
         changed = true;
       }
     }
     if (changed) setAddressMap(next);
-  }, [addressMap, fetchActiveAddressName]);
+  }, [addressMap]);
 
   // Function to fetch merchants
   const fetchLocationBasedMerchants = useCallback(async (customerIdToUse: string) => {
@@ -320,16 +286,9 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
 
 
   // Parse update timestamp robustly from updatedAt/createdAt
-  const getUpdatedTimeMs = useCallback((m: LocationBasedMerchant): number => {
-    const primary = m.updatedAt || m.createdAt || '';
-    const t = Date.parse(primary);
-    return Number.isFinite(t) ? t : 0;
-  }, []);
-
-  // Memoized list sorted by latest updated (desc)
   const fastestMerchants = React.useMemo(() => {
-    return [...merchants].sort((a, b) => getUpdatedTimeMs(b) - getUpdatedTimeMs(a));
-  }, [merchants, getUpdatedTimeMs]);
+    return sortMerchantsByRecentlyUpdated(merchants);
+  }, [merchants]);
 
   // Viewport width tracking for responsive grid sizing (>1024px)
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 0);

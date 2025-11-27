@@ -1,6 +1,6 @@
 "use client";
 
-import type { Merchant } from '@/types/merchant';
+import type { Merchant, Media } from '@/types/merchant';
 import { dataCache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/data-cache';
 
 // Extended merchant type with location data (matching API response)
@@ -41,6 +41,19 @@ export interface LocationBasedMerchantServiceOptions {
   limit?: number;
   categoryId?: string;
 }
+
+export type MerchantCategoryDisplay = {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  media?: { icon?: Media | null };
+  updatedAt?: string;
+  createdAt?: string;
+};
 
 export class LocationBasedMerchantService {
   private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
@@ -123,6 +136,120 @@ export class LocationBasedMerchantService {
       console.error('❌ Error fetching location-based merchants:', error);
       return []; // Graceful fallback
     }
+  }
+
+  static async getLocationBasedMerchantCategories(options: { customerId: string; includeInactive?: boolean; limit?: number }): Promise<MerchantCategoryDisplay[]> {
+    const { customerId, includeInactive = false, limit } = options;
+    if (!customerId) return [];
+    const cacheKey = `${CACHE_KEYS.MERCHANTS}-location-categories-${customerId}-${includeInactive ? 'all' : 'active'}-${limit ?? 'all'}`;
+    const cached = dataCache.get<MerchantCategoryDisplay[]>(cacheKey);
+    if (cached) return cached;
+    const list = await LocationBasedMerchantService.getLocationBasedMerchants({ customerId, limit: 9999 });
+    const ids = Array.from(new Set(
+      (list || []).flatMap((m: any) => {
+        const raw = (m as any).merchant_categories;
+        if (!raw) return [] as number[];
+        if (Array.isArray(raw)) {
+          return raw
+            .map((v: any) => typeof v === 'number' ? v : (typeof v?.id === 'number' ? v.id : null))
+            .filter((v: any) => typeof v === 'number') as number[];
+        }
+        return [] as number[];
+      })
+    ));
+    if (ids.length === 0) { dataCache.set(cacheKey, [], CACHE_TTL.MERCHANTS); return []; }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+    if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+    const base = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+    const params = new URLSearchParams();
+    params.append('where[id][in]', ids.join(','));
+    if (!includeInactive) params.append('where[isActive][equals]', 'true');
+    params.append('limit', String(ids.length));
+    const url = `${base}/merchant-categories?${params.toString()}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) { dataCache.set(cacheKey, [], CACHE_TTL.MERCHANTS); return []; }
+    const json = await res.json();
+    const docs: any[] = json.docs || json.data?.docs || [];
+    let mapped: MerchantCategoryDisplay[] = docs.map((c: any) => ({
+      id: typeof c.id === 'number' ? c.id : Number(c.id),
+      name: c.name,
+      slug: c.slug,
+      description: c.description || undefined,
+      displayOrder: c.displayOrder ?? undefined,
+      isActive: c.isActive ?? undefined,
+      isFeatured: c.isFeatured ?? undefined,
+      media: { icon: c.icon || null },
+      updatedAt: c.updatedAt,
+      createdAt: c.createdAt,
+    }));
+    if (typeof limit === 'number') mapped = mapped.slice(0, limit);
+    dataCache.set(cacheKey, mapped, CACHE_TTL.MERCHANTS);
+    return mapped;
+  }
+
+  static sortByRecentlyUpdated(list: LocationBasedMerchant[]): LocationBasedMerchant[] {
+    const getUpdatedTimeMs = (m: LocationBasedMerchant): number => {
+      const primary = (m as any).updatedAt || (m as any).createdAt || '';
+      const t = Date.parse(primary);
+      return Number.isFinite(t) ? t : 0;
+    };
+    return [...(list || [])].sort((a, b) => getUpdatedTimeMs(b) - getUpdatedTimeMs(a));
+  }
+
+  static async getActiveAddressNamesForMerchants(list: LocationBasedMerchant[]): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    if (!list || list.length === 0) return out;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+    if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+    const base = LocationBasedMerchantService.API_BASE;
+    const jobs = list.map((m) => async () => {
+      const cacheKey = `${CACHE_KEYS.MERCHANTS}-active-address-${m.id}`;
+      const cached = dataCache.get<string>(cacheKey);
+      if (cached) { out[m.id] = cached; return; }
+      try {
+        const res = await fetch(`${base}/merchants/${m.id}?depth=1`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const addr = data?.activeAddress;
+          const name = addr?.formatted_address;
+          if (name && typeof name === 'string') {
+            out[m.id] = name;
+            dataCache.set(cacheKey, name, CACHE_TTL.ACTIVE_ADDRESS);
+            return;
+          }
+        }
+      } catch {}
+      const lat = (m as any).merchant_latitude ?? (m as any).latitude ?? null;
+      const lng = (m as any).merchant_longitude ?? (m as any).longitude ?? null;
+      if (lat != null && lng != null) {
+        try {
+          const res2 = await fetch(`${base}/addresses?where[latitude][equals]=${lat}&where[longitude][equals]=${lng}&limit=1`, { headers });
+          if (res2.ok) {
+            const j = await res2.json();
+            const doc = j?.docs?.[0];
+            const name = doc?.formatted_address;
+            if (name && typeof name === 'string') {
+              out[m.id] = name;
+              dataCache.set(cacheKey, name, CACHE_TTL.ACTIVE_ADDRESS);
+              return;
+            }
+          }
+        } catch {}
+      }
+    });
+    const limit = 5;
+    let idx = 0;
+    const runNext = async (): Promise<void> => {
+      if (idx >= jobs.length) return;
+      const current = idx++;
+      await jobs[current]();
+      await runNext();
+    };
+    const runners = Array.from({ length: Math.min(limit, jobs.length) }).map(() => runNext());
+    await Promise.all(runners);
+    return out;
   }
 
   /**
@@ -242,3 +369,6 @@ export class LocationBasedMerchantService {
 export const getLocationBasedMerchants = LocationBasedMerchantService.getLocationBasedMerchants;
 export const getCurrentCustomerId = LocationBasedMerchantService.getCurrentCustomerId;
 export const clearLocationBasedMerchantsCache = LocationBasedMerchantService.clearCache;
+export const getLocationBasedMerchantCategories = LocationBasedMerchantService.getLocationBasedMerchantCategories;
+export const getActiveAddressNamesForMerchants = LocationBasedMerchantService.getActiveAddressNamesForMerchants;
+export const sortMerchantsByRecentlyUpdated = LocationBasedMerchantService.sortByRecentlyUpdated;

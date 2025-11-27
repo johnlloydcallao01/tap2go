@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ProductCategoryCircle } from '@/components/ui/ProductCategoryCircle';
 import { useAddressChange } from '@/hooks/useAddressChange';
-import { LocationBasedMerchantService } from '@/lib/client-services/location-based-merchant-service';
+import { LocationBasedMerchantService, getLocationBasedMerchantCategories, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
 import type { Media } from '@/types/merchant';
 
 interface LocationBasedProductCategoriesCarouselProps {
@@ -21,18 +21,6 @@ interface LocationBasedProductCategoriesCarouselProps {
  * Implements physics-based scrolling with smooth momentum
  * 100% CSR - fetches data client-side
  */
-type MerchantCategoryDisplay = {
-  id: number;
-  name: string;
-  slug: string;
-  description?: string;
-  displayOrder?: number;
-  isActive?: boolean;
-  isFeatured?: boolean;
-  media?: { icon?: Media | null };
-  updatedAt?: string;
-  createdAt?: string;
-};
 
 export const LocationBasedProductCategoriesCarousel = ({
   customerId,
@@ -84,68 +72,15 @@ export const LocationBasedProductCategoriesCarousel = ({
     try {
       setLoading(true);
       setError(null);
-
-      const merchants = await LocationBasedMerchantService.getLocationBasedMerchants({
-        customerId: customerIdToUse,
-        limit: 9999,
-      });
-
-      const ids = Array.from(new Set(
-        merchants.flatMap((m: any) => {
-          const raw = (m as any).merchant_categories;
-          if (!raw) return [] as number[];
-          if (Array.isArray(raw)) {
-            return raw
-              .map((v: any) => typeof v === 'number' ? v : (typeof v?.id === 'number' ? v.id : null))
-              .filter((v: any) => typeof v === 'number') as number[];
-          }
-          return [] as number[];
-        })
-      ));
-
-      if (ids.length === 0) {
-        setCategories([]);
-        return;
-      }
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
-      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
-      const base = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-
-      const inParam = ids.join(',');
-      const url = `${base}/merchant-categories?where[isActive][equals]=${includeInactive ? '' : 'true'}&where[id][in]=${encodeURIComponent(inParam)}&limit=${ids.length}`;
-
-      const response = await fetch(url, { headers });
-      if (!response.ok) {
-        const t = await response.text();
-        throw new Error(`Failed to fetch merchant categories: ${response.status} ${t}`);
-      }
-      const json = await response.json();
-      const docs: any[] = json.docs || json.data?.docs || [];
-
-      let mapped: MerchantCategoryDisplay[] = docs.map((c: any) => ({
-        id: typeof c.id === 'number' ? c.id : Number(c.id),
-        name: c.name,
-        slug: c.slug,
-        description: c.description || undefined,
-        displayOrder: c.displayOrder ?? undefined,
-        isActive: c.isActive ?? undefined,
-        isFeatured: c.isFeatured ?? undefined,
-        media: { icon: c.icon || null },
-        updatedAt: c.updatedAt,
-        createdAt: c.createdAt,
-      }));
-
+      const cats = await getLocationBasedMerchantCategories({ customerId: customerIdToUse, includeInactive, limit: limit });
+      let mapped = cats || [];
       if (sortBy === 'name') {
-        mapped = mapped.sort((a, b) => a.name.localeCompare(b.name));
+        mapped = mapped.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       } else if (sortBy === 'productCount') {
-        mapped = mapped.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+        mapped = mapped.slice().sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
       }
-
       setCategories(mapped.slice(0, limit));
     } catch (err) {
-      console.error('❌ Error fetching location-based merchant categories:', err);
       setError('Failed to load categories');
       setCategories([]);
     } finally {
