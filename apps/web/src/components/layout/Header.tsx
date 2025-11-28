@@ -50,6 +50,14 @@ export function Header({
   const [productMatchedMerchants, setProductMatchedMerchants] = useState<LocationBasedMerchant[]>([]);
   type Suggestion = { text: string; source: 'merchant' | 'category' | 'product' | 'tag' };
   const [isProductLoading, setIsProductLoading] = useState(false);
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const toggleWishlist = useCallback((id: string) => {
+    setWishlistIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
   // Notification popup state
   const [isNotificationPopupOpen, setIsNotificationPopupOpen] = useState(false);
@@ -666,7 +674,13 @@ export function Header({
                             return (
                               <div className="grid grid-cols-1 gap-6">
                                 {combined.map((merchant) => (
-                                  <LocationMerchantCard key={merchant.id} merchant={merchant} />
+                                  <LocationMerchantCard 
+                                    key={merchant.id} 
+                                    merchant={merchant} 
+                                    variant="list" 
+                                    isWishlisted={wishlistIds.has(merchant.id)}
+                                    onToggleWishlist={toggleWishlist}
+                                  />
                                 ))}
                               </div>
                             );

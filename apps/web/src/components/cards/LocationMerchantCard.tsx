@@ -11,6 +11,7 @@ interface LocationMerchantCardProps {
   isWishlisted?: boolean;
   onToggleWishlist?: (id: string) => void;
   addressName?: string | null;
+  variant?: 'card' | 'list';
 }
 
 function getImageUrl(media: Media | null | undefined): string | null {
@@ -24,7 +25,7 @@ function formatDistanceKm(distanceKm?: number): string | null {
   return `${distanceKm.toFixed(1)}km`;
 }
 
-export default function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist, addressName = null }: LocationMerchantCardProps) {
+export default function LocationMerchantCard({ merchant, isWishlisted = false, onToggleWishlist, addressName = null, variant = 'card' }: LocationMerchantCardProps) {
   const thumbnailImageUrl = getImageUrl(merchant.media?.thumbnail);
   const altText = merchant.media?.thumbnail?.alt || `${merchant.outletName} thumbnail`;
   const vendorLogoUrl = getImageUrl(merchant.vendor?.logo);
@@ -34,7 +35,6 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
   const rating = typeof merchant.metrics?.averageRating === "number" ? merchant.metrics.averageRating : null;
 
   return (
-    // Cast Link to any to satisfy TypeScript JSX constraints consistent with existing usage
     <>
       {(() => {
         const LinkComponent = Link as any;
@@ -46,6 +46,60 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
           .replace(/\s+/g, '-')
           .replace(/-+/g, '-');
         const slugId = `${slug}-${merchant.id}`;
+        if (variant === 'list') {
+          return (
+            <LinkComponent href={`/merchant/${slugId}`} className="group block">
+              <div className="flex items-center gap-4 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
+                  {thumbnailImageUrl ? (
+                    <Image src={thumbnailImageUrl} alt={altText} fill className="object-cover" />
+                  ) : (
+                    <Image src="/placeholder-merchant.jpg" alt="Merchant placeholder" fill className="object-cover" />
+                  )}
+                  {distanceText && (
+                    <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded-full">{distanceText}</div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors truncate">
+                        {addressName ? `${merchant.outletName} - ${addressName}` : merchant.outletName}
+                      </h3>
+                      {merchant.vendor?.businessName && (
+                        <p className="text-sm text-gray-600 truncate">{merchant.vendor.businessName}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                      aria-pressed={isWishlisted}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onToggleWishlist && onToggleWishlist(merchant.id);
+                      }}
+                      className="w-[28px] h-[28px] rounded-full bg-white flex items-center justify-center shadow-sm hover:shadow-md"
+                    >
+                      <i className={`fas fa-heart text-[16px]`} style={{ color: isWishlisted ? "#f3a823" : "#ffffff", WebkitTextStroke: "2px #333" }}></i>
+                    </button>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+                    {typeof rating === 'number' && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-yellow-400">★</span>
+                        <span>{rating.toFixed(1)}</span>
+                      </div>
+                    )}
+                    {merchant.metrics?.totalOrders && <span>({merchant.metrics.totalOrders} orders)</span>}
+                    {merchant.estimatedDeliveryTime && (
+                      <span className="ml-2 text-gray-600">{merchant.estimatedDeliveryTime} min delivery</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </LinkComponent>
+          );
+        }
         return (
           <LinkComponent href={`/merchant/${slugId}`} className="group cursor-pointer block">
             <div className="relative aspect-[2/1] bg-gray-100 rounded-lg overflow-visible mb-6 group-hover:shadow-lg transition-shadow duration-200">
@@ -58,13 +112,9 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
                   <Image src="/placeholder-merchant.jpg" alt="Merchant placeholder" fill className="object-cover rounded-lg" />
                 </div>
               )}
-
               {distanceText && (
-                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
-                  {distanceText}
-                </div>
+                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">{distanceText}</div>
               )}
-
               <button
                 type="button"
                 aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
@@ -78,25 +128,18 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
               >
                 <i className={`fas fa-heart text-[16px]`} style={{ color: isWishlisted ? "#f3a823" : "#ffffff", WebkitTextStroke: "2px #333" }}></i>
               </button>
-
               {vendorLogoUrl && (
                 <div className="absolute -bottom-4 left-0 w-12 h-12 bg-white rounded-full shadow-lg border-2 border-white">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={vendorLogoUrl}
                     alt={`${merchant.vendor?.businessName || "Vendor"} logo`}
-                    className="w-full h-full object-contain rounded-full"
-                    loading="lazy"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      const parent = target.parentElement;
-                      if (parent) parent.style.display = "none";
-                    }}
+                    fill
+                    className="object-contain rounded-full"
+                    sizes="48px"
                   />
                 </div>
               )}
             </div>
-
             <div className="space-y-1">
               <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">
                 {addressName ? `${merchant.outletName} - ${addressName}` : merchant.outletName}

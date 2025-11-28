@@ -6,6 +6,7 @@
 export * from './auth';
 export * from './merchant';
 export * from './product-category';
+export * from './product';
 
 export interface SidebarItemProps {
   icon: string;
