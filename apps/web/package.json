@@ -6,7 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "dev:turbo": "next dev --turbopack",
-    "lint": "next lint",
+    "lint": "eslint .",
     "start": "next start",
     "type-check": "tsc --noEmit"
   },
@@ -14,7 +14,7 @@
     "@encreasl/redux": "workspace:*",
     "@fortawesome/fontawesome-free": "^7.1.0",
     "lucide-react": "^0.263.1",
-    "next": "15.4.2",
+    "next": "16.0.7",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.6.0",
@@ -35,7 +35,7 @@
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "eslint": "^9",
-    "eslint-config-next": "15.4.2",
+    "eslint-config-next": "16.0.7",
     "tailwindcss": "^4",
     "turbo": "^2.0.0",
     "typescript": "^5"

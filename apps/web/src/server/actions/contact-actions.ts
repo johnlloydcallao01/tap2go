@@ -11,11 +11,9 @@ import type { ServerActionResult } from '../types/server-types';
 import { LeadQualificationService } from '../services/lead-qualification-service';
 import {
   ContactFormSchema,
-  ContactFormStorageSchema,
   type ContactFormData
 } from '../validators/contact-schemas';
 import {
-  withContactFormDefaults,
   withValidationResult
 } from '../middleware';
 

@@ -133,7 +133,7 @@ function LocationMerchantCardLegacy({ merchant, isWishlisted = false, onToggleWi
         {/* Vendor Logo Overlay - Professional delivery platform style */}
         {vendorLogoUrl && (
           <div className="absolute -bottom-4 left-0 w-12 h-12 bg-white rounded-full shadow-lg border-2 border-white">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             <img
               src={vendorLogoUrl}
               alt={`${merchant.vendor?.businessName || 'Vendor'} logo`}

@@ -34,7 +34,7 @@ export function ProductCategoryCircle({
         }`}
       >
         {category.media?.icon && (category.media.icon.cloudinaryURL || category.media.icon.url) ? (
-          // eslint-disable-next-line @next/next/no-img-element
+           
           <img
              src={category.media.icon.cloudinaryURL || category.media.icon.url}
              alt={category.media.icon.alt || category.name}

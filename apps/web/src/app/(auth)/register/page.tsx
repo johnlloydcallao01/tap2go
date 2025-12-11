@@ -10,7 +10,7 @@ import { FlatUserRegistrationSchema, type FlatUserRegistrationData } from '@/ser
  * Responsive design with split layout for desktop and mobile-optimized forms
  */
 
-export default function RegisterPage() {
+export default function RegisterPage(): React.ReactNode {
   const router = useRouter();
 
   // 🚀 ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS

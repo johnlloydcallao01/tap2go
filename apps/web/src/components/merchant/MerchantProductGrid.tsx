@@ -28,8 +28,8 @@ type MerchantCategoryDisplay = {
 
 export default function MerchantProductGrid({ products, categories }: { products: ProductCardItem[]; categories?: MerchantCategoryDisplay[] }) {
   const [selectedCategoryId, setSelectedCategoryId] = React.useState<number | null>(null);
-  const sectionRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
-  const sentinelRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
+  const sectionRefs = React.useRef<Map<number, HTMLElement>>(new Map());
+  const sentinelRefs = React.useRef<Map<number, HTMLElement>>(new Map());
   const [visibleCounts, setVisibleCounts] = React.useState<Record<number, number>>({});
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const pathname = usePathname();
@@ -160,7 +160,7 @@ export default function MerchantProductGrid({ products, categories }: { products
       let candidate: number | null = selectedCategoryId;
       let best = Infinity;
       entries.forEach((e) => {
-        const el = e.target as HTMLDivElement;
+        const el = e.target as HTMLElement;
         const attr = el.getAttribute("data-category-id");
         const id = attr ? Number(attr) : null;
         const top = e.boundingClientRect.top;

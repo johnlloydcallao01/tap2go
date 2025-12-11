@@ -12,7 +12,7 @@ import {
 import type { Media } from "@/types/merchant";
 import LocationMerchantCard from "@/components/cards/LocationMerchantCard";
 
-export default function NewlyUpdatedPage(): JSX.Element {
+export default function NewlyUpdatedPage(): React.ReactNode {
   const router = useRouter();
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);

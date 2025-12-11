@@ -34,16 +34,8 @@ const nextConfig = {
       },
     ]
   },
-  // Your Next.js config here
-  webpack: (webpackConfig) => {
-    webpackConfig.resolve.extensionAlias = {
-      '.cjs': ['.cts', '.cjs'],
-      '.js': ['.ts', '.tsx', '.js', '.jsx'],
-      '.mjs': ['.mts', '.mjs'],
-    }
-
-    return webpackConfig
-  },
+  // Enable Turbopack (Next.js 16 default)
+  turbopack: {},
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })

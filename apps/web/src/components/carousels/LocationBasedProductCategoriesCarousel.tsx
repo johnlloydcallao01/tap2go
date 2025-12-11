@@ -30,7 +30,7 @@ export const LocationBasedProductCategoriesCarousel = ({
   selectedCategorySlug,
   onCategorySelect,
   onCategoryIdResolved,
-}: LocationBasedProductCategoriesCarouselProps): JSX.Element => {
+}: LocationBasedProductCategoriesCarouselProps): React.ReactNode => {
   // CSR state management for location-based categories
   const [categories, setCategories] = useState<MerchantCategoryDisplay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -440,13 +440,16 @@ export const LocationBasedProductCategoriesCarousel = ({
                       id: category.id as any,
                       name: category.name,
                       slug: category.slug,
-                      description: category.description,
-                      displayOrder: category.displayOrder,
-                      isActive: category.isActive,
-                      isFeatured: category.isFeatured,
-                      media: category.media,
-                      updatedAt: category.updatedAt,
-                      createdAt: category.createdAt,
+                      media: category.media && category.media.icon
+                        ? {
+                            icon: {
+                              id: category.media.icon.id,
+                              url: category.media.icon.url || '',
+                              cloudinaryURL: category.media.icon.cloudinaryURL || undefined,
+                              alt: category.media.icon.alt || undefined,
+                            },
+                          }
+                        : undefined,
                     }}
                     active={activeCategory === category.name}
                     onClick={() => handleCategoryClick(category.name)}

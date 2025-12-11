@@ -346,7 +346,7 @@ export const Products: CollectionConfig = {
             }
           } else if (req.user.role === 'admin' && data.createdByVendor) {
             // Admin can manually set the vendor
-            data.createdByVendor = data.createdByVendor;
+            // Keep existing value
           }
         }
 

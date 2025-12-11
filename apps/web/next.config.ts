@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@encreasl/ui"],
+  typedRoutes: false,
 
   // Image configuration for external domains
   images: {
@@ -39,18 +40,8 @@ const nextConfig: NextConfig = {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
   },
 
-  // Public runtime configuration (deprecated in favor of NEXT_PUBLIC_ prefix)
-  publicRuntimeConfig: {
-    // These will be available on both server and client
-    appName: process.env.NEXT_PUBLIC_APP_NAME,
-    appVersion: process.env.NEXT_PUBLIC_APP_VERSION,
-  },
 
-  // Server runtime configuration
-  serverRuntimeConfig: {
-    // These will only be available on the server side
-    // Add server-only environment variables here if needed
-  },
+
 
   // Proxy API requests to avoid CORS during development
   async rewrites() {
@@ -99,11 +90,7 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // Experimental features for better environment variable handling
-  experimental: {
-    // Enable environment variable validation
-    typedRoutes: false,
-  },
+  
 };
 
 export default nextConfig;

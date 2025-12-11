@@ -1,131 +1,112 @@
-apps/web Fetching Architecture Review — Home, Nearby, Newly Updated, Merchant Categories
+# Mobile Search Popup: Merchant Results Navigation (apps/web)
 
-Overview
-- Goal: deeply analyze how data is fetched and supplied to the “/” page sections for Nearby Restaurants and Newly Updated, and the merchant categories used for home and search, identify duplication, and recommend an enterprise-grade design.
-- Scope: `apps/web` client-side fetching and rendering paths, including components and client services.
+## Overview
 
-Primary Data Sources
-- Location-based merchants: `GET /merchant/location-based-display?customerId=&limit=&categoryId=` via client service at `apps/web/src/lib/client-services/location-based-merchant-service.ts:54-128`.
-- Merchant categories: `GET /merchant-categories` using IDs mined from merchants, in multiple places:
-  - Home categories carousel: `apps/web/src/components/carousels/LocationBasedProductCategoriesCarousel.tsx:83-154, 111-118`.
-  - Shared client service method: `apps/web/src/lib/client-services/location-based-merchant-service.ts:130-164`.
-- Merchant detail/addresses (for display of active address names):
-  - Per-merchant lookups in list UIs: `apps/web/src/components/sections/LocationBasedMerchants.tsx:247-277`, `nearby-restaurants/page.tsx:33-65`, `newly-updated/page.tsx:33-65`.
+- The mobile search popup is implemented as a client-side modal rendered into `document.body` using a portal.
+- Merchant search results inside the popup are rendered as `LocationMerchantCard` items that link to the merchant view route.
+- Navigation to a merchant page happens via `next/link` client-side routing, so the app transitions without a full page reload.
 
-Home Page Flow
-- Component: `apps/web/src/app/(main)/page.tsx:94-111`.
-- Resolves `customerId` once at page level: `apps/web/src/app/(main)/page.tsx:34-50`.
-- Renders merchant categories carousel: `LocationBasedProductCategoriesCarousel` which:
-  - Fetches all location-based merchants and mines `merchant_categories` IDs: `apps/web/src/components/carousels/LocationBasedProductCategoriesCarousel.tsx:88-104`.
-  - Fetches category details by ID from `merchant-categories`: `apps/web/src/components/carousels/LocationBasedProductCategoriesCarousel.tsx:111-125`.
-  - Resolves slug→id and emits `onCategoryIdResolved`: `apps/web/src/components/carousels/LocationBasedProductCategoriesCarousel.tsx:64-71`.
-- Renders `LocationBasedMerchants` with optional `categoryId` for filtering: `apps/web/src/app/(main)/page.tsx:106-111`.
+## Key Components
 
-Nearby Restaurants Page
-- Component: `apps/web/src/app/(main)/nearby-restaurants/page.tsx`.
-- Resolves `customerId` and fetches merchants via service: `apps/web/src/app/(main)/nearby-restaurants/page.tsx:103-131`.
-- Performs per-merchant active address name fetch with merchant detail then coordinates fallback: `apps/web/src/app/(main)/nearby-restaurants/page.tsx:32-65, 67-89`.
-- Displays cards using `LocationMerchantCard`: `apps/web/src/app/(main)/nearby-restaurants/page.tsx:198-210`.
+- `apps/web/src/components/search/SearchModal.tsx` — mobile popup for searching merchants and foods.
+- `apps/web/src/components/cards/LocationMerchantCard.tsx` — merchant list/card with a `Link` to the merchant page.
+- `apps/web/src/app/(main)/merchant/[slugId]/page.tsx` — the merchant view page.
+- `apps/web/src/lib/client-services/location-based-merchant-service.ts` — client service fetching location-based merchants and categories.
 
-Newly Updated Page
-- Component: `apps/web/src/app/(main)/newly-updated/page.tsx`.
-- Resolves `customerId` and fetches merchants: `apps/web/src/app/(main)/newly-updated/page.tsx:103-118`.
-- Sorts merchants by `updatedAt/createdAt` descending to represent “Newly Updated”: `apps/web/src/app/(main)/newly-updated/page.tsx:120-127`.
-- Performs same per-merchant active address lookup flow: `apps/web/src/app/(main)/newly-updated/page.tsx:32-65, 67-89`.
+## How the Mobile Search Popup Works
 
-LocationBasedMerchants Section (Home)
-- Component: `apps/web/src/components/sections/LocationBasedMerchants.tsx`.
-- Fetches merchants via service with optional `categoryId`: `apps/web/src/components/sections/LocationBasedMerchants.tsx:299-319`.
-- “Nearby Restaurants” grid/carousel and “Newly Updated” grid/carousel are composed inside this component.
-- Address name enrichment duplicates the per-merchant lookup flow: `apps/web/src/components/sections/LocationBasedMerchants.tsx:247-297`.
-- “Newly Updated” sort duplicated here as well: `apps/web/src/components/sections/LocationBasedMerchants.tsx:323-333`.
+1) Open and render the modal
+- The header toggles the popup via state. The modal is portaled to `document.body`:
+- `apps/web/src/components/layout/Header.tsx:835` renders `<SearchModal isOpen={isSearchOpen} onClose={...} />`.
+- The modal disables body scroll when open and re-enables it when closed: `apps/web/src/components/search/SearchModal.tsx:63-78`.
+- The modal is rendered using a portal: `apps/web/src/components/search/SearchModal.tsx:375-393`, `492`.
 
-Merchant Categories Across the App
-- Home carousel sources merchant categories by mining merchant payloads then calling `merchant-categories`: `apps/web/src/components/carousels/LocationBasedProductCategoriesCarousel.tsx:88-118`.
-- Client service now includes a shared method to fetch location-based merchant categories: `apps/web/src/lib/client-services/location-based-merchant-service.ts:130-164`.
-- Search components use the shared service to supply category suggestions and filtering (ensures merchant categories, not product categories), e.g. `apps/web/src/components/search/SearchModal.tsx:107-157`.
+2) Fetch merchants and categories for the current customer
+- On open, it resolves the current customer and loads nearby merchants and categories:
+- `apps/web/src/components/search/SearchModal.tsx:114-136` and `155-176`.
+- The service that actually hits the CMS API:
+- `apps/web/src/lib/client-services/location-based-merchant-service.ts:65-139` (merchants), `141-189` (categories).
 
-Duplication and Inconsistencies
-- Per-merchant address resolution logic:
-  - Duplicated in three places (Home section, Nearby page, Newly Updated page), including building headers and coordinate fallback. References: `LocationBasedMerchants.tsx:247-297`, `nearby-restaurants/page.tsx:32-65`, `newly-updated/page.tsx:32-65`.
-  - Each call performs N+1 network requests (merchant detail and optional address coords lookup), repeated across pages.
-- “Newly Updated” sorting:
-  - Duplicated in Home section (`LocationBasedMerchants.tsx:323-333`) and dedicated page (`newly-updated/page.tsx:120-127`).
-- Merchant categories fetching:
-  - Home carousel implements bespoke mining of IDs and direct API fetch (`LocationBasedProductCategoriesCarousel.tsx:88-125`).
-  - Client service provides the same capability with caching (`location-based-merchant-service.ts:130-164`).
-  - These paths are not unified; category sourcing logic is duplicated and not centralized.
-- Customer ID resolution:
-  - Implemented in multiple components (Home page, categories carousel, merchants section, nearby page, newly updated page) with similar patterns.
-  - While there is caching in `getCurrentCustomerId`, individual components still resolve `customerId` redundantly, leading to scattered responsibility.
+3) Build suggestions and perform filtering
+- Suggestions combine merchant names, categories, tags, and product names:
+- `apps/web/src/components/search/SearchModal.tsx:280-326`.
+- Committed searches (after Enter or clicking a suggestion) trigger product→merchant matching:
+- `apps/web/src/components/search/SearchModal.tsx:205-244`.
+- Final merchant result set merges category matches, product matches, and text matches:
+- `apps/web/src/components/search/SearchModal.tsx:262-278`.
 
-Risks and Operational Concerns
-- Network efficiency:
-  - N+1 address lookups (merchant detail, coordinates fallback) per view lead to high request volume and latency spikes on slower networks.
-  - Mining categories by first fetching all merchants (limit=9999) can be heavy for dense areas; better to request categories directly per location.
-- Consistency:
-  - Multiple implementations of sorting and categories mining increase the chance of drift and regressions.
-  - Historical confusion between product categories and merchant categories can reoccur when logic is not centralized.
-- Caching coherence:
-  - `dataCache` is used, but cache keys are per-component/service and do not dedupe cross-component fetches; lack of shared query cache can cause repeated identical requests.
-- Security and API posture:
-  - Client-side use of `NEXT_PUBLIC_PAYLOAD_API_KEY` exposes the service account key to the browser; consider proxying sensitive lookups via `/api/*` routes (server-side) to reduce exposure and centralize auth policy.
+4) Render merchant results as navigable cards
+- Once filtered, results are rendered as `LocationMerchantCard` with a compact list variant:
+- `apps/web/src/components/search/SearchModal.tsx:472-481`.
 
-Recommendations (Enterprise-Level)
-- Centralize category sourcing:
-  - Establish `getLocationBasedMerchantCategories(customerId, options)` as the single source of truth. Ensure all UI (home carousel, search suggestions) uses this method rather than duplicating ID-mining and direct fetches.
-  - Prefer a server-provided endpoint `GET /merchant/location-based-categories?customerId=` that returns active categories for the customer’s location, so we avoid fetching all merchants to mine category IDs.
-- Address enrichment service:
-  - Create `MerchantAddressService.getActiveAddressNames(merchantIds)` to batch-fetch active addresses for a list of merchants (one endpoint) instead of per-merchant requests.
-  - Add local cache keyed by merchant id and TTL (e.g., 5–15 minutes) and a concurrency limiter to avoid floods.
-  - Expose a hook `useMerchantActiveAddresses(merchants)` that uses the service and caches results.
-- Shared data hooks:
-  - `useLocationBasedMerchants({ customerId, categoryId, limit })` returning `{ merchants, isLoading, error }` with internal caching. Reuse across Home section and pages.
-  - `useLocationBasedMerchantCategories({ customerId })` returning `{ categories, isLoading, error }`.
-  - `useCustomerId()` context/provider that resolves once and provides `customerId` globally.
-- Sorting utilities:
-  - Add `getUpdatedTimeMs(m)` and `sortByRecentlyUpdated(list)` utilities in a shared module (e.g., `lib/utils/merchants.ts`). Use the same function in Home and Newly Updated page to guarantee consistency.
-- API access normalization:
-  - Wrap all CMS calls in service modules and, where possible, proxy via Next.js API routes to centralize authentication, logging, and rate limiting. This allows replacing `NEXT_PUBLIC_PAYLOAD_API_KEY` exposure with server-side credentials.
-- Performance controls:
-  - Avoid `limit=9999` merchant requests for categories mining; use dedicated categories endpoint or paginate and aggregate with reasonable limits.
-  - Debounce and memoize expensive operations (category mining, address enrichment) and use shared caches.
-- Type consistency:
-  - Normalize `categoryId` to `string` everywhere to match service signatures; map numeric IDs to strings at boundaries.
+## Why Clicking Navigates to the Merchant View Page
 
-Proposed Refactor Plan (Incremental)
-- Phase 1: Centralize category fetching
-  - Adopt `getLocationBasedMerchantCategories` service as the only path for categories.
-  - Refactor `LocationBasedProductCategoriesCarousel` to consume the service rather than re-implementing ID mining and direct fetch.
-  - Ensure search components rely on the same service.
-- Phase 2: Shared merchant list and sorting
-  - Introduce `useLocationBasedMerchants` hook with shared error/loading/caching logic.
-  - Move “Newly Updated” sort into `lib/utils/merchants.ts` and reuse in Home section and page.
-- Phase 3: Address enrichment consolidation
-  - Implement `MerchantAddressService.getActiveAddressNames(merchantIds)` with batching and caching.
-  - Replace per-merchant fetch logic in `LocationBasedMerchants`, `nearby-restaurants/page.tsx`, `newly-updated/page.tsx` with the shared service/hook.
-- Phase 4: Customer ID context
-  - Provide `CustomerProvider` that resolves `customerId` once and avoids repeated resolutions in components.
-  - Update pages/components to consume from context.
-- Phase 5: Server-side proxying (optional, recommended)
-  - Introduce Next.js API routes for sensitive CMS calls (merchant detail, address lookups, categories) to remove client exposure of API key and unify error handling.
+1) Merchant card creates a slug and links to the merchant route
+- `LocationMerchantCard` constructs a `slugId` based on outlet name and ID, then uses `next/link`:
+- `apps/web/src/components/cards/LocationMerchantCard.tsx:41-51` (slug assembly), `51-52` and `104-105` (Link to `/merchant/${slugId}`).
 
-Expected Outcomes
-- Reduced network requests and latency, especially for address enrichment.
-- Consistent category behavior across home, search, and filters, eliminating product-vs-merchant category confusion.
-- Lower maintenance cost via centralized logic, fewer regressions.
-- Better security posture by removing client-side service account key usage for sensitive endpoints.
+2) The merchant page route parses the ID from `slugId` and loads the merchant
+- The dynamic route `[slugId]` extracts the numeric ID from the tail of the slug and fetches data:
+- `apps/web/src/app/(main)/merchant/[slugId]/page.tsx:68-71` (ID parsing), `70-73` (notFound when missing), `75-88` (hero and header), `178-179` (product grid client).
+- Server-side service call to CMS:
+- `apps/web/src/server/services/merchant-service.ts:93-126` (`getMerchantById`).
 
-Open Questions & Assumptions
-- Is a server endpoint like `GET /merchant/location-based-categories` available or feasible to add? If not, we will keep the service-driven aggregation with stricter pagination.
-- SLA on address freshness and acceptable cache TTL for `activeAddressName`.
-- Acceptable maximum item counts for mobile carousels vs desktop grids; current limits: merchants 8 for mobile carousels.
-- Any need to include product categories alongside merchant categories in any UI? If so, maintain separate services to avoid conflation and clearly differentiate.
+This means when you click any merchant result, the link navigates to `/merchant/{slug}-{id}`, the route reads the `{id}`, fetches the merchant, and renders the page.
 
-Key References
-- Home: `apps/web/src/app/(main)/page.tsx:94-111` (wiring categories and merchants), `apps/web/src/app/(main)/page.tsx:34-50` (customerId resolution).
-- Merchants section: `apps/web/src/components/sections/LocationBasedMerchants.tsx:299-319` (fetch), `apps/web/src/components/sections/LocationBasedMerchants.tsx:323-333` (recently updated sort), `apps/web/src/components/sections/LocationBasedMerchants.tsx:247-297` (address enrichment).
-- Nearby: `apps/web/src/app/(main)/nearby-restaurants/page.tsx:103-131` (fetch), `apps/web/src/app/(main)/nearby-restaurants/page.tsx:32-65` (address enrichment).
-- Newly Updated: `apps/web/src/app/(main)/newly-updated/page.tsx:103-118` (fetch), `apps/web/src/app/(main)/newly-updated/page.tsx:120-127` (sort), `apps/web/src/app/(main)/newly-updated/page.tsx:32-65` (address enrichment).
-- Categories carousel: `apps/web/src/components/carousels/LocationBasedProductCategoriesCarousel.tsx:83-154` (fetch flow), `apps/web/src/components/carousels/LocationBasedProductCategoriesCarousel.tsx:64-71` (slug→id resolution).
-- Client service: `apps/web/src/lib/client-services/location-based-merchant-service.ts:54-128` (merchants), `apps/web/src/lib/client-services/location-based-merchant-service.ts:130-164` (merchant categories), `apps/web/src/lib/client-services/location-based-merchant-service.ts:170-207` (customerId resolution).
+## Why It Doesn’t Require a Page Reload
+
+- `next/link` performs client-side navigation. Clicks are intercepted and the router transitions to the new route without a full browser reload.
+- In the Next.js App Router, route changes stream server-rendered content while preserving client state where applicable. The modal itself unmounts as `isOpen` becomes false, but the navigation is handled via the SPA router.
+- Code references showing portal and `Link` usage:
+- Portal: `apps/web/src/components/search/SearchModal.tsx:375-393`, `492`.
+- Link-based navigation: `apps/web/src/components/cards/LocationMerchantCard.tsx:51-52`, `104-105`.
+
+## Pattern You Can Reuse in Other Apps
+
+- Use `next/link` with SEO-friendly slugs that still carry a stable identifier.
+  - Build slugs as `{normalized-name}-{id}` on the client.
+  - In the route, parse the `{id}` by splitting on `-` and taking the last token.
+  - References: `apps/web/src/components/cards/LocationMerchantCard.tsx:41-49`, `apps/web/src/app/(main)/merchant/[slugId]/page.tsx:68-71`.
+
+- Keep search modals fully client-side and portaled.
+  - Render with `createPortal` to `document.body` for consistent overlay behavior.
+  - Lock body scroll while the modal is open for a native mobile feel.
+  - References: `apps/web/src/components/search/SearchModal.tsx:63-78`, `375-393`, `492`.
+
+- Merge multiple relevance signals for better results.
+  - Combine text matches (name, vendor, description, tags) with category matches and product→merchant matches.
+  - Debounce product lookups and use lightweight suggestion lists.
+  - References: `apps/web/src/components/search/SearchModal.tsx:262-278`, `280-326`, `205-244`.
+
+- Centralize CMS access in typed client services and cache results.
+  - Use a client service module to fetch merchants and categories, with short-term caching.
+  - References: `apps/web/src/lib/client-services/location-based-merchant-service.ts:65-139`, `141-189`.
+
+- Encapsulate display as reusable cards.
+  - Render merchants via a single card component (`LocationMerchantCard`) with variants.
+  - References: `apps/web/src/components/cards/LocationMerchantCard.tsx:28-35`, `49-101`, `103-166`.
+
+## Bonus: In-Merchant “Search Menu” Popup
+
+- Inside each merchant page there’s a dedicated product search popup for that merchant:
+- Trigger: `apps/web/src/components/merchant/MobileStickyHeader.tsx:51-61` emits `merchant:open-search`.
+- Listener and modal: `apps/web/src/components/merchant/MerchantProductGrid.tsx:103-113` opens `<MerchantSearchModal />`.
+- Product search modal builds product links to `/merchant/{slugId}/{productSlugId}`:
+- `apps/web/src/components/merchant/MerchantSearchModal.tsx:132-141`.
+- Product detail route parses ID from `productSlugId` and renders the detail client:
+- `apps/web/src/app/(main)/merchant/[slugId]/[productSlugId]/page.tsx:39-49`.
+
+## Recap
+
+- Merchant search results navigate correctly because cards use `next/link` to `/merchant/{slug}-{id}` and the dynamic route extracts the ID to fetch and render.
+- The popup and navigation are client-side, so transitions don’t reload the page.
+- The approach is modular: portal-based modal, typed client services, reusable cards, and slug+ID routing that’s easy to adopt across apps.
+
+---
+
+## Focus: Mobile Popup Merchant Results → Merchant Page Navigation
+
+- Results render as list cards: `apps/web/src/components/search/SearchModal.tsx:472-481` maps filtered merchants to `LocationMerchantCard` with `variant="list"`.
+- Each card builds a `slugId` and links to the merchant page: `apps/web/src/components/cards/LocationMerchantCard.tsx:41-49` (slug assembly) and `51-52` (Link `href` = `/merchant/${slugId}`).
+- The merchant route `[slugId]` extracts the trailing numeric ID and fetches merchant data: `apps/web/src/app/(main)/merchant/[slugId]/page.tsx:68-71` (ID parse) and `70-73` (missing → `notFound`).
+- Net effect: clicking a popup result navigates to `/merchant/{slug}-{id}` and the dynamic route loads and renders that merchant view.

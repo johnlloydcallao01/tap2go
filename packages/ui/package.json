@@ -17,6 +17,7 @@
     "@encreasl/eslint-config": "workspace:*",
     "@encreasl/typescript-config": "workspace:*",
     "@eslint/js": "^9",
+    "@types/node": "^20",
     "@types/minimatch": "^6.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",

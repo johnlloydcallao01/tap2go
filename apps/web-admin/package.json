@@ -13,7 +13,7 @@
   "dependencies": {
     "@encreasl/redux": "workspace:*",
     "lucide-react": "^0.263.1",
-    "next": "15.4.2",
+    "next": "16.0.7",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.53.2",
@@ -35,7 +35,7 @@
     "@typescript-eslint/parser": "^8",
     "cross-env": "^7.0.3",
     "eslint": "^9",
-    "eslint-config-next": "15.4.2",
+    "eslint-config-next": "16.0.7",
     "tailwindcss": "^4",
     "turbo": "^2.0.0",
     "typescript": "^5"

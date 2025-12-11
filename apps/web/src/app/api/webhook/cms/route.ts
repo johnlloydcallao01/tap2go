@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Revalidate product categories
-    revalidateTag('product-categories');
+    revalidateTag('product-categories', { expire: 0 });
     
     // Revalidate home page
     revalidatePath('/');

@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (tag) {
-      revalidateTag(tag);
+      revalidateTag(tag, { expire: 0 });
       return NextResponse.json({ revalidated: true, tag });
     }
 
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     // Revalidate specific cache tag
     if (tag) {
-      revalidateTag(tag);
+      revalidateTag(tag, { expire: 0 });
     }
 
     return NextResponse.json({ 

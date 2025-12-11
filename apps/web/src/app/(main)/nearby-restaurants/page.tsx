@@ -11,7 +11,7 @@ import {
 import type { Media } from "@/types/merchant";
 import LocationMerchantCard from "@/components/cards/LocationMerchantCard";
 
-export default function NearbyRestaurantsPage(): JSX.Element {
+export default function NearbyRestaurantsPage(): React.ReactNode {
   const router = useRouter();
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
