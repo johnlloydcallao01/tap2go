@@ -417,8 +417,6 @@ export function Header({
   const commitSearch = useCallback((val?: string) => {
     const v = (val ?? searchQuery).trim();
     if (!v) return;
-    setIsProductLoading(true);
-    setHasCommittedSearch(true);
     setServerRecentQueries((prev) => {
       const list = [v, ...prev];
       const seen = new Set<string>();
@@ -455,12 +453,13 @@ export function Header({
         await fetch(`${API_BASE}/recent-searches/${id}`, { method: 'PATCH', headers, body: '{}' });
       } catch { }
     })();
+    router.push(`/results?search_query=${encodeURIComponent(v)}`);
+    setIsDropdownOpen(false);
     if (onSearch) onSearch(v);
-  }, [searchQuery, onSearch, activeAddressName, normalizeQuery]);
+  }, [searchQuery, onSearch, activeAddressName, normalizeQuery, router]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsDropdownOpen(true);
     commitSearch();
   };
 
@@ -468,35 +467,29 @@ export function Header({
     <>
       <header className={`lg:sticky lg:top-0 fixed top-0 left-0 right-0 lg:bg-white z-50 lg:transition-none transition-transform duration-300 ease-in-out ${isHeaderVisible ? 'translate-y-0' : 'lg:translate-y-0 -translate-y-full'
         }`} style={{ backgroundColor: '#fff' }}>
-        {/* Mobile Header - Professional mobile app layout */}
-        <div className="lg:hidden flex items-center justify-between px-2.5 py-2 h-14" style={{ backgroundColor: '#fff' }}>
-          {/* Left side - Location Selector */}
-          <div className="flex-1">
-            <LocationSelector
-              onLocationSelect={(location) => {
-                console.log('Selected location:', location);
-                // Handle location selection here
-              }}
-              className="text-left pl-0"
-            />
+        {!pathname?.startsWith('/results') && (
+          <div className="lg:hidden flex items-center justify-between px-2.5 py-2 h-14" style={{ backgroundColor: '#fff' }}>
+            <div className="flex-1">
+              <LocationSelector
+                onLocationSelect={(location) => {
+                  console.log('Selected location:', location);
+                }}
+                className="text-left pl-0"
+              />
+            </div>
+            <div className="flex items-center space-x-3">
+              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors" onClick={() => setIsSearchOpen(true)} aria-label="Open search">
+                <i className="fa fa-search text-gray-600 text-lg"></i>
+              </button>
+              <button
+                onClick={() => router.push('/notifications' as any)}
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <i className="fas fa-bell text-gray-600 text-lg"></i>
+              </button>
+            </div>
           </div>
-
-          {/* Right side - Icons grouped together professionally */}
-          <div className="flex items-center space-x-3">
-            {/* Search Icon */}
-            <button className="p-2 rounded-full hover:bg-gray-100 transition-colors" onClick={() => setIsSearchOpen(true)} aria-label="Open search">
-              <i className="fa fa-search text-gray-600 text-lg"></i>
-            </button>
-
-            {/* Bell/Notifications Icon */}
-            <button
-              onClick={() => router.push('/notifications' as any)}
-              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <i className="fas fa-bell text-gray-600 text-lg"></i>
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Desktop Header - existing design */}
         <div className="hidden lg:flex items-center justify-between px-4 lg:min-h-[65px] lg:max-h-[65px]">

@@ -24,6 +24,7 @@ export default function MainLayout({
   const isNearbyPage = pathname === '/nearby-restaurants'
   const isNewlyUpdatedPage = pathname === '/newly-updated'
   const isMerchantPage = pathname.startsWith('/merchant/')
+  const isResultsPage = pathname === '/results'
 
   // No longer need to check for addresses page since it's been removed
   const isAddressesPage = false
@@ -82,7 +83,7 @@ export default function MainLayout({
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
         {/* Header - Persistent across all pages except addresses; hide on mobile/tablet for specific pages */}
-        {!isAddressesPage && !((isNearbyPage || isNewlyUpdatedPage || isMerchantPage) && !isDesktop) && (
+        {!isAddressesPage && !((isNearbyPage || isNewlyUpdatedPage || isMerchantPage || isResultsPage) && !isDesktop) && (
           <Header
             sidebarOpen={sidebarOpen}
             onToggleSidebar={toggleSidebar}
@@ -107,15 +108,15 @@ export default function MainLayout({
           }`}
           style={{ backgroundColor: '#f9fafb' }}
           data-addresses-page={isAddressesPage ? "true" : undefined}
-          data-hide-header-on-mobile={!isDesktop && (isNearbyPage || isNewlyUpdatedPage || isMerchantPage) ? "true" : undefined}
+          data-hide-header-on-mobile={!isDesktop && (isNearbyPage || isNewlyUpdatedPage || isMerchantPage || isResultsPage) ? "true" : undefined}
         >
           <div className="min-h-full bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
             {children}
           </div>
         </main>
 
-        {/* Mobile Footer - Hide on merchant page for mobile/tablet */}
-        {!isAddressesPage && !(isMerchantPage && !isDesktop) && <MobileFooter />}
+        {/* Mobile Footer - Always use global mobile footer (including merchant/product pages) */}
+        {!isAddressesPage && <MobileFooter />}
       </div>
     </ProtectedRoute>
   )

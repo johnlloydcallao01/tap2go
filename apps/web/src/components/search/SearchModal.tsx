@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import SearchField from '@/components/ui/SearchField';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import { getCurrentCustomerId, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
@@ -10,9 +11,11 @@ import AddressService from '@/lib/services/address-service';
 type Props = {
   isOpen: boolean;
   onClose: () => void;
+  initialQuery?: string;
 };
 
-export default function SearchModal({ isOpen, onClose }: Props) {
+export default function SearchModal({ isOpen, onClose, initialQuery }: Props) {
+  const router = useRouter();
   const [isMobile, setIsMobile] = useState(false);
   const [query, setQuery] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -52,6 +55,13 @@ export default function SearchModal({ isOpen, onClose }: Props) {
     q = q.replace(/\s+/g, ' ').trim();
     return q;
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (typeof initialQuery === 'string') {
+      setQuery(initialQuery);
+    }
+  }, [isOpen, initialQuery]);
 
   useEffect(() => {
     const checkScreenSize = () => setIsMobile(window.innerWidth < 1024);
@@ -342,8 +352,6 @@ export default function SearchModal({ isOpen, onClose }: Props) {
   const commitSearch = useCallback((val?: string) => {
     const v = (val ?? query).trim();
     if (!v) return;
-    setIsProductLoading(true);
-    setHasCommittedSearch(true);
     (async () => {
       try {
         const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
@@ -368,7 +376,9 @@ export default function SearchModal({ isOpen, onClose }: Props) {
         await fetch(`${API_BASE}/recent-searches/${id}`, { method: 'PATCH', headers, body: '{}' });
       } catch { }
     })();
-  }, [query, activeAddressName, normalizeQuery]);
+    router.push(`/results?search_query=${encodeURIComponent(v)}`);
+    onClose();
+  }, [query, activeAddressName, normalizeQuery, router, onClose]);
 
   if (!isOpen || !isMobile) return null;
 
@@ -419,70 +429,29 @@ export default function SearchModal({ isOpen, onClose }: Props) {
               </div>
             ) : null
           ) : (
-            !hasCommittedSearch ? (
-              <div>
-                <div className="text-sm text-gray-500 mb-2">Suggested searches</div>
-                <ul className="bg-white text-left">
-                  {suggestions.map((s) => (
-                    <li key={s.text}>
-                      <button
-                        onClick={() => { setQuery(s.text); commitSearch(s.text); }}
-                        className="w-full flex items-center gap-3 px-0 py-3 hover:bg-gray-50 text-gray-900 text-left"
-                      >
-                        <i className="fas fa-search text-gray-400"></i>
-                        <div className="flex-1">
-                          <div>{s.text}</div>
-                          {s.source === 'product' && (
-                            <div className="mt-1">
-                              <span className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded">in Restaurants</span>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              (() => {
-                const isFetching = isLoading || isCategoryLoading || isProductLoading;
-                if (filtered.length === 0 && isFetching) {
-                  return (
-                    <div className="grid grid-cols-1 gap-6">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="animate-pulse flex items-center gap-4">
-                          <div className="w-20 h-20 rounded-xl bg-gray-200" />
-                          <div className="flex-1">
-                            <div className="h-4 bg-gray-200 rounded w-2/3" />
-                            <div className="mt-2 h-3 bg-gray-200 rounded w-1/2" />
-                            <div className="mt-3 flex gap-2">
-                              <div className="h-4 bg-gray-200 rounded w-16" />
-                              <div className="h-4 bg-gray-200 rounded w-12" />
-                            </div>
+            <div>
+              <div className="text-sm text-gray-500 mb-2">Suggested searches</div>
+              <ul className="bg-white text-left">
+                {suggestions.map((s) => (
+                  <li key={s.text}>
+                    <button
+                      onClick={() => { setQuery(s.text); commitSearch(s.text); }}
+                      className="w-full flex items-center gap-3 px-0 py-3 hover:bg-gray-50 text-gray-900 text-left"
+                    >
+                      <i className="fas fa-search text-gray-400"></i>
+                      <div className="flex-1">
+                        <div>{s.text}</div>
+                        {s.source === 'product' && (
+                          <div className="mt-1">
+                            <span className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded">in Restaurants</span>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                if (filtered.length === 0) {
-                  return <div className="text-left text-gray-500">No matching merchants</div>;
-                }
-                return (
-                  <div className="grid grid-cols-1 gap-6">
-                    {filtered.map((merchant) => (
-                      <LocationMerchantCard
-                        key={merchant.id}
-                        merchant={merchant}
-                        variant="list"
-                        isWishlisted={wishlistIds.has(merchant.id)}
-                        onToggleWishlist={toggleWishlist}
-                      />
-                    ))}
-                  </div>
-                );
-              })()
-            )
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </div>
