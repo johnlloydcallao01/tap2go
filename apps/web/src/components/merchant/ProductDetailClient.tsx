@@ -6,6 +6,9 @@ import ProductStickyHeader from '@/components/merchant/ProductStickyHeader';
 import ProductModifiers from '@/components/merchant/ProductModifiers';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Product, ModifierGroup, ModifierOption } from '@/types/product';
+import { useCart } from '@/contexts/CartContext';
+import { toast } from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 interface ProductDetailClientProps {
   merchantSlugId: string;
@@ -26,6 +29,11 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [modifierSelection, setModifierSelection] = useState<Record<string, string[]>>({});
+  const [modifierError, setModifierError] = useState<string | null>(null);
+  const { addToCart } = useCart();
+  const router = useRouter();
 
   useEffect(() => {
     let active = true;
@@ -88,7 +96,7 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
 
         setProduct({
           ...productData,
-          modifierGroups
+          modifierGroups,
         });
       } catch (err: any) {
         if (active) {
@@ -184,6 +192,142 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
       <div className="w-full px-4 pb-8 pt-5">
         <div className="max-w-2xl mx-auto">
           <div className="mb-6">
+            <div className="hidden md:flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  aria-label="Decrease quantity"
+                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-gray-700"
+                >
+                  <span className="text-lg leading-none">−</span>
+                </button>
+                <span className="mx-3 text-base font-medium text-gray-900">{quantity}</span>
+                <button
+                  type="button"
+                  aria-label="Increase quantity"
+                  onClick={() => setQuantity((prev) => Math.min(99, prev + 1))}
+                  className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-gray-700"
+                >
+                  <span className="text-lg leading-none">+</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                className="h-11 px-6 rounded-full font-semibold text-white text-sm shadow-md hover:shadow-lg transition-colors flex items-center justify-center"
+                style={{ backgroundColor: '#eba236' }}
+                onClick={async () => {
+                  if (product && product.modifierGroups && product.modifierGroups.length > 0) {
+                    const groups = product.modifierGroups;
+                    let invalid = false;
+
+                    for (const group of groups) {
+                      const selectedIds = modifierSelection[group.id] || [];
+                      const count = selectedIds.length;
+                      if (group.is_required && count === 0) {
+                        invalid = true;
+                        break;
+                      }
+                      if (group.min_selections > 0 && count < group.min_selections) {
+                        invalid = true;
+                        break;
+                      }
+                      if (typeof group.max_selections === 'number' && count > group.max_selections) {
+                        invalid = true;
+                        break;
+                      }
+                    }
+
+                    if (invalid) {
+                      setModifierError('Please review your selections for required options.');
+                      return;
+                    }
+
+                    setModifierError(null);
+                  }
+
+                  const selectedModifierPayload: any[] = [];
+                  if (product && product.modifierGroups && product.modifierGroups.length > 0) {
+                    for (const group of product.modifierGroups) {
+                      const selectedIds = modifierSelection[group.id] || [];
+                      const options = group.options || [];
+                      selectedIds.forEach((id) => {
+                        const opt = options.find((o) => o.id === id);
+                        if (!opt) return;
+                        selectedModifierPayload.push({
+                          groupId: group.id,
+                          groupName: group.name,
+                          isRequired: group.is_required,
+                          optionId: opt.id,
+                          name: opt.name,
+                          price: opt.price_adjustment || 0,
+                        });
+                      });
+                    }
+                  }
+
+                  const slug = merchantSlugId || '';
+                  const merchantId = slug ? Number(slug.split('-').pop() || '') : NaN;
+                  if (!merchantId || Number.isNaN(merchantId)) return;
+                  const numericProductId = Number(productId);
+                  if (!numericProductId || Number.isNaN(numericProductId)) return;
+
+                  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+                  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                  const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+                  if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+                  try {
+                    const url = `${API_BASE}/merchant-products?where[merchant_id][equals]=${merchantId}&where[product_id][equals]=${numericProductId}&limit=1`;
+                    const res = await fetch(url, { headers, cache: 'no-store' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const doc = Array.isArray(data?.docs) && data.docs.length > 0 ? data.docs[0] : null;
+                    const merchantProductId =
+                      doc && (typeof doc.id === 'number' ? doc.id : Number(doc.id)) || null;
+                    if (!merchantProductId) return;
+
+                    await addToCart({
+                      merchantId,
+                      productId: numericProductId,
+                      merchantProductId,
+                      quantity,
+                      priceAtAdd: basePrice ?? 0,
+                      compareAtPrice: compareAtPrice ?? null,
+                      selectedModifiers:
+                        selectedModifierPayload.length > 0 ? selectedModifierPayload : null,
+                    });
+
+                    toast((t) => (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold">Product added to cart</div>
+                          <div className="text-xs text-gray-200 line-clamp-1">
+                            {product?.name || ''}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toast.dismiss(t.id);
+                            router.push('/carts' as any);
+                          }}
+                          className="px-3 py-1 rounded-full text-xs font-semibold"
+                          style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                        >
+                          View your cart
+                        </button>
+                      </div>
+                    ));
+                  } catch {}
+                }}
+              >
+                Add to cart
+              </button>
+            </div>
+            {modifierError && (
+              <p className="mt-2 text-sm text-red-600">{modifierError}</p>
+            )}
             <h1 className="text-2xl font-bold text-gray-900 leading-tight">{name}</h1>
             <div className="mt-3 flex items-baseline gap-3">
               {formatPrice(basePrice) && (
@@ -199,7 +343,16 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
           </div>
 
           {product.modifierGroups && product.modifierGroups.length > 0 && (
-             <ProductModifiers modifierGroups={product.modifierGroups} />
+            <ProductModifiers
+              modifierGroups={product.modifierGroups}
+              selected={modifierSelection}
+              onChange={(next) => {
+                setModifierSelection(next);
+                if (modifierError) {
+                  setModifierError(null);
+                }
+              }}
+            />
           )}
         </div>
       </div>

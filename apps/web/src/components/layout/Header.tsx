@@ -13,6 +13,7 @@ import SearchField from '@/components/ui/SearchField';
 import AddressService from '@/lib/services/address-service';
 import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
 import { NotificationPopup, mockNotifications } from '@/components/notifications/NotificationPopup';
+import { useCart } from '@/contexts/CartContext';
 
 /**
  * Header component with navigation, search, and user controls
@@ -63,6 +64,7 @@ export function Header({
   const [isNotificationPopupOpen, setIsNotificationPopupOpen] = useState(false);
   const [notifications, setNotifications] = useState(mockNotifications);
   const notificationPopupRef = useRef<HTMLDivElement>(null);
+  const { totalQuantity } = useCart();
 
   const normalizeQuery = useCallback((input: string): string => {
     let q = (input || '').toLowerCase().trim();
@@ -701,11 +703,19 @@ export function Header({
           <div className="flex items-center space-x-4">
             {/* Cart Icon */}
             <button
-              onClick={() => router.push('/cart' as any)}
-              className="p-2 hover:bg-gray-100 rounded-full text-gray-600 hover:text-gray-800 transition-colors"
+              onClick={() => router.push('/carts' as any)}
+              className="relative p-2 hover:bg-gray-100 rounded-full text-gray-600 hover:text-gray-800 transition-colors"
               aria-label="Shopping Cart"
             >
               <i className="fas fa-shopping-cart text-lg"></i>
+              {totalQuantity > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[11px] font-semibold flex items-center justify-center leading-none"
+                  style={{ backgroundColor: '#eba236' }}
+                >
+                  {totalQuantity}
+                </span>
+              )}
             </button>
 
             {/* Notification Bell Icon - Desktop with Popup */}

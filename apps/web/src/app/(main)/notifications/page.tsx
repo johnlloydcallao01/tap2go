@@ -86,7 +86,7 @@ const mockNotifications = [
     iconColor: 'text-yellow-600',
     iconBg: 'bg-yellow-100',
     actionText: 'Complete Order',
-    actionPath: '/cart'
+    actionPath: '/carts'
   },
   {
     id: 7,

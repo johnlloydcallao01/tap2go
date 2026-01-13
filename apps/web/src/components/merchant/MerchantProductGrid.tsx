@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import SearchField from "@/components/ui/SearchField";
 import MerchantProductCategoriesCarousel from "@/components/merchant/MerchantProductCategoriesCarousel";
 import MerchantSearchModal from "@/components/merchant/MerchantSearchModal";
+import { useCart } from "@/contexts/CartContext";
 
 type ProductCardItem = {
   id: string | number;
@@ -33,14 +34,46 @@ export default function MerchantProductGrid({ products, categories }: { products
   const [visibleCounts, setVisibleCounts] = React.useState<Record<number, number>>({});
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const pathname = usePathname();
-  const handleAddToCart = React.useCallback((p: ProductCardItem) => {
-    try {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("cart:add", { detail: { id: p.id, name: p.name, price: p.basePrice } }));
-      }
-      console.log("Add to cart", p.id);
-    } catch {}
-  }, []);
+  const { addToCart } = useCart();
+  const handleAddToCart = React.useCallback(
+    async (p: ProductCardItem) => {
+      const path = String(pathname || "");
+      const parts = path.split("/").filter(Boolean);
+      const idx = parts.indexOf("merchant");
+      const slugId = idx >= 0 && parts[idx + 1] ? parts[idx + 1] : "";
+      const merchantId = slugId ? Number(slugId.split("-").pop() || "") : NaN;
+      if (!merchantId || Number.isNaN(merchantId)) return;
+
+      const productId = typeof p.id === "number" ? p.id : Number(String(p.id).split("-").pop() || "");
+      if (!productId || Number.isNaN(productId)) return;
+
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://cms.tap2goph.com/api";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers["Authorization"] = `users API-Key ${apiKey}`;
+
+      try {
+        const url = `${API_BASE}/merchant-products?where[merchant_id][equals]=${merchantId}&where[product_id][equals]=${productId}&limit=1`;
+        const res = await fetch(url, { headers, cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const doc = Array.isArray(data?.docs) && data.docs.length > 0 ? data.docs[0] : null;
+        const merchantProductId =
+          doc && (typeof doc.id === "number" ? doc.id : Number(doc.id)) || null;
+        if (!merchantProductId) return;
+
+        await addToCart({
+          merchantId,
+          productId,
+          merchantProductId,
+          quantity: 1,
+          priceAtAdd: p.basePrice ?? 0,
+          compareAtPrice: p.compareAtPrice ?? null,
+        });
+      } catch {}
+    },
+    [pathname, addToCart],
+  );
 
   const formatPrice = (value: number | null) => {
     if (value == null) return null;

@@ -29,7 +29,7 @@ const menuSections = [
     items: [
       { icon: 'fa-shopping-bag', label: 'My Orders', path: '/orders', badge: '3' },
       { icon: 'fa-heart', label: 'Wishlist', path: '/wishlist', badge: null },
-      { icon: 'fa-shopping-cart', label: 'Cart', path: '/cart', badge: null },
+      { icon: 'fa-shopping-cart', label: 'Carts', path: '/carts', badge: null },
       { icon: 'fa-store', label: 'Browse Merchants', path: '/merchants', badge: '12' },
       { icon: 'fa-history', label: 'Order History', path: '/history', badge: null }
     ]

@@ -218,6 +218,6 @@ export const mockNotifications: Notification[] = [
     icon: 'fa-shopping-cart',
     iconColor: 'text-yellow-600',
     iconBg: 'bg-yellow-100',
-    actionPath: '/cart'
+    actionPath: '/carts'
   }
 ];
