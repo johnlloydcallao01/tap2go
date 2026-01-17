@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 
@@ -12,8 +12,42 @@ export function MobileFooter() {
   const router = useRouter();
   const pathname = usePathname();
   const [quantity, setQuantity] = useState(1);
+  const [showProductCartBar, setShowProductCartBar] = useState(false);
+  const [productDetailHasInvalidModifiers, setProductDetailHasInvalidModifiers] = useState(false);
   const isProductPage = pathname.startsWith('/merchant/') && pathname.split('/').length === 4;
-  const { addToCart, totalQuantity } = useCart();
+  const { addToCart, totalQuantity, items } = useCart();
+
+  useEffect(() => {
+    setShowProductCartBar(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const anyWindow = window as any;
+    if (typeof anyWindow.__tap2goProductDetailHasInvalidModifiers === 'boolean') {
+      setProductDetailHasInvalidModifiers(anyWindow.__tap2goProductDetailHasInvalidModifiers);
+    }
+    const handler = (event: Event) => {
+      try {
+        const custom = event as CustomEvent;
+        const detail = (custom as any).detail;
+        if (detail && typeof detail.hasInvalidModifiers === 'boolean') {
+          setProductDetailHasInvalidModifiers(detail.hasInvalidModifiers);
+        }
+      } catch {}
+    };
+    window.addEventListener('tap2go:productDetail:validation', handler as EventListener);
+    return () => {
+      window.removeEventListener('tap2go:productDetail:validation', handler as EventListener);
+    };
+  }, []);
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+    }).format(Number.isFinite(value) ? value : 0);
 
   const navigationItems = [
     {
@@ -60,9 +94,75 @@ export function MobileFooter() {
     return pathname.startsWith(path);
   };
 
+  let currentMerchantId: number | null = null;
+  let currentProductId: number | null = null;
+
+  if (isProductPage) {
+    const parts = pathname.split('/').filter(Boolean);
+    const idx = parts.indexOf('merchant');
+    const slugId = idx >= 0 && parts[idx + 1] ? parts[idx + 1] : '';
+    const productSlugId = idx >= 0 && parts[idx + 2] ? parts[idx + 2] : '';
+    const merchantIdParsed = slugId ? Number(slugId.split('-').pop() || '') : NaN;
+    const productIdParsed = productSlugId
+      ? Number(productSlugId.split('-').pop() || '')
+      : NaN;
+    if (!Number.isNaN(merchantIdParsed) && merchantIdParsed) {
+      currentMerchantId = merchantIdParsed;
+    }
+    if (!Number.isNaN(productIdParsed) && productIdParsed) {
+      currentProductId = productIdParsed;
+    }
+  }
+
+  let productQuantity = 0;
+  let productSubtotal = 0;
+  let merchantName = '';
+
+  if (currentMerchantId && currentProductId) {
+    for (const item of items) {
+      if (item.merchant === currentMerchantId && item.product === currentProductId) {
+        productQuantity += item.quantity;
+        productSubtotal += item.subtotal;
+        if (!merchantName && item.merchantName) {
+          merchantName = item.merchantName;
+        }
+      }
+    }
+  }
+
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 md:hidden h-[55px]">
-      {isProductPage ? (
+      {isProductPage && showProductCartBar && productQuantity > 0 ? (
+        <div className="flex items-center justify-center h-full px-4">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between rounded-full px-4 py-2 text-white text-sm font-semibold shadow-md"
+            style={{ backgroundColor: '#f61b73' }}
+            onClick={() => {
+              if (currentMerchantId) {
+                router.push(`/carts/${currentMerchantId}` as any);
+              } else {
+                router.push('/carts' as any);
+              }
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full border border-white flex items-center justify-center text-xs font-semibold">
+                {productQuantity}
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="text-sm font-semibold">View your cart</span>
+                {merchantName && (
+                  <span className="text-[11px] opacity-90 line-clamp-1">{merchantName}</span>
+                )}
+              </div>
+            </div>
+            <span className="text-sm font-semibold">
+              {formatCurrency(productSubtotal)}
+            </span>
+          </button>
+        </div>
+      ) : isProductPage ? (
         <div className="flex items-center justify-between h-full px-4 gap-4">
           <div className="flex items-center">
             <button
@@ -85,9 +185,24 @@ export function MobileFooter() {
           </div>
           <button
             type="button"
-            className="flex-1 h-11 rounded-full font-semibold text-white text-sm shadow-md hover:shadow-lg transition-colors text-center"
+            disabled={productDetailHasInvalidModifiers}
+            className="flex-1 h-11 rounded-full font-semibold text-white text-sm shadow-md hover:shadow-lg transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#eba236' }}
             onClick={async () => {
+              if (productDetailHasInvalidModifiers) {
+                return;
+              }
+              setShowProductCartBar(true);
+              const globalHandler =
+                typeof window !== 'undefined'
+                  ? (window as any).__tap2goProductDetailAddToCart
+                  : null;
+              if (typeof globalHandler === 'function') {
+                try {
+                  await globalHandler(quantity);
+                  return;
+                } catch {}
+              }
               try {
                 const parts = pathname.split('/').filter(Boolean);
                 const idx = parts.indexOf('merchant');
@@ -115,7 +230,7 @@ export function MobileFooter() {
                 const doc =
                   Array.isArray(data?.docs) && data.docs.length > 0 ? data.docs[0] : null;
                 const merchantProductId =
-                  doc && (typeof doc.id === 'number' ? doc.id : Number(doc.id)) || null;
+                  (doc && (typeof doc.id === 'number' ? doc.id : Number(doc.id))) || null;
                 if (!merchantProductId) return;
 
                 await addToCart({

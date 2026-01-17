@@ -34,6 +34,7 @@ import * as migration_20251124_120500_add_driver_role_and_drivers_table from './
 import * as migration_20251126_070002 from './20251126_070002';
 import * as migration_20251127_022816 from './20251127_022816';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
+import * as migration_20260116_084737 from './20260116_084737';
 
 export const migrations = [
   {
@@ -214,6 +215,11 @@ export const migrations = [
   {
     up: migration_20251202_remove_vendor_products_table.up,
     down: migration_20251202_remove_vendor_products_table.down,
-    name: '20251202_remove_vendor_products_table'
+    name: '20251202_remove_vendor_products_table',
+  },
+  {
+    up: migration_20260116_084737.up,
+    down: migration_20260116_084737.down,
+    name: '20260116_084737'
   },
 ];

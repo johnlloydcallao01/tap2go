@@ -77,11 +77,22 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
 
   const loadUserAddresses = useCallback(async () => {
     if (!user?.id) return;
-    
-    setIsLoadingAddresses(true);
+
+    const cachedAddresses = AddressService.getCachedAddresses();
+    const cachedActive = AddressService.getCachedActiveAddress(user.id);
+
+    if (cachedAddresses && cachedAddresses.length > 0) {
+      setUserAddresses(cachedAddresses);
+      if (cachedActive && cachedActive.id) {
+        setActiveAddressId(cachedActive.id);
+      }
+      setIsLoadingAddresses(false);
+    } else {
+      setIsLoadingAddresses(true);
+    }
+
     try {
-      // Load user addresses with caching enabled
-      const response = await AddressService.getUserAddresses(true);
+      const response = await AddressService.getUserAddresses(false);
       if (response.success && response.addresses) {
         setUserAddresses(response.addresses);
       } else {
@@ -89,9 +100,8 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
         setUserAddresses([]);
       }
 
-      // Load active address to show which one is currently active with caching enabled
       try {
-        const activeResponse = await AddressService.getActiveAddress(user.id, true);
+        const activeResponse = await AddressService.getActiveAddress(user.id, false);
         if (activeResponse.success && activeResponse.address) {
           setActiveAddressId(activeResponse.address.id);
         } else {

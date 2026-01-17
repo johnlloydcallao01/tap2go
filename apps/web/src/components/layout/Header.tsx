@@ -401,9 +401,12 @@ export function Header({
         const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
         const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
         if (!userId) return;
-        const res = await AddressService.getActiveAddress(userId);
-        if (!cancelled && res?.success && res.address?.formatted_address) {
-          setActiveAddressName(res.address.formatted_address);
+        const [activeAddressResponse] = await Promise.all([
+          AddressService.getActiveAddress(userId),
+          AddressService.getUserAddresses(true),
+        ]);
+        if (!cancelled && activeAddressResponse?.success && activeAddressResponse.address?.formatted_address) {
+          setActiveAddressName(activeAddressResponse.address.formatted_address);
         }
       } catch { }
     })();

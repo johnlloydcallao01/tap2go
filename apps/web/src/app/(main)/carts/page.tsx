@@ -1,13 +1,17 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageWrapper from '@/components/ui/ImageWrapper';
 import { useCart } from '@/contexts/CartContext';
+import { createPortal } from 'react-dom';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export default function CartPage() {
-  const { items, isLoading } = useCart();
+  const { items, isLoading, removeItem } = useCart();
   const router = useRouter();
+  const [activeMerchantId, setActiveMerchantId] = useState<number | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-PH', {
@@ -59,6 +63,95 @@ export default function CartPage() {
       .replace(/-+/g, '-');
     return `${base}-${id}`;
   };
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const activeGroup =
+    activeMerchantId != null
+      ? merchantGroups.find((g) => g.merchantId === activeMerchantId) || null
+      : null;
+
+  const handleDeleteCart = async () => {
+    if (activeMerchantId == null) return;
+    const toRemove = items.filter((item) => item.merchant === activeMerchantId);
+    for (const item of toRemove) {
+      await removeItem(item.id);
+    }
+    setActiveMerchantId(null);
+  };
+
+  const handleAddMoreItems = () => {
+    if (!activeGroup) return;
+    router.push(
+      `/merchant/${buildMerchantSlugId(activeGroup.merchantName, activeGroup.merchantId)}` as any,
+    );
+    setActiveMerchantId(null);
+  };
+
+  if (isLoading && items.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50" style={{ backgroundColor: '#f9fafb' }}>
+        <div className="bg-white shadow-sm">
+          <div className="px-2.5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="h-6 w-32 bg-transparent" />
+              <div className="flex items-center space-x-3">
+                <Skeleton className="w-8 h-8 rounded-lg" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-2.5 py-6">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="w-10 h-10 rounded-full" />
+                    <div className="min-w-0 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="h-3 w-12" />
+                      </div>
+                    </div>
+                  </div>
+                  <Skeleton className="w-8 h-8 rounded-full" />
+                </div>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2 overflow-x-auto">
+                    {Array.from({ length: 3 }).map((__, i) => (
+                      <Skeleton
+                        key={i}
+                        className="w-12 h-12 rounded-lg flex-shrink-0"
+                      />
+                    ))}
+                  </div>
+                  <Skeleton className="ml-3 w-10 h-10 rounded-full flex-shrink-0" />
+                </div>
+
+                <div className="mt-4 border-t border-gray-100 pt-3 space-y-3">
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Skeleton className="h-9 w-full rounded-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="pb-20" />
+        </div>
+      </div>
+    );
+  }
 
   if (!isLoading && items.length === 0) {
     return (
@@ -115,11 +208,14 @@ export default function CartPage() {
           </div>
         </div>
 
-      <div className="px-2.5 py-6 space-y-6">
+      <div className="px-2.5 py-6">
         {/* Cart Items */}
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {merchantGroups.map((group) => (
-            <div key={group.merchantId} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+            <div
+              key={group.merchantId}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
@@ -148,6 +244,14 @@ export default function CartPage() {
                     </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100"
+                  aria-label="More options"
+                  onClick={() => setActiveMerchantId(group.merchantId)}
+                >
+                  <i className="fas fa-ellipsis-h text-sm" />
+                </button>
               </div>
 
               <div className="mt-4 flex items-center justify-between">
@@ -205,6 +309,53 @@ export default function CartPage() {
 
         <div className="pb-20" />
       </div>
+
+      {isMounted &&
+        activeGroup &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex flex-col justify-end bg-black/40">
+            <button
+              type="button"
+              className="flex-1"
+              onClick={() => setActiveMerchantId(null)}
+              aria-label="Close cart options"
+            />
+            <div className="w-full bg-white rounded-t-2xl pt-3 pb-4 px-4 space-y-1">
+              <div className="flex justify-center mb-2">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <button
+                type="button"
+                onClick={handleAddMoreItems}
+                className="w-full flex items-center gap-3 py-3 text-sm font-medium text-gray-900"
+              >
+                <span className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center">
+                  <i className="fas fa-plus text-xs" />
+                </span>
+                <span>Add more items</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteCart}
+                className="w-full flex items-center gap-3 py-3 text-sm font-medium text-red-600"
+              >
+                <span className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center">
+                  <i className="fas fa-trash text-xs" />
+                </span>
+                <span>Delete cart</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMerchantId(null)}
+                className="w-full mt-2 rounded-full py-2.5 text-sm font-semibold text-white"
+                style={{ backgroundColor: '#e81c63' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>,
+          document.body as any,
+        )}
     </div>
   );
 }

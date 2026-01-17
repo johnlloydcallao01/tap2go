@@ -56,6 +56,7 @@ type CartContextValue = {
    const [items, setItems] = useState<CartItem[]>([]);
    const [isLoading, setIsLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
+   const [pendingMerchantIds, setPendingMerchantIds] = useState<Set<number>>(new Set());
 
    const loadCart = useCallback(async () => {
      try {
@@ -132,6 +133,19 @@ type CartContextValue = {
     async (payload: AddToCartPayload) => {
       try {
         setError(null);
+        setPendingMerchantIds((prev) => {
+          const next = new Set(prev);
+          const hasMerchantInItems = items.some((item) => {
+            const id =
+              typeof item.merchant === 'number' ? item.merchant : Number(item.merchant);
+            return !Number.isNaN(id) && id === payload.merchantId;
+          });
+          if (!hasMerchantInItems && !next.has(payload.merchantId)) {
+            next.add(payload.merchantId);
+          }
+          return next;
+        });
+
         const customerId = await LocationBasedMerchantService.getCurrentCustomerId();
         if (!customerId) {
           throw new Error('NO_CUSTOMER');
@@ -197,9 +211,15 @@ type CartContextValue = {
         await loadCart();
       } catch (e: any) {
         setError(e?.message || 'Failed to add to cart');
+      } finally {
+        setPendingMerchantIds((prev) => {
+          const next = new Set(prev);
+          next.delete(payload.merchantId);
+          return next;
+        });
       }
     },
-    [loadCart],
+    [items, loadCart],
   );
 
   const removeItem = useCallback(
@@ -275,13 +295,15 @@ type CartContextValue = {
   const totalQuantity = React.useMemo(() => {
     const merchantIds = new Set<number>();
     for (const item of items) {
-      const id = typeof item.merchant === 'number'
-        ? item.merchant
-        : Number(item.merchant);
+      const id =
+        typeof item.merchant === 'number' ? item.merchant : Number(item.merchant);
       if (!Number.isNaN(id)) merchantIds.add(id);
     }
+    pendingMerchantIds.forEach((id) => {
+      if (!Number.isNaN(id)) merchantIds.add(id);
+    });
     return merchantIds.size;
-  }, [items]);
+  }, [items, pendingMerchantIds]);
 
   const value: CartContextValue = {
     items,

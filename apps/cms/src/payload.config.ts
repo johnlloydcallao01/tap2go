@@ -24,6 +24,9 @@ import { EmergencyContacts } from './collections/EmergencyContacts'
 import { Addresses } from './collections/Addresses'
 import { Media } from './collections/Media'
 import { Posts } from './collections/Posts'
+import { NotificationTemplates } from './collections/NotificationTemplates'
+import { NotificationEvents } from './collections/NotificationEvents'
+import { UserNotifications } from './collections/UserNotifications'
 // LMS Collections (removed)
 
 // Food Delivery Collections
@@ -49,6 +52,7 @@ import { ProdTagsJunction } from './collections/ProdTagsJunction'
 import { TagGroups } from './collections/TagGroups'
 import { TagGroupMemberships } from './collections/TagGroupMemberships'
 import { RecentSearches } from './collections/RecentSearches'
+import { RecentViews } from './collections/RecentViews'
 
 
 const filename = fileURLToPath(import.meta.url)
@@ -75,6 +79,10 @@ export default buildConfig({
     Media,
     Posts,
 
+    // Notifications
+    NotificationTemplates,
+    NotificationEvents,
+    UserNotifications,
 
     // Food Delivery System
     Vendors,
@@ -98,6 +106,7 @@ export default buildConfig({
     ProdTagsJunction,
     TagGroups,
     TagGroupMemberships,
+    RecentViews,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
