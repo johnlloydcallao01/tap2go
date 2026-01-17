@@ -178,9 +178,7 @@ export const RecentViews: CollectionConfig = {
           }
         }
         if (operation === 'update') {
-          if (typeof d.viewCount === 'number') {
-            d.viewCount = d.viewCount
-          } else {
+          if (typeof d.viewCount !== 'number') {
             d.viewCount = prev + 1
           }
           d.lastViewedAt = now
