@@ -147,6 +147,78 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
   }, [merchantSlugId, productId]);
 
   useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        if (typeof window === 'undefined') return;
+        const userStr = window.localStorage.getItem('grandline_auth_user');
+        const userId = userStr
+          ? (() => {
+              try {
+                return JSON.parse(userStr)?.id;
+              } catch {
+                return null;
+              }
+            })()
+          : null;
+        if (!userId) return;
+        const slug = merchantSlugId || '';
+        const merchantIdNum = slug ? Number(slug.split('-').pop() || '') : NaN;
+        const productIdNum = Number(productId);
+        if (!merchantIdNum || Number.isNaN(merchantIdNum)) return;
+        if (!productIdNum || Number.isNaN(productIdNum)) return;
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+        const mpUrl = `${API_BASE}/merchant-products?where[merchant_id][equals]=${merchantIdNum}&where[product_id][equals]=${productIdNum}&limit=1`;
+        const mpRes = await fetch(mpUrl, { headers, cache: 'no-store' });
+        if (!mpRes.ok) return;
+        const mpData = await mpRes.json();
+        const mpDoc =
+          Array.isArray(mpData?.docs) && mpData.docs.length > 0 ? mpData.docs[0] : null;
+        const merchantProductId =
+          (mpDoc &&
+            (typeof mpDoc.id === 'number' ? mpDoc.id : Number(mpDoc.id))) ||
+          null;
+        if (!merchantProductId) return;
+        const body = JSON.stringify({
+          user: userId,
+          itemType: 'merchant_product',
+          merchant: merchantIdNum,
+          merchantProduct: merchantProductId,
+          product: productIdNum,
+          source: 'web',
+        });
+        const res = await fetch(`${API_BASE}/recent-views`, {
+          method: 'POST',
+          headers,
+          body,
+        });
+        if (cancelled || res.ok) return;
+        const compositeKey = `${userId}:merchant_product:${merchantIdNum}:${merchantProductId}`;
+        const existsUrl = `${API_BASE}/recent-views?where[compositeKey][equals]=${encodeURIComponent(
+          compositeKey,
+        )}&limit=1`;
+        const getRes = await fetch(existsUrl, { headers });
+        if (!getRes.ok) return;
+        const data = await getRes.json();
+        const id = data?.docs?.[0]?.id;
+        if (!id) return;
+        await fetch(`${API_BASE}/recent-views/${id}`, {
+          method: 'PATCH',
+          headers,
+          body: '{}',
+        });
+      } catch {}
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [merchantSlugId, productId]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const anyWindow = window as any;
     anyWindow.__tap2goProductDetailAddToCart = async (q?: number) => {

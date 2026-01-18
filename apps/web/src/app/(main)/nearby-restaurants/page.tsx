@@ -8,7 +8,11 @@ import {
   getActiveAddressNamesForMerchants,
   type LocationBasedMerchant,
 } from "@/lib/client-services/location-based-merchant-service";
-import type { Media } from "@/types/merchant";
+import {
+  getWishlistMerchantIdsForCurrentUser,
+  addMerchantToWishlist,
+  removeMerchantFromWishlist,
+} from "@/lib/client-services/wishlist-service";
 import LocationMerchantCard from "@/components/cards/LocationMerchantCard";
 
 export default function NearbyRestaurantsPage(): React.ReactNode {
@@ -41,14 +45,43 @@ export default function NearbyRestaurantsPage(): React.ReactNode {
     [addressMap]
   );
 
-  const toggleWishlist = useCallback((id: string) => {
-    setWishlistIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const ids = await getWishlistMerchantIdsForCurrentUser();
+        if (cancelled) return;
+        const setIds = new Set<string>(ids.map((v) => String(v)));
+        setWishlistIds(setIds);
+      } catch {
       }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleWishlist = useCallback((id: string | number) => {
+    const idStr = String(id);
+    setWishlistIds(prev => {
+      const next = new Set(prev);
+      const willAdd = !next.has(idStr);
+      if (willAdd) {
+        next.add(idStr);
+      } else {
+        next.delete(idStr);
+      }
+      (async () => {
+        try {
+          if (willAdd) {
+            await addMerchantToWishlist(id);
+          } else {
+            await removeMerchantFromWishlist(id);
+          }
+        } catch {
+        }
+      })();
       return next;
     });
   }, []);
@@ -155,7 +188,7 @@ export default function NearbyRestaurantsPage(): React.ReactNode {
                   key={m.id}
                   merchant={m}
                   addressName={addressMap[m.id] || null}
-                  isWishlisted={wishlistIds.has(m.id)}
+                  isWishlisted={wishlistIds.has(String(m.id))}
                   onToggleWishlist={toggleWishlist}
                 />
               ))}

@@ -5,12 +5,17 @@ import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Media } from '@/types/merchant';
 import { useRouter } from 'next/navigation';
-import { 
-  LocationBasedMerchantService, 
+import {
+  LocationBasedMerchantService,
   type LocationBasedMerchant,
   getActiveAddressNamesForMerchants,
   sortMerchantsByRecentlyUpdated,
 } from '@/lib/client-services/location-based-merchant-service';
+import {
+  getWishlistMerchantIdsForCurrentUser,
+  addMerchantToWishlist,
+  removeMerchantFromWishlist,
+} from '@/lib/client-services/wishlist-service';
 import { useAddressChange } from '@/hooks/useAddressChange';
 
 interface LocationBasedMerchantsProps {
@@ -190,7 +195,6 @@ function LocationMerchantCardLegacy({ merchant, isWishlisted = false, onToggleWi
 
 // Main LocationBasedMerchants Component
 export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }: LocationBasedMerchantsProps) {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
   const router = useRouter();
   const [addressMap, setAddressMap] = useState<Record<string, string>>({});
   const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
@@ -198,18 +202,46 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
   const [error, setError] = useState<string | null>(null);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(customerId || null);
 
-  // Wishlist state (local toggle per merchant)
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
-  const toggleWishlist = useCallback((id: string) => {
+  const toggleWishlist = useCallback((id: string | number) => {
+    const idStr = String(id);
     setWishlistIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      const willAdd = !next.has(idStr);
+      if (willAdd) {
+        next.add(idStr);
       } else {
-        next.add(id);
+        next.delete(idStr);
       }
+      (async () => {
+        try {
+          if (willAdd) {
+            await addMerchantToWishlist(id);
+          } else {
+            await removeMerchantFromWishlist(id);
+          }
+        } catch {
+        }
+      })();
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const ids = await getWishlistMerchantIdsForCurrentUser();
+        if (cancelled) return;
+        const setIds = new Set<string>(ids.map((v) => String(v)));
+        setWishlistIds(setIds);
+      } catch {
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Momentum carousel states (tailored from category carousel)
@@ -274,7 +306,6 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         categoryId: categoryId || undefined,
       });
       setMerchants(locationMerchants);
-      // Fetch active address names in background
       fetchAndSetActiveAddresses(locationMerchants);
     } catch (err) {
       console.error('❌ Error fetching location-based merchants:', err);
@@ -852,10 +883,10 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
         {/* Grid view for >1024px or when filtered */}
         <div className={`${categoryId ? 'grid' : 'hidden min-[1025px]:grid'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6`}>
           {(categoryId ? merchants : merchants.slice(0, nearbyVisibleCount)).map((merchant) => (
-            <LocationMerchantCard 
-              key={merchant.id} 
-              merchant={merchant} 
-              isWishlisted={wishlistIds.has(merchant.id)} 
+            <LocationMerchantCard
+              key={merchant.id}
+              merchant={merchant}
+              isWishlisted={wishlistIds.has(String(merchant.id))}
               onToggleWishlist={toggleWishlist}
               addressName={addressMap[merchant.id] || null}
             />
@@ -901,9 +932,9 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             >
               {merchants.slice(0, 8).map((merchant) => (
                 <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
-                  <LocationMerchantCard 
-                    merchant={merchant} 
-                    isWishlisted={wishlistIds.has(merchant.id)} 
+                  <LocationMerchantCard
+                    merchant={merchant}
+                    isWishlisted={wishlistIds.has(String(merchant.id))}
                     onToggleWishlist={toggleWishlist}
                     addressName={addressMap[merchant.id] || null}
                   />
@@ -948,13 +979,13 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
             {/* Grid view for >1024px */}
             <div className="hidden min-[1025px]:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {fastestMerchants.slice(0, newlyVisibleCount).map((merchant) => (
-                <LocationMerchantCard 
-                  key={merchant.id} 
-                  merchant={merchant} 
-                  isWishlisted={wishlistIds.has(merchant.id)} 
-                  onToggleWishlist={toggleWishlist}
-                  addressName={addressMap[merchant.id] || null}
-                />
+                    <LocationMerchantCard
+                      key={merchant.id}
+                      merchant={merchant}
+                      isWishlisted={wishlistIds.has(String(merchant.id))}
+                      onToggleWishlist={toggleWishlist}
+                      addressName={addressMap[merchant.id] || null}
+                    />
               ))}
             </div>
 
@@ -996,7 +1027,7 @@ export function LocationBasedMerchants({ customerId, limit = 9999, categoryId }:
                   <div key={merchant.id} className="flex-shrink-0 w-[75%] min-[650px]:w-[30%]" style={{ pointerEvents: 'auto' }}>
                     <LocationMerchantCard 
                       merchant={merchant} 
-                      isWishlisted={wishlistIds.has(merchant.id)} 
+                      isWishlisted={wishlistIds.has(String(merchant.id))} 
                       onToggleWishlist={toggleWishlist}
                       addressName={addressMap[merchant.id] || null}
                     />

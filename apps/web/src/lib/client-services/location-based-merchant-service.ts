@@ -57,6 +57,7 @@ export type MerchantCategoryDisplay = {
 
 export class LocationBasedMerchantService {
   private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+  private static readonly PAYLOAD_API_KEY = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || '';
   
   /**
    * Fetch location-based merchants from CMS (Client-side) with caching
@@ -99,9 +100,8 @@ export class LocationBasedMerchantService {
       }
 
       // Add API key authentication using client-side key
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
-      if (apiKey) {
-        headers['Authorization'] = `users API-Key ${apiKey}`;
+      if (LocationBasedMerchantService.PAYLOAD_API_KEY) {
+        headers['Authorization'] = `users API-Key ${LocationBasedMerchantService.PAYLOAD_API_KEY}`;
       } else {
         console.error('❌ NEXT_PUBLIC_PAYLOAD_API_KEY not found in environment');
       }
@@ -201,8 +201,9 @@ export class LocationBasedMerchantService {
     const out: Record<string, string> = {};
     if (!list || list.length === 0) return out;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
-    if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+    if (LocationBasedMerchantService.PAYLOAD_API_KEY) {
+      headers['Authorization'] = `users API-Key ${LocationBasedMerchantService.PAYLOAD_API_KEY}`;
+    }
     const base = LocationBasedMerchantService.API_BASE;
     const jobs = list.map((m) => async () => {
       const cacheKey = `${CACHE_KEYS.MERCHANTS}-active-address-${m.id}`;
@@ -251,6 +252,7 @@ export class LocationBasedMerchantService {
     await Promise.all(runners);
     return out;
   }
+
 
   /**
    * Get customer ID from current user session
@@ -309,7 +311,7 @@ export class LocationBasedMerchantService {
       // Use proper authentication headers for PayloadCMS API
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-        'Authorization': `users API-Key ${process.env.NEXT_PUBLIC_PAYLOAD_API_KEY}`,
+        'Authorization': `users API-Key ${LocationBasedMerchantService.PAYLOAD_API_KEY}`,
       };
 
       const url = `${this.API_BASE}/customers?where[user][equals]=${userId}&limit=1`;

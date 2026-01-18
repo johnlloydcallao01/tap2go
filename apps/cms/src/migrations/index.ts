@@ -35,6 +35,9 @@ import * as migration_20251126_070002 from './20251126_070002';
 import * as migration_20251127_022816 from './20251127_022816';
 import * as migration_20251202_remove_vendor_products_table from './20251202_remove_vendor_products_table';
 import * as migration_20260116_084737 from './20260116_084737';
+import * as migration_20260118_131627 from './20260118_131627';
+import * as migration_20260118_132800_drop_wishlist_items from './20260118_132800_drop_wishlist_items';
+import * as migration_20260118_142441 from './20260118_142441';
 
 export const migrations = [
   {
@@ -220,6 +223,21 @@ export const migrations = [
   {
     up: migration_20260116_084737.up,
     down: migration_20260116_084737.down,
-    name: '20260116_084737'
+    name: '20260116_084737',
+  },
+  {
+    up: migration_20260118_131627.up,
+    down: migration_20260118_131627.down,
+    name: '20260118_131627',
+  },
+  {
+    up: migration_20260118_132800_drop_wishlist_items.up,
+    down: migration_20260118_132800_drop_wishlist_items.down,
+    name: '20260118_132800_drop_wishlist_items',
+  },
+  {
+    up: migration_20260118_142441.up,
+    down: migration_20260118_142441.down,
+    name: '20260118_142441'
   },
 ];

@@ -99,6 +99,7 @@ export interface Config {
     'tag-groups': TagGroup;
     'tag-group-memberships': TagGroupMembership;
     'recent-views': RecentView;
+    wishlists: Wishlist;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -137,6 +138,7 @@ export interface Config {
     'tag-groups': TagGroupsSelect<false> | TagGroupsSelect<true>;
     'tag-group-memberships': TagGroupMembershipsSelect<false> | TagGroupMembershipsSelect<true>;
     'recent-views': RecentViewsSelect<false> | RecentViewsSelect<true>;
+    wishlists: WishlistsSelect<false> | WishlistsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -1958,9 +1960,9 @@ export interface TagGroupMembership {
  */
 export interface RecentView {
   id: number;
-  user: number | User;
+  user?: (number | null) | User;
   deviceId?: string | null;
-  itemType: 'merchant' | 'merchant_product';
+  itemType?: ('merchant' | 'merchant_product') | null;
   merchant?: (number | null) | Merchant;
   merchantProduct?: (number | null) | MerchantProduct;
   product?: (number | null) | Product;
@@ -1980,6 +1982,17 @@ export interface RecentView {
     | boolean
     | null;
   compositeKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wishlists".
+ */
+export interface Wishlist {
+  id: number;
+  user: number | User;
+  merchant: number | Merchant;
   updatedAt: string;
   createdAt: string;
 }
@@ -2117,6 +2130,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'recent-views';
         value: number | RecentView;
+      } | null)
+    | ({
+        relationTo: 'wishlists';
+        value: number | Wishlist;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -2863,6 +2880,16 @@ export interface RecentViewsSelect<T extends boolean = true> {
   referrer?: T;
   meta?: T;
   compositeKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wishlists_select".
+ */
+export interface WishlistsSelect<T extends boolean = true> {
+  user?: T;
+  merchant?: T;
   updatedAt?: T;
   createdAt?: T;
 }

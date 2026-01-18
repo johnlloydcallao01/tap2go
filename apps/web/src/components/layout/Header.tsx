@@ -12,6 +12,7 @@ import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import SearchField from '@/components/ui/SearchField';
 import AddressService from '@/lib/services/address-service';
 import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
+import { getWishlistMerchantIdsForCurrentUser, addMerchantToWishlist, removeMerchantFromWishlist } from '@/lib/client-services/wishlist-service';
 import { NotificationPopup, mockNotifications } from '@/components/notifications/NotificationPopup';
 import { useCart } from '@/contexts/CartContext';
 
@@ -52,10 +53,26 @@ export function Header({
   type Suggestion = { text: string; source: 'merchant' | 'category' | 'product' | 'tag' };
   const [isProductLoading, setIsProductLoading] = useState(false);
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
-  const toggleWishlist = useCallback((id: string) => {
+  const toggleWishlist = useCallback((id: string | number) => {
+    const idStr = String(id);
     setWishlistIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const willAdd = !next.has(idStr);
+      if (willAdd) {
+        next.add(idStr);
+      } else {
+        next.delete(idStr);
+      }
+      (async () => {
+        try {
+          if (willAdd) {
+            await addMerchantToWishlist(id);
+          } else {
+            await removeMerchantFromWishlist(id);
+          }
+        } catch {
+        }
+      })();
       return next;
     });
   }, []);
@@ -115,6 +132,23 @@ export function Header({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const ids = await getWishlistMerchantIdsForCurrentUser();
+        if (cancelled) return;
+        const setIds = new Set<string>(ids.map((v) => String(v)));
+        setWishlistIds(setIds);
+      } catch {
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -676,7 +710,7 @@ export function Header({
                                     key={merchant.id} 
                                     merchant={merchant} 
                                     variant="list" 
-                                    isWishlisted={wishlistIds.has(merchant.id)}
+                                    isWishlisted={wishlistIds.has(String(merchant.id))}
                                     onToggleWishlist={toggleWishlist}
                                   />
                                 ))}

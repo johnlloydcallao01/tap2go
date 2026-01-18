@@ -25,24 +25,24 @@ interface LocationModalProps {
 // Location Icon Component
 function LocationIcon({ className }: { className?: string }) {
   return (
-    <svg 
-      className={className} 
-      fill="none" 
-      stroke="currentColor" 
-      viewBox="0 0 24 24" 
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        strokeWidth={2} 
-        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" 
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
       />
-      <path 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        strokeWidth={2} 
-        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" 
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
       />
     </svg>
   );
@@ -57,11 +57,11 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
   const [settingActiveId, setSettingActiveId] = useState<string | null>(null);
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
-  
+
   // Multi-step popup state
   const [currentStep, setCurrentStep] = useState<'search' | 'preview'>('search');
   const [selectedAddress, setSelectedAddress] = useState<google.maps.places.PlaceResult | null>(null);
-  
+
   const { user } = useUser();
 
   // Check if we're on mobile/tablet
@@ -138,24 +138,24 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
   const handleDeleteAddress = async (addressId: string) => {
     // Show confirmation dialog
     const confirmed = window.confirm('Are you sure you want to delete this address? This action cannot be undone.');
-    
+
     if (!confirmed) return;
 
     setDeletingAddressId(addressId);
     try {
       const response = await AddressService.deleteAddress(addressId);
-      
+
       if (response.success) {
         toast.success('Address deleted successfully!');
-        
+
         // Optimistically update UI state - remove the deleted address
         setUserAddresses(prev => prev.filter(addr => addr.id !== addressId));
-        
+
         // If the deleted address was the active one, clear active address
         if (activeAddressId === addressId) {
           setActiveAddressId(null);
         }
-        
+
         // Notify parent component that addresses have changed
         onAddressesChanged?.();
       } else {
@@ -164,7 +164,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
     } catch (error) {
       console.error('Error deleting address:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to delete address');
-      
+
       // On error, reload to ensure UI is in sync
       await loadUserAddresses();
     } finally {
@@ -174,24 +174,24 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
 
   const handleSetActiveAddress = async (addressId: string) => {
     if (!user?.id) return;
-    
+
     console.log('🎯 handleSetActiveAddress called with addressId:', addressId);
     setSettingActiveId(addressId);
     try {
       const response = await AddressService.setActiveAddress(user.id, addressId);
-      
+
       if (response.success) {
         console.log('✅ Address set as active successfully, emitting change event...');
         toast.success('Active address updated successfully!');
-        
+
         // Optimistically update UI state - set the new active address
         setActiveAddressId(addressId);
-        
+
         // Emit address change event for real-time updates
         console.log('📢 About to emit address change for:', addressId);
         emitAddressChange(addressId);
         console.log('📢 Address change event emitted successfully');
-        
+
         // Notify parent component that addresses have changed
         onAddressesChanged?.();
       } else {
@@ -201,7 +201,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
     } catch (error) {
       console.error('Error setting active address:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to set active address');
-      
+
       // On error, reload to ensure UI is in sync
       await loadUserAddresses();
     } finally {
@@ -218,9 +218,9 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
   // New function to handle the actual saving from preview step
   const handleSaveAddress = async () => {
     if (!selectedAddress || !user?.id) return;
-    
+
     setIsSaving(true);
-    
+
     try {
       // Step 1: Save the address to the database
       const saveResponse = await AddressService.saveAddress({
@@ -235,7 +235,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
 
       // Extract the correct address ID from PayloadCMS response structure
       const addressId = saveResponse.address.doc?.id || saveResponse.address.id;
-      
+
       if (!addressId) {
         throw new Error('Address ID not found in response');
       }
@@ -244,30 +244,30 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
 
       // Step 2: Set the saved address as active
       const setActiveResponse = await AddressService.setActiveAddress(user.id, addressId);
-      
+
       if (!setActiveResponse.success) {
         throw new Error(setActiveResponse.error || 'Failed to set address as active');
       }
 
       // Both operations successful
       toast.success('Address saved and activated successfully!');
-      
+
       // Update local state to reflect the new active address
       setActiveAddressId(addressId);
-      
+
       // Clear cache and force fresh fetch to ensure data consistency
       AddressService.clearCache();
       await loadUserAddresses();
-      
+
       // Emit address change event for real-time updates
       emitAddressChange(addressId);
-      
+
       // Notify parent component that addresses have changed
       onAddressesChanged?.();
-      
+
       onLocationSelect?.(selectedAddress);
       onClose();
-      
+
     } catch (error) {
       console.error('Error in save and activate process:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to save and activate address');
@@ -330,36 +330,34 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
   if (!isOpen) return null;
 
   const modalElement = (
-    <div 
+    <div
       className={isMobile ? '' : 'fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-lg px-4'}
-      style={isMobile ? { 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0, 
-        width: '100vw', 
-        height: '100vh', 
-        backgroundColor: 'white', 
-        zIndex: 99999 
+      style={isMobile ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'white',
+        zIndex: 99999
       } : { position: 'fixed', zIndex: 9999 }}
     >
       {/* Modal - Responsive design */}
-      <div 
+      <div
         data-modal-content
-        className={`${
-          isMobile 
+        className={`${isMobile
             ? 'w-full h-full flex flex-col bg-white' // Full height on mobile/tablet with solid white background
             : 'bg-white rounded-2xl shadow-2xl w-full transform transition-all' // Popup style on desktop
-        }`} 
+          }`}
         style={isMobile ? { width: '100%', height: '100%', backgroundColor: 'white' } : {}}
       >
         {/* Header */}
-        <div className={`${
-          isMobile 
+        <div className={`${isMobile
             ? 'px-4 py-3 border-b border-gray-100 flex items-center' // Mobile header with back button
             : 'px-6 py-4 border-b border-gray-100' // Desktop header
-        }`}>
+          }`}>
           {isMobile ? (
             // Mobile header with back button
             <div className="flex items-center w-full">
@@ -404,7 +402,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
         </div>
 
         {/* Content Section - Conditional rendering based on current step */}
-        <div 
+        <div
           className={`${isMobile ? 'px-4 py-4 overflow-y-auto' : 'px-6 py-4 flex-1 overflow-y-auto max-h-[24rem]'}`}
           style={isMobile ? { maxHeight: '125vh', flex: '1 1 auto', paddingBottom: '60px' } : {}}
         >
@@ -430,7 +428,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
               {user?.id && (
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Address</h3>
-                  
+
                   {isLoadingAddresses ? (
                     <div className="space-y-2">
                       {Array.from({ length: 5 }).map((_, i) => (
@@ -476,11 +474,10 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
                               <button
                                 onClick={() => handleSetActiveAddress(address.id)}
                                 disabled={settingActiveId === address.id || activeAddressId === address.id}
-                                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                                  activeAddressId === address.id
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeAddressId === address.id
                                     ? 'text-purple-600 bg-purple-50 border border-purple-200'
                                     : 'text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
-                                }`}
+                                  }`}
                               >
                                 {settingActiveId === address.id ? (
                                   <div className="flex items-center">
@@ -585,13 +582,13 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
                   className="w-full bg-black text-white py-4 px-6 rounded-xl font-medium text-base hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSaving ? (
-                     <div className="flex items-center justify-center">
-                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                       Saving and Activating...
-                     </div>
-                   ) : (
-                     'Save and Activate'
-                   )}
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Saving and Activating...
+                    </div>
+                  ) : (
+                    'Save and Activate'
+                  )}
                 </button>
               </div>
             </div>
@@ -633,13 +630,13 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
 
     try {
       setIsLoadingAddress(true);
-      
+
       // Try to get user's active address first
       const activeAddressResponse = await AddressService.getActiveAddress(user.id, true);
-      
+
       if (activeAddressResponse.success && activeAddressResponse.address) {
         const activeAddress = activeAddressResponse.address;
-        
+
         // Convert API address back to Google Places format for display
         const googlePlaceFormat: google.maps.places.PlaceResult = {
           formatted_address: activeAddress.formatted_address,
@@ -652,7 +649,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
             } as google.maps.LatLng
           } : undefined
         };
-        
+
         setSelectedLocation(googlePlaceFormat);
         return; // Exit early, we have the active address
       }
@@ -661,7 +658,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
       // So if we reach here, there are truly no addresses
       console.log('No addresses found for user');
       setSelectedLocation(null);
-      
+
     } catch (error) {
       console.error('Error loading address from backend:', error);
       setSelectedLocation(null);

@@ -2,6 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { AddressService } from '@/lib/services/address-service';
+import { useUser } from '@/hooks/useAuth';
+import { emitAddressChange } from '@/hooks/useAddressChange';
+import { ListItemSkeleton } from '@/components/ui/Skeleton';
 
 interface AddressItem {
   id: string | number;
@@ -15,18 +18,22 @@ interface AddressItem {
 }
 
 export default function AddressesClient() {
+  const { user } = useUser();
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
+  const [isLoadingActive, setIsLoadingActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingActionId, setPendingActionId] = useState<string | number | null>(null);
+  const [activeAddressId, setActiveAddressId] = useState<string | number | null>(null);
+  const [settingActiveId, setSettingActiveId] = useState<string | number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadAddresses = async () => {
       try {
-        setIsLoading(true);
+        setIsLoadingAddresses(true);
         setError(null);
         const response = await AddressService.getUserAddresses(true);
         if (!cancelled && response.success && response.addresses) {
@@ -39,10 +46,9 @@ export default function AddressesClient() {
         if (!cancelled) {
           setError(e?.message || 'Failed to load addresses');
         }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+      }
+      if (!cancelled) {
+        setIsLoadingAddresses(false);
       }
     };
 
@@ -52,6 +58,47 @@ export default function AddressesClient() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setActiveAddressId(null);
+      setIsLoadingActive(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadActiveAddress = async () => {
+      setIsLoadingActive(true);
+
+      try {
+        const response = await AddressService.getActiveAddress(user.id, true);
+        if (!cancelled) {
+          if (response.success && response.address && response.address.id != null) {
+            setActiveAddressId(response.address.id);
+          } else {
+            setActiveAddressId(null);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setActiveAddressId(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingActive(false);
+        }
+      }
+    };
+
+    loadActiveAddress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const isLoading = isLoadingAddresses || isLoadingActive;
 
   const handleSetDefault = async (id: string | number) => {
     try {
@@ -88,10 +135,33 @@ export default function AddressesClient() {
         const remaining = addresses.filter((addr) => addr.id !== id);
         setSelectedAddressId(remaining[0]?.id ?? null);
       }
+      if (activeAddressId === id) {
+        setActiveAddressId(null);
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to delete address');
     } finally {
       setPendingActionId(null);
+    }
+  };
+
+  const handleSetActiveAddress = async (id: string | number) => {
+    if (!user?.id) return;
+    const previousActiveId = activeAddressId;
+    setSettingActiveId(id);
+    setError(null);
+    setActiveAddressId(id);
+    try {
+      const response = await AddressService.setActiveAddress(user.id, id);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to set active address');
+      }
+      emitAddressChange(String(id));
+    } catch (e: any) {
+      setActiveAddressId(previousActiveId);
+      setError(e?.message || 'Failed to set active address');
+    } finally {
+      setSettingActiveId(null);
     }
   };
 
@@ -113,6 +183,14 @@ export default function AddressesClient() {
               style={{ backgroundColor: '#eba236' }}
             >
               DEFAULT
+            </span>
+          )}
+          {activeAddressId === address.id && (
+            <span
+              className="text-xs font-medium text-purple-700 px-2 py-1 rounded"
+              style={{ backgroundColor: '#f3e8ff' }}
+            >
+              ACTIVE
             </span>
           )}
         </div>
@@ -149,12 +227,9 @@ export default function AddressesClient() {
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        {Array.from({ length: 3 }).map((_, idx) => (
-          <div
-            key={idx}
-            className="bg-white rounded-lg shadow-sm animate-pulse h-24"
-          />
+      <div className="space-y-2">
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <ListItemSkeleton key={idx} />
         ))}
       </div>
     );
@@ -172,7 +247,7 @@ export default function AddressesClient() {
             backgroundColor: 'white',
           }}
           onClick={() => {
-            setIsLoading(true);
+            setIsLoadingAddresses(true);
             setError(null);
             AddressService.getUserAddresses(true)
               .then((response) => {
@@ -186,7 +261,7 @@ export default function AddressesClient() {
               .catch((e: any) => {
                 setError(e?.message || 'Failed to load addresses');
               })
-              .finally(() => setIsLoading(false));
+              .finally(() => setIsLoadingAddresses(false));
           }}
         >
           Retry
@@ -244,29 +319,20 @@ export default function AddressesClient() {
                 {renderAddressBody(address)}
               </div>
               <div className="flex items-center space-x-2 ml-4">
-                {!address.is_default && (
-                  <button
-                    onClick={() => handleSetDefault(address.id)}
-                    disabled={pendingActionId === address.id}
-                    className="px-3 py-1.5 rounded text-xs font-medium hover:bg-gray-50 transition-colors"
-                    style={{
-                      border: '1px solid #eba236',
-                      color: '#eba236',
-                      backgroundColor: 'white',
-                    }}
-                  >
-                    {pendingActionId === address.id ? 'Saving...' : 'Set Default'}
-                  </button>
-                )}
                 <button
-                  onClick={() => setSelectedAddressId(address.id)}
-                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                    selectedAddressId === address.id
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  onClick={() => handleSetActiveAddress(address.id)}
+                  disabled={settingActiveId === address.id || activeAddressId === address.id}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    activeAddressId === address.id
+                      ? 'text-purple-600 bg-purple-50 border border-purple-200'
+                      : 'text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
                   }`}
                 >
-                  Select
+                  {settingActiveId === address.id
+                    ? 'Setting...'
+                    : activeAddressId === address.id
+                    ? 'Currently Active'
+                    : 'Set as Active'}
                 </button>
                 <button
                   onClick={() => handleDeleteAddress(address.id)}
@@ -280,30 +346,6 @@ export default function AddressesClient() {
           </div>
         </div>
       ))}
-      <div className="mt-8 bg-white rounded-lg p-4">
-        <h3 className="font-semibold text-gray-900 mb-3">Quick Actions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button className="flex items-center p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-              <i className="fas fa-map text-blue-600 text-sm" />
-            </div>
-            <div>
-              <p className="font-medium text-gray-900 text-sm">Find on Map</p>
-              <p className="text-xs text-gray-500">View all addresses on map</p>
-            </div>
-          </button>
-          <button className="flex items-center p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
-            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-              <i className="fas fa-download text-green-600 text-sm" />
-            </div>
-            <div>
-              <p className="font-medium text-gray-900 text-sm">Export Addresses</p>
-              <p className="text-xs text-gray-500">Download as PDF or CSV</p>
-            </div>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
-

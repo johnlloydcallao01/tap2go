@@ -1,176 +1,365 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from '@/components/ui/ImageWrapper';
+import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
+import {
+  getActiveAddressNamesForMerchants,
+  getLocationBasedMerchants,
+  getCurrentCustomerId,
+  type LocationBasedMerchant,
+} from '@/lib/client-services/location-based-merchant-service';
+import {
+  getWishlistMerchantIdsForCurrentUser,
+  addMerchantToWishlist,
+  removeMerchantFromWishlist,
+} from '@/lib/client-services/wishlist-service';
+import { MerchantClientService } from '@/lib/client-services/merchant-client-service';
 
-/**
- * Recently Viewed Page - Display user's recently viewed items
- * Professional and modern design with comprehensive item management
- */
+type RecentViewDoc = any;
 
-// Mock recently viewed data
-const mockRecentlyViewed = [
-  {
-    id: 1,
-    title: "Artisan Sourdough Bread",
-    category: "Bakery",
-    price: "$8.99",
-    originalPrice: "$10.99",
-    image: "https://images.pexels.com/photos/1775043/pexels-photo-1775043.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.9,
-    reviews: "342",
-    merchant: "Golden Crust Bakery",
-    brand: "Artisan Delights",
-    viewedAt: "2 hours ago",
-    isOnSale: true,
-    isAvailable: true
-  },
-  {
-    id: 2,
-    title: "Fresh Atlantic Salmon",
-    category: "Seafood",
-    price: "$18.99",
-    originalPrice: "$22.99",
-    image: "https://images.pexels.com/photos/1516415/pexels-photo-1516415.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.8,
-    reviews: "156",
-    merchant: "Ocean Fresh Market",
-    brand: "Premium Catch",
-    viewedAt: "4 hours ago",
-    isOnSale: true,
-    isAvailable: true
-  },
-  {
-    id: 3,
-    title: "Organic Avocados (Pack of 6)",
-    category: "Produce",
-    price: "$12.99",
-    originalPrice: null,
-    image: "https://images.pexels.com/photos/557659/pexels-photo-557659.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.7,
-    reviews: "89",
-    merchant: "Green Valley Farms",
-    brand: "Organic Select",
-    viewedAt: "6 hours ago",
-    isOnSale: false,
-    isAvailable: true
-  },
-  {
-    id: 4,
-    title: "Gourmet Pizza Margherita",
-    category: "Ready Meals",
-    price: "$15.99",
-    originalPrice: "$18.99",
-    image: "https://images.pexels.com/photos/2147491/pexels-photo-2147491.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.6,
-    reviews: "234",
-    merchant: "Bella Italia Kitchen",
-    brand: "Chef's Choice",
-    viewedAt: "1 day ago",
-    isOnSale: true,
-    isAvailable: false
-  },
-  {
-    id: 5,
-    title: "Premium Coffee Beans - Dark Roast",
-    category: "Beverages",
-    price: "$24.99",
-    originalPrice: null,
-    image: "https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.9,
-    reviews: "567",
-    merchant: "Mountain Peak Coffee",
-    brand: "Roaster's Select",
-    viewedAt: "2 days ago",
-    isOnSale: false,
-    isAvailable: true
-  },
-  {
-    id: 6,
-    title: "Grass-Fed Beef Steaks",
-    category: "Meat",
-    price: "$32.99",
-    originalPrice: "$38.99",
-    image: "https://images.pexels.com/photos/361184/asparagus-steak-veal-steak-veal-361184.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.8,
-    reviews: "123",
-    merchant: "Prime Cuts Butchery",
-    brand: "Ranch Select",
-    viewedAt: "3 days ago",
-    isOnSale: true,
-    isAvailable: true
-  },
-  {
-    id: 7,
-    title: "Artisan Cheese Selection",
-    category: "Dairy",
-    price: "$28.99",
-    originalPrice: null,
-    image: "https://images.pexels.com/photos/773253/pexels-photo-773253.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.7,
-    reviews: "78",
-    merchant: "Countryside Creamery",
-    brand: "Artisan Collection",
-    viewedAt: "4 days ago",
-    isOnSale: false,
-    isAvailable: true
-  },
-  {
-    id: 8,
-    title: "Fresh Herb Garden Kit",
-    category: "Garden",
-    price: "$19.99",
-    originalPrice: "$24.99",
-    image: "https://images.pexels.com/photos/1301856/pexels-photo-1301856.jpeg?auto=compress&cs=tinysrgb&w=400",
-    rating: 4.5,
-    reviews: "145",
-    merchant: "Green Thumb Nursery",
-    brand: "Garden Pro",
-    viewedAt: "1 week ago",
-    isOnSale: true,
-    isAvailable: true
-  }
-];
+const formatCurrency = (value: number | null | undefined) => {
+  if (value == null) return null;
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+  }).format(Number(value));
+};
 
-const filterOptions = [
-  { id: 'all', label: 'All Items', count: mockRecentlyViewed.length },
-  { id: 'available', label: 'Available', count: mockRecentlyViewed.filter(item => item.isAvailable).length },
-  { id: 'on_sale', label: 'On Sale', count: mockRecentlyViewed.filter(item => item.isOnSale).length },
-  { id: 'today', label: 'Today', count: mockRecentlyViewed.filter(item => item.viewedAt.includes('hours')).length }
-];
+const toSlug = (name: string | null | undefined): string => {
+  const base = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+  return base || 'item';
+};
+
+const buildMerchantSlugId = (merchant: any): string => {
+  const baseName =
+    merchant?.outletName ||
+    merchant?.vendor?.businessName ||
+    String(merchant?.id || '');
+  const slug = String(baseName)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+  const idPart = String(merchant?.id || '').trim();
+  return idPart ? `${slug}-${idPart}` : slug || 'merchant';
+};
+
+const formatViewedAt = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export default function RecentlyViewedPage() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [recentViews, setRecentViews] = useState<RecentViewDoc[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [addressMap, setAddressMap] = useState<Record<string, string>>({});
+  const [etaMap, setEtaMap] = useState<Record<string, string>>({});
+  const [merchantDetailsMap, setMerchantDetailsMap] = useState<Record<string, any>>({});
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
 
-  // Filter items based on active filter and search query
-  const filteredItems = mockRecentlyViewed.filter(item => {
-    const matchesFilter = 
-      activeFilter === 'all' ||
-      (activeFilter === 'available' && item.isAvailable) ||
-      (activeFilter === 'on_sale' && item.isOnSale) ||
-      (activeFilter === 'today' && item.viewedAt.includes('hours'));
-    
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.merchant.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesFilter && matchesSearch;
-  });
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const userStr =
+          typeof window !== 'undefined'
+            ? window.localStorage.getItem('grandline_auth_user')
+            : null;
+        const userId = userStr
+          ? (() => {
+              try {
+                return JSON.parse(userStr)?.id;
+              } catch {
+                return null;
+              }
+            })()
+          : null;
+        if (!userId) {
+          if (!cancelled) {
+            setRecentViews([]);
+            setAddressMap({});
+            setEtaMap({});
+          }
+          return;
+        }
+        const API_BASE =
+          process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+        const url = `${API_BASE}/recent-views?where[user][equals]=${encodeURIComponent(
+          String(userId),
+        )}&sort=-lastViewedAt&limit=40&depth=2`;
+        const res = await fetch(url, { headers, cache: 'no-store' });
+        if (!res.ok) {
+          if (!cancelled) {
+            setRecentViews([]);
+            setAddressMap({});
+            setEtaMap({});
+          }
+          return;
+        }
+        const data = await res.json();
+        const docs = Array.isArray(data?.docs) ? data.docs : [];
+        if (!cancelled) {
+          setRecentViews(docs);
+          const uniqueMerchantIds: string[] = Array.from(
+            new Set<string>(
+              docs
+                .filter(
+                  (doc: any) =>
+                    doc?.itemType === 'merchant' && doc?.merchant && doc.merchant.id,
+                )
+                .map((doc: any) => String(doc.merchant.id)),
+            ),
+          );
+          if (uniqueMerchantIds.length > 0) {
+            const detailsEntries: [string, any][] = [];
+            for (const id of uniqueMerchantIds) {
+              try {
+                const full = await MerchantClientService.getMerchantById(id);
+                if (full) {
+                  detailsEntries.push([id, full]);
+                }
+              } catch {}
+            }
+            if (!cancelled && detailsEntries.length > 0) {
+              setMerchantDetailsMap((prev) => {
+                const next = { ...prev };
+                for (const [id, full] of detailsEntries) {
+                  next[id] = full;
+                }
+                return next;
+              });
+            }
+          }
+          const merchantDocs: LocationBasedMerchant[] = docs
+            .filter(
+              (doc: any) =>
+                doc?.itemType === 'merchant' && doc?.merchant,
+            )
+            .map((doc: any) => {
+              const m = doc.merchant as any;
+              const estimatedDeliveryTime =
+                m.estimatedDeliveryTime ||
+                m.deliverySettings?.estimatedDeliveryTime ||
+                '';
+              return {
+                ...m,
+                estimatedDeliveryTime,
+              } as LocationBasedMerchant;
+            });
+          if (merchantDocs.length > 0) {
+            try {
+              const map =
+                await getActiveAddressNamesForMerchants(merchantDocs);
+              if (!cancelled) setAddressMap(map);
+            } catch {
+              if (!cancelled) setAddressMap({});
+            }
+            try {
+              const customerId = await getCurrentCustomerId();
+              if (customerId) {
+                const locationMerchants = await getLocationBasedMerchants({
+                  customerId,
+                  limit: 200,
+                });
+                const nextEtaMap: Record<string, string> = {};
+                for (const m of locationMerchants) {
+                  if (m.estimatedDeliveryTime) {
+                    nextEtaMap[String(m.id)] = m.estimatedDeliveryTime;
+                  }
+                }
+                if (!cancelled) setEtaMap(nextEtaMap);
+              } else if (!cancelled) {
+                setEtaMap({});
+              }
+            } catch {
+              if (!cancelled) setEtaMap({});
+            }
+          } else {
+            setAddressMap({});
+            setEtaMap({});
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setRecentViews([]);
+          setAddressMap({});
+          setEtaMap({});
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const handleAddToCart = (itemId: number) => {
-    console.log('Adding item to cart:', itemId);
-    // Add to cart logic here
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const ids = await getWishlistMerchantIdsForCurrentUser();
+        if (cancelled) return;
+        const setIds = new Set<string>(ids.map((v) => String(v)));
+        setWishlistIds(setIds);
+      } catch {
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleWishlist = React.useCallback((id: string | number) => {
+    const idStr = String(id);
+    setWishlistIds(prev => {
+      const next = new Set(prev);
+      const willAdd = !next.has(idStr);
+      if (willAdd) {
+        next.add(idStr);
+      } else {
+        next.delete(idStr);
+      }
+      (async () => {
+        try {
+          if (willAdd) {
+            await addMerchantToWishlist(id);
+          } else {
+            await removeMerchantFromWishlist(id);
+          }
+        } catch {
+        }
+      })();
+      return next;
+    });
+  }, []);
+
+  const filterOptions = useMemo(() => {
+    const total = recentViews.length;
+    const restaurantCount = recentViews.filter(
+      (doc) => doc?.itemType === 'merchant' && doc?.merchant,
+    ).length;
+    const foodCount = recentViews.filter(
+      (doc) =>
+        doc?.itemType === 'merchant_product' &&
+        (doc?.product || doc?.merchantProduct),
+    ).length;
+    return [
+      { id: 'all', label: 'All Items', count: total },
+      { id: 'restaurants', label: 'Restaurants', count: restaurantCount },
+      { id: 'food_items', label: 'Food Items', count: foodCount },
+    ];
+  }, [recentViews]);
+
+  const filteredDocs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return recentViews.filter((doc) => {
+      const itemType = doc?.itemType;
+      const isMerchant = itemType === 'merchant' && doc?.merchant;
+      const isProduct =
+        itemType === 'merchant_product' &&
+        (doc?.product || doc?.merchantProduct);
+      if (
+        activeFilter === 'restaurants' &&
+        !isMerchant
+      ) {
+        return false;
+      }
+      if (
+        activeFilter === 'food_items' &&
+        !isProduct
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      const merchant = doc?.merchant || doc?.merchantProduct?.merchant_id;
+      const product = doc?.product || doc?.merchantProduct?.product_id;
+      const merchantName = String(
+        merchant?.outletName ||
+          merchant?.vendor?.businessName ||
+          '',
+      ).toLowerCase();
+      const productName = String(product?.name || '').toLowerCase();
+      const text = `${merchantName} ${productName}`;
+      if (!text.trim()) return false;
+      return text.includes(q);
+    });
+  }, [recentViews, activeFilter, searchQuery]);
+
+  const handleRemoveFromHistory = async (docId: number | string) => {
+    setRecentViews((prev) => prev.filter((doc) => doc?.id !== docId));
+    try {
+      const API_BASE =
+        process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+      await fetch(`${API_BASE}/recent-views/${docId}`, {
+        method: 'DELETE',
+        headers,
+      });
+    } catch {}
   };
 
-  const handleRemoveFromHistory = (itemId: number) => {
-    console.log('Removing item from history:', itemId);
-    // Remove from history logic here
-  };
-
-  const clearAllHistory = () => {
-    console.log('Clearing all history');
-    // Clear all history logic here
+  const clearAllHistory = async () => {
+    setRecentViews([]);
+    try {
+      const userStr =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('grandline_auth_user')
+          : null;
+      const userId = userStr
+        ? (() => {
+            try {
+              return JSON.parse(userStr)?.id;
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+      if (!userId) return;
+      const API_BASE =
+        process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+      const url = `${API_BASE}/recent-views?where[user][equals]=${encodeURIComponent(
+        String(userId),
+      )}`;
+      await fetch(url, {
+        method: 'DELETE',
+        headers,
+      });
+    } catch {}
   };
 
   return (
@@ -197,10 +386,8 @@ export default function RecentlyViewedPage() {
       </div>
 
       <div className="w-full px-2.5 py-4">
-        {/* Search and Filter Section */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
           <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search Bar */}
             <div className="flex-1">
               <div className="relative">
                 <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
@@ -214,7 +401,6 @@ export default function RecentlyViewedPage() {
               </div>
             </div>
 
-            {/* Filter Tabs */}
             <div className="flex flex-wrap gap-2">
               {filterOptions.map((filter) => (
                 <button
@@ -234,106 +420,245 @@ export default function RecentlyViewedPage() {
           </div>
         </div>
 
-        {/* Items Grid */}
-        {filteredItems.length > 0 ? (
+        {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
-                {/* Item Image */}
-                <div className="relative">
-                  <Image
-                    src={item.image}
-                    alt={item.title}
-                    width={300}
-                    height={200}
-                    className="w-full h-48 object-cover"
-                  />
-                  {item.isOnSale && (
-                    <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
-                      Sale
-                    </div>
-                  )}
-                  {!item.isAvailable && (
-                    <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">Out of Stock</span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => handleRemoveFromHistory(item.id)}
-                    className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors"
-                  >
-                    <i className="fas fa-times text-gray-600 text-xs"></i>
-                  </button>
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="group cursor-pointer animate-pulse">
+                <div className="relative aspect-[2/1] bg-gray-200 rounded-lg overflow-hidden mb-3">
+                  <div className="w-full h-full bg-gray-300"></div>
+                  <div className="absolute top-2 left-2 bg-gray-300 rounded-full px-2 py-1">
+                    <div className="h-3 w-12 bg-gray-400 rounded"></div>
+                  </div>
                 </div>
-
-                {/* Item Details */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2">
-                      {item.title}
-                    </h3>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mb-3 font-medium">{item.category} • {item.merchant}</p>
-
-                  {/* Rating */}
-                  <div className="flex items-center mb-3">
-                    <div className="flex items-center">
-                      {[...Array(5)].map((_, i) => (
-                        <i
-                          key={i}
-                          className={`fas fa-star text-xs ${
-                            i < Math.floor(item.rating) ? 'text-yellow-400' : 'text-gray-300'
-                          }`}
-                        ></i>
-                      ))}
-                    </div>
-                    <span className="text-xs text-gray-600 ml-1 font-medium">
-                      {item.rating} ({item.reviews})
-                    </span>
-                  </div>
-
-                  {/* Price */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-900 text-base">{item.price}</span>
-                      {item.originalPrice && (
-                        <span className="text-xs text-gray-500 line-through">{item.originalPrice}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Viewed Time */}
-                  <p className="text-xs text-gray-500 mb-4 font-medium">
-                    <i className="fas fa-clock mr-1"></i>
-                    Viewed {item.viewedAt}
-                  </p>
-
-                  {/* Action Button */}
-                  <button
-                    onClick={() => handleAddToCart(item.id)}
-                    disabled={!item.isAvailable}
-                    className={`w-full py-2 px-4 rounded-lg font-medium text-sm transition-all ${
-                      item.isAvailable
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
-                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {item.isAvailable ? (
-                      <>
-                        <i className="fas fa-shopping-cart mr-2"></i>
-                        Add to Cart
-                      </>
-                    ) : (
-                      'Out of Stock'
-                    )}
-                  </button>
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-3 bg-gray-200 rounded w-full"></div>
+                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
                 </div>
               </div>
             ))}
           </div>
+        ) : filteredDocs.length > 0 ? (
+          activeFilter === 'all' ? (
+            <div className="space-y-10">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                  Recently viewed restaurants
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredDocs.map((doc) => {
+                    const itemType = doc?.itemType;
+                    if (itemType === 'merchant' && doc?.merchant) {
+                      const baseMerchant = doc.merchant;
+                      const merchantId = String(baseMerchant.id);
+                      const detailedMerchant = merchantDetailsMap[merchantId] || baseMerchant;
+                      const merchantWithEta = {
+                        ...detailedMerchant,
+                        estimatedDeliveryTime:
+                          etaMap[merchantId] ||
+                          detailedMerchant.estimatedDeliveryTime ||
+                          detailedMerchant.deliverySettings?.estimatedDeliveryTime ||
+                          '',
+                      };
+                      return (
+                        <LocationMerchantCard
+                          key={`merchant-${doc.id}`}
+                          merchant={merchantWithEta as any}
+                          isWishlisted={wishlistIds.has(merchantId)}
+                          onToggleWishlist={() => toggleWishlist(merchantId)}
+                          addressName={addressMap[detailedMerchant.id] || null}
+                        />
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                  Recently viewed food items
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredDocs.map((doc) => {
+                    const itemType = doc?.itemType;
+                    if (itemType === 'merchant_product') {
+                      const merchant =
+                        doc?.merchant || doc?.merchantProduct?.merchant_id;
+                      const product =
+                        doc?.product || doc?.merchantProduct?.product_id;
+                      if (!merchant || !product) return null;
+                      const merchantSlugId = buildMerchantSlugId(merchant);
+                      const productSlugId = `${toSlug(product?.name)}-${product?.id}`;
+                      const href = `/merchant/${merchantSlugId}/${productSlugId}`;
+                      const primaryImage =
+                        product?.media?.primaryImage ||
+                        product?.media?.image ||
+                        null;
+                      const imageUrl =
+                        primaryImage?.cloudinaryURL ||
+                        primaryImage?.url ||
+                        primaryImage?.thumbnailURL ||
+                        null;
+                      const price = formatCurrency(product?.basePrice ?? null);
+                      const compareAt = formatCurrency(
+                        product?.compareAtPrice ?? null,
+                      );
+                      const LinkComponent: any = require('next/link').default;
+                      return (
+                        <div
+                          key={`product-${doc.id}`}
+                          className="bg-white rounded-lg shadow-sm overflow-hidden"
+                        >
+                          <LinkComponent href={href}>
+                            <div className="relative aspect-square bg-gray-100">
+                              {imageUrl ? (
+                                <Image
+                                  src={imageUrl}
+                                  alt={product?.name || 'Product'}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                  No image
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-4">
+                              <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">
+                                {product?.name}
+                              </h3>
+                              <p className="mt-1 text-xs text-gray-500 line-clamp-1">
+                                {merchant?.outletName ||
+                                  merchant?.vendor?.businessName ||
+                                  ''}
+                              </p>
+                              <div className="mt-2 flex items-center gap-2">
+                                {price && (
+                                  <span className="text-base font-bold text-gray-900">
+                                    {price}
+                                  </span>
+                                )}
+                                {compareAt &&
+                                  product?.compareAtPrice >
+                                    (product?.basePrice ?? 0) && (
+                                    <span className="text-sm text-gray-500 line-through">
+                                      {compareAt}
+                                    </span>
+                                  )}
+                              </div>
+                            </div>
+                          </LinkComponent>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredDocs.map((doc) => {
+                const itemType = doc?.itemType;
+                if (itemType === 'merchant' && doc?.merchant) {
+                  const baseMerchant = doc.merchant;
+                  const merchantId = String(baseMerchant.id);
+                  const detailedMerchant = merchantDetailsMap[merchantId] || baseMerchant;
+                  const merchantWithEta = {
+                    ...detailedMerchant,
+                    estimatedDeliveryTime:
+                      etaMap[merchantId] ||
+                      detailedMerchant.estimatedDeliveryTime ||
+                      detailedMerchant.deliverySettings?.estimatedDeliveryTime ||
+                      '',
+                  };
+                  return (
+                    <LocationMerchantCard
+                      key={`merchant-${doc.id}`}
+                      merchant={merchantWithEta as any}
+                      isWishlisted={false}
+                      addressName={addressMap[detailedMerchant.id] || null}
+                    />
+                  );
+                }
+                if (itemType === 'merchant_product') {
+                  const merchant =
+                    doc?.merchant || doc?.merchantProduct?.merchant_id;
+                  const product =
+                    doc?.product || doc?.merchantProduct?.product_id;
+                  if (!merchant || !product) return null;
+                  const merchantSlugId = buildMerchantSlugId(merchant);
+                  const productSlugId = `${toSlug(product?.name)}-${product?.id}`;
+                  const href = `/merchant/${merchantSlugId}/${productSlugId}`;
+                  const primaryImage =
+                    product?.media?.primaryImage ||
+                    product?.media?.image ||
+                    null;
+                  const imageUrl =
+                    primaryImage?.cloudinaryURL ||
+                    primaryImage?.url ||
+                    primaryImage?.thumbnailURL ||
+                    null;
+                  const price = formatCurrency(product?.basePrice ?? null);
+                  const compareAt = formatCurrency(
+                    product?.compareAtPrice ?? null,
+                  );
+                  const LinkComponent: any = require('next/link').default;
+                  return (
+                    <div
+                      key={`product-${doc.id}`}
+                      className="bg-white rounded-lg shadow-sm overflow-hidden"
+                    >
+                      <LinkComponent href={href}>
+                        <div className="relative aspect-square bg-gray-100">
+                          {imageUrl ? (
+                            <Image
+                              src={imageUrl}
+                              alt={product?.name || 'Product'}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                              No image
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">
+                            {product?.name}
+                          </h3>
+                          <p className="mt-1 text-xs text-gray-500 line-clamp-1">
+                            {merchant?.outletName ||
+                              merchant?.vendor?.businessName ||
+                              ''}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            {price && (
+                              <span className="text-base font-bold text-gray-900">
+                                {price}
+                              </span>
+                            )}
+                            {compareAt &&
+                              product?.compareAtPrice >
+                                (product?.basePrice ?? 0) && (
+                                <span className="text-sm text-gray-500 line-through">
+                                  {compareAt}
+                                </span>
+                              )}
+                          </div>
+                        </div>
+                      </LinkComponent>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          )
         ) : (
-          /* Empty State */
           <div className="text-center py-12">
             <div className="max-w-md mx-auto">
               <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
@@ -343,10 +668,9 @@ export default function RecentlyViewedPage() {
                 {searchQuery ? 'No items found' : 'No recently viewed items'}
               </h3>
               <p className="text-gray-600 mb-6 text-base">
-                {searchQuery 
+                {searchQuery
                   ? 'Try adjusting your search or filter criteria'
-                  : 'Items you browse will appear here for easy access'
-                }
+                  : 'Items you browse will appear here for easy access'}
               </p>
               {searchQuery && (
                 <button

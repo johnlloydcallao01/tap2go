@@ -31,7 +31,6 @@ export const RecentViews: CollectionConfig = {
       name: 'user',
       type: 'relationship',
       relationTo: 'users',
-      required: true,
     },
     {
       name: 'deviceId',
@@ -40,7 +39,6 @@ export const RecentViews: CollectionConfig = {
     {
       name: 'itemType',
       type: 'select',
-      required: true,
       options: [
         { label: 'Merchant', value: 'merchant' },
         { label: 'Merchant Product', value: 'merchant_product' },
@@ -109,8 +107,7 @@ export const RecentViews: CollectionConfig = {
   ],
   hooks: {
     beforeValidate: [
-      ({ data }) => {
-        if (!data) return
+      ({ data, req }) => {
         type MutableData = {
           user?: string | number | { id?: string | number }
           itemType?: string
@@ -118,7 +115,24 @@ export const RecentViews: CollectionConfig = {
           merchantProduct?: string | number | { id?: string | number }
           compositeKey?: string
         }
-        const d = data as MutableData
+        let base: unknown = data
+        if (!base && req?.body) {
+          base = req.body as unknown
+        }
+        if (typeof base === 'string') {
+          try {
+            base = JSON.parse(base) as unknown
+          } catch {
+            base = {}
+          }
+        }
+        const d = (base || {}) as MutableData
+        if (!d.user && req?.user?.id) {
+          d.user = req.user.id as number
+        }
+        if (!d.itemType && d.merchant && !d.merchantProduct) {
+          d.itemType = 'merchant'
+        }
         let userId = ''
         const u = d.user
         if (typeof u === 'string' || typeof u === 'number') {
@@ -149,6 +163,7 @@ export const RecentViews: CollectionConfig = {
           if (!merchantId || !merchantProductId) return
           d.compositeKey = `${userId}:merchant_product:${merchantId}:${merchantProductId}`
         }
+        return d
       },
     ],
     beforeChange: [

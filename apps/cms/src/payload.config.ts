@@ -53,6 +53,7 @@ import { TagGroups } from './collections/TagGroups'
 import { TagGroupMemberships } from './collections/TagGroupMemberships'
 import { RecentSearches } from './collections/RecentSearches'
 import { RecentViews } from './collections/RecentViews'
+import { Wishlists } from './collections/Wishlists'
 
 
 const filename = fileURLToPath(import.meta.url)
@@ -107,6 +108,7 @@ export default buildConfig({
     TagGroups,
     TagGroupMemberships,
     RecentViews,
+    Wishlists,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

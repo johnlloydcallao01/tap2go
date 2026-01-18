@@ -9,7 +9,11 @@ import {
   sortMerchantsByRecentlyUpdated,
   type LocationBasedMerchant,
 } from "@/lib/client-services/location-based-merchant-service";
-import type { Media } from "@/types/merchant";
+import {
+  getWishlistMerchantIdsForCurrentUser,
+  addMerchantToWishlist,
+  removeMerchantFromWishlist,
+} from "@/lib/client-services/wishlist-service";
 import LocationMerchantCard from "@/components/cards/LocationMerchantCard";
 
 export default function NewlyUpdatedPage(): React.ReactNode {
@@ -42,16 +46,45 @@ export default function NewlyUpdatedPage(): React.ReactNode {
     [addressMap]
   );
 
-  const toggleWishlist = useCallback((id: string) => {
-    setWishlistIds((prev) => {
+  const toggleWishlist = useCallback((id: string | number) => {
+    const idStr = String(id);
+    setWishlistIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      const willAdd = !next.has(idStr);
+      if (willAdd) {
+        next.add(idStr);
       } else {
-        next.add(id);
+        next.delete(idStr);
       }
+      (async () => {
+        try {
+          if (willAdd) {
+            await addMerchantToWishlist(id);
+          } else {
+            await removeMerchantFromWishlist(id);
+          }
+        } catch {
+        }
+      })();
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const ids = await getWishlistMerchantIdsForCurrentUser();
+        if (cancelled) return;
+        const setIds = new Set<string>(ids.map((v) => String(v)));
+        setWishlistIds(setIds);
+      } catch {
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Resolve customer ID and fetch merchants, then sort by updated time (desc)
@@ -161,7 +194,7 @@ export default function NewlyUpdatedPage(): React.ReactNode {
                   key={m.id}
                   merchant={m}
                   addressName={addressMap[m.id] || null}
-                  isWishlisted={wishlistIds.has(m.id)}
+                  isWishlisted={wishlistIds.has(String(m.id))}
                   onToggleWishlist={toggleWishlist}
                 />
               ))}

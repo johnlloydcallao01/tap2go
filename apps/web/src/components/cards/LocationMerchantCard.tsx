@@ -34,6 +34,59 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
   const distanceText = typeof distanceKm === "number" ? formatDistanceKm(distanceKm) : (typeof distanceInMeters === "number" ? formatDistanceKm(distanceInMeters / 1000) : null);
   const rating = typeof merchant.metrics?.averageRating === "number" ? merchant.metrics.averageRating : null;
 
+  const trackRecentView = (merchantId: string | number) => {
+    try {
+      if (typeof window === "undefined") return;
+      const userStr = window.localStorage.getItem("grandline_auth_user");
+      const userId = userStr
+        ? (() => {
+            try {
+              return JSON.parse(userStr)?.id;
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+      if (!userId) return;
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://cms.tap2goph.com/api";
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers["Authorization"] = `users API-Key ${apiKey}`;
+      const body = JSON.stringify({
+        user: userId,
+        itemType: "merchant",
+        merchant: merchantId,
+        source: "web",
+      });
+      const compositeKey = `${userId}:merchant:${merchantId}`;
+      (async () => {
+        try {
+          const res = await fetch(`${API_BASE}/recent-views`, {
+            method: "POST",
+            headers,
+            body,
+          });
+          if (res.ok) return;
+          const existsUrl = `${API_BASE}/recent-views?where[compositeKey][equals]=${encodeURIComponent(
+            compositeKey,
+          )}&limit=1`;
+          const getRes = await fetch(existsUrl, { headers });
+          if (!getRes.ok) return;
+          const data = await getRes.json();
+          const id = data?.docs?.[0]?.id;
+          if (!id) return;
+          await fetch(`${API_BASE}/recent-views/${id}`, {
+            method: "PATCH",
+            headers,
+            body: "{}",
+          });
+        } catch {}
+      })();
+    } catch {}
+  };
+
   return (
     <>
       {(() => {
@@ -48,7 +101,11 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
         const slugId = `${slug}-${merchant.id}`;
         if (variant === 'list') {
           return (
-            <LinkComponent href={`/merchant/${slugId}`} className="group block">
+            <LinkComponent
+              href={`/merchant/${slugId}`}
+              className="group block"
+              onClick={() => trackRecentView(merchant.id)}
+            >
               <div className="flex items-center gap-4 p-2 rounded-xl hover:bg-gray-50 transition-colors">
                 <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
                   {thumbnailImageUrl ? (
@@ -101,7 +158,11 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
           );
         }
         return (
-          <LinkComponent href={`/merchant/${slugId}`} className="group cursor-pointer block">
+          <LinkComponent
+            href={`/merchant/${slugId}`}
+            className="group cursor-pointer block"
+            onClick={() => trackRecentView(merchant.id)}
+          >
             <div className="relative aspect-[2/1] bg-gray-100 rounded-lg overflow-visible mb-6 group-hover:shadow-lg transition-shadow duration-200">
               {thumbnailImageUrl ? (
                 <div className="relative w-full h-full">
