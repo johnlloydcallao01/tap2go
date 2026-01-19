@@ -1992,7 +1992,9 @@ export interface RecentView {
 export interface Wishlist {
   id: number;
   user: number | User;
-  merchant: number | Merchant;
+  itemType: 'merchant' | 'merchantProduct';
+  merchant?: (number | null) | Merchant;
+  merchantProduct?: (number | null) | MerchantProduct;
   updatedAt: string;
   createdAt: string;
 }
@@ -2889,7 +2891,9 @@ export interface RecentViewsSelect<T extends boolean = true> {
  */
 export interface WishlistsSelect<T extends boolean = true> {
   user?: T;
+  itemType?: T;
   merchant?: T;
+  merchantProduct?: T;
   updatedAt?: T;
   createdAt?: T;
 }

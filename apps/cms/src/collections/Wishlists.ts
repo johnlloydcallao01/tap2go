@@ -1,11 +1,11 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, RelationshipValue } from 'payload'
 
 export const Wishlists: CollectionConfig = {
   slug: 'wishlists',
   dbName: 'wishlists',
   admin: {
     useAsTitle: 'id',
-    defaultColumns: ['user', 'merchant', 'createdAt'],
+    defaultColumns: ['user', 'itemType', 'merchant', 'merchantProduct', 'createdAt'],
     group: 'History',
   },
   access: {
@@ -35,14 +35,45 @@ export const Wishlists: CollectionConfig = {
       required: true,
     },
     {
+      name: 'itemType',
+      type: 'select',
+      required: true,
+      defaultValue: 'merchant',
+      options: [
+        { label: 'Merchant', value: 'merchant' },
+        { label: 'Merchant Product', value: 'merchantProduct' },
+      ],
+    },
+    {
       name: 'merchant',
       type: 'relationship',
       relationTo: 'merchants',
-      required: true,
+      admin: {
+        condition: (data) => data?.itemType === 'merchant',
+      },
+      validate: (value: RelationshipValue | null | undefined, options: Record<string, unknown> & { data?: { itemType?: string } }) => {
+        if (options.data?.itemType !== 'merchant') return true
+        if (Array.isArray(value)) return value.length > 0 ? true : 'Merchant is required'
+        return value ? true : 'Merchant is required'
+      },
+    },
+    {
+      name: 'merchantProduct',
+      type: 'relationship',
+      relationTo: 'merchant-products',
+      admin: {
+        condition: (data) => data?.itemType === 'merchantProduct',
+      },
+      validate: (value: RelationshipValue | null | undefined, options: Record<string, unknown> & { data?: { itemType?: string } }) => {
+        if (options.data?.itemType !== 'merchantProduct') return true
+        if (Array.isArray(value)) return value.length > 0 ? true : 'Merchant product is required'
+        return value ? true : 'Merchant product is required'
+      },
     },
   ],
   indexes: [
     { fields: ['user', 'merchant'], unique: true },
+    { fields: ['user', 'merchantProduct'], unique: true },
     { fields: ['user', 'createdAt'] },
   ],
   hooks: {

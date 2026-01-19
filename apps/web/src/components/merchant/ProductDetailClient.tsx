@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Image from '@/components/ui/ImageWrapper';
 import ProductStickyHeader from '@/components/merchant/ProductStickyHeader';
 import ProductModifiers from '@/components/merchant/ProductModifiers';
@@ -8,6 +8,12 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Product, ModifierGroup, ModifierOption } from '@/types/product';
 import { useCart } from '@/contexts/CartContext';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
+import {
+  addMerchantProductToWishlist,
+  getWishlistMerchantProductIdsForCurrentUser,
+  removeMerchantProductFromWishlist,
+} from '@/lib/client-services/wishlist-service';
 
 interface ProductDetailClientProps {
   merchantSlugId: string;
@@ -32,10 +38,16 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
   const [showCartBar, setShowCartBar] = useState(false);
   const [modifierSelection, setModifierSelection] = useState<Record<string, string[]>>({});
   const [modifierError, setModifierError] = useState<string | null>(null);
+  const [merchantProductId, setMerchantProductId] = useState<number | null>(null);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const wishlistRequestInFlight = useRef(false);
+  const queuedWishlistState = useRef<boolean | null>(null);
   const { addToCart, items } = useCart();
   const router = useRouter();
   const basePrice = product?.basePrice ?? null;
   const compareAtPrice = product?.compareAtPrice ?? null;
+  const merchantIdNum = merchantSlugId ? Number(merchantSlugId.split('-').pop() || '') : NaN;
+  const productIdNum = Number(productId);
 
   const hasInvalidModifiers = React.useMemo(() => {
     if (!product || !product.modifierGroups || product.modifierGroups.length === 0) {
@@ -161,10 +173,6 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
               }
             })()
           : null;
-        if (!userId) return;
-        const slug = merchantSlugId || '';
-        const merchantIdNum = slug ? Number(slug.split('-').pop() || '') : NaN;
-        const productIdNum = Number(productId);
         if (!merchantIdNum || Number.isNaN(merchantIdNum)) return;
         if (!productIdNum || Number.isNaN(productIdNum)) return;
         const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
@@ -182,6 +190,8 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
             (typeof mpDoc.id === 'number' ? mpDoc.id : Number(mpDoc.id))) ||
           null;
         if (!merchantProductId) return;
+        setMerchantProductId(merchantProductId);
+        if (!userId) return;
         const body = JSON.stringify({
           user: userId,
           itemType: 'merchant_product',
@@ -217,6 +227,87 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
       cancelled = true;
     };
   }, [merchantSlugId, productId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        if (!merchantProductId) {
+          setIsWishlisted(false);
+          return;
+        }
+        const ids = await getWishlistMerchantProductIdsForCurrentUser();
+        if (cancelled) return;
+        const setIds = new Set(ids.map((v) => String(v)));
+        setIsWishlisted(setIds.has(String(merchantProductId)));
+      } catch {}
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [merchantProductId]);
+
+  const performWishlistUpdate = useCallback(
+    async (desired: boolean) => {
+      if (!merchantProductId || !merchantIdNum || Number.isNaN(merchantIdNum) || !productIdNum || Number.isNaN(productIdNum)) {
+        toast.error('Unable to update wishlist');
+        return;
+      }
+      try {
+        if (desired) {
+          await addMerchantProductToWishlist({
+            merchantId: merchantIdNum,
+            productId: productIdNum,
+            merchantProductId,
+          });
+          toast.success('Added to wishlist', { id: `wishlist-mp-${merchantProductId}` });
+        } else {
+          await removeMerchantProductFromWishlist(merchantProductId);
+          toast.success('Removed from wishlist', { id: `wishlist-mp-${merchantProductId}` });
+        }
+      } catch (err) {
+        const message = err instanceof Error && err.message ? err.message : 'Wishlist update failed';
+        toast.error(message, { id: `wishlist-mp-${merchantProductId}-error` });
+        try {
+          const ids = await getWishlistMerchantProductIdsForCurrentUser();
+          const setIds = new Set(ids.map((v) => String(v)));
+          setIsWishlisted(setIds.has(String(merchantProductId)));
+        } catch {}
+      }
+    },
+    [merchantIdNum, merchantProductId, productIdNum],
+  );
+
+  const flushWishlistUpdate = useCallback(
+    async (desired: boolean) => {
+      if (wishlistRequestInFlight.current) {
+        queuedWishlistState.current = desired;
+        return;
+      }
+      wishlistRequestInFlight.current = true;
+      let nextDesired: boolean | null = desired;
+      while (nextDesired !== null) {
+        queuedWishlistState.current = null;
+        await performWishlistUpdate(nextDesired);
+        nextDesired = queuedWishlistState.current;
+      }
+      wishlistRequestInFlight.current = false;
+    },
+    [performWishlistUpdate],
+  );
+
+  const toggleWishlist = useCallback(() => {
+    if (!merchantProductId || !merchantIdNum || Number.isNaN(merchantIdNum) || !productIdNum || Number.isNaN(productIdNum)) {
+      toast.error('Unable to update wishlist');
+      return;
+    }
+    setIsWishlisted((prev) => {
+      const desired = !prev;
+      flushWishlistUpdate(desired);
+      return desired;
+    });
+  }, [flushWishlistUpdate, merchantIdNum, merchantProductId, productIdNum]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -318,7 +409,11 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 pb-20">
-        <ProductStickyHeader fallbackHref={`/merchant/${merchantSlugId}`} />
+        <ProductStickyHeader
+          fallbackHref={`/merchant/${merchantSlugId}`}
+          isWishlisted={isWishlisted}
+          onToggleWishlist={toggleWishlist}
+        />
         {/* Hero Skeleton */}
         <div className="relative w-full aspect-[72/26] lg:aspect-[72/20] -mt-12 lg:-mt-12 bg-gray-200 animate-pulse" />
         
@@ -401,7 +496,11 @@ export default function ProductDetailClient({ merchantSlugId, productId }: Produ
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <ProductStickyHeader fallbackHref={`/merchant/${merchantSlugId}`} />
+      <ProductStickyHeader
+        fallbackHref={`/merchant/${merchantSlugId}`}
+        isWishlisted={isWishlisted}
+        onToggleWishlist={toggleWishlist}
+      />
       <div className="relative w-full aspect-[72/26] lg:aspect-[72/20] -mt-12 lg:-mt-12">
         {primaryImage ? (
           <Image src={primaryImage} alt={name} fill className="object-cover" priority />

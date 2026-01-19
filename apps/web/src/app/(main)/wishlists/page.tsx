@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Image from '@/components/ui/ImageWrapper';
+import Link from 'next/link';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
+import { Skeleton } from '@/components/ui/Skeleton';
 import {
   getActiveAddressNamesForMerchants,
   type LocationBasedMerchant,
@@ -9,11 +12,68 @@ import {
 import {
   getWishlistDocsForCurrentUser,
   removeMerchantFromWishlist,
+  removeMerchantProductFromWishlist,
+  removeWishlistDocById,
   clearWishlistForCurrentUser,
 } from '@/lib/client-services/wishlist-service';
 import { toast } from 'react-hot-toast';
 
 type WishlistDoc = any;
+
+const formatCurrency = (value: number | null | undefined) => {
+  if (value == null) return null;
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+  }).format(Number(value));
+};
+
+const toSlug = (name: string | null | undefined): string => {
+  const base = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+  return base || 'item';
+};
+
+const buildMerchantSlugId = (merchant: any): string => {
+  const baseName =
+    merchant?.outletName ||
+    merchant?.vendor?.businessName ||
+    String(merchant?.id || '');
+  const slug = String(baseName)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+  const idPart = String(merchant?.id || '').trim();
+  return idPart ? `${slug}-${idPart}` : slug || 'merchant';
+};
+
+const isMerchantProductDoc = (doc: any) => {
+  const itemType = String(doc?.itemType || '').toLowerCase();
+  return itemType === 'merchantproduct' || itemType === 'merchant_product' || !!doc?.merchantProduct;
+};
+
+const getImageUrl = (media: any): string | null => {
+  if (!media) return null;
+  return media.cloudinaryURL || media.url || media.thumbnailURL || null;
+};
+
+const getProductImageUrl = (product: any): string | null => {
+  const primary = product?.media?.primaryImage || null;
+  const primaryUrl = getImageUrl(primary);
+  if (primaryUrl) return primaryUrl;
+  const images = Array.isArray(product?.media?.images) ? product.media.images : [];
+  const firstImage = images.length > 0 ? images[0]?.image : null;
+  const firstUrl = getImageUrl(firstImage);
+  if (firstUrl) return firstUrl;
+  return getImageUrl(product?.media?.image || null);
+};
 
 export default function WishlistsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,6 +83,7 @@ export default function WishlistsPage() {
   const [addressMap, setAddressMap] = useState<Record<string, string>>({});
   const [etaMap, setEtaMap] = useState<Record<string, string>>({});
   const [enrichedMerchants, setEnrichedMerchants] = useState<Record<string, LocationBasedMerchant>>({});
+  const [activeTab, setActiveTab] = useState<'all' | 'merchants' | 'products'>('all');
 
   const loadWishlist = useCallback(async (options?: { signal?: { cancelled: boolean } }) => {
     const signal = options?.signal;
@@ -33,9 +94,14 @@ export default function WishlistsPage() {
       if (signal?.cancelled) return;
       setWishlistDocs(docs);
       const baseMerchants: LocationBasedMerchant[] = docs
-        .map((doc: any) => doc?.merchant)
+        .map((doc: any) => {
+          if (doc?.merchant?.id) return doc.merchant;
+          const mpMerchant = doc?.merchantProduct?.merchant;
+          if (mpMerchant?.id) return mpMerchant;
+          return null;
+        })
         .filter((m: any) => m && m.id) as LocationBasedMerchant[];
-      const merchantIds = baseMerchants.map((m) => String(m.id));
+      const merchantIds = Array.from(new Set(baseMerchants.map((m) => String(m.id))));
       let merchantMap: Record<string, LocationBasedMerchant> = {};
       try {
         const { getCurrentCustomerId, getLocationBasedMerchants } = await import('@/lib/client-services/location-based-merchant-service');
@@ -109,9 +175,10 @@ export default function WishlistsPage() {
     };
   }, [loadWishlist]);
 
-  const filteredDocs = useMemo(() => {
+  const filteredMerchantDocs = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return wishlistDocs.filter((doc: any) => {
+      if (isMerchantProductDoc(doc)) return false;
       if (!doc?.merchant) return false;
       if (!q) return true;
       const merchant = doc.merchant;
@@ -119,6 +186,28 @@ export default function WishlistsPage() {
         merchant?.outletName || merchant?.vendor?.businessName || '',
       ).toLowerCase();
       return merchantName.includes(q);
+    });
+  }, [wishlistDocs, searchQuery]);
+
+  const filteredProductDocs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return wishlistDocs.filter((doc: any) => {
+      if (!isMerchantProductDoc(doc)) return false;
+      const merchant =
+        doc?.merchant ||
+        doc?.merchantProduct?.merchant ||
+        doc?.merchantProduct?.merchant_id;
+      const product =
+        doc?.product ||
+        doc?.merchantProduct?.product ||
+        doc?.merchantProduct?.product_id;
+      if (!merchant || !product) return false;
+      if (!q) return true;
+      const merchantName = String(
+        merchant?.outletName || merchant?.vendor?.businessName || '',
+      ).toLowerCase();
+      const productName = String(product?.name || '').toLowerCase();
+      return merchantName.includes(q) || productName.includes(q);
     });
   }, [wishlistDocs, searchQuery]);
 
@@ -138,7 +227,30 @@ export default function WishlistsPage() {
     })();
   };
 
+  const handleRemoveProductFromWishlist = (doc: WishlistDoc) => {
+    const merchantProduct = doc?.merchantProduct;
+    const merchantProductId =
+      typeof merchantProduct === 'object' && merchantProduct !== null
+        ? merchantProduct.id
+        : merchantProduct;
+    if (!merchantProductId) return;
+    setWishlistDocs((prev) => prev.filter((item: any) => item?.id !== doc?.id));
+    (async () => {
+      try {
+        await removeMerchantProductFromWishlist(merchantProductId);
+        toast.success('Removed from wishlist', { id: `wishlist-mp-${merchantProductId}` });
+      } catch (err) {
+        const message = err instanceof Error && err.message ? err.message : 'Failed to update wishlist';
+        toast.error(message, { id: `wishlist-mp-${merchantProductId}-error` });
+        await loadWishlist();
+      }
+    })();
+  };
+
   const clearAllWishlist = async () => {
+    const docsToRemove = wishlistDocs
+      .map((doc: any) => doc?.id)
+      .filter((id: any) => id !== null && id !== undefined);
     setWishlistDocs([]);
     setAddressMap({});
     setEtaMap({});
@@ -147,6 +259,13 @@ export default function WishlistsPage() {
       await clearWishlistForCurrentUser();
       toast.success('Wishlist cleared', { id: 'wishlist-clear' });
     } catch (err) {
+      try {
+        if (docsToRemove.length > 0) {
+          await Promise.all(docsToRemove.map((id: any) => removeWishlistDocById(id)));
+          toast.success('Wishlist cleared', { id: 'wishlist-clear' });
+          return;
+        }
+      } catch {}
       const message = err instanceof Error && err.message ? err.message : 'Failed to clear wishlist';
       toast.error(message, { id: 'wishlist-clear-error' });
       await loadWishlist();
@@ -160,10 +279,24 @@ export default function WishlistsPage() {
   const merchantCount = useMemo(
     () =>
       wishlistDocs.filter(
-        (doc: any) => doc?.merchant,
+        (doc: any) => doc?.merchant && !isMerchantProductDoc(doc),
       ).length,
     [wishlistDocs],
   );
+
+  const productCount = useMemo(
+    () =>
+      wishlistDocs.filter(
+        (doc: any) => isMerchantProductDoc(doc),
+      ).length,
+    [wishlistDocs],
+  );
+
+  const showMerchants = activeTab !== 'products';
+  const showProducts = activeTab !== 'merchants';
+  const visibleMerchantDocs = showMerchants ? filteredMerchantDocs : [];
+  const visibleProductDocs = showProducts ? filteredProductDocs : [];
+  const visibleCount = visibleMerchantDocs.length + visibleProductDocs.length;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -174,11 +307,20 @@ export default function WishlistsPage() {
               <h1 className="text-2xl font-bold text-gray-900">
                 My Wishlists
               </h1>
-              <p className="mt-1 text-sm text-gray-600">
-                {merchantCount} restaurants saved
-              </p>
+              <div className="mt-1 text-sm text-gray-600">
+                {isLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Skeleton className="h-4 w-8" />
+                    <Skeleton className="h-4 w-28" />
+                  </span>
+                ) : (
+                  <>
+                    {merchantCount} restaurants, {productCount} items saved
+                  </>
+                )}
+              </div>
             </div>
-            {merchantCount > 0 && (
+            {merchantCount + productCount > 0 && (
               <div className="flex items-center space-x-3">
                 <button
                   onClick={clearAllWishlist}
@@ -217,6 +359,41 @@ export default function WishlistsPage() {
               </button>
             )}
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'all'
+                  ? 'bg-[#eba236] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('merchants')}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'merchants'
+                  ? 'bg-[#eba236] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Merchants
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('products')}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'products'
+                  ? 'bg-[#eba236] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Food Items
+            </button>
+          </div>
         </div>
       </div>
 
@@ -250,18 +427,18 @@ export default function WishlistsPage() {
             </h3>
             <p className="text-gray-600 mb-4">{error}</p>
           </div>
-        ) : filteredDocs.length === 0 ? (
+        ) : visibleCount === 0 ? (
           <div className="text-center py-16">
             <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
               <i className="fas fa-heart text-3xl text-gray-400"></i>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchQuery ? 'No restaurants found' : 'Your wishlist is empty'}
+              {searchQuery ? 'No wishlist items found' : 'Your wishlist is empty'}
             </h3>
             <p className="text-gray-600 mb-6">
               {searchQuery
                 ? 'Try adjusting your search terms'
-                : 'Start adding your favorite restaurants!'}
+                : 'Start adding your favorites!'}
             </p>
             {searchQuery && (
               <button
@@ -274,31 +451,138 @@ export default function WishlistsPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredDocs.map((doc: any) => {
-              if (!doc?.merchant) return null;
-              const baseMerchant = doc.merchant;
-              const merchantId = String(baseMerchant.id);
-              const enriched = enrichedMerchants[merchantId];
-              const sourceMerchant = (enriched as any) || (baseMerchant as any);
-              const merchantWithEta = {
-                ...sourceMerchant,
-                estimatedDeliveryTime:
-                  etaMap[merchantId] ||
-                  (sourceMerchant as any).estimatedDeliveryTime ||
-                  (sourceMerchant as any).deliverySettings?.estimatedDeliveryTime ||
-                  '',
-              };
-              return (
-                <LocationMerchantCard
-                  key={`wishlist-merchant-${doc.id}`}
-                  merchant={merchantWithEta as any}
-                  isWishlisted={true}
-                  onToggleWishlist={() => handleRemoveFromWishlist(doc)}
-                  addressName={addressMap[merchantId] || null}
-                />
-              );
-            })}
+          <div className="space-y-8">
+            {visibleMerchantDocs.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Restaurants
+                  </h2>
+                  <span className="text-sm text-gray-500">
+                    {visibleMerchantDocs.length} saved
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {visibleMerchantDocs.map((doc: any) => {
+                    if (!doc?.merchant) return null;
+                    const baseMerchant = doc.merchant;
+                    const merchantId = String(baseMerchant.id);
+                    const enriched = enrichedMerchants[merchantId];
+                    const sourceMerchant = (enriched as any) || (baseMerchant as any);
+                    const merchantWithEta = {
+                      ...sourceMerchant,
+                      estimatedDeliveryTime:
+                        etaMap[merchantId] ||
+                        (sourceMerchant as any).estimatedDeliveryTime ||
+                        (sourceMerchant as any).deliverySettings?.estimatedDeliveryTime ||
+                        '',
+                    };
+                    return (
+                      <LocationMerchantCard
+                        key={`wishlist-merchant-${doc.id}`}
+                        merchant={merchantWithEta as any}
+                        isWishlisted={true}
+                        onToggleWishlist={() => handleRemoveFromWishlist(doc)}
+                        addressName={addressMap[merchantId] || null}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {visibleProductDocs.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Food Items
+                  </h2>
+                  <span className="text-sm text-gray-500">
+                    {visibleProductDocs.length} saved
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {visibleProductDocs.map((doc: any) => {
+                    const merchant =
+                      doc?.merchant ||
+                      doc?.merchantProduct?.merchant ||
+                      doc?.merchantProduct?.merchant_id;
+                    const product =
+                      doc?.product ||
+                      doc?.merchantProduct?.product ||
+                      doc?.merchantProduct?.product_id;
+                    if (!merchant || !product) return null;
+                    const merchantSlugId = buildMerchantSlugId(merchant);
+                    const productSlugId = `${toSlug(product?.name)}-${product?.id}`;
+                    const href = `/merchant/${merchantSlugId}/${productSlugId}`;
+                    const imageUrl = getProductImageUrl(product);
+                    const price = formatCurrency(product?.basePrice ?? null);
+                    const compareAt = formatCurrency(
+                      product?.compareAtPrice ?? null,
+                    );
+                    return (
+                      <div
+                        key={`wishlist-product-${doc.id}`}
+                        className="bg-white rounded-lg shadow-sm overflow-hidden"
+                      >
+                        <Link href={href} className="block">
+                          <div className="relative aspect-square bg-gray-100">
+                            {imageUrl ? (
+                              <Image
+                                src={imageUrl}
+                                alt={product?.name || 'Product'}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                No image
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              aria-label="Remove from wishlist"
+                              aria-pressed={true}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleRemoveProductFromWishlist(doc);
+                              }}
+                              className="absolute top-2 right-2 w-[28px] h-[28px] rounded-full bg-white flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
+                              style={{ zIndex: 2 }}
+                            >
+                              <i className="fas fa-heart text-[16px]" style={{ color: "#f3a823", WebkitTextStroke: "2px #333" }}></i>
+                            </button>
+                          </div>
+                          <div className="p-4">
+                            <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">
+                              {product?.name}
+                            </h3>
+                            <p className="mt-1 text-xs text-gray-500 line-clamp-1">
+                              {merchant?.outletName ||
+                                merchant?.vendor?.businessName ||
+                                ''}
+                            </p>
+                            <div className="mt-2 flex items-center gap-2">
+                              {price && (
+                                <span className="text-base font-bold text-gray-900">
+                                  {price}
+                                </span>
+                              )}
+                              {compareAt &&
+                                product?.compareAtPrice >
+                                  (product?.basePrice ?? 0) && (
+                                  <span className="text-sm text-gray-500 line-through">
+                                    {compareAt}
+                                  </span>
+                                )}
+                            </div>
+                          </div>
+                        </Link>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
