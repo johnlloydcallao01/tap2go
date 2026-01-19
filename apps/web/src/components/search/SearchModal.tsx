@@ -8,6 +8,7 @@ import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import { getCurrentCustomerId, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
 import { getWishlistMerchantIdsForCurrentUser, addMerchantToWishlist, removeMerchantFromWishlist } from '@/lib/client-services/wishlist-service';
 import AddressService from '@/lib/services/address-service';
+import { toast } from 'react-hot-toast';
 
 type Props = {
   isOpen: boolean;
@@ -49,10 +50,23 @@ export default function SearchModal({ isOpen, onClose, initialQuery }: Props) {
         try {
           if (willAdd) {
             await addMerchantToWishlist(id);
+            toast.success('Added to wishlist', { id: `wishlist-${idStr}` });
           } else {
             await removeMerchantFromWishlist(id);
+            toast.success('Removed from wishlist', { id: `wishlist-${idStr}` });
           }
-        } catch {
+        } catch (err) {
+          setWishlistIds(current => {
+            const rollback = new Set(current);
+            if (willAdd) {
+              rollback.delete(idStr);
+            } else {
+              rollback.add(idStr);
+            }
+            return rollback;
+          });
+          const message = err instanceof Error && err.message ? err.message : 'Wishlist update failed';
+          toast.error(message, { id: `wishlist-${idStr}-error` });
         }
       })();
       return next;

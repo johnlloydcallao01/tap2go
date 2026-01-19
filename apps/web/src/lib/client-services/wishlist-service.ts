@@ -57,50 +57,72 @@ export async function getWishlistMerchantIdsForCurrentUser(): Promise<string[]> 
   }
 }
 
-export async function addMerchantToWishlist(merchantId: string | number): Promise<void> {
+export async function addMerchantToWishlist(merchantId: string | number): Promise<"added" | "exists"> {
   const userId = getCurrentUserIdFromStorage();
-  if (!userId) return;
+  if (!userId) {
+    throw new Error("Please sign in to use wishlist");
+  }
   const headers = buildHeaders();
   const body = JSON.stringify({
     user: userId,
     merchant: merchantId,
   });
   const url = `${API_BASE}/wishlists`;
-  try {
-    const res = await fetch(url, { method: "POST", headers, body });
-    if (res.ok) return;
-    const params = new URLSearchParams();
-    params.append("where[user][equals]", String(userId));
-    params.append("where[merchant][equals]", String(merchantId));
-    params.append("limit", "1");
-    const existsUrl = `${API_BASE}/wishlists?${params.toString()}`;
-    const getRes = await fetch(existsUrl, { headers });
-    if (!getRes.ok) return;
-    const data = await getRes.json();
-    const doc = Array.isArray(data?.docs) ? data.docs[0] : null;
-    if (!doc || !doc.id) return;
-  } catch {
+  const res = await fetch(url, { method: "POST", headers, body });
+  if (res.ok) return "added";
+  const params = new URLSearchParams();
+  params.append("where[user][equals]", String(userId));
+  params.append("where[merchant][equals]", String(merchantId));
+  params.append("limit", "1");
+  const existsUrl = `${API_BASE}/wishlists?${params.toString()}`;
+  const getRes = await fetch(existsUrl, { headers });
+  if (!getRes.ok) {
+    throw new Error("Failed to add to wishlist");
   }
+  const data = await getRes.json();
+  const doc = Array.isArray(data?.docs) ? data.docs[0] : null;
+  if (doc && doc.id) return "exists";
+  throw new Error("Failed to add to wishlist");
 }
 
-export async function removeMerchantFromWishlist(merchantId: string | number): Promise<void> {
+export async function removeMerchantFromWishlist(merchantId: string | number): Promise<"removed" | "missing"> {
   const userId = getCurrentUserIdFromStorage();
-  if (!userId) return;
+  if (!userId) {
+    throw new Error("Please sign in to use wishlist");
+  }
   const headers = buildHeaders();
-  try {
-    const params = new URLSearchParams();
-    params.append("where[user][equals]", String(userId));
-    params.append("where[merchant][equals]", String(merchantId));
-    params.append("limit", "1");
-    const listUrl = `${API_BASE}/wishlists?${params.toString()}`;
-    const listRes = await fetch(listUrl, { headers });
-    if (!listRes.ok) return;
-    const data = await listRes.json();
-    const doc = Array.isArray(data?.docs) ? data.docs[0] : null;
-    if (!doc || !doc.id) return;
-    const delUrl = `${API_BASE}/wishlists/${encodeURIComponent(String(doc.id))}`;
-    await fetch(delUrl, { method: "DELETE", headers });
-  } catch {
+  const params = new URLSearchParams();
+  params.append("where[user][equals]", String(userId));
+  params.append("where[merchant][equals]", String(merchantId));
+  params.append("limit", "1");
+  const listUrl = `${API_BASE}/wishlists?${params.toString()}`;
+  const listRes = await fetch(listUrl, { headers });
+  if (!listRes.ok) {
+    throw new Error("Failed to update wishlist");
+  }
+  const data = await listRes.json();
+  const doc = Array.isArray(data?.docs) ? data.docs[0] : null;
+  if (!doc || !doc.id) return "missing";
+  const delUrl = `${API_BASE}/wishlists/${encodeURIComponent(String(doc.id))}`;
+  const delRes = await fetch(delUrl, { method: "DELETE", headers });
+  if (!delRes.ok) {
+    throw new Error("Failed to update wishlist");
+  }
+  return "removed";
+}
+
+export async function clearWishlistForCurrentUser(): Promise<void> {
+  const userId = getCurrentUserIdFromStorage();
+  if (!userId) {
+    throw new Error("Please sign in to use wishlist");
+  }
+  const headers = buildHeaders();
+  const params = new URLSearchParams();
+  params.append("where[user][equals]", String(userId));
+  const url = `${API_BASE}/wishlists?${params.toString()}`;
+  const res = await fetch(url, { method: "DELETE", headers });
+  if (!res.ok) {
+    throw new Error("Failed to clear wishlist");
   }
 }
 
@@ -124,4 +146,3 @@ export async function getWishlistDocsForCurrentUser(): Promise<any[]> {
     return [];
   }
 }
-

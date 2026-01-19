@@ -16,6 +16,7 @@ import {
   addMerchantToWishlist,
   removeMerchantFromWishlist,
 } from "@/lib/client-services/wishlist-service";
+import { toast } from "react-hot-toast";
 
 export default function SearchResultsPage() {
   const searchParams = useSearchParams();
@@ -49,10 +50,23 @@ export default function SearchResultsPage() {
         try {
           if (willAdd) {
             await addMerchantToWishlist(id);
+            toast.success("Added to wishlist", { id: `wishlist-${idStr}` });
           } else {
             await removeMerchantFromWishlist(id);
+            toast.success("Removed from wishlist", { id: `wishlist-${idStr}` });
           }
-        } catch {
+        } catch (err) {
+          setWishlistIds(current => {
+            const rollback = new Set(current);
+            if (willAdd) {
+              rollback.delete(idStr);
+            } else {
+              rollback.add(idStr);
+            }
+            return rollback;
+          });
+          const message = err instanceof Error && err.message ? err.message : "Wishlist update failed";
+          toast.error(message, { id: `wishlist-${idStr}-error` });
         }
       })();
       return next;

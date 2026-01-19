@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import {
   getActiveAddressNamesForMerchants,
@@ -8,7 +8,10 @@ import {
 } from '@/lib/client-services/location-based-merchant-service';
 import {
   getWishlistDocsForCurrentUser,
+  removeMerchantFromWishlist,
+  clearWishlistForCurrentUser,
 } from '@/lib/client-services/wishlist-service';
+import { toast } from 'react-hot-toast';
 
 type WishlistDoc = any;
 
@@ -21,88 +24,90 @@ export default function WishlistsPage() {
   const [etaMap, setEtaMap] = useState<Record<string, string>>({});
   const [enrichedMerchants, setEnrichedMerchants] = useState<Record<string, LocationBasedMerchant>>({});
 
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      setIsLoading(true);
-      setError(null);
+  const loadWishlist = useCallback(async (options?: { signal?: { cancelled: boolean } }) => {
+    const signal = options?.signal;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const docs = await getWishlistDocsForCurrentUser();
+      if (signal?.cancelled) return;
+      setWishlistDocs(docs);
+      const baseMerchants: LocationBasedMerchant[] = docs
+        .map((doc: any) => doc?.merchant)
+        .filter((m: any) => m && m.id) as LocationBasedMerchant[];
+      const merchantIds = baseMerchants.map((m) => String(m.id));
+      let merchantMap: Record<string, LocationBasedMerchant> = {};
       try {
-        const docs = await getWishlistDocsForCurrentUser();
-        if (cancelled) return;
-        setWishlistDocs(docs);
-        const baseMerchants: LocationBasedMerchant[] = docs
-          .map((doc: any) => doc?.merchant)
-          .filter((m: any) => m && m.id) as LocationBasedMerchant[];
-        const merchantIds = baseMerchants.map((m) => String(m.id));
-        let merchantMap: Record<string, LocationBasedMerchant> = {};
-        try {
-          const { getCurrentCustomerId, getLocationBasedMerchants } = await import('@/lib/client-services/location-based-merchant-service');
-          const customerId = await getCurrentCustomerId();
-          if (customerId) {
-            const locationMerchants = await getLocationBasedMerchants({ customerId, limit: 9999 });
-            const map: Record<string, LocationBasedMerchant> = {};
-            for (const m of locationMerchants) {
-              const mid = String((m as any).id);
-              if (merchantIds.includes(mid)) {
-                map[mid] = m;
-              }
-            }
-            merchantMap = map;
-          }
-        } catch {
-        }
-        const effectiveMerchants: LocationBasedMerchant[] = baseMerchants.map((m) => {
-          const mid = String(m.id);
-          return merchantMap[mid] || m;
-        });
-        if (!cancelled) {
-          const nextEnriched: Record<string, LocationBasedMerchant> = {};
-          effectiveMerchants.forEach((m) => {
+        const { getCurrentCustomerId, getLocationBasedMerchants } = await import('@/lib/client-services/location-based-merchant-service');
+        const customerId = await getCurrentCustomerId();
+        if (customerId) {
+          const locationMerchants = await getLocationBasedMerchants({ customerId, limit: 9999 });
+          const map: Record<string, LocationBasedMerchant> = {};
+          for (const m of locationMerchants) {
             const mid = String((m as any).id);
-            nextEnriched[mid] = m;
-          });
-          setEnrichedMerchants(nextEnriched);
-        }
-        if (effectiveMerchants.length > 0) {
-          const addressNames = await getActiveAddressNamesForMerchants(effectiveMerchants);
-          if (!cancelled) {
-            setAddressMap(addressNames);
+            if (merchantIds.includes(mid)) {
+              map[mid] = m;
+            }
           }
-        } else {
-          if (!cancelled) {
-            setAddressMap({});
-          }
+          merchantMap = map;
         }
-        if (!cancelled) {
-          const nextEta: Record<string, string> = {};
-          effectiveMerchants.forEach((m: any) => {
-            const mid = String(m.id);
-            const eta =
-              (m as any).estimatedDeliveryTime ||
-              (m as any).deliverySettings?.estimatedDeliveryTime ||
-              '';
-            if (eta) nextEta[mid] = String(eta);
-          });
-          setEtaMap(nextEta);
+      } catch {
+      }
+      const effectiveMerchants: LocationBasedMerchant[] = baseMerchants.map((m) => {
+        const mid = String(m.id);
+        return merchantMap[mid] || m;
+      });
+      if (!signal?.cancelled) {
+        const nextEnriched: Record<string, LocationBasedMerchant> = {};
+        effectiveMerchants.forEach((m) => {
+          const mid = String((m as any).id);
+          nextEnriched[mid] = m;
+        });
+        setEnrichedMerchants(nextEnriched);
+      }
+      if (effectiveMerchants.length > 0) {
+        const addressNames = await getActiveAddressNamesForMerchants(effectiveMerchants);
+        if (!signal?.cancelled) {
+          setAddressMap(addressNames);
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError('Failed to load wishlist. Please try again.');
-          setWishlistDocs([]);
+      } else {
+        if (!signal?.cancelled) {
           setAddressMap({});
-          setEtaMap({});
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
         }
       }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
+      if (!signal?.cancelled) {
+        const nextEta: Record<string, string> = {};
+        effectiveMerchants.forEach((m: any) => {
+          const mid = String(m.id);
+          const eta =
+            (m as any).estimatedDeliveryTime ||
+            (m as any).deliverySettings?.estimatedDeliveryTime ||
+            '';
+          if (eta) nextEta[mid] = String(eta);
+        });
+        setEtaMap(nextEta);
+      }
+    } catch (err) {
+      if (!signal?.cancelled) {
+        setError('Failed to load wishlist. Please try again.');
+        setWishlistDocs([]);
+        setAddressMap({});
+        setEtaMap({});
+      }
+    } finally {
+      if (!signal?.cancelled) {
+        setIsLoading(false);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    loadWishlist({ signal });
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [loadWishlist]);
 
   const filteredDocs = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -117,39 +122,34 @@ export default function WishlistsPage() {
     });
   }, [wishlistDocs, searchQuery]);
 
-  const handleRemoveFromWishlist = async (docId: number | string) => {
-    setWishlistDocs((prev) => prev.filter((doc: any) => doc?.id !== docId));
-    try {
-      const API_BASE =
-        process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
-      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
-      await fetch(`${API_BASE}/wishlists/${docId}`, {
-        method: 'DELETE',
-        headers,
-      });
-    } catch {
-    }
+  const handleRemoveFromWishlist = (doc: WishlistDoc) => {
+    const merchantId = doc?.merchant?.id ?? doc?.merchant;
+    if (!merchantId) return;
+    setWishlistDocs((prev) => prev.filter((item: any) => item?.id !== doc?.id));
+    (async () => {
+      try {
+        await removeMerchantFromWishlist(merchantId);
+        toast.success('Removed from wishlist', { id: `wishlist-${merchantId}` });
+      } catch (err) {
+        const message = err instanceof Error && err.message ? err.message : 'Failed to update wishlist';
+        toast.error(message, { id: `wishlist-${merchantId}-error` });
+        await loadWishlist();
+      }
+    })();
   };
 
   const clearAllWishlist = async () => {
     setWishlistDocs([]);
+    setAddressMap({});
+    setEtaMap({});
+    setEnrichedMerchants({});
     try {
-      const API_BASE =
-        process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
-      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
-      await fetch(`${API_BASE}/wishlists`, {
-        method: 'DELETE',
-        headers,
-      });
-    } catch {
+      await clearWishlistForCurrentUser();
+      toast.success('Wishlist cleared', { id: 'wishlist-clear' });
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Failed to clear wishlist';
+      toast.error(message, { id: 'wishlist-clear-error' });
+      await loadWishlist();
     }
   };
 
@@ -294,7 +294,7 @@ export default function WishlistsPage() {
                   key={`wishlist-merchant-${doc.id}`}
                   merchant={merchantWithEta as any}
                   isWishlisted={true}
-                  onToggleWishlist={() => handleRemoveFromWishlist(doc.id)}
+                  onToggleWishlist={() => handleRemoveFromWishlist(doc)}
                   addressName={addressMap[merchantId] || null}
                 />
               );
