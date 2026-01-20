@@ -161,7 +161,7 @@ export const CartItems: CollectionConfig = {
             type: 'textarea',
             maxLength: 300,
             admin: {
-                description: 'Delivery instructions for rider. E.g., "Ring doorbell twice", "Leave at gate"'
+                description: 'Delivery instructions for driver. E.g., "Ring doorbell twice", "Leave at gate"'
             }
         },
 

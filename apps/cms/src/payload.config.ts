@@ -37,6 +37,14 @@ import { ProductCategories } from './collections/ProductCategories'
 import { Products } from './collections/Products'
 import { Drivers } from './collections/Drivers'
 import { CartItems } from './collections/CartItems'
+import { Orders } from './collections/Orders'
+import { OrderItems } from './collections/OrderItems'
+import { DeliveryLocations } from './collections/DeliveryLocations'
+import { Transactions } from './collections/Transactions'
+import { OrderTracking } from './collections/OrderTracking'
+import { DriverAssignments } from './collections/DriverAssignments'
+import { OrderDiscounts } from './collections/OrderDiscounts'
+import { Reviews } from './collections/Reviews'
 
 // Product Management Collections
 import { ProdAttributes } from './collections/ProdAttributes'
@@ -93,6 +101,16 @@ export default buildConfig({
     ProductCategories,
     Products,
     CartItems,
+
+    // Ordering System
+    Orders,
+    OrderItems,
+    DeliveryLocations,
+    Transactions,
+    OrderTracking,
+    DriverAssignments,
+    OrderDiscounts,
+    Reviews,
 
     // Product Management System
     ProdAttributes,
@@ -946,6 +964,84 @@ export default buildConfig({
           }, { status: 500 });
         }
       }),
+    },
+
+    {
+      path: '/create-payment-intent',
+      method: 'post',
+      handler: (async (req: PayloadRequest) => {
+        const requestId = crypto.randomUUID();
+        try {
+          // 1. Authentication Check
+          if (!req.user) {
+             return Response.json({ error: 'Authentication required' }, { status: 401 });
+          }
+
+          // 2. Parse Body
+          type MaybeJson = { json?: () => Promise<unknown> };
+          type MaybeBody = { body?: unknown };
+          const hasJson = typeof (req as unknown as MaybeJson).json === 'function';
+          const parsed = (await (hasJson
+            ? (req as unknown as Required<MaybeJson>).json()
+            : Promise.resolve((req as unknown as MaybeBody).body))) ?? {};
+            
+          const { amount, currency = 'PHP' } = parsed as { amount?: number; currency?: string };
+
+          if (!amount) {
+             return Response.json({ error: 'Amount is required (in centavos)' }, { status: 400 });
+          }
+
+          // 3. Create Payment Intent via PayMongo
+          const secretKey = process.env.PAYMONGO_SECRET_KEY_LIVE;
+          if (!secretKey) {
+             console.error('PAYMONGO_SECRET_KEY_LIVE is missing in env');
+             return Response.json({ error: 'Server configuration error: Missing PayMongo Secret Key' }, { status: 500 });
+          }
+
+          const response = await fetch('https://api.paymongo.com/v1/payment_intents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${Buffer.from(secretKey + ':').toString('base64')}`
+            },
+            body: JSON.stringify({
+              data: {
+                attributes: {
+                  amount, // Amount in centavos
+                  payment_method_allowed: [
+                    'card',
+                    'gcash',
+                    'grab_pay',
+                    'paymaya',
+                    'billease',
+                    'dob',
+                    'brankas',
+                    'qrph',
+                  ],
+                  currency
+                }
+              }
+            })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+             console.error(`PayMongo Error [${requestId}]:`, JSON.stringify(data));
+             const errMsg =
+               (data && data.errors && data.errors[0] && data.errors[0].detail) ||
+               (data && data.error) ||
+               'Failed to create payment intent';
+             return Response.json({ error: errMsg, details: data }, { status: response.status });
+          }
+
+          return Response.json(data);
+
+        } catch (error) {
+           console.error(`Error in /create-payment-intent [${requestId}]:`, error);
+           return Response.json({ error: 'Internal server error' }, { status: 500 });
+        }
+      })
     },
   ],
 

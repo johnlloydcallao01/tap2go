@@ -39,6 +39,8 @@ import * as migration_20260118_131627 from './20260118_131627';
 import * as migration_20260118_132800_drop_wishlist_items from './20260118_132800_drop_wishlist_items';
 import * as migration_20260118_142441 from './20260118_142441';
 import * as migration_20260119_130104 from './20260119_130104';
+import * as migration_20260120_152616_ordering_system from './20260120_152616_ordering_system';
+import * as migration_20260120_155018_rename_rider_to_driver from './20260120_155018_rename_rider_to_driver';
 
 export const migrations = [
   {
@@ -244,6 +246,16 @@ export const migrations = [
   {
     up: migration_20260119_130104.up,
     down: migration_20260119_130104.down,
-    name: '20260119_130104'
+    name: '20260119_130104',
+  },
+  {
+    up: migration_20260120_152616_ordering_system.up,
+    down: migration_20260120_152616_ordering_system.down,
+    name: '20260120_152616_ordering_system',
+  },
+  {
+    up: migration_20260120_155018_rename_rider_to_driver.up,
+    down: migration_20260120_155018_rename_rider_to_driver.down,
+    name: '20260120_155018_rename_rider_to_driver'
   },
 ];

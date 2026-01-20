@@ -54,6 +54,11 @@ export default function MerchantCartPage() {
     }));
   };
 
+  const handleCheckout = () => {
+    if (!Number.isFinite(merchantId) || totalSubtotal <= 0) return;
+    router.push(`/checkout/${merchantId}` as any);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -217,11 +222,7 @@ export default function MerchantCartPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-gray-900">
-                      {formatCurrency(
-                        item.quantity > 0
-                          ? (item.subtotal || 0) / item.quantity
-                          : item.priceAtAdd || 0,
-                      )}
+                      {formatCurrency(item.subtotal || 0)}
                     </span>
                     {(Array.isArray(item.selectedModifiers) &&
                       item.selectedModifiers.length > 0) ||
@@ -353,6 +354,15 @@ export default function MerchantCartPage() {
             <span>Subtotal</span>
             <span>{formatCurrency(totalSubtotal)}</span>
           </div>
+          <button
+            type="button"
+            onClick={handleCheckout}
+            disabled={totalSubtotal <= 0}
+            className="w-full text-white rounded-full py-2.5 text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#eba236' }}
+          >
+            Proceed to Checkout
+          </button>
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@ import { AddressSearchInput } from '@/components/shared/AddressSearchInput';
 import { AddressService } from '@/lib/services/address-service';
 import { useUser } from '@/hooks/useAuth';
 import { toast } from 'react-hot-toast';
-import { emitAddressChange } from '@/hooks/useAddressChange';
+import { emitAddressChange, useAddressChange } from '@/hooks/useAddressChange';
 import { AddressSkeleton, ListItemSkeleton } from '@/components/ui/Skeleton';
 
 interface LocationSelectorProps {
@@ -670,6 +670,11 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
   useEffect(() => {
     loadAddressFromBackend();
   }, [loadAddressFromBackend]);
+
+  // Listen for address changes globally
+  useAddressChange(() => {
+    loadAddressFromBackend();
+  });
 
   const handleLocationSelect = (location: google.maps.places.PlaceResult) => {
     setSelectedLocation(location);

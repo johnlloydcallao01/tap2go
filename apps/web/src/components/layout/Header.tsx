@@ -16,6 +16,7 @@ import { getWishlistMerchantIdsForCurrentUser, addMerchantToWishlist, removeMerc
 import { NotificationPopup, mockNotifications } from '@/components/notifications/NotificationPopup';
 import { useCart } from '@/contexts/CartContext';
 import { toast } from 'react-hot-toast';
+import { useAddressChange } from '@/hooks/useAddressChange';
 
 /**
  * Header component with navigation, search, and user controls
@@ -442,24 +443,30 @@ export function Header({
     return () => { cancelled = true; clearTimeout(t); };
   }, [hasCommittedSearch, searchQuery, merchants, normalizeQuery]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
-        const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
-        if (!userId) return;
-        const [activeAddressResponse] = await Promise.all([
-          AddressService.getActiveAddress(userId),
-          AddressService.getUserAddresses(true),
-        ]);
-        if (!cancelled && activeAddressResponse?.success && activeAddressResponse.address?.formatted_address) {
-          setActiveAddressName(activeAddressResponse.address.formatted_address);
-        }
-      } catch { }
-    })();
-    return () => { cancelled = true; };
+  const fetchActiveAddress = useCallback(async () => {
+    try {
+      const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
+      const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
+      if (!userId) return;
+      const [activeAddressResponse] = await Promise.all([
+        AddressService.getActiveAddress(userId, false), // Force fresh fetch
+        AddressService.getUserAddresses(false),
+      ]);
+      if (activeAddressResponse?.success && activeAddressResponse.address?.formatted_address) {
+        setActiveAddressName(activeAddressResponse.address.formatted_address);
+      }
+    } catch { }
   }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchActiveAddress();
+  }, [fetchActiveAddress]);
+
+  // Listen for address changes
+  useAddressChange(() => {
+    fetchActiveAddress();
+  });
 
   useEffect(() => {
     const q = searchQuery.trim();

@@ -86,6 +86,14 @@ export interface Config {
     'product-categories': ProductCategory;
     products: Product;
     'cart-items': CartItem;
+    orders: Order;
+    'order-items': OrderItem;
+    'delivery-locations': DeliveryLocation;
+    transactions: Transaction;
+    'order-tracking': OrderTracking;
+    'driver-assignments': DriverAssignment;
+    'order-discounts': OrderDiscount;
+    reviews: Review;
     'prod-attributes': ProdAttribute;
     'prod-attribute-terms': ProdAttributeTerm;
     'prod-variations': ProdVariation;
@@ -125,6 +133,14 @@ export interface Config {
     'product-categories': ProductCategoriesSelect<false> | ProductCategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
     'cart-items': CartItemsSelect<false> | CartItemsSelect<true>;
+    orders: OrdersSelect<false> | OrdersSelect<true>;
+    'order-items': OrderItemsSelect<false> | OrderItemsSelect<true>;
+    'delivery-locations': DeliveryLocationsSelect<false> | DeliveryLocationsSelect<true>;
+    transactions: TransactionsSelect<false> | TransactionsSelect<true>;
+    'order-tracking': OrderTrackingSelect<false> | OrderTrackingSelect<true>;
+    'driver-assignments': DriverAssignmentsSelect<false> | DriverAssignmentsSelect<true>;
+    'order-discounts': OrderDiscountsSelect<false> | OrderDiscountsSelect<true>;
+    reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     'prod-attributes': ProdAttributesSelect<false> | ProdAttributesSelect<true>;
     'prod-attribute-terms': ProdAttributeTermsSelect<false> | ProdAttributeTermsSelect<true>;
     'prod-variations': ProdVariationsSelect<false> | ProdVariationsSelect<true>;
@@ -1636,7 +1652,7 @@ export interface CartItem {
    */
   specialInstructions?: string | null;
   /**
-   * Delivery instructions for rider. E.g., "Ring doorbell twice", "Leave at gate"
+   * Delivery instructions for driver. E.g., "Ring doorbell twice", "Leave at gate"
    */
   notesForRider?: string | null;
   /**
@@ -1690,6 +1706,321 @@ export interface MerchantProduct {
    * Quick toggle on/off
    */
   is_available?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Central entity for all transactions
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "orders".
+ */
+export interface Order {
+  id: number;
+  /**
+   * The customer placing the order
+   */
+  customer: number | Customer;
+  /**
+   * The merchant fulfilling the order
+   */
+  merchant: number | Merchant;
+  status: 'pending' | 'accepted' | 'preparing' | 'ready_for_pickup' | 'on_delivery' | 'delivered' | 'cancelled';
+  /**
+   * Critical for logistics logic
+   */
+  fulfillment_type: 'delivery' | 'pickup';
+  /**
+   * Grand total (Subtotal + Fees - Discounts)
+   */
+  total: number;
+  /**
+   * Sum of item prices
+   */
+  subtotal: number;
+  /**
+   * Calculated delivery fee (0 for Pickup)
+   */
+  delivery_fee: number;
+  /**
+   * Service charge/App fee
+   */
+  platform_fee: number;
+  /**
+   * Special instructions for the merchant
+   */
+  notes?: string | null;
+  /**
+   * Timestamp when order was confirmed
+   */
+  placed_at: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Links products to an order with Snapshot Pricing
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "order-items".
+ */
+export interface OrderItem {
+  id: number;
+  /**
+   * Parent order
+   */
+  order: number | Order;
+  /**
+   * Reference to the base product (for analytics)
+   */
+  product: number | Product;
+  /**
+   * Reference to the specific merchant listing
+   */
+  merchant_product: number | MerchantProduct;
+  /**
+   * SNAPSHOT: Name of product at time of purchase
+   */
+  product_name_snapshot: string;
+  /**
+   * SNAPSHOT: The price/unit paid (overrides current catalog price)
+   */
+  price_at_purchase: number;
+  /**
+   * Count of items
+   */
+  quantity: number;
+  /**
+   * SNAPSHOT: Selected modifiers and their specific prices
+   */
+  options_snapshot?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * price_at_purchase * quantity + modifiers
+   */
+  total_price: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Immutable snapshot of where the order must go
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-locations".
+ */
+export interface DeliveryLocation {
+  id: number;
+  /**
+   * One-to-one relationship with order
+   */
+  order: number | Order;
+  /**
+   * SNAPSHOT: Full text address from Google Maps at time of order
+   */
+  formatted_address: string;
+  /**
+   * SNAPSHOT: Lat/Lng for driver navigation
+   */
+  coordinates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Delivery instructions (e.g., "Gate code 1234")
+   */
+  notes?: string | null;
+  /**
+   * Receivers name
+   */
+  contact_name?: string | null;
+  /**
+   * Receivers phone
+   */
+  contact_phone?: string | null;
+  /**
+   * e.g., Home, Office
+   */
+  label?: ('home' | 'office' | 'other') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Records the financial exchange
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "transactions".
+ */
+export interface Transaction {
+  id: number;
+  /**
+   * Link to order
+   */
+  order: number | Order;
+  /**
+   * External ID (e.g., PayMongo pi_...)
+   */
+  payment_intent_id?: string | null;
+  /**
+   * e.g., card, gcash, grab_pay
+   */
+  payment_method?: string | null;
+  /**
+   * Amount charged
+   */
+  amount: number;
+  /**
+   * Default PHP
+   */
+  currency?: string | null;
+  status: 'pending' | 'paid' | 'failed' | 'refunded';
+  /**
+   * Timestamp of successful payment
+   */
+  paid_at?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Audit trail for status changes
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "order-tracking".
+ */
+export interface OrderTracking {
+  id: number;
+  /**
+   * Link to order
+   */
+  order: number | Order;
+  /**
+   * The status moved TO
+   */
+  status: 'pending' | 'accepted' | 'preparing' | 'ready_for_pickup' | 'on_delivery' | 'delivered' | 'cancelled';
+  /**
+   * When the change happened
+   */
+  timestamp: string;
+  /**
+   * Who triggered it? (Driver, Merchant Staff, System)
+   */
+  actor?: (number | null) | User;
+  /**
+   * e.g., "Kitchen marked order as ready"
+   */
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Manages the logistics of "Who is bringing this?"
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "driver-assignments".
+ */
+export interface DriverAssignment {
+  id: number;
+  /**
+   * Link to order
+   */
+  order: number | Order;
+  /**
+   * The assigned driver
+   */
+  driver: number | Driver;
+  status: 'offered' | 'accepted' | 'rejected' | 'completed';
+  /**
+   * When the driver was pinged
+   */
+  assigned_at: string;
+  /**
+   * When the driver said "Yes"
+   */
+  accepted_at?: string | null;
+  /**
+   * When delivery finished
+   */
+  completed_at?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Records which promo was used
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "order-discounts".
+ */
+export interface OrderDiscount {
+  id: number;
+  /**
+   * Link to order
+   */
+  order: number | Order;
+  /**
+   * The code used (e.g., WELCOME100)
+   */
+  code: string;
+  /**
+   * Total value deducted
+   */
+  amount_off: number;
+  /**
+   * percentage or fixed
+   */
+  type: 'percentage' | 'fixed';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Post-order feedback
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews".
+ */
+export interface Review {
+  id: number;
+  /**
+   * Verified purchase link
+   */
+  order: number | Order;
+  /**
+   * Reviewer
+   */
+  customer: number | Customer;
+  /**
+   * Reviewed entity
+   */
+  merchant: number | Merchant;
+  /**
+   * Reviewed entity (optional)
+   */
+  driver?: (number | null) | Driver;
+  /**
+   * 1-5 stars
+   */
+  merchant_rating: number;
+  /**
+   * 1-5 stars
+   */
+  driver_rating?: number | null;
+  /**
+   * User feedback
+   */
+  comment?: string | null;
+  /**
+   * Moderation flag
+   */
+  is_public?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2080,6 +2411,38 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'cart-items';
         value: number | CartItem;
+      } | null)
+    | ({
+        relationTo: 'orders';
+        value: number | Order;
+      } | null)
+    | ({
+        relationTo: 'order-items';
+        value: number | OrderItem;
+      } | null)
+    | ({
+        relationTo: 'delivery-locations';
+        value: number | DeliveryLocation;
+      } | null)
+    | ({
+        relationTo: 'transactions';
+        value: number | Transaction;
+      } | null)
+    | ({
+        relationTo: 'order-tracking';
+        value: number | OrderTracking;
+      } | null)
+    | ({
+        relationTo: 'driver-assignments';
+        value: number | DriverAssignment;
+      } | null)
+    | ({
+        relationTo: 'order-discounts';
+        value: number | OrderDiscount;
+      } | null)
+    | ({
+        relationTo: 'reviews';
+        value: number | Review;
       } | null)
     | ({
         relationTo: 'prod-attributes';
@@ -2688,6 +3051,125 @@ export interface CartItemsSelect<T extends boolean = true> {
   unavailableReason?: T;
   expiresAt?: T;
   sessionId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "orders_select".
+ */
+export interface OrdersSelect<T extends boolean = true> {
+  customer?: T;
+  merchant?: T;
+  status?: T;
+  fulfillment_type?: T;
+  total?: T;
+  subtotal?: T;
+  delivery_fee?: T;
+  platform_fee?: T;
+  notes?: T;
+  placed_at?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "order-items_select".
+ */
+export interface OrderItemsSelect<T extends boolean = true> {
+  order?: T;
+  product?: T;
+  merchant_product?: T;
+  product_name_snapshot?: T;
+  price_at_purchase?: T;
+  quantity?: T;
+  options_snapshot?: T;
+  total_price?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-locations_select".
+ */
+export interface DeliveryLocationsSelect<T extends boolean = true> {
+  order?: T;
+  formatted_address?: T;
+  coordinates?: T;
+  notes?: T;
+  contact_name?: T;
+  contact_phone?: T;
+  label?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "transactions_select".
+ */
+export interface TransactionsSelect<T extends boolean = true> {
+  order?: T;
+  payment_intent_id?: T;
+  payment_method?: T;
+  amount?: T;
+  currency?: T;
+  status?: T;
+  paid_at?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "order-tracking_select".
+ */
+export interface OrderTrackingSelect<T extends boolean = true> {
+  order?: T;
+  status?: T;
+  timestamp?: T;
+  actor?: T;
+  description?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "driver-assignments_select".
+ */
+export interface DriverAssignmentsSelect<T extends boolean = true> {
+  order?: T;
+  driver?: T;
+  status?: T;
+  assigned_at?: T;
+  accepted_at?: T;
+  completed_at?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "order-discounts_select".
+ */
+export interface OrderDiscountsSelect<T extends boolean = true> {
+  order?: T;
+  code?: T;
+  amount_off?: T;
+  type?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews_select".
+ */
+export interface ReviewsSelect<T extends boolean = true> {
+  order?: T;
+  customer?: T;
+  merchant?: T;
+  driver?: T;
+  merchant_rating?: T;
+  driver_rating?: T;
+  comment?: T;
+  is_public?: T;
   updatedAt?: T;
   createdAt?: T;
 }
