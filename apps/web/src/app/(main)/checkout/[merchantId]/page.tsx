@@ -19,6 +19,53 @@ type PaymentMethod =
   | 'brankas'
   | 'qrph';
 
+const getPayMongoErrorMessage = (error: any) => {
+  const code = error?.code;
+  const detail = error?.detail;
+
+  switch (code) {
+    case 'insufficient_funds':
+      return 'Your card has insufficient funds. Please check your balance or use a different card.';
+    case 'card_declined':
+    case 'do_not_honor':
+    case 'payment_refused':
+    case 'generic_decline':
+      return 'Your card was declined by the issuer. Please contact your bank or use a different card.';
+    case 'stolen_card':
+    case 'lost_card':
+    case 'pickup_card':
+    case 'restricted_card':
+      return 'This card has been reported as lost, stolen, or restricted. Transaction declined.';
+    case 'expired_card':
+      return 'Your card has expired. Please use a valid card.';
+    case 'incorrect_cvc':
+    case 'cvc_check_failed':
+      return 'The CVC code provided is incorrect. Please check the 3-digit code on the back of your card.';
+    case 'processing_error':
+    case 'processor_blocked':
+    case 'fraudulent':
+    case 'highest_risk_level':
+    case 'blocked':
+      return 'The transaction was declined due to security reasons. Please try a different payment method.';
+    case 'card_not_supported':
+    case 'card_type_mismatch':
+      return 'This card type is not supported. Please use a Visa or Mastercard.';
+    case 'debit_card_usage_limit_exceeded':
+    case 'amount_allowed_exceeded':
+    case 'credit_limit_exceeded':
+      return 'Transaction exceeds the card\'s usage limit or credit limit.';
+    case 'payment_method_not_allowed':
+      return 'Card payments are not enabled for this transaction. Please try another payment method.';
+    case 'authentication_failed':
+      return '3D Secure authentication failed. Please try again.';
+    default:
+      if (detail && detail.toLowerCase().includes('not allowed')) {
+        return 'This payment method is not allowed for this transaction. Please try another method or contact support.';
+      }
+      return detail || 'An error occurred while processing your payment. Please try again.';
+  }
+};
+
 export default function CheckoutPage() {
   const methodLogos: Record<
     PaymentMethod,
@@ -75,15 +122,46 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { items, isLoading } = useCart();
   const { user } = useAuthContext();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  // Card Payment State (validated via expiry string)
   const [cardNumber, setCardNumber] = useState('');
-  const [expMonth, setExpMonth] = useState('');
-  const [expYear, setExpYear] = useState('');
+  const [expiry, setExpiry] = useState(''); // MM/YY
   const [cvc, setCvc] = useState('');
+  
   const [isPaying, setIsPaying] = useState(false);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [clientKey, setClientKey] = useState<string | null>(null);
   const [qrImage, setQrImage] = useState<string | null>(null);
+
+  const isFormValid = useMemo(() => {
+    if (!paymentMethod) return false;
+    if (paymentMethod !== 'card') return true;
+
+    const cleanCard = cardNumber.replace(/\D/g, '');
+    if (cleanCard.length < 13 || cleanCard.length > 19) return false;
+
+    if (!expiry || expiry.length < 5) return false;
+    const [expMonth, expYear] = expiry.split('/');
+
+    const month = parseInt(expMonth, 10);
+    if (isNaN(month) || month < 1 || month > 12) return false;
+
+    const year = parseInt(expYear, 10);
+    if (isNaN(year)) return false;
+
+    // Convert YY to YYYY
+    const fullYear = 2000 + year;
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+
+    if (fullYear < currentYear) return false;
+    if (fullYear === currentYear && month < currentMonth) return false;
+
+    const cleanCvc = cvc.replace(/\D/g, '');
+    if (cleanCvc.length < 3 || cleanCvc.length > 4) return false;
+
+    return true;
+  }, [paymentMethod, cardNumber, expiry, cvc]);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-PH', {
@@ -129,11 +207,12 @@ export default function CheckoutPage() {
       };
 
       if (paymentMethod === 'card') {
+        const [expMonth, expYear] = expiry.split('/');
         payload.data.attributes.details = {
-          card_number: cardNumber.replace(/\s/g, ''),
+          card_number: cardNumber.replace(/\D/g, ''),
           exp_month: parseInt(expMonth, 10),
-          exp_year: parseInt(expYear, 10),
-          cvc,
+          exp_year: parseInt('20' + expYear, 10),
+          cvc: cvc.replace(/\D/g, ''),
         };
       }
 
@@ -213,7 +292,7 @@ export default function CheckoutPage() {
   };
 
   const handlePayNow = async () => {
-    if (!Number.isFinite(subtotal) || subtotal <= 0 || isPaying) return;
+    if (!Number.isFinite(subtotal) || subtotal <= 0 || isPaying || !isFormValid) return;
     setIsPaying(true);
     setPaymentIntentId(null);
     setClientKey(null);
@@ -242,6 +321,10 @@ export default function CheckoutPage() {
       console.log('Response data:', data); // Debug log
 
       if (!response.ok) {
+        const payMongoErrors = data?.details?.errors;
+        if (payMongoErrors && payMongoErrors.length > 0) {
+          throw new Error(getPayMongoErrorMessage(payMongoErrors[0]));
+        }
         const detail = data?.details ? JSON.stringify(data.details) : '';
         throw new Error((data?.error || 'Failed to create payment intent') + (detail ? ` ${detail}` : ''));
       }
@@ -408,75 +491,90 @@ export default function CheckoutPage() {
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
           <h2 className="text-sm font-semibold text-gray-900">Payment method</h2>
           <div className="grid grid-cols-1 gap-2">
-            {(Object.keys(methodLogos) as PaymentMethod[]).map((key: PaymentMethod) => {
+            {(Object.keys(methodLogos) as PaymentMethod[])
+              .filter((key) => key !== 'card') // Disable card payment temporarily
+              .map((key: PaymentMethod) => {
               const logos = methodLogos[key];
               const selected = paymentMethod === key;
               return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setPaymentMethod(key)}
-                  className="w-full rounded-lg border bg-white hover:bg-gray-50 transition-colors text-left"
-                  style={{
-                    borderColor: selected ? '#eba236' : '#e5e7eb',
-                    boxShadow: selected ? '0 0 0 2px rgba(235,162,54,0.15)' : undefined,
-                  }}
-                >
-                  <div className="flex items-center gap-3 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      {logos.srcs.map((src) => (
-                        <div key={src} className="h-6 w-auto flex items-center">
-                          <ImageWrapper src={src} alt={logos.alt} width={72} height={24} className="object-contain" />
-                        </div>
-                      ))}
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">{logos.label}</span>
-                  </div>
-                  {selected && key === 'card' && (
-                    <div className="px-3 pb-3 pt-1 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
-                      <div>
-                        <input
-                          type="text"
-                          name="cardNumber"
-                          autoComplete="cc-number"
-                          placeholder="Card Number"
-                          value={cardNumber}
-                          onChange={(e) => setCardNumber(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
-                        />
+                <div key={key} className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod(key)}
+                    className="w-full rounded-lg border bg-white hover:bg-gray-50 transition-colors text-left"
+                    style={{
+                      borderColor: selected ? '#eba236' : '#e5e7eb',
+                      boxShadow: selected ? '0 0 0 2px rgba(235,162,54,0.15)' : undefined,
+                    }}
+                  >
+                    <div className="flex items-center gap-3 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        {logos.srcs.map((src) => (
+                          <div key={src} className="h-6 w-auto flex items-center">
+                            <ImageWrapper src={src} alt={logos.alt} width={72} height={24} className="object-contain" />
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex gap-3">
-                        <input
-                          type="text"
-                          name="expMonth"
-                          autoComplete="cc-exp-month"
-                          placeholder="MM"
-                          value={expMonth}
-                          onChange={(e) => setExpMonth(e.target.value)}
-                          className="w-1/4 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
-                        />
-                        <input
-                          type="text"
-                          name="expYear"
-                          autoComplete="cc-exp-year"
-                          placeholder="YYYY"
-                          value={expYear}
-                          onChange={(e) => setExpYear(e.target.value)}
-                          className="w-1/4 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
-                        />
-                        <input
-                          type="text"
-                          name="cvc"
-                          autoComplete="cc-csc"
-                          placeholder="CVC"
-                          value={cvc}
-                          onChange={(e) => setCvc(e.target.value)}
-                          className="w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
-                        />
+                      <span className="text-sm font-semibold text-gray-900">{logos.label}</span>
+                    </div>
+                  </button>
+
+                  {selected && key === 'card' && (
+                    <div className="p-4 border border-gray-100 rounded-lg bg-gray-50 space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-700">Card number</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={cardNumber}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              const formatted = val.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+                              if (val.length <= 19) setCardNumber(formatted);
+                            }}
+                            placeholder="0000 0000 0000 0000"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                            maxLength={23} // 19 digits + 4 spaces
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-700">Expiry date</label>
+                          <input
+                            type="text"
+                            value={expiry}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '');
+                              if (val.length >= 3) {
+                                val = val.slice(0, 2) + '/' + val.slice(2);
+                              }
+                              if (val.length <= 5) setExpiry(val);
+                            }}
+                            placeholder="MM/YY"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-700">CVC</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={cvc}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '');
+                                if (val.length <= 4) setCvc(val);
+                              }}
+                              placeholder="123"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                              maxLength={4}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -486,7 +584,7 @@ export default function CheckoutPage() {
           <button
             type="button"
             onClick={handlePayNow}
-            disabled={isPaying || total <= 0}
+            disabled={isPaying || total <= 0 || !isFormValid}
             className="w-full text-white rounded-full py-2.5 text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#eba236' }}
           >

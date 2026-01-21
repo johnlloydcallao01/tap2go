@@ -12,6 +12,7 @@ import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './services/GeospatialService'
 import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
+import { paymongoWebhook } from './endpoints/paymongoWebhook'
 import type { PayloadRequest } from 'payload'
 import type { User as PayloadUser } from './payload-types'
 // import sharp from 'sharp'
@@ -967,6 +968,12 @@ export default buildConfig({
     },
 
     {
+      path: '/paymongo/webhook',
+      method: 'post',
+      handler: paymongoWebhook,
+    },
+
+    {
       path: '/create-payment-intent',
       method: 'post',
       handler: (async (req: PayloadRequest) => {
@@ -1018,6 +1025,11 @@ export default buildConfig({
                     'brankas',
                     'qrph',
                   ],
+                  payment_method_options: {
+                    card: {
+                      request_three_d_secure: 'any',
+                    },
+                  },
                   currency
                 }
               }
