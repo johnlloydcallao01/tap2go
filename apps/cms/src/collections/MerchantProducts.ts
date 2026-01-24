@@ -7,9 +7,45 @@ export const MerchantProducts: CollectionConfig = {
     plural: 'Merchant Products',
   },
   admin: {
-    useAsTitle: 'id',
-    defaultColumns: ['merchant_id', 'product_id', 'added_by', 'is_active', 'is_available'],
+    useAsTitle: 'display_title',
+    defaultColumns: ['display_title', 'merchant_id', 'product_id', 'is_active', 'is_available'],
     group: 'Product Management',
+  },
+  hooks: {
+    beforeChange: [
+      async ({ data, req, operation }) => {
+        if (operation === 'create' || operation === 'update') {
+          try {
+            const payload = req.payload
+            let productName = ''
+            let merchantName = ''
+
+            if (data.product_id) {
+              const pId = typeof data.product_id === 'object' ? data.product_id.id : data.product_id
+              const product = await payload.findByID({
+                collection: 'products',
+                id: pId,
+              })
+              if (product) productName = product.name
+            }
+
+            if (data.merchant_id) {
+              const mId = typeof data.merchant_id === 'object' ? data.merchant_id.id : data.merchant_id
+              const merchant = await payload.findByID({
+                collection: 'merchants',
+                id: mId,
+              })
+              if (merchant) merchantName = merchant.outletName
+            }
+
+            data.display_title = `${productName} (${merchantName})`
+          } catch (e) {
+            console.error('Error populating display_title for MerchantProduct', e)
+          }
+        }
+        return data
+      },
+    ],
   },
   access: {
     read: () => true,
@@ -18,6 +54,13 @@ export const MerchantProducts: CollectionConfig = {
     delete: () => true,
   },
   fields: [
+    {
+      name: 'display_title',
+      type: 'text',
+      admin: {
+        hidden: true,
+      },
+    },
     {
       name: 'merchant_id',
       type: 'relationship',

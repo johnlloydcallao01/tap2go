@@ -311,6 +311,10 @@ export interface Customer {
    */
   user: number | User;
   /**
+   * Cached email from User for display purposes
+   */
+  email?: string | null;
+  /**
    * Student Registration Number (unique identifier) — optional
    */
   srn?: string | null;
@@ -1268,6 +1272,10 @@ export interface Merchant {
    * Next available delivery time slot
    */
   next_available_slot?: string | null;
+  /**
+   * IANA timezone identifier (e.g., Asia/Manila, Asia/Singapore, America/New_York)
+   */
+  timezone: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -1684,6 +1692,7 @@ export interface CartItem {
  */
 export interface MerchantProduct {
   id: number;
+  display_title?: string | null;
   merchant_id: number | Merchant;
   /**
    * Product (filtered to show only products owned by the merchant's vendor)
@@ -1790,7 +1799,7 @@ export interface OrderItem {
    */
   quantity: number;
   /**
-   * SNAPSHOT: Selected modifiers and their specific prices
+   * SNAPSHOT: Selected modifiers and their specific prices. Example: [{"name": "Java Rice", "price": 20}]
    */
   options_snapshot?:
     | {
@@ -2595,6 +2604,7 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface CustomersSelect<T extends boolean = true> {
   user?: T;
+  email?: T;
   srn?: T;
   couponCode?: T;
   enrollmentDate?: T;
@@ -2907,6 +2917,7 @@ export interface MerchantsSelect<T extends boolean = true> {
   delivery_hours?: T;
   is_currently_delivering?: T;
   next_available_slot?: T;
+  timezone?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3246,6 +3257,7 @@ export interface ProdGroupedItemsSelect<T extends boolean = true> {
  * via the `definition` "merchant-products_select".
  */
 export interface MerchantProductsSelect<T extends boolean = true> {
+  display_title?: T;
   merchant_id?: T;
   product_id?: T;
   added_by?: T;

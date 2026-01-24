@@ -148,7 +148,7 @@ export default function MerchantCartPage() {
             <i className="fas fa-arrow-left text-gray-700 text-sm" />
           </button>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
               {merchantLogoUrl ? (
                 <ImageWrapper
                   src={merchantLogoUrl}

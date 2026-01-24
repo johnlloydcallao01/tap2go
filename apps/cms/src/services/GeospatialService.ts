@@ -62,6 +62,7 @@ interface DatabaseRow {
   vendor_logo_thumbnail_url: string | null
   vendor_logo_filename: string | null
   vendor_logo_alt: string | null
+  timezone: string
 }
 
 // Type for count query result
@@ -827,6 +828,7 @@ export class GeospatialService {
           restricted_areas: row.restricted_areas,
           delivery_zones: row.delivery_zones,
           vendor_id: row.vendor_id,
+          timezone: row.timezone || 'Asia/Manila',
           createdAt: row.created_at,
           updatedAt: row.updated_at,
           // Media information

@@ -1,10 +1,10 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Where } from 'payload'
 
 export const OrderItems: CollectionConfig = {
   slug: 'order-items',
   admin: {
     useAsTitle: 'id',
-    defaultColumns: ['order', 'product_name_snapshot', 'quantity', 'total_price'],
+    defaultColumns: ['order', 'merchant_product', 'product_name_snapshot', 'quantity', 'total_price'],
     group: 'Ordering System',
     description: 'Links products to an order with Snapshot Pricing',
   },
@@ -51,6 +51,46 @@ export const OrderItems: CollectionConfig = {
       type: 'relationship',
       relationTo: 'merchant-products',
       required: true,
+      filterOptions: async ({ data, req }): Promise<Where> => {
+        if (!data?.order) {
+          return {}
+        }
+
+        try {
+          const orderValue = data.order
+          const orderId = typeof orderValue === 'object' ? orderValue.id : orderValue
+
+          if (!orderId) {
+            return {}
+          }
+
+          const order = await req.payload.findByID({
+            collection: 'orders',
+            id: orderId,
+            depth: 0,
+          })
+
+          if (!order?.merchant) {
+            return {}
+          }
+
+          const merchantValue = order.merchant
+          const merchantId = typeof merchantValue === 'object' ? merchantValue.id : merchantValue
+
+          if (!merchantId) {
+            return {}
+          }
+
+          return {
+            merchant_id: {
+              equals: merchantId,
+            },
+          }
+        } catch (e) {
+          console.error('Error filtering merchant_product options by order merchant', e)
+          return {}
+        }
+      },
       admin: {
         description: 'Reference to the specific merchant listing',
       },
@@ -83,7 +123,7 @@ export const OrderItems: CollectionConfig = {
       name: 'options_snapshot',
       type: 'json',
       admin: {
-        description: 'SNAPSHOT: Selected modifiers and their specific prices',
+        description: 'SNAPSHOT: Selected modifiers and their specific prices. Example: [{"name": "Java Rice", "price": 20}]',
       },
     },
     {

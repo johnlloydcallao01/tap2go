@@ -3,8 +3,31 @@ import type { CollectionConfig } from 'payload'
 export const Customers: CollectionConfig = {
   slug: 'customers',
   admin: {
-    useAsTitle: 'user',
-    defaultColumns: ['user', 'enrollmentDate', 'currentLevel'],
+    useAsTitle: 'email',
+    defaultColumns: ['email', 'user', 'enrollmentDate', 'currentLevel'],
+  },
+  hooks: {
+    beforeChange: [
+      async ({ data, req, operation }) => {
+        if (operation === 'create' || operation === 'update') {
+          if (data.user) {
+            try {
+              const userId = typeof data.user === 'object' ? data.user.id : data.user
+              const user = await req.payload.findByID({
+                collection: 'users',
+                id: userId,
+              })
+              if (user) {
+                data.email = user.email
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+        return data
+      },
+    ],
   },
   access: {
     // PayloadCMS automatically authenticates API keys and populates req.user
@@ -42,6 +65,14 @@ export const Customers: CollectionConfig = {
       unique: true,
       admin: {
         description: 'Link to user account',
+      },
+    },
+    {
+      name: 'email',
+      type: 'email',
+      admin: {
+        readOnly: true,
+        description: 'Cached email from User for display purposes',
       },
     },
 

@@ -18,7 +18,7 @@ export const Merchants: CollectionConfig = {
           return true
         }
       }
-      
+
       // Block all unauthenticated requests and other roles
       return false
     },
@@ -300,7 +300,7 @@ export const Merchants: CollectionConfig = {
         if (data?.vendor) {
           try {
             let vendorUserId;
-            
+
             // If vendor is just an ID (string/number), we need to fetch the vendor to get the user
             if (typeof data.vendor === 'string' || typeof data.vendor === 'number') {
               const vendor = await req.payload.findByID({
@@ -308,7 +308,7 @@ export const Merchants: CollectionConfig = {
                 id: data.vendor,
                 depth: 1, // This will populate the user relationship
               });
-              
+
               if (vendor?.user) {
                 vendorUserId = typeof vendor.user === 'object' ? vendor.user.id : vendor.user;
               }
@@ -316,7 +316,7 @@ export const Merchants: CollectionConfig = {
               // If vendor is populated, get the user ID
               vendorUserId = typeof data.vendor.user === 'object' ? data.vendor.user.id : data.vendor.user;
             }
-            
+
             if (vendorUserId) {
               return {
                 user: {
@@ -328,7 +328,7 @@ export const Merchants: CollectionConfig = {
             console.error('Error in activeAddress filterOptions:', error);
           }
         }
-        
+
         // If no vendor data available or error occurred, return false to show no addresses
         return false;
       },
@@ -549,6 +549,17 @@ export const Merchants: CollectionConfig = {
         },
       },
     },
+
+    // === TIMEZONE CONFIGURATION ===
+    {
+      name: 'timezone',
+      type: 'text',
+      defaultValue: 'Asia/Manila',
+      required: true,
+      admin: {
+        description: 'IANA timezone identifier (e.g., Asia/Manila, Asia/Singapore, America/New_York)',
+      },
+    },
   ],
   indexes: [
     {
@@ -590,17 +601,17 @@ export const Merchants: CollectionConfig = {
         if (data.merchant_latitude && data.merchant_longitude) {
           const lat = parseFloat(data.merchant_latitude.toString())
           const lng = parseFloat(data.merchant_longitude.toString())
-          
+
           // Validate coordinates are within valid ranges
-          if (!isNaN(lat) && !isNaN(lng) && 
-              lat >= -90 && lat <= 90 && 
-              lng >= -180 && lng <= 180) {
-            
+          if (!isNaN(lat) && !isNaN(lng) &&
+            lat >= -90 && lat <= 90 &&
+            lng >= -180 && lng <= 180) {
+
             data.merchant_coordinates = {
               type: 'Point',
               coordinates: [lng, lat] // GeoJSON format: [longitude, latitude]
             }
-            
+
             console.log(`🔄 Synchronized coordinates for ${data.outletName}: [${lng}, ${lat}]`)
           } else {
             console.warn(`⚠️ Invalid coordinates for ${data.outletName}: lat=${lat}, lng=${lng}`)

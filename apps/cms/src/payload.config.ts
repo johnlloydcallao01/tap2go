@@ -12,6 +12,7 @@ import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './services/GeospatialService'
 import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
+import { sendOrderHelp } from './endpoints/sendOrderHelp'
 import { paymongoWebhook } from './endpoints/paymongoWebhook'
 import type { PayloadRequest } from 'payload'
 import type { User as PayloadUser } from './payload-types'
@@ -720,6 +721,12 @@ export default buildConfig({
     },
 
     {
+      path: '/support/order-help',
+      method: 'post',
+      handler: sendOrderHelp,
+    },
+
+    {
       path: '/merchants-in-delivery-radius',
       method: 'get',
       handler: (async (req: PayloadRequest) => {
@@ -1054,6 +1061,12 @@ export default buildConfig({
            return Response.json({ error: 'Internal server error' }, { status: 500 });
         }
       })
+    },
+
+    {
+      path: '/support/order-help',
+      method: 'post',
+      handler: sendOrderHelp,
     },
   ],
 

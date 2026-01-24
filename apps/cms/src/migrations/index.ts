@@ -41,6 +41,9 @@ import * as migration_20260118_142441 from './20260118_142441';
 import * as migration_20260119_130104 from './20260119_130104';
 import * as migration_20260120_152616_ordering_system from './20260120_152616_ordering_system';
 import * as migration_20260120_155018_rename_rider_to_driver from './20260120_155018_rename_rider_to_driver';
+import * as migration_20260122_000000_add_email_to_customers from './20260122_000000_add_email_to_customers';
+import * as migration_20260122_010000_add_display_title_to_merchant_products from './20260122_010000_add_display_title_to_merchant_products';
+import * as migration_20260123_050112_add_timezone_to_merchants from './20260123_050112_add_timezone_to_merchants';
 
 export const migrations = [
   {
@@ -256,6 +259,21 @@ export const migrations = [
   {
     up: migration_20260120_155018_rename_rider_to_driver.up,
     down: migration_20260120_155018_rename_rider_to_driver.down,
-    name: '20260120_155018_rename_rider_to_driver'
+    name: '20260120_155018_rename_rider_to_driver',
+  },
+  {
+    up: migration_20260122_000000_add_email_to_customers.up,
+    down: migration_20260122_000000_add_email_to_customers.down,
+    name: '20260122_000000_add_email_to_customers',
+  },
+  {
+    up: migration_20260122_010000_add_display_title_to_merchant_products.up,
+    down: migration_20260122_010000_add_display_title_to_merchant_products.down,
+    name: '20260122_010000_add_display_title_to_merchant_products',
+  },
+  {
+    up: migration_20260123_050112_add_timezone_to_merchants.up,
+    down: migration_20260123_050112_add_timezone_to_merchants.down,
+    name: '20260123_050112_add_timezone_to_merchants'
   },
 ];
