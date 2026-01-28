@@ -21,7 +21,13 @@ export const Drivers: CollectionConfig = {
       return user?.role === 'service' || user?.role === 'admin' || false
     },
     update: ({ req: { user } }) => {
-      return user?.role === 'service' || user?.role === 'admin' || false
+      if (user) {
+        if (user.role === 'service' || user.role === 'admin') return true
+        if (user.role === 'driver') {
+          return { user: { equals: user.id } }
+        }
+      }
+      return false
     },
     delete: ({ req: { user } }) => {
       return user?.role === 'service' || user?.role === 'admin' || false

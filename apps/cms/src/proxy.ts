@@ -6,6 +6,7 @@ const allowedOrigins = [
   process.env.ADMIN_LOCAL_URL!,
   process.env.WEB_PROD_URL!,
   process.env.WEB_LOCAL_URL!,
+  process.env.WEB_DRIVER_LOCAL_URL!,
   process.env.CMS_PROD_URL!,
   process.env.CMS_LOCAL_URL!,
 ]
@@ -21,7 +22,7 @@ export function proxy(request: NextRequest) {
         response.headers.set('Access-Control-Allow-Origin', origin)
       }
 
-      response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+      response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS')
       response.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
       response.headers.set('Access-Control-Allow-Credentials', 'true')
       response.headers.set('Access-Control-Max-Age', '86400')

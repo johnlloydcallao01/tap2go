@@ -141,6 +141,8 @@ export default buildConfig({
     process.env.WEB_PROD_URL!,
     // Local web app development
     process.env.WEB_LOCAL_URL!,
+    // Local driver app development
+    process.env.WEB_DRIVER_LOCAL_URL!,
     // CMS admin panel itself
     process.env.CMS_PROD_URL!,
     process.env.CMS_LOCAL_URL!,

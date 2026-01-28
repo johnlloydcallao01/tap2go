@@ -13,10 +13,11 @@ export const sendOrderHelp: PayloadHandler = async (req: PayloadRequest): Promis
 
   try {
     const json = typeof req.json === 'function' ? await req.json() : {}
-    const { orderId, concern, screenshot, customerEmail: bodyEmail, customerName: bodyName } = (json || {}) as { 
+    const { orderId, concern, screenshot, screenshots, customerEmail: bodyEmail, customerName: bodyName } = (json || {}) as { 
       orderId: string, 
       concern: string, 
-      screenshot?: string,
+      screenshot?: string, // Legacy support
+      screenshots?: string[], // New support
       customerEmail?: string,
       customerName?: string
     }
@@ -114,6 +115,7 @@ export const sendOrderHelp: PayloadHandler = async (req: PayloadRequest): Promis
 
     const attachments: { content: string; filename: string }[] = []
 
+    // Handle legacy single screenshot
     if (screenshot) {
       let filename = 'screenshot.jpg'
       if (screenshot.startsWith('data:image/png')) filename = 'screenshot.png'
@@ -121,12 +123,29 @@ export const sendOrderHelp: PayloadHandler = async (req: PayloadRequest): Promis
       else if (screenshot.startsWith('data:image/webp')) filename = 'screenshot.webp'
       else if (screenshot.startsWith('data:image/gif')) filename = 'screenshot.gif'
 
-      // Strip the data URI prefix if present to get just the base64 content
       const content = screenshot.includes('base64,') ? screenshot.split('base64,')[1] : screenshot
 
       attachments.push({
         content,
         filename,
+      })
+    }
+
+    // Handle multiple screenshots
+    if (screenshots && Array.isArray(screenshots)) {
+      screenshots.forEach((shot, index) => {
+        let filename = `screenshot-${index + 1}.jpg`
+        if (shot.startsWith('data:image/png')) filename = `screenshot-${index + 1}.png`
+        else if (shot.startsWith('data:image/jpeg')) filename = `screenshot-${index + 1}.jpg`
+        else if (shot.startsWith('data:image/webp')) filename = `screenshot-${index + 1}.webp`
+        else if (shot.startsWith('data:image/gif')) filename = `screenshot-${index + 1}.gif`
+
+        const content = shot.includes('base64,') ? shot.split('base64,')[1] : shot
+
+        attachments.push({
+          content,
+          filename,
+        })
       })
     }
 

@@ -44,6 +44,11 @@ import * as migration_20260120_155018_rename_rider_to_driver from './20260120_15
 import * as migration_20260122_000000_add_email_to_customers from './20260122_000000_add_email_to_customers';
 import * as migration_20260122_010000_add_display_title_to_merchant_products from './20260122_010000_add_display_title_to_merchant_products';
 import * as migration_20260123_050112_add_timezone_to_merchants from './20260123_050112_add_timezone_to_merchants';
+import * as migration_20260125_093000_fix_handle_role_change_function from './20260125_093000_fix_handle_role_change_function';
+import * as migration_20260125_160000_enforce_after_role_triggers from './20260125_160000_enforce_after_role_triggers';
+import * as migration_20260125_170000_disable_user_events_logging from './20260125_170000_disable_user_events_logging';
+import * as migration_20260125_180000_remove_create_role_record from './20260125_180000_remove_create_role_record';
+import * as migration_20260128_000100_fix_users_role_triggers_cleanup from './20260128_000100_fix_users_role_triggers_cleanup';
 
 export const migrations = [
   {
@@ -275,5 +280,30 @@ export const migrations = [
     up: migration_20260123_050112_add_timezone_to_merchants.up,
     down: migration_20260123_050112_add_timezone_to_merchants.down,
     name: '20260123_050112_add_timezone_to_merchants'
+  },
+  {
+    up: migration_20260125_093000_fix_handle_role_change_function.up,
+    down: migration_20260125_093000_fix_handle_role_change_function.down,
+    name: '20260125_093000_fix_handle_role_change_function',
+  },
+  {
+    up: migration_20260125_160000_enforce_after_role_triggers.up,
+    down: migration_20260125_160000_enforce_after_role_triggers.down,
+    name: '20260125_160000_enforce_after_role_triggers',
+  },
+  {
+    up: migration_20260125_170000_disable_user_events_logging.up,
+    down: migration_20260125_170000_disable_user_events_logging.down,
+    name: '20260125_170000_disable_user_events_logging',
+  },
+  {
+    up: migration_20260125_180000_remove_create_role_record.up,
+    down: migration_20260125_180000_remove_create_role_record.down,
+    name: '20260125_180000_remove_create_role_record',
+  },
+  {
+    up: migration_20260128_000100_fix_users_role_triggers_cleanup.up,
+    down: migration_20260128_000100_fix_users_role_triggers_cleanup.down,
+    name: '20260128_000100_fix_users_role_triggers_cleanup',
   },
 ];

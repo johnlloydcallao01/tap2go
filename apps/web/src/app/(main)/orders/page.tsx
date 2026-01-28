@@ -466,7 +466,7 @@ export default function OrdersPage() {
   };
 
   const handleTrackOrder = (orderId: string) => {
-    router.push(`/orders/${orderId}`);
+    router.push(`/orders/${orderId}/tracking`);
   };
 
   const handleRateOrder = (orderId: string) => {

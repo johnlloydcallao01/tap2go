@@ -13,6 +13,7 @@
   "dependencies": {
     "@encreasl/redux": "workspace:*",
     "@fortawesome/fontawesome-free": "^7.1.0",
+    "@react-google-maps/api": "^2.20.8",
     "lucide-react": "^0.263.1",
     "next": "16.0.7",
     "react": "19.1.0",

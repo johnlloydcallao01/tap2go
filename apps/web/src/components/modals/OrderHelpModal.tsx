@@ -14,8 +14,8 @@ type OrderHelpModalProps = {
 export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpModalProps) {
   const { user } = useUser();
   const [concern, setConcern] = useState('');
-  const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshots, setScreenshots] = useState<File[]>([]);
+  const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
 
   // Lock body scroll when modal is open
@@ -26,8 +26,8 @@ export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpMo
       document.body.style.overflow = '';
       // Reset state when closed
       setConcern('');
-      setScreenshot(null);
-      setScreenshotPreview(null);
+      setScreenshots([]);
+      setScreenshotPreviews([]);
     }
     return () => {
       document.body.style.overflow = '';
@@ -37,24 +37,42 @@ export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpMo
   if (!isOpen) return null;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast.error('Image size should be less than 5MB');
-        return;
-      }
-      setScreenshot(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setScreenshotPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files);
+      const validFiles: File[] = [];
+      const newPreviews: string[] = [];
+
+      // Process each file
+      let processedCount = 0;
+
+      newFiles.forEach(file => {
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+          toast.error(`Image ${file.name} size should be less than 5MB`);
+          processedCount++;
+          return;
+        }
+
+        validFiles.push(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          newPreviews.push(reader.result as string);
+          processedCount++;
+          
+          // Once all files are processed, update state
+          if (processedCount === newFiles.length) {
+            setScreenshots(prev => [...prev, ...validFiles]);
+            setScreenshotPreviews(prev => [...prev, ...newPreviews]);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
     }
   };
 
-  const removeImage = () => {
-    setScreenshot(null);
-    setScreenshotPreview(null);
+  const removeImage = (index: number) => {
+    setScreenshots(prev => prev.filter((_, i) => i !== index));
+    setScreenshotPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,19 +96,11 @@ export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpMo
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
 
-      let screenshotData: string | null = null;
-      if (screenshot) {
+      let screenshotsData: string[] = [];
+      if (screenshots.length > 0) {
         // Convert to base64 if not already done for preview, but we can reuse the preview if it's the full data URL
-        if (screenshotPreview) {
-          screenshotData = screenshotPreview;
-        } else {
-          // Fallback if preview wasn't generated for some reason
-          const reader = new FileReader();
-          screenshotData = await new Promise<string>((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(screenshot);
-          });
-        }
+        // In our case, screenshotPreviews are data URLs
+        screenshotsData = screenshotPreviews;
       }
 
       const res = await fetch(`${API_BASE}/support/order-help`, {
@@ -99,7 +109,7 @@ export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpMo
         body: JSON.stringify({
           orderId,
           concern,
-          screenshot: screenshotData,
+          screenshots: screenshotsData,
           customerEmail: user?.email,
           customerName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : undefined,
         }),
@@ -123,8 +133,8 @@ export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpMo
 
   const modalContent = (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="p-6">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
+        <div className="p-6 pb-0 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900">Get Help with Order</h2>
             <button 
@@ -141,7 +151,9 @@ export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpMo
             Please describe your issue with order <span className="font-medium text-gray-900">#{orderId}</span>. 
             Our support team will contact you shortly via email.
           </p>
+        </div>
 
+        <div className="p-6 pt-0 overflow-y-auto flex-1">
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label htmlFor="concern" className="block text-sm font-medium text-gray-700 mb-1">
@@ -161,42 +173,49 @@ export default function OrderHelpModal({ isOpen, onClose, orderId }: OrderHelpMo
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Screenshot (Optional)
+                Screenshots (Optional)
               </label>
               
-              {!screenshotPreview ? (
+              <div className="space-y-3">
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-amber-500 transition-colors cursor-pointer relative">
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    multiple
                   />
                   <div className="text-gray-500">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p className="text-sm">Click to upload image</p>
-                    <p className="text-xs text-gray-400 mt-1">Max 5MB</p>
+                    <p className="text-sm">Click to upload images</p>
+                    <p className="text-xs text-gray-400 mt-1">Max 5MB each</p>
                   </div>
                 </div>
-              ) : (
-                <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                  <img src={screenshotPreview} alt="Screenshot preview" className="w-full h-48 object-contain" />
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              )}
+
+                {screenshotPreviews.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {screenshotPreviews.map((preview, index) => (
+                      <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-video">
+                        <img src={preview} alt={`Screenshot ${index + 1}`} className="w-full h-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="flex gap-3 justify-end">
+            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
               <button
                 type="button"
                 onClick={onClose}
