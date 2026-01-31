@@ -1,7 +1,7 @@
 "use client";
 
-import type { Merchant, Media } from '@/types/merchant';
-import { dataCache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/data-cache';
+import type { Merchant, Media } from '../types/merchant';
+import { dataCache, CACHE_KEYS, CACHE_TTL } from '../cache/data-cache';
 
 // Extended merchant type with location data (matching API response)
 export interface LocationBasedMerchant extends Omit<Merchant, 'operationalStatus'> {
@@ -43,7 +43,7 @@ export interface LocationBasedMerchantServiceOptions {
 }
 
 export type MerchantCategoryDisplay = {
-  id: number;
+  id: number | string;
   name: string;
   slug: string;
   description?: string;
@@ -56,8 +56,8 @@ export type MerchantCategoryDisplay = {
 };
 
 export class LocationBasedMerchantService {
-  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-  private static readonly PAYLOAD_API_KEY = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || '';
+  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+  private static readonly PAYLOAD_API_KEY = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY || '';
   
   /**
    * Fetch location-based merchants from CMS (Client-side) with caching
@@ -159,9 +159,12 @@ export class LocationBasedMerchantService {
     ));
     if (ids.length === 0) { dataCache.set(cacheKey, [], CACHE_TTL.MERCHANTS); return []; }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+    
+    // Use class-level constants to ensure cross-platform compatibility (supports EXPO_PUBLIC_)
+    const apiKey = LocationBasedMerchantService.PAYLOAD_API_KEY;
     if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
-    const base = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+    
+    const base = LocationBasedMerchantService.API_BASE;
     const params = new URLSearchParams();
     params.append('where[id][in]', ids.join(','));
     if (!includeInactive) params.append('where[isActive][equals]', 'true');

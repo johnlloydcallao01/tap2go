@@ -7,6 +7,7 @@ const allowedOrigins = [
   process.env.WEB_PROD_URL!,
   process.env.WEB_LOCAL_URL!,
   process.env.WEB_DRIVER_LOCAL_URL!,
+  process.env.MOBILE_CUSTOMER_LOCAL_URL!,
   process.env.CMS_PROD_URL!,
   process.env.CMS_LOCAL_URL!,
 ]

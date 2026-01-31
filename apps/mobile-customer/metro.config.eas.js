@@ -2,7 +2,7 @@ const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
 // Ultra-simplified Metro config for EAS builds
-const projectRoot = __dirname;
+const projectRoot = process.cwd();
 const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
@@ -36,7 +36,7 @@ try {
     input: './global.css',
     configPath: './tailwind.config.js',
   });
-} catch (error) {
+} catch (_error) {
   module.exports = config;
 }
 

@@ -8,7 +8,7 @@ import {
   getActiveAddressNamesForMerchants,
   sortMerchantsByRecentlyUpdated,
   type LocationBasedMerchant,
-} from "@/lib/client-services/location-based-merchant-service";
+} from "@encreasl/client-services";
 import {
   getWishlistMerchantIdsForCurrentUser,
   addMerchantToWishlist,

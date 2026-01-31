@@ -89,14 +89,14 @@ export default function RestaurantCard({ restaurant, onPress }: RestaurantCardPr
           <View style={styles.detailItem}>
             <Ionicons name="bicycle-outline" size={16} color="#6B7280" />
             <Text style={styles.detailText}>
-              ₱{restaurant.deliveryFee || 49} delivery
+              ₱{restaurant.deliveryFee ?? 49} delivery
             </Text>
           </View>
 
           <View style={styles.detailItem}>
             <Ionicons name="location-outline" size={16} color="#6B7280" />
             <Text style={styles.detailText}>
-              {restaurant.distance || '2.5'} km
+              {restaurant.distance ?? 2.5} km
             </Text>
           </View>
         </View>
@@ -116,7 +116,7 @@ export default function RestaurantCard({ restaurant, onPress }: RestaurantCardPr
             </Text>
           </View>
 
-          {restaurant.minimumOrder && (
+          {restaurant.minimumOrder !== undefined && restaurant.minimumOrder !== null && (
             <Text style={styles.minimumOrder}>
               Min. ₱{restaurant.minimumOrder}
             </Text>

@@ -1,12 +1,12 @@
 import 'server-only';
 
 export interface ProductCategory {
-  id: number;
+  id: number | string;
   name: string;
   slug: string;
   media?: {
     icon?: {
-      id: number;
+      id: number | string;
       url: string;
       cloudinaryURL?: string;
       alt?: string;

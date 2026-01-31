@@ -90,8 +90,14 @@ try {
         
         searchDirectory(buildDir);
     }
-} catch (error) {
+} catch (_error) {
     console.log('ℹ️  Search completed');
+}
+
+if (fixed) {
+    console.log('✅ Updated one or more PackageList.java files');
+} else {
+    console.log('ℹ️  No autolinking import changes were required');
 }
 
 console.log('✅ Autolinking import fix completed');

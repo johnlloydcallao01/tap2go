@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import Image from '@/components/ui/ImageWrapper';
 import { BackButton } from '@/components/ui/BackButton';
 import { getMerchantById, getActiveAddressNameByMerchantId } from '@/server/services/merchant-service';
-import type { Merchant, Media } from '@/types/merchant';
+import type { Merchant, Media } from '@encreasl/client-services';
 import MobileStickyHeader from '@/components/merchant/MobileStickyHeader';
 import MerchantProductsClient from '@/components/merchant/MerchantProductsClient';
 

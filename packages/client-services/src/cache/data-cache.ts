@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Simple in-memory cache for API data
  * Prevents unnecessary refetching when navigating between pages in SPA

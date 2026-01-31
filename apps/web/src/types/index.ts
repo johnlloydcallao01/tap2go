@@ -4,7 +4,7 @@
 
 // Re-export authentication types
 export * from './auth';
-export * from './merchant';
+export type { Merchant, Media, MerchantsResponse } from '@encreasl/client-services';
 export * from './product-category';
 export * from './product';
 

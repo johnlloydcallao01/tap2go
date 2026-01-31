@@ -9,7 +9,9 @@ const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
 
 // Set up watch folders for monorepo
-config.watchFolders = [monorepoRoot];
+config.watchFolders = Array.from(
+  new Set([...(config.watchFolders ?? []), monorepoRoot])
+);
 
 // Configure node modules resolution
 config.resolver.nodeModulesPaths = [

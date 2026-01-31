@@ -124,7 +124,7 @@ declare module 'react-native-safe-area-context' {
   interface SafeAreaViewProps extends ViewProps {
     children?: React.ReactNode;
     style?: ViewStyle;
-    edges?: Array<'top' | 'bottom' | 'left' | 'right'>;
+    edges?: ('top' | 'bottom' | 'left' | 'right')[];
   }
 
   export const SafeAreaView: ComponentType<SafeAreaViewProps>;

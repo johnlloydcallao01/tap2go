@@ -65,14 +65,12 @@ export const useResponsive = (): ScreenInfo => {
  * Responsive value selector
  * Returns different values based on device type
  */
-export const responsive = <T>(values: {
+export const responsive = <T>(deviceType: DeviceType, values: {
   mobile: T;
   tablet?: T;
   largeTablet?: T;
   desktop?: T;
 }) => {
-  const { deviceType } = useResponsive();
-  
   switch (deviceType) {
     case 'desktop':
       return values.desktop ?? values.largeTablet ?? values.tablet ?? values.mobile;
@@ -83,6 +81,16 @@ export const responsive = <T>(values: {
     default:
       return values.mobile;
   }
+};
+
+export const useResponsiveValue = <T>(values: {
+  mobile: T;
+  tablet?: T;
+  largeTablet?: T;
+  desktop?: T;
+}) => {
+  const { deviceType } = useResponsive();
+  return responsive(deviceType, values);
 };
 
 /**
@@ -102,9 +110,11 @@ export const spacing = {
 /**
  * Get responsive spacing based on device type
  */
-export const getResponsiveSpacing = (size: keyof typeof spacing) => {
-  const { isTablet, isLargeScreen } = useResponsive();
-  
+export const getResponsiveSpacing = (
+  size: keyof typeof spacing,
+  screenInfo: Pick<ScreenInfo, 'isTablet' | 'isLargeScreen'>
+) => {
+  const { isTablet, isLargeScreen } = screenInfo;
   const baseSpacing = spacing[size];
   
   if (isLargeScreen) {
@@ -116,6 +126,11 @@ export const getResponsiveSpacing = (size: keyof typeof spacing) => {
   }
   
   return baseSpacing;
+};
+
+export const useResponsiveSpacing = (size: keyof typeof spacing) => {
+  const screenInfo = useResponsive();
+  return getResponsiveSpacing(size, screenInfo);
 };
 
 /**
@@ -137,9 +152,11 @@ export const typography = {
 /**
  * Get responsive font size based on device type
  */
-export const getResponsiveFontSize = (size: keyof typeof typography) => {
-  const { isTablet, isLargeScreen } = useResponsive();
-  
+export const getResponsiveFontSize = (
+  size: keyof typeof typography,
+  screenInfo: Pick<ScreenInfo, 'isTablet' | 'isLargeScreen'>
+) => {
+  const { isTablet, isLargeScreen } = screenInfo;
   const baseFontSize = typography[size];
   
   if (isLargeScreen) {
@@ -151,6 +168,11 @@ export const getResponsiveFontSize = (size: keyof typeof typography) => {
   }
   
   return baseFontSize;
+};
+
+export const useResponsiveFontSize = (size: keyof typeof typography) => {
+  const screenInfo = useResponsive();
+  return getResponsiveFontSize(size, screenInfo);
 };
 
 /**
@@ -186,8 +208,13 @@ export const layout = {
  * Get responsive layout value
  */
 export const getResponsiveLayout = <K extends keyof typeof layout>(
-  property: K
+  property: K,
+  deviceType: DeviceType
 ): any => {
-  const { deviceType } = useResponsive();
   return layout[property][deviceType];
+};
+
+export const useResponsiveLayout = <K extends keyof typeof layout>(property: K) => {
+  const { deviceType } = useResponsive();
+  return getResponsiveLayout(property, deviceType);
 };

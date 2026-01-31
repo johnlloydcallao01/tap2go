@@ -8,13 +8,13 @@ import {
   getLocationBasedMerchants,
   getCurrentCustomerId,
   type LocationBasedMerchant,
-} from '@/lib/client-services/location-based-merchant-service';
+} from '@encreasl/client-services';
 import {
   getWishlistMerchantIdsForCurrentUser,
   addMerchantToWishlist,
   removeMerchantFromWishlist,
 } from '@/lib/client-services/wishlist-service';
-import { MerchantClientService } from '@/lib/client-services/merchant-client-service';
+import { MerchantClientService } from '@encreasl/client-services';
 import { toast } from 'react-hot-toast';
 
 type RecentViewDoc = any;

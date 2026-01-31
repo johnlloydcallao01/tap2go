@@ -3,8 +3,7 @@
 import React from "react";
 import Image from "@/components/ui/ImageWrapper";
 import Link from "next/link";
-import type { Media } from "@/types/merchant";
-import type { LocationBasedMerchant } from "@/lib/client-services/location-based-merchant-service";
+import type { Media, LocationBasedMerchant } from "@encreasl/client-services";
 
 interface LocationMerchantCardProps {
   merchant: LocationBasedMerchant;

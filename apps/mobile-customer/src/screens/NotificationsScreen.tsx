@@ -145,7 +145,7 @@ export default function NotificationsScreen({ navigation }: any) {
             No notifications yet
           </Text>
           <Text style={{ color: '#6b7280', textAlign: 'center', lineHeight: 20 }}>
-            We'll notify you about order updates, promotions, and more!
+            We{"'"}ll notify you about order updates, promotions, and more!
           </Text>
         </View>
       ) : (

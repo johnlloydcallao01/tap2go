@@ -3,8 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ProductCategoryCircle } from '@/components/ui/ProductCategoryCircle';
 import { useAddressChange } from '@/hooks/useAddressChange';
-import { LocationBasedMerchantService, getLocationBasedMerchantCategories, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
-import type { Media } from '@/types/merchant';
+import { LocationBasedMerchantService, getLocationBasedMerchantCategories, type MerchantCategoryDisplay, type Media } from '@encreasl/client-services';
 
 interface LocationBasedProductCategoriesCarouselProps {
   customerId?: string;

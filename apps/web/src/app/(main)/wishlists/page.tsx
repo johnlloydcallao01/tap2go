@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import {
   getActiveAddressNamesForMerchants,
   type LocationBasedMerchant,
-} from '@/lib/client-services/location-based-merchant-service';
+} from '@encreasl/client-services';
 import {
   getWishlistDocsForCurrentUser,
   removeMerchantFromWishlist,
@@ -104,7 +104,7 @@ export default function WishlistsPage() {
       const merchantIds = Array.from(new Set(baseMerchants.map((m) => String(m.id))));
       let merchantMap: Record<string, LocationBasedMerchant> = {};
       try {
-        const { getCurrentCustomerId, getLocationBasedMerchants } = await import('@/lib/client-services/location-based-merchant-service');
+        const { getCurrentCustomerId, getLocationBasedMerchants } = await import('@encreasl/client-services');
         const customerId = await getCurrentCustomerId();
         if (customerId) {
           const locationMerchants = await getLocationBasedMerchants({ customerId, limit: 9999 });

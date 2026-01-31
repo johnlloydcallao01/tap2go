@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Merchant } from '@/types/merchant';
+import type { Merchant } from '@encreasl/client-services';
 
 // Re-export types for backward compatibility
 export type { Merchant };

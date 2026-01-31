@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tap2go.customer",
-      "userInterfaceStyle": "automatic"
+      "userInterfaceStyle": "light"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +25,7 @@
         "backgroundColor": "#f3a823"
       },
       "package": "com.tap2go.mobile",
-      "userInterfaceStyle": "automatic",
+      "userInterfaceStyle": "light",
       "edgeToEdgeEnabled": true,
       "permissions": [
         "INTERNET",
@@ -54,7 +54,10 @@
           }
         }
       ],
-      "react-native-edge-to-edge"
+      "react-native-edge-to-edge",
+      "expo-asset",
+      "expo-font",
+      "expo-router"
     ],
     "extra": {
       "eas": {

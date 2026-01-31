@@ -4,7 +4,7 @@
  * Handles API calls for storing and retrieving user addresses
  */
 
-import { dataCache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/data-cache';
+import { dataCache, CACHE_KEYS, CACHE_TTL } from '@encreasl/client-services';
 
 interface AddressCreateRequest {
   place: google.maps.places.PlaceResult;

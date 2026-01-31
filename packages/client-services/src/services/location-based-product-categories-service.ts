@@ -1,6 +1,5 @@
-"use client";
 
-import { dataCache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/data-cache';
+import { dataCache, CACHE_KEYS, CACHE_TTL } from '../cache/data-cache';
 
 // Location-based product category type (matching the API response structure)
 export interface LocationBasedProductCategory {
@@ -101,7 +100,7 @@ export interface LocationBasedProductCategoriesServiceOptions {
 }
 
 export class LocationBasedProductCategoriesService {
-  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
   
   /**
    * Fetch location-based product categories from CMS (Client-side) with caching
@@ -148,7 +147,7 @@ export class LocationBasedProductCategoriesService {
       }
 
       // Add API key authentication using client-side key
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       } else {
@@ -242,9 +241,10 @@ export class LocationBasedProductCategoriesService {
     try {
       
       // Use proper authentication headers for PayloadCMS API
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY;
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-        'Authorization': `users API-Key ${process.env.NEXT_PUBLIC_PAYLOAD_API_KEY}`,
+        'Authorization': `users API-Key ${apiKey}`,
       };
 
       const url = `${this.API_BASE}/customers?where[user][equals]=${userId}&limit=1`;
@@ -299,8 +299,3 @@ export class LocationBasedProductCategoriesService {
     }
   }
 }
-
-// Export convenience functions
-export const getLocationBasedProductCategories = LocationBasedProductCategoriesService.getLocationBasedProductCategories;
-export const getCurrentCustomerId = LocationBasedProductCategoriesService.getCurrentCustomerId;
-export const clearLocationBasedProductCategoriesCache = LocationBasedProductCategoriesService.clearCache;

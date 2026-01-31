@@ -11,7 +11,7 @@ import SearchModal from '@/components/search/SearchModal';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import SearchField from '@/components/ui/SearchField';
 import AddressService from '@/lib/services/address-service';
-import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
+import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@encreasl/client-services';
 import { getWishlistMerchantIdsForCurrentUser, addMerchantToWishlist, removeMerchantFromWishlist } from '@/lib/client-services/wishlist-service';
 import { NotificationPopup, mockNotifications } from '@/components/notifications/NotificationPopup';
 import { useCart } from '@/contexts/CartContext';

@@ -13,78 +13,132 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
 
   const tabs = [
     { name: 'Home', icon: 'home', screen: 'Home' },
-    { name: 'Orders', icon: 'receipt-outline', screen: 'Orders' },
-    { name: 'Cart', icon: 'bag-outline', screen: 'Cart' },
-    { name: 'Search', icon: 'search-outline', screen: 'Search' },
-    { name: 'Account', icon: 'person-outline', screen: 'Account' },
+    { name: 'Wishlists', icon: 'heart', screen: 'Wishlist' },
+    { name: 'Carts', icon: 'cart', screen: 'Cart' },
+    { name: 'Orders', icon: 'receipt', screen: 'Orders' },
+    { name: 'Menu', icon: 'menu', screen: 'Account' },
   ];
 
   return (
     <View style={{
       flexDirection: 'row',
-      backgroundColor: 'transparent', // Let parent handle background
+      backgroundColor: 'white', // Explicitly white as requested
       paddingTop: 8,
       paddingBottom: 8,
       height: 60,
+      borderTopWidth: 1,
+      borderTopColor: '#f0f0f0',
+      elevation: 8, // Add some shadow
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
     }}>
-      {tabs.map((tab, index) => (
-        <TouchableOpacity
-          key={tab.name}
-          style={{
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingVertical: 4,
-          }}
-          onPress={() => {
-            if (tab.screen !== activeScreen) {
-              navigation.navigate(tab.screen);
-            }
-          }}
-        >
-          {tab.name === 'Cart' ? (
-            // Special elevated circular design for Cart
-            <View style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: colors.surface,
+      {tabs.map((tab, index) => {
+        const isActive = activeScreen === tab.screen || 
+                        (tab.name === 'Menu' && activeScreen === 'Account') ||
+                        (tab.name === 'Wishlists' && activeScreen === 'Wishlist') ||
+                        (tab.name === 'Carts' && activeScreen === 'Cart');
+        
+        // Determine icon name based on active state
+        let iconName = tab.icon;
+        if (!isActive) {
+          // Use outline versions for inactive tabs where available
+          if (tab.icon === 'home') iconName = 'home-outline';
+          else if (tab.icon === 'heart') iconName = 'heart-outline';
+          else if (tab.icon === 'cart') iconName = 'cart-outline';
+          else if (tab.icon === 'receipt') iconName = 'receipt-outline';
+          else if (tab.icon === 'menu') iconName = 'menu-outline';
+        }
+
+        return (
+          <TouchableOpacity
+            key={tab.name}
+            style={{
+              flex: 1,
               alignItems: 'center',
               justifyContent: 'center',
-              marginTop: -12, // Elevate above other tabs
-              shadowColor: colors.text,
-              shadowOffset: {
-                width: 0,
-                height: 2,
-              },
-              shadowOpacity: 0.08,
-              shadowRadius: 4,
-              elevation: 4, // Android shadow
-            }}>
+              paddingVertical: 4,
+            }}
+            onPress={() => {
+              if (tab.screen !== activeScreen) {
+                navigation.navigate(tab.screen);
+              }
+            }}
+          >
+            {tab.name === 'Carts' ? (
+              // Special design for Carts
+              <View>
+                <View style={{
+                  width: 48, // Slightly larger
+                  height: 48,
+                  borderRadius: 24,
+                  // Wait, "Carts (Cart icon, with a badge showing '2', and it looks slightly raised or larger)"
+                  // Usually the center button is highlighted. If the footer is white, maybe the button is white too but raised?
+                  // Or maybe it's colored. Let's assume standard "raised center button" often has a background color, 
+                  // BUT the user said "white footer". Let's stick to the previous elevated design but updated.
+                  // Actually, let's look at the previous code: it had `backgroundColor: colors.surface` (which is likely white/light).
+                  // Let's keep it white but raised.
+                  backgroundColor: 'white',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: -20, // Elevate
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 5,
+                  borderWidth: 1,
+                  borderColor: '#f0f0f0'
+                }}>
+                  <Ionicons
+                    name={isActive ? 'cart' : 'cart-outline'}
+                    size={24}
+                    color={isActive ? colors.primary : colors.textSecondary}
+                  />
+                  {/* Badge */}
+                  <View style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    backgroundColor: '#f97316', // Orange badge
+                    borderRadius: 10,
+                    minWidth: 20,
+                    height: 20,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 2,
+                    borderColor: 'white',
+                  }}>
+                    <Text style={{
+                      color: 'white',
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                      paddingHorizontal: 4,
+                    }}>2</Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              // Regular design for other tabs
               <Ionicons
-                name="cart-outline"
-                size={22}
-                color={colors.textSecondary}
+                name={iconName as any}
+                size={24}
+                color={isActive ? colors.primary : colors.textSecondary}
               />
-            </View>
-          ) : (
-            // Regular design for other tabs
-            <Ionicons
-              name={tab.icon as any}
-              size={20}
-              color={activeScreen === tab.screen ? colors.primary : colors.textSecondary}
-            />
-          )}
-          <Text style={{
-            fontSize: 10,
-            marginTop: tab.name === 'Cart' ? 6 : 2, // Extra spacing for elevated cart
-            fontWeight: '500',
-            color: activeScreen === tab.screen ? colors.primary : colors.textSecondary,
-          }}>
-            {tab.name}
-          </Text>
-        </TouchableOpacity>
-      ))}
+            )}
+            
+            <Text style={{
+              fontSize: 10,
+              marginTop: tab.name === 'Carts' ? 4 : 4,
+              fontWeight: isActive ? '600' : '500',
+              color: isActive ? colors.primary : colors.textSecondary,
+            }}>
+              {tab.name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }

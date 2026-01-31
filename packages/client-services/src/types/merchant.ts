@@ -4,7 +4,7 @@
 
 // Media interface from CMS API (reused from course types)
 export interface Media {
-  id: number;
+  id: number | string;
   alt?: string | null;
   cloudinaryPublicId?: string | null;
   cloudinaryURL?: string | null;

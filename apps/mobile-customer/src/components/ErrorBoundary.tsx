@@ -97,7 +97,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
                 color: '#6b7280',
                 lineHeight: 24,
               }}>
-                The app encountered an unexpected error. Don't worry, this helps us improve the app!
+                The app encountered an unexpected error. Don{"'"}t worry, this helps us improve the app!
               </Text>
 
               <TouchableOpacity

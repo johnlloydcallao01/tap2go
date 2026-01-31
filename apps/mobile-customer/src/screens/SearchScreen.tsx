@@ -13,9 +13,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function SearchScreen({ navigation }: any) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
-
-  const filters = ['All', 'Restaurants', 'Food', 'Cuisines'];
 
   const searchResults = [
     {
@@ -42,12 +39,7 @@ export default function SearchScreen({ navigation }: any) {
     const matchesSearch = !searchQuery ||
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesFilter = activeFilter === 'All' ||
-      (activeFilter === 'Restaurants' && item.type === 'restaurant') ||
-      (activeFilter === 'Food' && item.type === 'food');
-
-    return matchesSearch && matchesFilter;
+    return matchesSearch;
   });
 
   const popularSearches = ['Pizza', 'Burger', 'Sushi', 'Salad'];
@@ -130,7 +122,7 @@ export default function SearchScreen({ navigation }: any) {
           // Search Results
           <View style={{ padding: 16 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 16 }}>
-              {filteredResults.length} results for "{searchQuery}"
+              {filteredResults.length} results for {`"${searchQuery}"`}
             </Text>
 
             {filteredResults.map((item) => (

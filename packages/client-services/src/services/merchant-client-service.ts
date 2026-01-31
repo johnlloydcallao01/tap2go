@@ -1,17 +1,6 @@
-"use client";
 
-import type { Merchant } from '@/types/merchant';
-import { dataCache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/data-cache';
-
-export interface MerchantsResponse {
-  docs: Merchant[];
-  totalDocs: number;
-  limit: number;
-  page: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
-}
+import type { Merchant, MerchantsResponse } from '../types/merchant';
+import { dataCache, CACHE_KEYS, CACHE_TTL } from '../cache/data-cache';
 
 export interface MerchantServiceOptions {
   isActive?: boolean;
@@ -162,7 +151,7 @@ export class MerchantClientService {
       }
 
       // Add API key authentication using client-side key
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }

@@ -3,14 +3,14 @@
 import Image from '@/components/ui/ImageWrapper';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Media } from '@/types/merchant';
 import { useRouter } from 'next/navigation';
 import {
   LocationBasedMerchantService,
   type LocationBasedMerchant,
+  type Media,
   getActiveAddressNamesForMerchants,
   sortMerchantsByRecentlyUpdated,
-} from '@/lib/client-services/location-based-merchant-service';
+} from '@encreasl/client-services';
 import {
   getWishlistMerchantIdsForCurrentUser,
   addMerchantToWishlist,

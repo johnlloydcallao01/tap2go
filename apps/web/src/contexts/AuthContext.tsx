@@ -22,11 +22,13 @@ import {
   emitAuthEvent,
   hasValidStoredToken,
 } from '@/lib/auth';
-import { dataCache } from '@/lib/cache/data-cache';
 import AddressService from '@/lib/services/address-service';
-import { MerchantClientService } from '@/lib/client-services/merchant-client-service';
-import { LocationBasedMerchantService } from '@/lib/client-services/location-based-merchant-service';
-import { LocationBasedProductCategoriesService } from '@/lib/client-services/location-based-product-categories-service';
+import { 
+  dataCache, 
+  MerchantClientService, 
+  LocationBasedMerchantService, 
+  LocationBasedProductCategoriesService 
+} from '@encreasl/client-services';
 
 // ========================================
 // AUTHENTICATION REDUCER

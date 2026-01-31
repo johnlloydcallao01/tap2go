@@ -1,5 +1,5 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "./node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": false,
     "skipLibCheck": true,
@@ -19,18 +19,11 @@
       "DOM.Iterable"
     ],
     "types": [
-      "react",
-      "react-native"
+      "react"
     ],
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "react": [
-        "../node_modules/@types/react"
-      ],
-      "react-native": [
-        "../node_modules/@types/react-native"
       ]
     },
     "incremental": true,

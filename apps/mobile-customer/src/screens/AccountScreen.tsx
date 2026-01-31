@@ -9,16 +9,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme, useThemeColors } from '../contexts/ThemeContext';
-import DarkModeSettings from '../components/DarkModeSettings';
-import SystemThemeValidator from '../components/SystemThemeValidator';
+import { useThemeColors } from '../contexts/ThemeContext';
+// import DarkModeSettings from '../components/DarkModeSettings';
+// import SystemThemeValidator from '../components/SystemThemeValidator';
 
 
 export default function AccountScreen({ navigation }: any) {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [locationEnabled, setLocationEnabled] = React.useState(true);
-  const [showThemeValidator, setShowThemeValidator] = React.useState(false);
   const colors = useThemeColors();
+
 
   const menuItems = [
     {
@@ -162,52 +162,6 @@ export default function AccountScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Dark Mode Settings */}
-        <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
-          <DarkModeSettings />
-        </View>
-
-        {/* Theme Validator (Development Tool) */}
-        {__DEV__ && (
-          <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
-            <TouchableOpacity
-              onPress={() => setShowThemeValidator(!showThemeValidator)}
-              style={{
-                backgroundColor: colors.surface,
-                padding: 16,
-                borderRadius: 12,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="bug" size={24} color={colors.primary} />
-                <Text style={{
-                  fontSize: 16,
-                  fontWeight: '500',
-                  color: colors.text,
-                  marginLeft: 12,
-                }}>
-                  Theme Detection Validator
-                </Text>
-              </View>
-              <Ionicons
-                name={showThemeValidator ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            {showThemeValidator && (
-              <View style={{ marginTop: 12 }}>
-                <SystemThemeValidator />
-              </View>
-            )}
-          </View>
-        )}
 
         {/* Settings */}
         <View style={{

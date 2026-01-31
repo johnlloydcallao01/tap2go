@@ -1,7 +1,7 @@
  'use client';
 
  import React, { createContext, useContext, useCallback, useEffect, useState } from 'react';
- import { LocationBasedMerchantService } from '@/lib/client-services/location-based-merchant-service';
+import { LocationBasedMerchantService } from '@encreasl/client-services';
 
 type CartItem = {
   id: number;

@@ -4,14 +4,13 @@ import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Text, View, ScrollView, StyleSheet, Alert, type ErrorUtils, Platform } from 'react-native';
-import { enableEdgeToEdge } from 'react-native-edge-to-edge';
+import { Text, View, StyleSheet, Alert } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { CartProvider } from './src/contexts/CartContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
+import { AuthProvider } from './src/contexts/AuthContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import ProductionErrorHandler from './src/components/ProductionErrorHandler';
-import { validateEnvironment } from './src/config/environment';
 
 // Production-safe global error handler with Expo Go compatibility
 let originalHandler: any = null;
@@ -65,38 +64,14 @@ try {
 // Import CSS conditionally to prevent production crashes
 try {
   if (__DEV__) {
-    require('./global.css');
-    console.log('✅ NativeWind CSS loaded successfully');
+    import('./global.css')
+      .then(() => console.log('✅ NativeWind CSS loaded successfully'))
+      .catch((error) => console.warn('⚠️ NativeWind CSS not loaded:', error));
   }
-} catch (error) {
-  console.warn('⚠️ NativeWind CSS not loaded:', error);
-}
-
-// Debug component to show environment validation results
-function DebugScreen({ errors }: { errors: string[] }) {
-  return (
-    <SafeAreaProvider>
-      <View style={styles.debugContainer}>
-        <ScrollView style={styles.debugScroll}>
-          <Text style={styles.debugTitle}>🚨 App Initialization Failed</Text>
-          <Text style={styles.debugSubtitle}>Environment Validation Errors:</Text>
-          {errors.map((error, index) => (
-            <Text key={index} style={styles.debugError}>
-              • {error}
-            </Text>
-          ))}
-          <Text style={styles.debugInfo}>
-            This debug screen helps identify configuration issues.
-            Check the console logs for more details.
-          </Text>
-        </ScrollView>
-      </View>
-    </SafeAreaProvider>
-  );
+} catch {
 }
 
 export default function App() {
-  const [initializationErrors, setInitializationErrors] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
@@ -104,19 +79,9 @@ export default function App() {
       try {
         console.log('🚀 Starting app initialization...');
 
-        // Initialize edge-to-edge display for modern Android experience
-        try {
-          if (Platform.OS === 'android') {
-            enableEdgeToEdge();
-            console.log('✅ Edge-to-edge display enabled');
-          }
-        } catch (edgeToEdgeError) {
-          console.warn('⚠️ Could not enable edge-to-edge display:', edgeToEdgeError);
-        }
-
         // Check runtime environment
         try {
-          if (typeof global !== 'undefined' && (global as any).HermesInternal) {
+          if (typeof globalThis !== 'undefined' && (globalThis as any).HermesInternal) {
             console.log('✅ Running on Hermes engine');
           }
           // Note: React Native handles promise rejections automatically
@@ -124,71 +89,11 @@ export default function App() {
           console.warn('⚠️ Could not check runtime environment:', envCheckError);
         }
 
-        // Debug environment variables first
-        console.log('🔧 Running comprehensive environment debugging...');
-        try {
-          const { debugEnvironmentVariables } = await import('./src/config/environment');
-          debugEnvironmentVariables();
-        } catch (debugError) {
-          console.error('🚨 Environment debugging failed:', debugError);
-        }
-
-        // Validate environment variables with error handling
-        console.log('🔧 Validating environment configuration...');
-        let envValidation;
-        try {
-          envValidation = validateEnvironment();
-        } catch (envError) {
-          console.error('🚨 Environment validation crashed:', envError);
-          envValidation = {
-            isValid: false,
-            errors: [`Environment validation crashed: ${envError.message || 'Unknown error'}`]
-          };
-        }
-
-        if (!envValidation.isValid) {
-          console.error('❌ Environment validation failed:', envValidation.errors);
-          setInitializationErrors(envValidation.errors);
-          return;
-        }
-
-        console.log('✅ Environment validation passed');
-
-        // Test critical service initializations with safe property access
-        console.log('🔥 Testing Firebase configuration...');
-        try {
-          const envModule = await import('./src/config/environment');
-          const firebaseConfig = (envModule?.firebaseConfig || {}) as any;
-          console.log('Firebase config loaded:', {
-            apiKey: firebaseConfig?.apiKey ? '✅ Present' : '❌ Missing',
-            projectId: firebaseConfig?.projectId ? '✅ Present' : '❌ Missing',
-            authDomain: firebaseConfig?.authDomain ? '✅ Present' : '❌ Missing'
-          });
-
-          console.log('🔥 Testing Supabase configuration...');
-          const supabaseConfig = (envModule?.supabaseConfig || {}) as any;
-          console.log('Supabase config loaded:', {
-            url: supabaseConfig?.url ? '✅ Present' : '❌ Missing',
-            anonKey: supabaseConfig?.anonKey ? '✅ Present' : '❌ Missing'
-          });
-        } catch (configError) {
-          console.error('🚨 Failed to load configuration modules:', configError);
-          setInitializationErrors([
-            `Configuration Error: ${configError.message}`,
-            'Failed to load environment configuration modules'
-          ]);
-          return;
-        }
-
-        console.log('✅ All critical services configured successfully');
         setIsInitialized(true);
 
       } catch (error) {
         console.error('🚨 App initialization failed:', error);
-        setInitializationErrors([
-          `Initialization Error: ${error.message}`,
-          `Stack: ${error.stack?.substring(0, 300)}...`
-        ]);
+        setIsInitialized(true);
       }
     };
 
@@ -200,18 +105,13 @@ export default function App() {
     };
   }, []);
 
-  // Show debug screen if there are initialization errors
-  if (initializationErrors.length > 0) {
-    return <DebugScreen errors={initializationErrors} />;
-  }
-
   // Show loading screen while initializing
   if (!isInitialized) {
     return (
       <SafeAreaProvider>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>🚀 Initializing Tap2Go...</Text>
-          <Text style={styles.loadingSubtext}>Validating configuration...</Text>
+          <Text style={styles.loadingSubtext}>Starting app...</Text>
         </View>
       </SafeAreaProvider>
     );
@@ -219,55 +119,24 @@ export default function App() {
 
   // Render main app with production error handling
   return (
-    <ProductionErrorHandler>
-      <ErrorBoundary>
-        <SafeAreaProvider>
-          <ThemeProvider>
+    <SafeAreaProvider>
+      <ProductionErrorHandler>
+        <ThemeProvider>
+          <AuthProvider>
             <CartProvider>
-              <AppNavigator />
-              <StatusBar style="auto" />
+              <ErrorBoundary>
+                <AppNavigator />
+              </ErrorBoundary>
             </CartProvider>
-          </ThemeProvider>
-        </SafeAreaProvider>
-      </ErrorBoundary>
-    </ProductionErrorHandler>
+          </AuthProvider>
+        </ThemeProvider>
+      </ProductionErrorHandler>
+      <StatusBar style="auto" />
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  debugContainer: {
-    flex: 1,
-    backgroundColor: '#1a1a1a',
-    padding: 20,
-  },
-  debugScroll: {
-    flex: 1,
-  },
-  debugTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ff4444',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  debugSubtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 15,
-  },
-  debugError: {
-    fontSize: 14,
-    color: '#ff6666',
-    marginBottom: 8,
-    fontFamily: 'monospace',
-  },
-  debugInfo: {
-    fontSize: 12,
-    color: '#888888',
-    marginTop: 20,
-    fontStyle: 'italic',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

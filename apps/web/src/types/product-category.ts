@@ -4,7 +4,7 @@
  */
 
 export interface ProductCategory {
-  id: number;
+  id: number | string;
   /**
    * Category name (e.g., "Main Dishes", "Beverages", "Desserts")
    */
@@ -49,7 +49,7 @@ export interface ProductCategory {
      * Category icon (SVG preferred)
      */
     icon?: {
-      id: number;
+      id: number | string;
       url: string;
       cloudinaryURL?: string;
       alt?: string;
@@ -58,7 +58,7 @@ export interface ProductCategory {
      * Banner image for category pages
      */
     bannerImage?: {
-      id: number;
+      id: number | string;
       url: string;
       cloudinaryURL?: string;
       alt?: string;
@@ -67,7 +67,7 @@ export interface ProductCategory {
      * Thumbnail for category listings
      */
     thumbnailImage?: {
-      id: number;
+      id: number | string;
       url: string;
       cloudinaryURL?: string;
       alt?: string;

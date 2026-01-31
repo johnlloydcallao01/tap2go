@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useColorScheme, Platform, Appearance } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -75,159 +75,34 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemColorScheme = useColorScheme();
   const [isManualOverride, setIsManualOverride] = useState(false);
-  const [colorScheme, setColorScheme] = useState<ColorScheme>(() => {
-    // Enhanced initialization with multiple fallbacks
-    const hookScheme = systemColorScheme;
-    const appearanceScheme = Appearance.getColorScheme();
+  
+  // Force light mode
+  const colorScheme = 'light';
+  const theme = lightTheme;
 
-    // Priority: useColorScheme hook > Appearance API > default light
-    const initialScheme = hookScheme || appearanceScheme || 'light';
-
-    // Debug logging for initialization
-    if (__DEV__) {
-      console.log('🎨 ThemeProvider Initialization:', {
-        hookScheme,
-        appearanceScheme,
-        selectedScheme: initialScheme,
-        platform: Platform.OS
-      });
+  // No-op functions for theme switching
+  const toggleTheme = useCallback(() => {}, []);
+  const resetToSystemTheme = useCallback(() => {}, []);
+  const setThemeMode = useCallback(() => {}, []);
+  
+  const setNavigationBarStyle = useCallback(async () => {
+    try {
+      await NavigationBar.setBackgroundColorAsync(theme.colors.background);
+      await NavigationBar.setButtonStyleAsync('dark'); // Always dark buttons for light background
+    } catch (error) {
+      console.warn('Failed to set navigation bar style:', error);
     }
-
-    return initialScheme;
-  });
-
-  // Enhanced system color scheme listener
-  useEffect(() => {
-    if (isManualOverride) {
-      return; // Don't update if user has manually set a theme
-    }
-
-    // Primary: Use useColorScheme hook result
-    if (systemColorScheme) {
-      if (__DEV__) {
-        console.log('🎨 Theme updated via useColorScheme:', systemColorScheme);
-      }
-      setColorScheme(systemColorScheme);
-      return;
-    }
-
-    // Fallback: Use Appearance API
-    const fallbackScheme = Appearance.getColorScheme();
-    if (fallbackScheme) {
-      if (__DEV__) {
-        console.log('🎨 Theme updated via Appearance API fallback:', fallbackScheme);
-      }
-      setColorScheme(fallbackScheme);
-      return;
-    }
-
-    // Last resort: Keep current scheme or default to light
-    if (__DEV__) {
-      console.log('🎨 No system theme detected, keeping current:', colorScheme);
-    }
-  }, [systemColorScheme, isManualOverride, colorScheme]);
-
-  // Enhanced Appearance API listener with better error handling
-  useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme: newColorScheme }) => {
-      if (isManualOverride) {
-        return; // Don't update if user has manually set a theme
-      }
-
-      if (newColorScheme) {
-        if (__DEV__) {
-          console.log('🎨 Theme changed via Appearance listener:', newColorScheme);
-        }
-        setColorScheme(newColorScheme);
-      } else {
-        // Handle case where newColorScheme is null
-        if (__DEV__) {
-          console.log('🎨 Appearance listener received null, checking current system state');
-        }
-
-        // Try to get current system theme
-        const currentSystemScheme = Appearance.getColorScheme();
-        if (currentSystemScheme) {
-          setColorScheme(currentSystemScheme);
-        }
-      }
-    });
-
-    return () => {
-      subscription?.remove();
-    };
-  }, [isManualOverride]);
-
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-
-  // Manual theme toggle
-  const toggleTheme = () => {
-    setIsManualOverride(true);
-    const newScheme = colorScheme === 'light' ? 'dark' : 'light';
-    setColorScheme(newScheme);
-  };
-
-  // Enhanced reset to system theme with immediate detection
-  const resetToSystemTheme = () => {
-    setIsManualOverride(false);
-
-    // Immediately try to detect system theme
-    const currentSystemScheme = systemColorScheme || Appearance.getColorScheme();
-    if (currentSystemScheme) {
-      setColorScheme(currentSystemScheme);
-      if (__DEV__) {
-        console.log('🎨 Reset to system theme:', currentSystemScheme);
-      }
-    } else {
-      // If no system theme detected, force a re-check after a short delay
-      setTimeout(() => {
-        const delayedCheck = Appearance.getColorScheme();
-        if (delayedCheck) {
-          setColorScheme(delayedCheck);
-          if (__DEV__) {
-            console.log('🎨 Delayed system theme detection:', delayedCheck);
-          }
-        }
-      }, 100);
-    }
-  };
-
-  // Set specific theme mode (manual override)
-  const setThemeMode = (mode: ColorScheme) => {
-    setIsManualOverride(true);
-    setColorScheme(mode);
-  };
-
-  const setNavigationBarStyle = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        // Set navigation bar button style
-        await NavigationBar.setButtonStyleAsync(theme.isDark ? 'light' : 'dark');
-
-        // Set system UI background color for better integration
-        await SystemUI.setBackgroundColorAsync(theme.colors.background);
-      } catch (error) {
-        console.warn('Failed to set navigation bar style:', error);
-      }
-    }
-  };
-
-  // Apply navigation bar styling when theme changes
+  }, [theme]);
+  
+  // Apply theme-related system UI settings
   useEffect(() => {
     setNavigationBarStyle();
-  }, [theme]);
+    
+    // Set root view background color
+    SystemUI.setBackgroundColorAsync(theme.colors.background).catch(console.warn);
+  }, [theme, setNavigationBarStyle]);
 
-  // Enhanced debug information
-  const debugInfo = {
-    systemColorScheme,
-    contextColorScheme: colorScheme,
-    appearanceColorScheme: Appearance.getColorScheme(),
-    isManualOverride,
-    platform: Platform.OS,
-    timestamp: new Date().toISOString(),
-  };
-
-  const contextValue: ThemeContextType = {
+  const value: ThemeContextType = {
     theme,
     colorScheme,
     isManualOverride,
@@ -235,11 +110,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     resetToSystemTheme,
     setThemeMode,
     setNavigationBarStyle,
-    debugInfo,
+    debugInfo: {
+      systemColorScheme: 'light' as ColorScheme,
+      contextColorScheme: 'light' as ColorScheme,
+      appearanceColorScheme: 'light' as ColorScheme,
+    },
   };
 
   return (
-    <ThemeContext.Provider value={contextValue}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

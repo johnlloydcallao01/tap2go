@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "@/components/ui/ImageWrapper";
 import { LocationBasedMerchants } from "@/components/sections/LocationBasedMerchants";
 import { LocationBasedProductCategoriesCarousel } from "@/components/carousels/LocationBasedProductCategoriesCarousel";
-import { getCurrentCustomerId } from "@/lib/client-services/location-based-merchant-service";
+import { getCurrentCustomerId } from "@encreasl/client-services";
 
 /**
  * Home page component - 100% CSR (Client-Side Rendering)

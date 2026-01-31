@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import SearchField from '@/components/ui/SearchField';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
-import { getCurrentCustomerId, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@/lib/client-services/location-based-merchant-service';
+import { getCurrentCustomerId, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@encreasl/client-services';
 import { getWishlistMerchantIdsForCurrentUser, addMerchantToWishlist, removeMerchantFromWishlist } from '@/lib/client-services/wishlist-service';
 import AddressService from '@/lib/services/address-service';
 import { toast } from 'react-hot-toast';

@@ -10,7 +10,7 @@ import {
   getLocationBasedMerchantCategories,
   type LocationBasedMerchant,
   type MerchantCategoryDisplay,
-} from "@/lib/client-services/location-based-merchant-service";
+} from '@encreasl/client-services';
 import {
   getWishlistMerchantIdsForCurrentUser,
   addMerchantToWishlist,
