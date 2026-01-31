@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 // import DarkModeSettings from '../components/DarkModeSettings';
 // import SystemThemeValidator from '../components/SystemThemeValidator';
 
@@ -18,6 +19,7 @@ export default function AccountScreen({ navigation }: any) {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [locationEnabled, setLocationEnabled] = React.useState(true);
   const colors = useThemeColors();
+  const { logout } = useAuth();
 
 
   const menuItems = [
@@ -265,19 +267,21 @@ export default function AccountScreen({ navigation }: any) {
         ))}
 
         {/* Sign Out */}
-        <TouchableOpacity style={{
-          backgroundColor: colors.surface,
-          marginHorizontal: 16,
-          marginBottom: 32,
-          borderRadius: 16,
-          padding: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-          alignItems: 'center',
-        }}>
+        <TouchableOpacity
+          onPress={logout}
+          style={{
+            backgroundColor: colors.surface,
+            marginHorizontal: 16,
+            marginBottom: 32,
+            borderRadius: 16,
+            padding: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+            alignItems: 'center',
+          }}>
           <Text style={{ fontSize: 16, color: '#ef4444', fontWeight: '600' }}>
             Sign Out
           </Text>

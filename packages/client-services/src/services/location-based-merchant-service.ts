@@ -192,12 +192,20 @@ export class LocationBasedMerchantService {
   }
 
   static sortByRecentlyUpdated(list: LocationBasedMerchant[]): LocationBasedMerchant[] {
-    const getUpdatedTimeMs = (m: LocationBasedMerchant): number => {
-      const primary = (m as any).updatedAt || (m as any).createdAt || '';
-      const t = Date.parse(primary);
-      return Number.isFinite(t) ? t : 0;
+    const getKey = (m: LocationBasedMerchant): string | number => {
+      const primary = (m as any).updatedAt || (m as any).createdAt || 0;
+      if (typeof primary === 'number' && Number.isFinite(primary)) return primary;
+      if (typeof primary === 'string') return primary;
+      return 0;
     };
-    return [...(list || [])].sort((a, b) => getUpdatedTimeMs(b) - getUpdatedTimeMs(a));
+    return [...(list || [])].sort((a, b) => {
+      const ka = getKey(a);
+      const kb = getKey(b);
+      if (typeof ka === 'number' && typeof kb === 'number') {
+        return kb - ka;
+      }
+      return String(kb).localeCompare(String(ka));
+    });
   }
 
   static async getActiveAddressNamesForMerchants(list: LocationBasedMerchant[]): Promise<Record<string, string>> {

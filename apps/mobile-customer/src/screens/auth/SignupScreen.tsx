@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '../../navigation/NavigationContext';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+// import { z } from 'zod';
 import { UserRegistrationSchema, UserRegistrationData, AuthService } from '@encreasl/client-services';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -103,8 +103,8 @@ export default function SignupScreen() {
   // But our schema expects Date object or string? Let's check schema.
   // The schema uses DateSchema which expects string or date and transforms.
   // We'll pass string from TextInput.
-
-  const { control, handleSubmit, formState: { errors }, setValue } = useForm<UserRegistrationData>({
+  
+  const { control, handleSubmit, formState: { errors } } = useForm<UserRegistrationData>({
     resolver: zodResolver(UserRegistrationSchema),
     defaultValues: {
       firstName: '',

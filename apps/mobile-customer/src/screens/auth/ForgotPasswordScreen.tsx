@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '../../navigation/NavigationContext';
 import { useForm, Controller } from 'react-hook-form';
@@ -80,7 +80,7 @@ export default function ForgotPasswordScreen() {
           <View className="mb-8">
             <Text className="text-3xl font-bold text-gray-900 mb-2">Forgot Password?</Text>
             <Text className="text-gray-500 text-base">
-              Don't worry! It happens. Please enter the email associated with your account.
+              Don&apos;t worry! It happens. Please enter the email associated with your account.
             </Text>
           </View>
 

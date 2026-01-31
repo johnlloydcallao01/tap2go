@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '../../navigation/NavigationContext';
 import { useForm, Controller } from 'react-hook-form';
@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '../../contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors } from '../../contexts/ThemeContext';
+// import { useThemeColors } from '../../contexts/ThemeContext';
 
 const LoginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
@@ -19,7 +19,7 @@ type LoginFormData = z.infer<typeof LoginSchema>;
 export default function LoginScreen() {
   const navigation = useNavigation();
   const { login, isLoading, error, clearError } = useAuth();
-  const colors = useThemeColors();
+  // const colors = useThemeColors();
   const [showPassword, setShowPassword] = useState(false);
 
   const { control, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
@@ -35,7 +35,7 @@ export default function LoginScreen() {
       clearError();
       await login(data);
       // Navigation is handled by AppNavigator listening to auth state
-    } catch (err) {
+    } catch {
       // Error is handled by context state
     }
   };
@@ -146,7 +146,7 @@ export default function LoginScreen() {
 
           {/* Footer */}
           <View className="flex-row justify-center mt-8">
-            <Text className="text-gray-500">Don't have an account? </Text>
+            <Text className="text-gray-500">Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
               <Text className="text-blue-600 font-bold">Sign Up</Text>
             </TouchableOpacity>

@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { 
   LocationBasedMerchantService, 
-  MerchantCategoryDisplay,
-  Media 
+  MerchantCategoryDisplay
 } from '@encreasl/client-services';
 import { useThemeColors } from '../contexts/ThemeContext';
 
@@ -14,6 +13,7 @@ interface LocationBasedProductCategoriesCarouselProps {
   includeInactive?: boolean;
   selectedCategorySlug?: string | null;
   onCategorySelect?: (categoryId: string | null, categorySlug: string | null, categoryName?: string) => void;
+  refreshToken?: number;
 }
 
 export default function LocationBasedProductCategoriesCarousel({
@@ -23,6 +23,7 @@ export default function LocationBasedProductCategoriesCarousel({
   includeInactive = false,
   selectedCategorySlug,
   onCategorySelect,
+  refreshToken,
 }: LocationBasedProductCategoriesCarouselProps) {
   const [categories, setCategories] = useState<MerchantCategoryDisplay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,8 @@ export default function LocationBasedProductCategoriesCarousel({
     if (!customerId) return;
     
     try {
+      // Clear previous data so skeleton shows clearly on refresh
+      setCategories([]);
       setLoading(true);
       console.log(`[Categories] Fetching for customer: ${customerId}, limit: ${limit}`);
       
@@ -61,7 +64,7 @@ export default function LocationBasedProductCategoriesCarousel({
 
   useEffect(() => {
     fetchCategories();
-  }, [fetchCategories]);
+  }, [fetchCategories, refreshToken]);
 
   const handleCategoryPress = (category: MerchantCategoryDisplay) => {
     const slug = category.slug || category.name.toLowerCase().replace(/\s+/g, '-');
@@ -77,8 +80,33 @@ export default function LocationBasedProductCategoriesCarousel({
 
   if (!customerId) return null;
   if (loading && categories.length === 0) {
-    // Skeleton loading could go here, for now just empty
-    return <View style={{ height: 100 }} />;
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Categories</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {[1, 2, 3, 4].map(key => (
+            <View key={key} style={styles.categoryItem}>
+              <View style={[styles.iconContainer, { backgroundColor: '#E5E7EB', borderColor: 'transparent' }]} />
+              <View
+                style={{
+                  width: 56,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: '#E5E7EB',
+                  marginTop: 8,
+                }}
+              />
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
   }
   
   if (categories.length === 0) return null;
@@ -147,7 +175,8 @@ export default function LocationBasedProductCategoriesCarousel({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 16,
+    marginTop: 5,
+    marginBottom: 16,
   },
   header: {
     paddingHorizontal: 16,
@@ -163,7 +192,7 @@ const styles = StyleSheet.create({
   categoryItem: {
     alignItems: 'center',
     width: 72,
-    marginHorizontal: 4,
+    marginHorizontal: 8,
   },
   iconContainer: {
     width: 64,
@@ -173,10 +202,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
     borderWidth: 2,
+    overflow: 'hidden',
   },
   icon: {
-    width: 32,
-    height: 32,
+    width: '100%',
+    height: '100%',
   },
   categoryName: {
     fontSize: 12,

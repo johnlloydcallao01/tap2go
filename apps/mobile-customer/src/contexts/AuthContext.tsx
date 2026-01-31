@@ -149,7 +149,7 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
           //   // Token invalid?
           //   // For now, let's just keep the stored user unless it fails hard later
           // }
-        } catch (e) {
+        } catch {
           // Invalid JSON
           await AsyncStorage.multiRemove(['grandline_auth_token', 'grandline_auth_user']);
           dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
@@ -201,7 +201,7 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
       if (token) {
         await AuthService.logout(token);
       }
-    } catch (e) {
+    } catch {
       // Ignore logout errors
     } finally {
       await AsyncStorage.multiRemove(['grandline_auth_token', 'grandline_auth_user', 'current-customer-id']);
@@ -223,8 +223,15 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
     return !!token;
   }, []);
 
-  const contextValue: AuthContextType = {
+  const [token, setToken] = React.useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('grandline_auth_token').then(setToken);
+  }, [state.isAuthenticated]); // Update token when auth state changes
+
+  const contextValue: AuthContextType & { token: string | null } = {
     ...state,
+    token, // Expose token
     login,
     logout,
     refreshSession,

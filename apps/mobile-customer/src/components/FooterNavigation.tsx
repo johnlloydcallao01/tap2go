@@ -22,17 +22,10 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
   return (
     <View style={{
       flexDirection: 'row',
-      backgroundColor: 'white', // Explicitly white as requested
+      backgroundColor: 'white',
       paddingTop: 8,
       paddingBottom: 8,
       height: 60,
-      borderTopWidth: 1,
-      borderTopColor: '#f0f0f0',
-      elevation: 8, // Add some shadow
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
     }}>
       {tabs.map((tab, index) => {
         const isActive = activeScreen === tab.screen || 

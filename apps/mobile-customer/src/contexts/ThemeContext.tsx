@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { useColorScheme, Platform, Appearance } from 'react-native';
+// import { useColorScheme } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as SystemUI from 'expo-system-ui';
 
@@ -39,22 +39,6 @@ const lightTheme: Theme = {
   isDark: false,
 };
 
-const darkTheme: Theme = {
-  colors: {
-    background: '#000000',
-    surface: '#1C1C1E',
-    primary: '#f3a823',
-    primaryLight: '#2a2416',
-    text: '#ffffff',
-    textSecondary: '#8E8E93',
-    border: '#38383A',
-    card: '#1C1C1E',
-    notification: '#FF453A',
-    isDark: true,
-  },
-  isDark: true,
-};
-
 interface ThemeContextType {
   theme: Theme;
   colorScheme: ColorScheme;
@@ -73,8 +57,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const systemColorScheme = useColorScheme();
-  const [isManualOverride, setIsManualOverride] = useState(false);
+  // const systemColorScheme = useColorScheme();
+  const [isManualOverride] = useState(false);
   
   // Force light mode
   const colorScheme = 'light';

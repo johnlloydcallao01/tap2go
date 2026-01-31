@@ -5,5 +5,6 @@ export * from './services/location-based-merchant-service';
 export * from './services/location-based-product-categories-service';
 export * from './services/merchant-client-service';
 export * from './services/auth-service';
+export * from './services/address-service';
 export * from './validators/common-schemas';
 export * from './validators/user-registration-schemas';
