@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
-export default function TermsPage() {
+export default function TermsAndConditionsPage() {
   return (
     <main className="min-h-screen bg-white">
       <Header />

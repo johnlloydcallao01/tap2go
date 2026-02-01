@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
-export default function DataDeletionPage() {
+export default function DataDeletionRequestPage() {
   return (
     <main className="min-h-screen bg-white">
       <Header />

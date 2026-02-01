@@ -38,9 +38,9 @@ export function Footer() {
   ];
 
   const legal = [
-    { href: "/privacy", label: "Privacy Policy" },
-    { href: "/terms", label: "Terms of Service" },
-    { href: "/cookies", label: "Cookie Policy" },
+    { href: "/privacy-policy", label: "Privacy Policy" },
+    { href: "/terms-and-conditions", label: "Terms and Conditions" },
+    { href: "/cookie-policy", label: "Cookie Policy" },
     { href: "/accessibility", label: "Accessibility" },
     { href: "/licenses", label: "Licenses" }
   ];

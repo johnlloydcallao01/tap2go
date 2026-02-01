@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
-export default function AccountDeletionPage() {
+export default function AccountDeletionRequestPage() {
   return (
     <main className="min-h-screen bg-white">
       <Header />
