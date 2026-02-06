@@ -11,7 +11,7 @@ Method 2: Play Store URL
 Find your app on Google Play Store
 Look at the URL: https://play.google.com/store/apps/details?id=com.example.myapp
 Everything after id= is your package name
-
+com.wnapp.id1721090048598
 
 Part 2: Create a New Upload Key (Keystore Reset)
 Since your third-party provider built your WordPress app and you have "Signing by Google Play" enabled, you can create a brand new keystore without contacting them!
@@ -180,7 +180,7 @@ Add Release Notes:
 
 Explain what's new (e.g., "Complete rebuild using React Native for better performance and features")
 Support multiple languages if needed
-
+Note: We have prepared the English (UK) description in `apps/mobile-customer/metadata/en-GB/full_description.txt`. You can copy-paste this into the "Full description" and "Release notes" fields in the Play Console.
 
 Click "Save"
 Click "Review Release"
