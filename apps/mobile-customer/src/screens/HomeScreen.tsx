@@ -6,6 +6,7 @@ import { apiConfig } from '../config/environment';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
+import { clearLocationBasedMerchantsCache, AddressService } from '@encreasl/client-services';
 import LocationBasedProductCategoriesCarousel from '../components/LocationBasedProductCategoriesCarousel';
 import LocationBasedMerchants from '../components/LocationBasedMerchants';
 
@@ -102,6 +103,20 @@ export default function HomeScreen({ navigation }: any) {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
+      console.log('🔄 Pull-to-refresh triggered');
+      
+      // Clear caches to ensure fresh data
+      if (customerId) {
+        console.log(`Clearing cache for customer: ${customerId}`);
+        clearLocationBasedMerchantsCache(customerId);
+      } else {
+        console.log('Clearing all location caches');
+        clearLocationBasedMerchantsCache();
+      }
+      
+      // Clear address cache too
+      AddressService.clearCache();
+
       await fetchCustomerId();
       setRefreshToken((prev) => prev + 1);
     } catch (error) {
@@ -143,6 +158,7 @@ export default function HomeScreen({ navigation }: any) {
         onWishlistPress={() => {
           navigation.navigate('Wishlist');
         }}
+        refreshToken={refreshToken}
       />
 
       {/* Content area with theme background - Clean white screen as requested */}

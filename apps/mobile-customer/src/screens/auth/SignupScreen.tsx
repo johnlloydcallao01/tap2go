@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, Modal, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '../../navigation/NavigationContext';
 import { useForm, Controller } from 'react-hook-form';
@@ -25,8 +25,8 @@ const ErrorMessage = ({ message }: { message?: string }) => {
 
 const SectionHeader = ({ title, icon }: { title: string, icon: any }) => (
   <View className="flex-row items-center mb-4 mt-6 border-b border-gray-100 pb-2">
-    <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center mr-3">
-      <Ionicons name={icon} size={18} color="#2563EB" />
+    <View className="w-8 h-8 bg-[#eba336]/10 rounded-full items-center justify-center mr-3">
+      <Ionicons name={icon} size={18} color="#eba336" />
     </View>
     <Text className="text-lg font-bold text-gray-800">{title}</Text>
   </View>
@@ -68,16 +68,16 @@ const SelectInput = ({ label, value, options, onChange, error }: any) => {
               {options.map((option: any) => (
                 <TouchableOpacity
                   key={option.value}
-                  className={`py-4 border-b border-gray-100 flex-row justify-between items-center ${value === option.value ? 'bg-blue-50 -mx-6 px-6' : ''}`}
+                  className={`py-4 border-b border-gray-100 flex-row justify-between items-center ${value === option.value ? 'bg-[#eba336]/10 -mx-6 px-6' : ''}`}
                   onPress={() => {
                     onChange(option.value);
                     setModalVisible(false);
                   }}
                 >
-                  <Text className={`text-base ${value === option.value ? 'text-blue-600 font-bold' : 'text-gray-700'}`}>
+                  <Text className={`text-base ${value === option.value ? 'text-[#eba336] font-bold' : 'text-gray-700'}`}>
                     {option.label}
                   </Text>
-                  {value === option.value && <Ionicons name="checkmark" size={20} color="#2563EB" />}
+                  {value === option.value && <Ionicons name="checkmark" size={20} color="#eba336" />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -166,12 +166,18 @@ export default function SignupScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <View className="flex-row items-center p-4 border-b border-gray-100">
+    <ImageBackground 
+      source={{ uri: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg' }} 
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <View className="flex-1 bg-white/90">
+        <SafeAreaView style={{ flex: 1 }}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View className="flex-row items-center p-4 border-b border-gray-100">
           <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
@@ -533,14 +539,14 @@ export default function SignupScreen() {
               name="agreeToTerms"
               render={({ field: { onChange, value } }) => (
                 <TouchableOpacity 
-                  className="flex-row items-center"
+                  className="flex-row items-center" 
                   onPress={() => onChange(!value)}
                 >
-                  <View className={`w-6 h-6 rounded border ${value ? 'bg-blue-600 border-blue-600' : 'border-gray-300'} items-center justify-center mr-3`}>
+                  <View className={`w-6 h-6 rounded border ${value ? 'bg-[#eba336] border-[#eba336]' : 'border-gray-300'} items-center justify-center mr-3`}>
                     {value && <Ionicons name="checkmark" size={16} color="white" />}
                   </View>
                   <Text className="text-gray-600 flex-1">
-                    I agree to the <Text className="text-blue-600 font-bold">Terms of Service</Text> and <Text className="text-blue-600 font-bold">Privacy Policy</Text>
+                    I agree to the <Text className="text-[#eba336] font-bold">Terms of Service</Text> and <Text className="text-[#eba336] font-bold">Privacy Policy</Text>
                   </Text>
                 </TouchableOpacity>
               )}
@@ -549,7 +555,7 @@ export default function SignupScreen() {
           <ErrorMessage message={errors.agreeToTerms?.message} />
 
           <TouchableOpacity
-            className={`w-full bg-blue-600 rounded-xl py-4 items-center mb-8 ${isLoading ? 'opacity-70' : ''}`}
+            className={`w-full bg-[#eba336] rounded-xl py-4 items-center mb-8 ${isLoading ? 'opacity-70' : ''}`}
             onPress={handleSubmit(onSubmit)}
             disabled={isLoading}
           >
@@ -558,8 +564,10 @@ export default function SignupScreen() {
             </Text>
           </TouchableOpacity>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
+    </ImageBackground>
   );
 }

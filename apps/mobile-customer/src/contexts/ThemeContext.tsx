@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // import { useColorScheme } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
-import * as SystemUI from 'expo-system-ui';
+// import * as SystemUI from 'expo-system-ui';
 
 export type ColorScheme = 'light' | 'dark';
 
@@ -82,8 +82,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     setNavigationBarStyle();
     
-    // Set root view background color
-    SystemUI.setBackgroundColorAsync(theme.colors.background).catch(console.warn);
+    // Set root view background color - disabled as it causes warnings with edge-to-edge
+    // SystemUI.setBackgroundColorAsync(theme.colors.background).catch(console.warn);
   }, [theme, setNavigationBarStyle]);
 
   const value: ThemeContextType = {

@@ -13,6 +13,7 @@ interface MobileHeaderProps {
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
   onWishlistPress?: () => void;
+  refreshToken?: number;
 }
 
 export default function MobileHeader({
@@ -20,7 +21,8 @@ export default function MobileHeader({
   onSearchChange,
   onSearchPress,
   onNotificationPress,
-  onWishlistPress
+  onWishlistPress,
+  refreshToken = 0
 }: MobileHeaderProps) {
   const colors = useThemeColors();
   const { user, token } = useAuth();
@@ -28,7 +30,7 @@ export default function MobileHeader({
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
-  // Fetch active address on mount
+  // Fetch active address on mount or refresh
   useEffect(() => {
     const fetchActiveAddress = async () => {
       if (!user?.id || !token) return;
@@ -60,7 +62,7 @@ export default function MobileHeader({
     };
 
     fetchActiveAddress();
-  }, [user?.id, token]);
+  }, [user?.id, token, refreshToken]);
 
   // Create responsive styles
   const styles = useResponsiveStyles((screenInfo) => ({

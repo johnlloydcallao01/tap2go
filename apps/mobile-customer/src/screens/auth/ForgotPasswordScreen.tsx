@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '../../navigation/NavigationContext';
 import { useForm, Controller } from 'react-hook-form';
@@ -42,8 +42,14 @@ export default function ForgotPasswordScreen() {
 
   if (isSuccess) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-        <View className="flex-1 px-6 justify-center items-center">
+      <ImageBackground 
+        source={{ uri: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg' }} 
+        style={{ flex: 1 }}
+        resizeMode="cover"
+      >
+        <View className="flex-1 bg-white/90">
+          <SafeAreaView style={{ flex: 1 }}>
+            <View className="flex-1 px-6 justify-center items-center">
           <View className="w-20 h-20 bg-green-100 rounded-full items-center justify-center mb-6">
             <Ionicons name="mail-open-outline" size={40} color="#16A34A" />
           </View>
@@ -52,23 +58,31 @@ export default function ForgotPasswordScreen() {
             We have sent password reset instructions to your email address.
           </Text>
           <TouchableOpacity
-            className="w-full bg-blue-600 rounded-xl py-4 items-center"
+            className="w-full bg-[#eba336] rounded-xl py-4 items-center"
             onPress={() => navigation.navigate('Login')}
           >
             <Text className="text-white font-bold text-lg">Back to Login</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    );
+        </SafeAreaView>
+      </View>
+    </ImageBackground>
+  );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }}>
+    <ImageBackground 
+      source={{ uri: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg' }} 
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <View className="flex-1 bg-white/90">
+        <SafeAreaView style={{ flex: 1 }}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }}>
           
           <TouchableOpacity 
             className="w-10 h-10 items-center justify-center rounded-full bg-gray-100 mb-8"
@@ -115,7 +129,7 @@ export default function ForgotPasswordScreen() {
             </View>
 
             <TouchableOpacity
-              className={`w-full bg-blue-600 rounded-xl py-4 items-center mt-4 ${isLoading ? 'opacity-70' : ''}`}
+              className={`w-full bg-[#eba336] rounded-xl py-4 items-center mt-4 ${isLoading ? 'opacity-70' : ''}`}
               onPress={handleSubmit(onSubmit)}
               disabled={isLoading}
             >
@@ -125,8 +139,10 @@ export default function ForgotPasswordScreen() {
             </TouchableOpacity>
           </View>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
+    </ImageBackground>
   );
 }

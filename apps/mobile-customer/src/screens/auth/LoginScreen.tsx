@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '../../navigation/NavigationContext';
 import { useForm, Controller } from 'react-hook-form';
@@ -41,12 +41,21 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, justifyContent: 'center' }}>
+    <ImageBackground 
+      source={{ uri: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg' }} 
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <View className="flex-1 bg-white/90">
+        <SafeAreaView style={{ flex: 1 }}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <ScrollView 
+            contentContainerStyle={{ flexGrow: 1, padding: 24, justifyContent: 'center' }}
+            keyboardShouldPersistTaps="handled"
+          >
           
           {/* Header / Logo Area */}
           <View className="items-center mb-8">
@@ -58,7 +67,7 @@ export default function LoginScreen() {
               />
             </View>
             <Text className="text-3xl font-bold text-gray-900 mb-1">Tap2Go</Text>
-            <Text className="text-blue-500 text-base">Food Delivery from Laguna</Text>
+            <Text className="text-[#eba336] text-base">Food Delivery from Laguna</Text>
           </View>
 
           {/* Form */}
@@ -84,6 +93,10 @@ export default function LoginScreen() {
                     value={value}
                     autoCapitalize="none"
                     keyboardType="email-address"
+                    textContentType="emailAddress"
+                    autoComplete="email"
+                    importantForAutofill="yes"
+                    autoCorrect={false}
                   />
                 )}
               />
@@ -107,6 +120,10 @@ export default function LoginScreen() {
                       onChangeText={onChange}
                       value={value}
                       secureTextEntry={!showPassword}
+                      textContentType="password"
+                      autoComplete="password"
+                      importantForAutofill="yes"
+                      autoCorrect={false}
                     />
                   )}
                 />
@@ -130,11 +147,11 @@ export default function LoginScreen() {
               className="items-end"
               onPress={() => navigation.navigate('ForgotPassword')}
             >
-              <Text className="text-blue-600 font-medium">Forgot Password?</Text>
+              <Text className="text-[#eba336] font-medium">Forgot Password?</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              className={`w-full bg-blue-600 rounded-xl py-4 items-center mt-4 ${isLoading ? 'opacity-70' : ''}`}
+              className={`w-full bg-[#eba336] rounded-xl py-4 items-center mt-4 ${isLoading ? 'opacity-70' : ''}`}
               onPress={handleSubmit(onSubmit)}
               disabled={isLoading}
             >
@@ -148,12 +165,14 @@ export default function LoginScreen() {
           <View className="flex-row justify-center mt-8">
             <Text className="text-gray-500">Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text className="text-blue-600 font-bold">Sign Up</Text>
+              <Text className="text-[#eba336] font-bold">Sign Up</Text>
             </TouchableOpacity>
           </View>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
+    </ImageBackground>
   );
 }

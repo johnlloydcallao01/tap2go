@@ -1,5 +1,5 @@
 {
-  "extends": "./node_modules/expo/tsconfig.base.json",
+  "extends": "../../node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": false,
     "skipLibCheck": true,
@@ -11,6 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "moduleResolution": "bundler",
+    "module": "esnext",
     "noEmit": true,
     "target": "ES2022",
     "lib": [
@@ -27,19 +28,13 @@
       ]
     },
     "incremental": true,
-    "isolatedModules": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
+    "isolatedModules": true
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     "nativewind-env.d.ts",
-    "src/types/**/*.d.ts",
-    ".next/types/**/*.ts"
+    "src/types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
