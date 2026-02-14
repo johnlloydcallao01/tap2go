@@ -25,7 +25,10 @@
       "env": {
         "EAS_SKIP_AUTO_FINGERPRINT": "1",
         "EAS_NO_FROZEN_LOCKFILE": "1",
-        "EXPO_AUTOLINKING_FIX": "1"
+        "EXPO_AUTOLINKING_FIX": "1",
+        "NPM_CONFIG_NODE_LINKER": "hoisted",
+        "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
+        "METRO_CONFIG": "./metro.config.eas.js"
       }
     },
     "production": {
@@ -37,7 +40,8 @@
         "NODE_ENV": "production",
         "EAS_BUILD": "true",
         "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
-        "METRO_CONFIG": "./metro.config.eas.js"
+        "METRO_CONFIG": "./metro.config.eas.js",
+        "NPM_CONFIG_NODE_LINKER": "hoisted"
       }
     },
     "production-apk": {
@@ -49,7 +53,8 @@
         "NODE_ENV": "production",
         "EAS_BUILD": "true",
         "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
-        "METRO_CONFIG": "./metro.config.eas.js"
+        "METRO_CONFIG": "./metro.config.eas.js",
+        "NPM_CONFIG_NODE_LINKER": "hoisted"
       }
     }
   },
