@@ -249,15 +249,11 @@ export async function checkAuthStatus(): Promise<boolean> {
 }
 
 export function getSessionInfo(): SessionInfo {
-  try {
-    // For cookie-based auth, we can't easily check expiration client-side
-    // Return basic info and let server validation determine actual status
-    return {
-      isValid: true, // Will be validated by server calls
-    };
-  } catch {
-    return { isValid: false };
-  }
+  // For cookie-based auth, we can't easily check expiration client-side
+  // Return basic info and let server validation determine actual status
+  return {
+    isValid: true, // Will be validated by server calls
+  };
 }
 
 // ========================================

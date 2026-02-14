@@ -64,7 +64,8 @@ export default function HomeScreen({ navigation }: any) {
 
       console.log(`Fetching customer for user: ${userId}`);
       const res = await fetch(`${API_URL}/customers?where[user][equals]=${userId}&limit=1`, {
-        headers
+        headers,
+        credentials: 'omit',
       });
 
       if (res.ok) {

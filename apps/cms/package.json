@@ -51,6 +51,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@encreasl/cms-types": "workspace:*",
+    "@encreasl/eslint-config": "workspace:*",
+    "@encreasl/typescript-config": "workspace:*",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.31.0",
     "@playwright/test": "1.50.0",

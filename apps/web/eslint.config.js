@@ -1,5 +1,8 @@
-const projectConfig = require('@encreasl/eslint-config/nextjs');
+const nextConfig = require("@encreasl/eslint-config/nextjs");
 
 module.exports = [
-  ...projectConfig,
+  ...nextConfig,
+  {
+    ignores: [".next/**", "dist/**", "node_modules/**"]
+  }
 ];

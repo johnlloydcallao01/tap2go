@@ -9,6 +9,8 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
+    "@encreasl/eslint-config": "workspace:*",
+    "eslint": "^9.0.0",
     "@encreasl/typescript-config": "workspace:*",
     "@types/minimatch": "^6.0.0",
     "@types/node": "^20",

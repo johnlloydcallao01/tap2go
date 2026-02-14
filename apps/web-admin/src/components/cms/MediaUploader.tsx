@@ -220,7 +220,7 @@ export function MediaUploader({
           <div className="flex items-start space-x-3">
             <div className="flex-shrink-0">
               {isImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img
                   src={selectedMedia.url}
                   alt={selectedMedia.alt}

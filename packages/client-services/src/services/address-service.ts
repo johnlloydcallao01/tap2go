@@ -80,6 +80,18 @@ export class AddressService {
     return headers;
   }
 
+  // Helper to ensure cookies are omitted when using API Key
+  private static getFetchOptions(method: string = 'GET', body?: any): RequestInit {
+    const options: RequestInit = {
+      method,
+      credentials: this.PAYLOAD_API_KEY ? 'omit' : 'include', // Only omit if we have an API Key
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    return options;
+  }
+
   /**
    * Parse Google Place data into PayloadCMS AddressData structure
    * Replicates logic from apps/web/src/app/api/addresses/route.ts
@@ -268,7 +280,7 @@ export class AddressService {
     try {
       // 1. Fetch customer for this user
       const customerRes = await fetch(`${this.API_BASE}/customers?where[user][equals]=${userId}&depth=1`, {
-        method: 'GET',
+        ...this.getFetchOptions('GET'),
         headers: this.getHeaders(token),
       });
 
@@ -295,6 +307,7 @@ export class AddressService {
         // If it's just an ID (shouldn't be with depth=1, but safety check)
          // Fetch the address details
          const addressRes = await fetch(`${this.API_BASE}/${this.COLLECTION_SLUG}/${customer.activeAddress}`, {
+           ...this.getFetchOptions('GET'),
            headers: this.getHeaders(token)
          });
          const addressData = await addressRes.json();
@@ -320,7 +333,7 @@ export class AddressService {
     try {
       // 1. Fetch customer for this user to get ID
       const customerRes = await fetch(`${this.API_BASE}/customers?where[user][equals]=${userId}&depth=0`, {
-        method: 'GET',
+        ...this.getFetchOptions('GET'),
         headers: this.getHeaders(token),
       });
 
@@ -355,9 +368,8 @@ export class AddressService {
   static async setActiveAddress(customerId: string | number, addressId: string | number, token: string): Promise<AddressResponse> {
     try {
       const response = await fetch(`${this.API_BASE}/customers/${customerId}`, {
-        method: 'PATCH',
+        ...this.getFetchOptions('PATCH', { activeAddress: addressId }),
         headers: this.getHeaders(token),
-        body: JSON.stringify({ activeAddress: addressId }),
       });
 
       const data = await response.json();

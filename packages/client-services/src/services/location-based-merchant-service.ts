@@ -71,6 +71,14 @@ export class LocationBasedMerchantService {
       return [];
     }
 
+    // Debug API Key availability (masked)
+    const apiKey = LocationBasedMerchantService.PAYLOAD_API_KEY;
+    if (!apiKey) {
+      console.error('❌ PAYLOAD_API_KEY is missing in LocationBasedMerchantService!');
+    } else {
+      // console.log('✅ PAYLOAD_API_KEY is available:', apiKey.substring(0, 4) + '...');
+    }
+
     // Create cache key based on options
     const cacheKey = `${CACHE_KEYS.MERCHANTS}-location-${customerId}-${limit}-${categoryId || 'all'}`;
     
@@ -100,16 +108,18 @@ export class LocationBasedMerchantService {
       }
 
       // Add API key authentication using client-side key
-      if (LocationBasedMerchantService.PAYLOAD_API_KEY) {
-        headers['Authorization'] = `users API-Key ${LocationBasedMerchantService.PAYLOAD_API_KEY}`;
+      if (apiKey) {
+        headers['Authorization'] = `users API-Key ${apiKey}`;
       } else {
         console.error('❌ NEXT_PUBLIC_PAYLOAD_API_KEY not found in environment');
       }
 
       const url = `${LocationBasedMerchantService.API_BASE}/merchant/location-based-display?${params}`;
 
+      // IMPORTANT: Explicitly set credentials to 'omit' to prevent sending cookies that might override the API Key
       const response = await fetch(url, {
         headers,
+        credentials: 'omit', 
       });
       
       
@@ -170,7 +180,7 @@ export class LocationBasedMerchantService {
     if (!includeInactive) params.append('where[isActive][equals]', 'true');
     params.append('limit', String(ids.length));
     const url = `${base}/merchant-categories?${params.toString()}`;
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, credentials: 'omit' });
     if (!res.ok) { dataCache.set(cacheKey, [], CACHE_TTL.MERCHANTS); return []; }
     const json = await res.json();
     const docs: any[] = json.docs || json.data?.docs || [];
@@ -330,6 +340,7 @@ export class LocationBasedMerchantService {
       const response = await fetch(url, {
         method: 'GET',
         headers,
+        credentials: 'omit',
       });
 
 
