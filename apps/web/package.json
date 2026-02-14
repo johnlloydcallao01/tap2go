@@ -28,7 +28,6 @@
     "@encreasl/typescript-config": "workspace:*",
     "@encreasl/ui": "workspace:*",
     "@eslint/js": "^9",
-    "@tailwindcss/postcss": "^4",
     "@types/google.maps": "^3.58.1",
     "@types/minimatch": "^5.1.2",
     "@types/node": "^20",
@@ -38,7 +37,7 @@
     "@typescript-eslint/parser": "^8",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
-    "tailwindcss": "^4",
+    "tailwindcss": "3.3.2",
     "turbo": "^2.0.0",
     "typescript": "^5"
   }

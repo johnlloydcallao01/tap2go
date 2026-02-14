@@ -362,7 +362,10 @@ export class LocationBasedMerchantService {
       // Clear specific customer's cache
       const stats = dataCache.getStats();
       stats.keys.forEach(key => {
-        if (key.includes(`location-${customerId}`)) {
+        // Match both merchant list keys and merchant categories keys
+        // Merchant list: ...-location-${customerId}-...
+        // Categories: ...-location-categories-${customerId}-...
+        if (key.includes(`location-${customerId}`) || key.includes(`location-categories-${customerId}`)) {
           dataCache.delete(key);
         }
       });

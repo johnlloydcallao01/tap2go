@@ -172,23 +172,27 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
   // ========================================
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    console.log('[AuthContext] Login started');
     dispatch({ type: 'LOGIN_START' });
 
     try {
+      console.log('[AuthContext] Calling AuthService.login...');
       const response = await AuthService.login(credentials);
+      console.log('[AuthContext] AuthService.login success', { hasToken: !!response.token, hasUser: !!response.user });
       
       if (response.token) {
+        console.log('[AuthContext] Saving token...');
         await AsyncStorage.setItem('grandline_auth_token', response.token);
       }
       if (response.user) {
+        console.log('[AuthContext] Saving user...');
         await AsyncStorage.setItem('grandline_auth_user', JSON.stringify(response.user));
-        // Also save customer ID for home screen logic
-        // We might need to fetch customer ID separately if it's not in user object
-        // The HomeScreen logic fetches it.
       }
       
+      console.log('[AuthContext] Dispatching LOGIN_SUCCESS');
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user } });
     } catch (error) {
+      console.error('[AuthContext] Login error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
       dispatch({ type: 'LOGIN_ERROR', payload: { error: errorMessage } });
       throw error;

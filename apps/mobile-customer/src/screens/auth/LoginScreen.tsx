@@ -93,9 +93,6 @@ export default function LoginScreen() {
                     value={value}
                     autoCapitalize="none"
                     keyboardType="email-address"
-                    textContentType="emailAddress"
-                    autoComplete="email"
-                    importantForAutofill="yes"
                     autoCorrect={false}
                   />
                 )}
@@ -120,9 +117,6 @@ export default function LoginScreen() {
                       onChangeText={onChange}
                       value={value}
                       secureTextEntry={!showPassword}
-                      textContentType="password"
-                      autoComplete="password"
-                      importantForAutofill="yes"
                       autoCorrect={false}
                     />
                   )}
