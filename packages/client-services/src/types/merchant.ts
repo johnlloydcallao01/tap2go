@@ -94,8 +94,53 @@ export interface Merchant {
   description?: string | null;
   specialInstructions?: string | null;
   tags?: string[] | null;
+  activeAddress?: {
+    formatted_address?: string | null;
+    city?: string | null;
+    [key: string]: any;
+  } | null;
   updatedAt?: string | null;
   createdAt?: string | null;
+}
+
+// Product Display Interface for Merchant Menu
+export interface MerchantProductDisplay {
+  id: string | number;
+  name: string;
+  productType: string;
+  basePrice: number | null;
+  compareAtPrice: number | null;
+  shortDescription: string | null;
+  imageUrl: string | null;
+  categoryIds?: (number | string)[];
+}
+
+// Category Display Interface for Merchant Menu
+export interface MerchantCategoryDisplay {
+  id: number | string;
+  name: string;
+  slug: string;
+  media?: { icon?: Media | null };
+  description?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  updatedAt?: string;
+  createdAt?: string;
+}
+
+// Response structure for Merchant Menu
+export interface MerchantMenuData {
+  products: MerchantProductDisplay[];
+  categories: MerchantCategoryDisplay[];
+  pagination?: {
+    totalDocs: number;
+    limit: number;
+    page: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 }
 
 // Query parameters for merchant API

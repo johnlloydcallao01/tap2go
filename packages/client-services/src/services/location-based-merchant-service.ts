@@ -1,6 +1,6 @@
 "use client";
 
-import type { Merchant, Media } from '../types/merchant';
+import type { Merchant, Media, MerchantCategoryDisplay } from '../types/merchant';
 import { dataCache, CACHE_KEYS, CACHE_TTL } from '../cache/data-cache';
 
 // Extended merchant type with location data (matching API response)
@@ -41,19 +41,6 @@ export interface LocationBasedMerchantServiceOptions {
   limit?: number;
   categoryId?: string;
 }
-
-export type MerchantCategoryDisplay = {
-  id: number | string;
-  name: string;
-  slug: string;
-  description?: string;
-  displayOrder?: number;
-  isActive?: boolean;
-  isFeatured?: boolean;
-  media?: { icon?: Media | null };
-  updatedAt?: string;
-  createdAt?: string;
-};
 
 export class LocationBasedMerchantService {
   private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
@@ -326,7 +313,7 @@ export class LocationBasedMerchantService {
    * Get customer ID from user ID
    * Uses the same pattern as address-service.ts
    */
-  private static async getCustomerIdFromUserId(userId: string | number): Promise<string | null> {
+  static async getCustomerIdFromUserId(userId: string | number): Promise<string | null> {
     try {
       
       // Use proper authentication headers for PayloadCMS API

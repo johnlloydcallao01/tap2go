@@ -83,18 +83,18 @@ export default function LocationMerchantCard({
             color={isWishlisted ? "#f3a823" : "#000"} 
           />
         </TouchableOpacity>
-
-        {/* Vendor Logo */}
-        {vendorLogoUrl && (
-          <View style={styles.vendorLogoContainer}>
-            <Image
-              source={{ uri: vendorLogoUrl }}
-              style={styles.vendorLogo}
-              resizeMode="contain"
-            />
-          </View>
-        )}
       </View>
+
+      {/* Vendor Logo - Moved outside imageContainer to avoid clipping */}
+      {vendorLogoUrl && (
+        <View style={[styles.vendorLogoContainer, { top: imageHeight - 24 }]}>
+          <Image
+            source={{ uri: vendorLogoUrl }}
+            style={styles.vendorLogo}
+            resizeMode="contain"
+          />
+        </View>
+      )}
 
       {/* Merchant Info */}
       <View style={styles.infoContainer}>
@@ -192,7 +192,6 @@ const styles = StyleSheet.create({
   },
   vendorLogoContainer: {
     position: 'absolute',
-    bottom: -16, // Half overlap
     left: 12,
     width: 48,
     height: 48,
@@ -205,6 +204,7 @@ const styles = StyleSheet.create({
     shadowRadius: 1.41,
     elevation: 2,
     overflow: 'hidden',
+    zIndex: 10,
   },
   vendorLogo: {
     width: '100%',
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     padding: 12,
-    paddingTop: 20, // Space for vendor logo
+    paddingTop: 32, // Increased space for vendor logo overlap
   },
   name: {
     fontSize: 16,

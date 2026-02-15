@@ -1,5 +1,5 @@
 
-import type { Merchant, MerchantsResponse } from '../types/merchant';
+import type { Merchant, MerchantsResponse, MerchantMenuData, MerchantProductDisplay, MerchantCategoryDisplay } from '../types/merchant';
 import { dataCache, CACHE_KEYS, CACHE_TTL } from '../cache/data-cache';
 
 export interface MerchantServiceOptions {
@@ -9,7 +9,7 @@ export interface MerchantServiceOptions {
 }
 
 export class MerchantClientService {
-  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+  private static readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
   
   /**
    * Fetch merchants from CMS (Client-side) with caching
@@ -49,7 +49,7 @@ export class MerchantClientService {
       }
 
       // Add API key authentication using client-side key
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
@@ -94,7 +94,7 @@ export class MerchantClientService {
       };
 
       // Add API key authentication using client-side key
-      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY;
       if (apiKey) {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
@@ -178,6 +178,114 @@ export class MerchantClientService {
   }
 
   /**
+   * Fetch merchant menu (products and categories)
+   * Replicates logic from apps/web/src/components/merchant/MerchantProductsClient.tsx
+   */
+  static async getMerchantMenu(merchantId: string, page: number = 1, limit: number = 48): Promise<MerchantMenuData> {
+    const cacheKey = `${CACHE_KEYS.MERCHANTS}-menu-${merchantId}-${page}-${limit}`;
+    const cached = dataCache.get<MerchantMenuData>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+      const url = `${MerchantClientService.API_BASE}/merchant-products?where[merchant_id][equals]=${merchantId}&where[is_active][equals]=true&where[is_available][equals]=true&depth=2&limit=${limit}&page=${page}&t=${Date.now()}`;
+      
+      const res = await fetch(url, { headers });
+      if (!res.ok) throw new Error(String(res.status));
+      
+      const data = await res.json();
+      const docs: any[] = (data?.docs || []).filter((mp: any) => mp?.product_id?.catalogVisibility !== "hidden");
+      
+      const categoryMap = new Map<number | string, any>();
+      const products: MerchantProductDisplay[] = docs.map((mp) => {
+        const product = mp?.product_id || null;
+        const primaryImage = product?.media?.primaryImage || null;
+        const imageUrl = primaryImage?.cloudinaryURL || primaryImage?.url || primaryImage?.thumbnailURL || null;
+        
+        const rawCats = Array.isArray(product?.categories) ? product.categories : [];
+        const categoryIds: (number | string)[] = [];
+        
+        rawCats.forEach((c: any) => {
+          const id = (typeof c === "number" || typeof c === "string") ? c : c?.id;
+          if (id) {
+            categoryIds.push(id);
+            if (typeof c === "object" && c) {
+              const icon = c?.media?.icon || null;
+              categoryMap.set(id, { id, name: c?.name, slug: c?.slug, media: { icon } });
+            }
+          }
+        });
+
+        return {
+          id: product?.id ?? mp?.id,
+          name: product?.name ?? "",
+          productType: product?.productType ?? "simple",
+          basePrice: product?.basePrice ?? null,
+          compareAtPrice: product?.compareAtPrice ?? null,
+          shortDescription: product?.shortDescription ?? "",
+          imageUrl,
+          categoryIds,
+        };
+      });
+
+      // Consolidate categories
+      const collectedIds = new Set<number | string>();
+      products.forEach((p) => (p.categoryIds || []).forEach((cid) => collectedIds.add(cid)));
+      const ids = Array.from(collectedIds);
+      let categories: MerchantCategoryDisplay[] = [];
+
+      if (ids.length > 0) {
+         const catUrl = `${MerchantClientService.API_BASE}/product-categories?where[id][in]=${ids.join(",")}&limit=${ids.length}&depth=1&t=${Date.now()}`;
+         const catRes = await fetch(catUrl, { headers });
+         
+         if (catRes.ok) {
+           const catData = await catRes.json();
+           const cats = Array.isArray(catData?.docs) ? catData.docs : [];
+           const byId = new Map<number | string, any>();
+           
+           cats.forEach((c: any) => {
+              if (c?.id) {
+                byId.set(c.id, { id: c.id, name: c?.name, slug: c?.slug, media: { icon: c?.media?.icon } });
+              }
+           });
+           
+           // Merge strategies: prefer fetched details, fallback to embedded details
+           categories = ids
+             .map((cid) => byId.get(cid) || categoryMap.get(cid))
+             .filter((c): c is MerchantCategoryDisplay => !!(c && c.id));
+         } else {
+           // Fallback to embedded details if fetch fails
+           categories = ids
+             .map((cid) => categoryMap.get(cid))
+             .filter((c): c is MerchantCategoryDisplay => !!(c && c.id));
+         }
+      }
+      
+      const result: MerchantMenuData = { 
+        products, 
+        categories,
+        pagination: {
+          totalDocs: data.totalDocs,
+          limit: data.limit,
+          page: data.page,
+          totalPages: data.totalPages,
+          hasNextPage: data.hasNextPage,
+          hasPrevPage: data.hasPrevPage
+        }
+      };
+      dataCache.set(cacheKey, result, CACHE_TTL.MERCHANTS); 
+      return result;
+
+    } catch (error) {
+      console.error('Error fetching merchant menu:', error);
+      return { products: [], categories: [] };
+    }
+  }
+
+  /**
    * Clear merchants cache
    */
   static clearCache(): void {
@@ -195,4 +303,5 @@ export class MerchantClientService {
 export const getMerchantsClient = MerchantClientService.getMerchants;
 export const getMerchantByIdClient = MerchantClientService.getMerchantById;
 export const getMerchantCountClient = MerchantClientService.getMerchantCount;
+export const getMerchantMenuClient = MerchantClientService.getMerchantMenu;
 export const clearMerchantsCache = MerchantClientService.clearCache;

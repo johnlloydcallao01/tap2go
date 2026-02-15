@@ -11,6 +11,7 @@ import HomeScreen from '../screens/HomeScreen';
 import OrdersScreen from '../screens/OrdersScreen';
 import CartScreen from '../screens/CartScreen';
 import SearchScreen from '../screens/SearchScreen';
+import MerchantScreen from '../screens/MerchantScreen';
 import AccountScreen from '../screens/AccountScreen';
 import WishlistScreen from '../screens/WishlistScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -27,6 +28,7 @@ import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 function FallbackNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState('Home');
+  const [currentParams, setCurrentParams] = useState<any>({});
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
 
@@ -38,12 +40,14 @@ function FallbackNavigator() {
       } else {
         setCurrentScreen('Login');
       }
+      setCurrentParams({});
     }
   }, [isAuthenticated, isLoading]);
 
-  const navigate = (screenName: string) => {
-    console.log(`Navigating to: ${screenName}`);
+  const navigate = (screenName: string, params?: any) => {
+    console.log(`Navigating to: ${screenName}`, params);
     setCurrentScreen(screenName);
+    setCurrentParams(params || {});
   };
 
   const goBack = () => {
@@ -63,6 +67,7 @@ function FallbackNavigator() {
 
   const renderScreen = () => {
     const mockNavigation = { navigate, goBack };
+    const mockRoute = { params: currentParams };
 
     if (isLoading) {
       return (
@@ -86,21 +91,23 @@ function FallbackNavigator() {
 
     switch (currentScreen) {
       case 'Home':
-        return <HomeScreen navigation={mockNavigation} />;
+        return <HomeScreen navigation={mockNavigation} route={mockRoute} />;
       case 'Orders':
-        return <OrdersScreen navigation={mockNavigation} />;
+        return <OrdersScreen navigation={mockNavigation} route={mockRoute} />;
       case 'Cart':
-        return <CartScreen navigation={mockNavigation} />;
+        return <CartScreen navigation={mockNavigation} route={mockRoute} />;
       case 'Search':
-        return <SearchScreen navigation={mockNavigation} />;
+        return <SearchScreen navigation={mockNavigation} route={mockRoute} />;
+      case 'Merchant':
+        return <MerchantScreen navigation={mockNavigation} route={mockRoute} />;
       case 'Account':
-        return <AccountScreen navigation={mockNavigation} />;
+        return <AccountScreen navigation={mockNavigation} route={mockRoute} />;
       case 'Wishlist':
-        return <WishlistScreen navigation={mockNavigation} />;
+        return <WishlistScreen navigation={mockNavigation} route={mockRoute} />;
       case 'Notifications':
-        return <NotificationsScreen navigation={mockNavigation} />;
+        return <NotificationsScreen navigation={mockNavigation} route={mockRoute} />;
       default:
-        return <HomeScreen navigation={mockNavigation} />;
+        return <HomeScreen navigation={mockNavigation} route={mockRoute} />;
     }
   };
 

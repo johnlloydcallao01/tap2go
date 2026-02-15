@@ -8,7 +8,6 @@ import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
 import { 
-  AddressService,
   MERCHANT_KEYS,
   CATEGORY_KEYS,
   ADDRESS_KEYS,
@@ -140,10 +139,8 @@ export default function HomeScreen({ navigation }: any) {
 
   const handleMerchantPress = (merchant: any) => {
     // Navigate to Merchant Details
-    // Assuming route name 'MerchantDetails' or similar exists, or 'RestaurantDetails'
-    // For now logging, as I don't want to break navigation if route missing
     console.log('Merchant pressed:', merchant.id);
-    // navigation.navigate('MerchantDetails', { merchantId: merchant.id, slug: merchant.slug });
+    navigation.navigate('Merchant', { merchantId: merchant.id });
   };
 
   return (
@@ -153,6 +150,7 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* Mobile Header - Now responsive for tablets */}
       <MobileHeader
+        navigation={navigation}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSearchPress={() => {

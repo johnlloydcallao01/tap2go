@@ -7,6 +7,7 @@ import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveAddress, ADDRESS_KEYS } from '@encreasl/client-services';
 import AddressSelectionModal from './AddressSelectionModal';
+import SearchModal from './SearchModal';
 
 interface MobileHeaderProps {
   searchQuery?: string;
@@ -14,6 +15,7 @@ interface MobileHeaderProps {
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
   onWishlistPress?: () => void;
+  navigation?: any;
 }
 
 export default function MobileHeader({
@@ -22,11 +24,13 @@ export default function MobileHeader({
   onSearchPress,
   onNotificationPress,
   onWishlistPress,
+  navigation,
 }: MobileHeaderProps) {
   const colors = useThemeColors();
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
   
   const { 
     data: selectedAddress = null, 
@@ -123,7 +127,10 @@ export default function MobileHeader({
         <View style={styles.rightSection}>
           <TouchableOpacity 
             style={styles.iconButton}
-            onPress={onSearchPress}
+            onPress={() => {
+              if (onSearchPress) onSearchPress();
+              setIsSearchModalVisible(true);
+            }}
           >
             <Ionicons name="search" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -141,6 +148,11 @@ export default function MobileHeader({
         isVisible={isAddressModalVisible}
         onClose={() => setIsAddressModalVisible(false)}
         onAddressSelected={handleAddressSelected}
+      />
+      <SearchModal 
+        visible={isSearchModalVisible} 
+        onClose={() => setIsSearchModalVisible(false)} 
+        navigation={navigation}
       />
     </>
   );
