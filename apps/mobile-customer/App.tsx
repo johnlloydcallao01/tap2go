@@ -9,6 +9,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { CartProvider } from './src/contexts/CartContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { QueryProvider } from './src/providers/QueryProvider';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import ProductionErrorHandler from './src/components/ProductionErrorHandler';
 
@@ -121,15 +122,17 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ProductionErrorHandler>
-        <ThemeProvider>
-          <AuthProvider>
-            <CartProvider>
-              <ErrorBoundary>
-                <AppNavigator />
-              </ErrorBoundary>
-            </CartProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <CartProvider>
+                <ErrorBoundary>
+                  <AppNavigator />
+                </ErrorBoundary>
+              </CartProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </ProductionErrorHandler>
       <StatusBar style="auto" />
     </SafeAreaProvider>

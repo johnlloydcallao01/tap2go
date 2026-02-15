@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { 
-  LocationBasedMerchantService, 
   LocationBasedMerchant,
-  sortMerchantsByRecentlyUpdated
+  sortMerchantsByRecentlyUpdated,
+  useLocationBasedMerchants,
+  useMerchantAddresses
 } from '@encreasl/client-services';
 import LocationMerchantCard from './LocationMerchantCard';
 import { useThemeColors } from '../contexts/ThemeContext';
@@ -13,44 +14,31 @@ interface LocationBasedMerchantsProps {
   limit?: number;
   categoryId?: string | null;
   onMerchantPress?: (merchant: LocationBasedMerchant) => void;
-  refreshToken?: number;
 }
 
 export default function LocationBasedMerchants({
   customerId,
   limit = 20,
   categoryId,
-  onMerchantPress,
-  refreshToken
+  onMerchantPress
 }: LocationBasedMerchantsProps) {
-  const [merchants, setMerchants] = useState<LocationBasedMerchant[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { 
+    data: merchants = [], 
+    isLoading, 
+    isRefetching 
+  } = useLocationBasedMerchants(
+    customerId, 
+    categoryId, 
+    limit
+  );
+  
+  // Fetch active addresses for merchants
+  const { data: addressMap = {} } = useMerchantAddresses(merchants);
+  
+  const loading = isLoading || isRefetching;
+  
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
-
-  const fetchMerchants = useCallback(async () => {
-    if (!customerId) return;
-    
-    try {
-      // Clear previous data so skeleton shows clearly on refresh
-      setMerchants([]);
-      setLoading(true);
-      const data = await LocationBasedMerchantService.getLocationBasedMerchants({
-        customerId,
-        limit,
-        categoryId: categoryId || undefined
-      });
-      setMerchants(data || []);
-    } catch (err) {
-      console.error('Failed to fetch merchants', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [customerId, limit, categoryId]);
-
-  useEffect(() => {
-    fetchMerchants();
-  }, [fetchMerchants, refreshToken]);
 
   // Compute newly updated merchants (Client-side sort using shared logic)
   // Only shown when no category filter is active, matching web logic
@@ -137,6 +125,7 @@ export default function LocationBasedMerchants({
                 <LocationMerchantCard
                   merchant={merchant}
                   onPress={onMerchantPress}
+                  addressName={addressMap[merchant.id] || null}
                   // Add wishlist logic here if needed
                 />
               </View>
@@ -167,6 +156,7 @@ export default function LocationBasedMerchants({
                     <LocationMerchantCard
                       merchant={merchant}
                       onPress={onMerchantPress}
+                      addressName={addressMap[merchant.id] || null}
                     />
                   </View>
                 ))}

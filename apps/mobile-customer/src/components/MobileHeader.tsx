@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useResponsiveStyles, createResponsiveValue, createResponsiveSpacing, createResponsiveFontSize } from '../hooks/useResponsiveStyles';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { AddressService } from '@encreasl/client-services';
+import { useActiveAddress, ADDRESS_KEYS } from '@encreasl/client-services';
 import AddressSelectionModal from './AddressSelectionModal';
 
 interface MobileHeaderProps {
@@ -13,7 +14,6 @@ interface MobileHeaderProps {
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
   onWishlistPress?: () => void;
-  refreshToken?: number;
 }
 
 export default function MobileHeader({
@@ -22,47 +22,20 @@ export default function MobileHeader({
   onSearchPress,
   onNotificationPress,
   onWishlistPress,
-  refreshToken = 0
 }: MobileHeaderProps) {
   const colors = useThemeColors();
   const { user, token } = useAuth();
+  const queryClient = useQueryClient();
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
-  const [selectedAddress, setSelectedAddress] = useState<any>(null);
-  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  
+  const { 
+    data: selectedAddress = null, 
+    isLoading: isLoadingAddress,
+    isRefetching: isRefetchingAddress
+  } = useActiveAddress(user?.id ? String(user.id) : undefined, token || undefined);
 
-  // Fetch active address on mount or refresh
-  useEffect(() => {
-    const fetchActiveAddress = async () => {
-      if (!user?.id || !token) return;
-
-      setIsLoadingAddress(true);
-      try {
-        // 1. Try to get explicitly active address
-        const response = await AddressService.getActiveAddress(user.id, token);
-        if (response.success && response.address) {
-          setSelectedAddress(response.address);
-        } else {
-          // 2. Fallback: Get most recent user address (matching apps/web logic)
-          console.log('No active address found, falling back to most recent...');
-          const addressesResponse = await AddressService.getUserAddresses(user.id, token, false);
-          if (addressesResponse.success && addressesResponse.addresses && addressesResponse.addresses.length > 0) {
-            // API returns sorted by -createdAt, so first is newest
-            const mostRecent = addressesResponse.addresses[0];
-            setSelectedAddress(mostRecent);
-            
-            // Optionally try to set it as active in background to fix the data
-            // AddressService.setActiveAddressForUser(user.id, mostRecent.id, token).catch(() => {});
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load active address:', error);
-      } finally {
-        setIsLoadingAddress(false);
-      }
-    };
-
-    fetchActiveAddress();
-  }, [user?.id, token, refreshToken]);
+  // Combine loading states for UI feedback
+  const isLoading = isLoadingAddress || isRefetchingAddress;
 
   // Create responsive styles
   const styles = useResponsiveStyles((screenInfo) => ({
@@ -113,9 +86,10 @@ export default function MobileHeader({
     },
   }));
 
-  const handleAddressSelected = (address: any) => {
-    setSelectedAddress(address);
-    // Optionally trigger a callback to parent if needed
+  const handleAddressSelected = async (address: any) => {
+    // Invalidate address queries to force a refresh of the active address
+    await queryClient.invalidateQueries({ queryKey: ADDRESS_KEYS.all });
+    setIsAddressModalVisible(false);
   };
 
   const displayAddress = selectedAddress 
@@ -136,7 +110,7 @@ export default function MobileHeader({
             color={colors.textSecondary}
             style={styles.locationIcon}
           />
-          {isLoadingAddress ? (
+          {isLoading ? (
             <View style={styles.locationSkeleton} />
           ) : (
             <Text style={styles.locationText} numberOfLines={1}>

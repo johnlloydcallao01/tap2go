@@ -10,13 +10,14 @@
   },
   "devDependencies": {
     "@encreasl/eslint-config": "workspace:*",
-    "eslint": "^9.0.0",
     "@encreasl/typescript-config": "workspace:*",
     "@types/minimatch": "^6.0.0",
     "@types/node": "^20",
+    "eslint": "^9.0.0",
     "typescript": "^5"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
     "zod": "^4.3.6"
   }
 }

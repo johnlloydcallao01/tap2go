@@ -2,17 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, Image, useWindowDimensions, Text, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiConfig } from '../config/environment';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
-import { clearLocationBasedMerchantsCache, AddressService } from '@encreasl/client-services';
+import { 
+  AddressService,
+  MERCHANT_KEYS,
+  CATEGORY_KEYS,
+  ADDRESS_KEYS,
+  MERCHANT_ADDRESS_KEYS,
+  dataCache
+} from '@encreasl/client-services';
 import LocationBasedProductCategoriesCarousel from '../components/LocationBasedProductCategoriesCarousel';
 import LocationBasedMerchants from '../components/LocationBasedMerchants';
 
 export default function HomeScreen({ navigation }: any) {
   console.log('🏠 HomeScreen: Component initializing...');
 
+  const queryClient = useQueryClient();
   const colors = useThemeColors();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,8 +32,7 @@ export default function HomeScreen({ navigation }: any) {
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [refreshToken, setRefreshToken] = useState(0);
-
+  
   // Fetch Customer ID logic
   const fetchCustomerId = async () => {
     try {
@@ -104,22 +112,20 @@ export default function HomeScreen({ navigation }: any) {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      console.log('🔄 Pull-to-refresh triggered');
+      console.log('🔄 Pull-to-refresh triggered (TanStack Query)');
       
-      // Clear caches to ensure fresh data
-      if (customerId) {
-        console.log(`Clearing cache for customer: ${customerId}`);
-        clearLocationBasedMerchantsCache(customerId);
-      } else {
-        console.log('Clearing all location caches');
-        clearLocationBasedMerchantsCache();
-      }
+      // Clear internal service memory cache to ensure fresh data fetch
+      dataCache.clear();
       
-      // Clear address cache too
-      AddressService.clearCache();
+      // Reset queries to clear cache and force fresh fetch
+      await Promise.all([
+              queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
+              queryClient.resetQueries({ queryKey: CATEGORY_KEYS.all }),
+              queryClient.resetQueries({ queryKey: ADDRESS_KEYS.all }),
+              queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
+              fetchCustomerId() // Keep local fetch logic
+            ]);
 
-      await fetchCustomerId();
-      setRefreshToken((prev) => prev + 1);
     } catch (error) {
       console.error('Pull-to-refresh error:', error);
     } finally {
@@ -159,7 +165,6 @@ export default function HomeScreen({ navigation }: any) {
         onWishlistPress={() => {
           navigation.navigate('Wishlist');
         }}
-        refreshToken={refreshToken}
       />
 
       {/* Content area with theme background - Clean white screen as requested */}
@@ -195,7 +200,6 @@ export default function HomeScreen({ navigation }: any) {
               customerId={customerId}
               selectedCategorySlug={selectedCategorySlug}
               onCategorySelect={handleCategorySelect}
-              refreshToken={refreshToken}
             />
           ) : (
              // Placeholder or empty while loading customer
@@ -203,16 +207,13 @@ export default function HomeScreen({ navigation }: any) {
           )}
 
           {/* Merchants List */}
-          {customerId && (
+          {customerId ? (
             <LocationBasedMerchants
               customerId={customerId}
               categoryId={selectedCategoryId}
               onMerchantPress={handleMerchantPress}
-              refreshToken={refreshToken}
             />
-          )}
-          
-          {!customerId && (
+          ) : (
             <View style={{ padding: 20, alignItems: 'center' }}>
               <Text style={{ color: colors.textSecondary }}>Please log in to see nearby merchants.</Text>
             </View>

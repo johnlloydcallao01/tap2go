@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { 
-  LocationBasedMerchantService, 
-  MerchantCategoryDisplay
+  MerchantCategoryDisplay,
+  useLocationBasedCategories
 } from '@encreasl/client-services';
 import { useThemeColors } from '../contexts/ThemeContext';
 
@@ -13,7 +13,6 @@ interface LocationBasedProductCategoriesCarouselProps {
   includeInactive?: boolean;
   selectedCategorySlug?: string | null;
   onCategorySelect?: (categoryId: string | null, categorySlug: string | null, categoryName?: string) => void;
-  refreshToken?: number;
 }
 
 export default function LocationBasedProductCategoriesCarousel({
@@ -23,48 +22,30 @@ export default function LocationBasedProductCategoriesCarousel({
   includeInactive = false,
   selectedCategorySlug,
   onCategorySelect,
-  refreshToken,
 }: LocationBasedProductCategoriesCarouselProps) {
-  const [categories, setCategories] = useState<MerchantCategoryDisplay[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    data: rawCategories = [], 
+    isLoading, 
+    isRefetching 
+  } = useLocationBasedCategories(
+    customerId,
+    includeInactive,
+    limit
+  );
+  
+  const loading = isLoading || isRefetching;
+  
   const colors = useThemeColors();
 
-  const fetchCategories = useCallback(async () => {
-    if (!customerId) return;
-    
-    try {
-      // Clear previous data so skeleton shows clearly on refresh
-      setCategories([]);
-      setLoading(true);
-      console.log(`[Categories] Fetching for customer: ${customerId}, limit: ${limit}`);
-      
-      // Use the service from shared package - ALIGNED WITH WEB LOGIC (Client-side aggregation)
-      const cats = await LocationBasedMerchantService.getLocationBasedMerchantCategories({ 
-        customerId, 
-        includeInactive, 
-        limit 
-      });
-      
-      console.log(`[Categories] Fetched ${cats?.length || 0} categories`);
-      
-      let mapped = cats || [];
-      if (sortBy === 'name') {
-        mapped = mapped.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      } else if (sortBy === 'productCount') {
-        mapped = mapped.slice().sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-      }
-      
-      setCategories(mapped);
-    } catch (err) {
-      console.error('Failed to load categories', err);
-    } finally {
-      setLoading(false);
+  const categories = useMemo(() => {
+    let mapped = rawCategories || [];
+    if (sortBy === 'name') {
+      mapped = mapped.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } else if (sortBy === 'productCount') {
+      mapped = mapped.slice().sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
     }
-  }, [customerId, includeInactive, limit, sortBy]);
-
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories, refreshToken]);
+    return mapped;
+  }, [rawCategories, sortBy]);
 
   const handleCategoryPress = (category: MerchantCategoryDisplay) => {
     const slug = category.slug || category.name.toLowerCase().replace(/\s+/g, '-');
@@ -79,7 +60,9 @@ export default function LocationBasedProductCategoriesCarousel({
   };
 
   if (!customerId) return null;
-  if (loading && categories.length === 0) {
+  
+  // Show skeleton if loading or refetching, regardless of existing data
+  if (loading) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
