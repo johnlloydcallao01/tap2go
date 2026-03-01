@@ -49,6 +49,7 @@ import * as migration_20260125_160000_enforce_after_role_triggers from './202601
 import * as migration_20260125_170000_disable_user_events_logging from './20260125_170000_disable_user_events_logging';
 import * as migration_20260125_180000_remove_create_role_record from './20260125_180000_remove_create_role_record';
 import * as migration_20260128_000100_fix_users_role_triggers_cleanup from './20260128_000100_fix_users_role_triggers_cleanup';
+import * as migration_20260301_134303_add_system_settings_maintenance_mode from './20260301_134303_add_system_settings_maintenance_mode';
 
 export const migrations = [
   {
@@ -279,7 +280,7 @@ export const migrations = [
   {
     up: migration_20260123_050112_add_timezone_to_merchants.up,
     down: migration_20260123_050112_add_timezone_to_merchants.down,
-    name: '20260123_050112_add_timezone_to_merchants'
+    name: '20260123_050112_add_timezone_to_merchants',
   },
   {
     up: migration_20260125_093000_fix_handle_role_change_function.up,
@@ -305,5 +306,10 @@ export const migrations = [
     up: migration_20260128_000100_fix_users_role_triggers_cleanup.up,
     down: migration_20260128_000100_fix_users_role_triggers_cleanup.down,
     name: '20260128_000100_fix_users_role_triggers_cleanup',
+  },
+  {
+    up: migration_20260301_134303_add_system_settings_maintenance_mode.up,
+    down: migration_20260301_134303_add_system_settings_maintenance_mode.down,
+    name: '20260301_134303_add_system_settings_maintenance_mode'
   },
 ];
