@@ -17,7 +17,7 @@ export const config = {
   ],
 };
 
-export async function proxy(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
   // 1. Skip if it's already the maintenance page (handled by matcher, but good to be safe)
   if (req.nextUrl.pathname.startsWith('/maintenance')) {
     return NextResponse.next();
@@ -27,15 +27,18 @@ export async function proxy(req: NextRequest) {
   try {
     const isInMaintenanceMode = await checkMaintenanceMode();
     
+    // Log for debugging in Vercel Logs
+    if (process.env.NODE_ENV === 'production') {
+      console.log(`[Proxy] Checking maintenance mode: ${isInMaintenanceMode}`);
+    }
+
     if (isInMaintenanceMode) {
-      // In Next.js Proxy, we can rewrite just like in Middleware
       const url = req.nextUrl.clone();
       url.pathname = '/maintenance';
       return NextResponse.rewrite(url);
     }
   } catch (error) {
-    console.error('Maintenance check failed:', error);
-    // Fail open: allow traffic if check fails
+    console.error('[Proxy] Maintenance check failed:', error);
   }
 
   return NextResponse.next();
@@ -49,11 +52,14 @@ async function checkMaintenanceMode() {
 
   // Check Vercel Edge Config
   try {
+    if (!process.env.EDGE_CONFIG) {
+      console.warn('[Proxy] EDGE_CONFIG env var is missing!');
+      return false;
+    }
     const maintenance = await get('isInMaintenanceMode');
     return maintenance === true;
   } catch (error) {
-    // If EDGE_CONFIG is not set or other error, log and return false
-    console.error('Edge Config Error:', error);
+    console.error('[Proxy] Edge Config Error:', error);
     return false;
   }
 }
