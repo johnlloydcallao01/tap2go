@@ -8,6 +8,7 @@ import {
 } from '@encreasl/client-services';
 import LocationMerchantCard from './LocationMerchantCard';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { useWishlist } from '../hooks/useWishlist';
 
 interface LocationBasedMerchantsProps {
   customerId?: string;
@@ -22,6 +23,8 @@ export default function LocationBasedMerchants({
   categoryId,
   onMerchantPress
 }: LocationBasedMerchantsProps) {
+  const { isWishlisted, toggleWishlist } = useWishlist();
+
   const { 
     data: merchants = [], 
     isLoading, 
@@ -126,7 +129,8 @@ export default function LocationBasedMerchants({
                   merchant={merchant}
                   onPress={onMerchantPress}
                   addressName={addressMap[merchant.id] || null}
-                  // Add wishlist logic here if needed
+                  isWishlisted={isWishlisted(merchant.id)}
+                  onToggleWishlist={toggleWishlist}
                 />
               </View>
             ))}
@@ -157,6 +161,8 @@ export default function LocationBasedMerchants({
                       merchant={merchant}
                       onPress={onMerchantPress}
                       addressName={addressMap[merchant.id] || null}
+                      isWishlisted={isWishlisted(merchant.id)}
+                      onToggleWishlist={toggleWishlist}
                     />
                   </View>
                 ))}

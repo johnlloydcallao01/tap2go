@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -11,8 +11,11 @@ import {
   StatusBar,
   Alert,
   useWindowDimensions,
-  TextInput,
-  ImageBackground
+  ImageBackground,
+  Animated,
+  Platform,
+  ViewToken,
+  RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../contexts/ThemeContext';
@@ -26,6 +29,52 @@ import {
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { useCart } from '../contexts/CartContext';
 import { formatCurrency } from '../utils/format';
+import MerchantSearchModal from '../components/MerchantSearchModal';
+import { useWishlist } from '../hooks/useWishlist';
+import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+
+const MerchantSkeleton = () => {
+  const { width } = useWindowDimensions();
+  
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <View style={{ height: 200, backgroundColor: '#F3F4F6' }} />
+      
+      <View style={{ alignItems: 'center', marginTop: -30 }}>
+        <View style={{ 
+          width: 80, height: 80, borderRadius: 12, 
+          backgroundColor: '#E5E7EB', 
+          borderWidth: 4, borderColor: '#fff' 
+        }} />
+      </View>
+      
+      <View style={{ alignItems: 'center', padding: 16 }}>
+         <View style={{ width: '60%', height: 24, backgroundColor: '#F3F4F6', borderRadius: 4, marginBottom: 8 }} />
+         <View style={{ width: '40%', height: 16, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+      </View>
+      
+      <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+           {[1,2,3,4].map(i => (
+             <View key={i} style={{ width: 80, height: 32, backgroundColor: '#F3F4F6', borderRadius: 16 }} />
+           ))}
+        </View>
+      </View>
+      
+      <View style={{ padding: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+         {[1,2,3,4].map(i => (
+           <View key={i} style={{ 
+             width: (width - 32 - 12) / 2, 
+             marginBottom: 16 
+           }}>
+             <View style={{ width: '100%', aspectRatio: 1, backgroundColor: '#F3F4F6', borderRadius: 12, marginBottom: 8 }} />
+             <View style={{ width: '80%', height: 16, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+           </View>
+         ))}
+      </View>
+    </View>
+  );
+};
 
 interface Section {
   title: string;
@@ -34,16 +83,96 @@ interface Section {
 }
 
 export default function MerchantScreen({ route, navigation }: any) {
-  const { merchantId } = route.params || {};
+  const { merchantId, distanceKm, distanceInMeters } = route.params || {};
+  const { isWishlisted, toggleWishlist } = useWishlist();
+  const isHearted = isWishlisted(merchantId);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | string | null>(null);
   const sectionListRef = useRef<SectionList>(null);
-  const { addToCart } = useCart();
+  const stickyCategoryListRef = useRef<FlatList>(null);
+  const headerCategoryListRef = useRef<FlatList>(null);
+  const isManualScroll = useRef(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const { addToCart, getMerchantCart } = useCart();
+  const merchantCart = getMerchantCart(String(merchantId));
+  // Store threshold in state to trigger re-render for interpolation update
+  const [headerThreshold, setHeaderThreshold] = useState(200);
+  const [categoriesThreshold, setCategoriesThreshold] = useState(1000);
+  const searchBarOffset = useRef(0);
+  const categoriesListOffset = useRef(0);
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+
+  // Update threshold when search bar layout is measured
+  const updateThreshold = useCallback(() => {
+    if (searchBarOffset.current > 0) {
+      const headerHeight = insets.top + 45;
+      const newThreshold = searchBarOffset.current - headerHeight;
+      if (Math.abs(newThreshold - headerThreshold) > 5) {
+        setHeaderThreshold(newThreshold);
+      }
+    }
+  }, [insets.top, headerThreshold]);
+
+  const updateCategoriesThreshold = useCallback(() => {
+    if (categoriesListOffset.current > 0) {
+      const headerHeight = insets.top + 45;
+      const newThreshold = categoriesListOffset.current - headerHeight;
+      if (Math.abs(newThreshold - categoriesThreshold) > 5) {
+        setCategoriesThreshold(newThreshold);
+      }
+    }
+  }, [insets.top, categoriesThreshold]);
+
+  // Header Animation Interpolations
+  const headerBackgroundColor = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['rgba(255,255,255,0)', 'rgba(255,255,255,1)'],
+    extrapolate: 'clamp',
+  });
+
+  // Search Bar Visibility Interpolation (Instant Switch)
+  const searchBarOpacity = scrollY.interpolate({
+    inputRange: [headerThreshold - 1, headerThreshold],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  
+  const searchBarTranslateY = scrollY.interpolate({
+    inputRange: [headerThreshold - 1, headerThreshold],
+    outputRange: [-20, 0], // Slight slide in
+    extrapolate: 'clamp',
+  });
+
+  // Default Icons Visibility Interpolation (Instant Switch)
+  const defaultIconsOpacity = scrollY.interpolate({
+    inputRange: [headerThreshold - 1, headerThreshold],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+  
+  const defaultIconsTranslateY = scrollY.interpolate({
+    inputRange: [headerThreshold - 1, headerThreshold],
+    outputRange: [0, -20], // Slide out
+    extrapolate: 'clamp',
+  });
+
+  // Sticky Categories Interpolations
+  const stickyCategoriesOpacity = scrollY.interpolate({
+    inputRange: [categoriesThreshold - 1, categoriesThreshold],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  
+  const stickyCategoriesTranslateY = scrollY.interpolate({
+    inputRange: [categoriesThreshold - 1, categoriesThreshold],
+    outputRange: [-10, 0], // Slide in slightly
+    extrapolate: 'clamp',
+  });
 
   // 1. Fetch Merchant Details
-  const { data: merchant, isLoading: isLoadingMerchant } = useQuery({
+  const { data: merchant, isLoading: isLoadingMerchant, refetch: refetchMerchant, isRefetching: isRefetchingMerchant } = useQuery({
     queryKey: ['merchant', merchantId],
     queryFn: () => getMerchantByIdClient(String(merchantId)),
     enabled: !!merchantId,
@@ -55,7 +184,9 @@ export default function MerchantScreen({ route, navigation }: any) {
     isLoading: isLoadingMenu,
     fetchNextPage,
     hasNextPage,
-    isFetchingNextPage
+    isFetchingNextPage,
+    refetch: refetchMenu,
+    isRefetching: isRefetchingMenu
   } = useInfiniteQuery({
     queryKey: ['merchant-menu', merchantId],
     queryFn: ({ pageParam = 1 }) => getMerchantMenuClient(String(merchantId), pageParam, 20),
@@ -69,11 +200,19 @@ export default function MerchantScreen({ route, navigation }: any) {
     enabled: !!merchantId,
   });
 
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([
+      refetchMerchant(),
+      refetchMenu()
+    ]);
+  }, [refetchMerchant, refetchMenu]);
+
+  const isRefreshing = isRefetchingMerchant || isRefetchingMenu;
   const isLoading = isLoadingMerchant || isLoadingMenu;
 
   // 3. Group Products by Category and Chunk for Grid
-  const { sections, categories } = useMemo(() => {
-    if (!menuData) return { sections: [], categories: [] };
+  const { sections, categories, allProducts } = useMemo(() => {
+    if (!menuData) return { sections: [], categories: [], allProducts: [] };
     
     // Flatten products and categories from all pages
     const products = menuData.pages.flatMap(page => page.products);
@@ -127,21 +266,84 @@ export default function MerchantScreen({ route, navigation }: any) {
       allCategories.push({ id: othersId, name: 'Others', slug: 'others' });
     }
 
-    return { sections: result, categories: allCategories };
+    // Deduplicate products for search
+    const uniqueProducts = Array.from(new Map(products.map(p => [p.id, p])).values());
+
+    return { sections: result, categories: allCategories, allProducts: uniqueProducts };
   }, [menuData]);
+
+  // Sync Category Tabs with Selection
+  useEffect(() => {
+    if (isManualScroll.current || !selectedCategoryId || categories.length === 0) return;
+
+    const index = categories.findIndex(c => String(c.id) === String(selectedCategoryId));
+    if (index !== -1) {
+      // Scroll both lists
+      [stickyCategoryListRef, headerCategoryListRef].forEach(ref => {
+        ref.current?.scrollToIndex({ 
+          index, 
+          viewPosition: 0.5, 
+          animated: true 
+        });
+      });
+    }
+  }, [selectedCategoryId, categories]);
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 10,
+    waitForInteraction: true,
+  }).current;
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (isManualScroll.current || viewableItems.length === 0) return;
+
+    // Find the first viewable item that belongs to a section
+    const firstItem = viewableItems[0];
+    
+    // Check if we have a section and it's different from current
+    if (firstItem && firstItem.section) {
+      const section = firstItem.section as Section;
+      const newId = section.id;
+      
+      if (newId !== selectedCategoryId) {
+        setSelectedCategoryId(newId);
+        // Scrolling is now handled by the useEffect above to ensure consistency
+      }
+    }
+  }).current;
 
   // Handle Category Selection (Scroll to Section)
   const handleCategoryPress = (categoryId: number | string) => {
+    isManualScroll.current = true;
     setSelectedCategoryId(categoryId);
+    
+    // Scroll SectionList
     const sectionIndex = sections.findIndex(s => s.id === categoryId);
     if (sectionIndex !== -1 && sectionListRef.current) {
       sectionListRef.current.scrollToLocation({
         sectionIndex,
         itemIndex: 0,
-        viewOffset: 160, // Adjust for header height + sticky header
+        viewOffset: 160,
         animated: true
       });
     }
+
+    // Scroll Tabs Immediately (better responsiveness for tap)
+    const categoryIndex = categories.findIndex(c => String(c.id) === String(categoryId));
+    if (categoryIndex !== -1) {
+      [stickyCategoryListRef, headerCategoryListRef].forEach(ref => {
+        ref.current?.scrollToIndex({ 
+          index: categoryIndex, 
+          viewPosition: 0.5, 
+          animated: true 
+        });
+      });
+    }
+
+    // Reset lock
+    setTimeout(() => {
+      isManualScroll.current = false;
+    }, 1000);
   };
 
   const handleAddToCart = (product: MerchantProductDisplay) => {
@@ -149,9 +351,8 @@ export default function MerchantScreen({ route, navigation }: any) {
     // For now, we assume simple products or handle variations later
     // In real app, check productType (simple vs variable)
     if (product.productType === 'variable' || product.productType === 'grouped') {
-      // Navigate to product details or show variations modal
-      Alert.alert('Options', 'This product has options. Please select variations.');
-      // navigation.navigate('ProductDetails', { productId: product.id });
+      // Navigate to product details
+      navigation.navigate('Product', { merchantProductId: product.id, merchantId });
     } else {
       // Adapt to MenuItem interface expected by CartContext
       const menuItem = {
@@ -161,6 +362,7 @@ export default function MerchantScreen({ route, navigation }: any) {
         price: product.basePrice || 0,
         image: product.imageUrl || '',
         restaurantId: String(merchantId),
+        merchantName: merchant?.outletName || 'Merchant', // Updated with merchantName
         category: '', // Can be filled if needed, but not critical for add
         available: true
       };
@@ -170,10 +372,29 @@ export default function MerchantScreen({ route, navigation }: any) {
     }
   };
 
+  const onScrollToIndexFailed = (info: { index: number; highestMeasuredFrameIndex: number; averageItemLength: number }) => {
+    // Fallback: wait a bit and try again
+    const wait = new Promise(resolve => setTimeout(resolve, 500));
+    wait.then(() => {
+        try {
+            stickyCategoryListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+        } catch {}
+        try {
+            headerCategoryListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+        } catch {}
+    }).catch(() => {});
+  };
+
   // Helper to get image URL with fallbacks (Cloudinary > URL > Thumbnail)
   // And handle relative URLs by prepending API base
   const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
   const BASE_URL = API_URL.replace(/\/api\/?$/, ''); // Strip trailing /api or /api/
+
+  function formatDistanceKm(distanceKm?: number): string | null {
+    if (typeof distanceKm !== "number") return null;
+    if (distanceKm < 1) return `${Math.round(distanceKm * 1000)}m`;
+    return `${distanceKm.toFixed(1)}km`;
+  }
 
   const getImageUrl = (media: any): string | null => {
     if (!media) return null;
@@ -207,34 +428,7 @@ export default function MerchantScreen({ route, navigation }: any) {
           source={{ uri: coverImage || 'https://via.placeholder.com/800x400' }} 
           style={{ width: '100%', height: 200 }}
           resizeMode="cover"
-        >
-          {/* Top Bar Overlay */}
-          <View style={{ 
-            flexDirection: 'row', 
-            justifyContent: 'space-between', 
-            paddingHorizontal: 16, 
-            paddingTop: insets.top + 10 
-          }}>
-            <TouchableOpacity 
-              onPress={() => navigation.goBack()}
-              style={styles.iconButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="information-circle-outline" size={24} color="#000" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="heart-outline" size={24} color="#000" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="share-outline" size={24} color="#000" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ImageBackground>
+        />
 
         {/* Merchant Logo (Overlapping) */}
         <View style={{ alignItems: 'center', marginTop: -30 }}>
@@ -250,6 +444,19 @@ export default function MerchantScreen({ route, navigation }: any) {
         {/* Merchant Info */}
         <View style={{ paddingHorizontal: 16, alignItems: 'center', marginTop: 10 }}>
           <Text style={styles.merchantName}>{merchant.outletName}</Text>
+          
+          {/* Distance */}
+          {(typeof distanceKm === 'number' || typeof distanceInMeters === 'number') && (
+             <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
+                <Ionicons name="location-outline" size={14} color="#666" style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#666' }}>
+                  {typeof distanceKm === 'number' 
+                    ? formatDistanceKm(distanceKm) 
+                    : formatDistanceKm((distanceInMeters || 0) / 1000)}
+                </Text>
+             </View>
+          )}
+
           {address && (
             <Text style={styles.merchantAddress} numberOfLines={2}>
               {address}
@@ -258,41 +465,55 @@ export default function MerchantScreen({ route, navigation }: any) {
         </View>
 
         {/* Search Bar */}
-        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-          <View style={styles.searchContainer}>
+        <View 
+          style={{ paddingHorizontal: 16, marginTop: 16 }}
+          onLayout={(event) => {
+            // Get the Y position of the bottom of the search bar relative to the scroll view
+            searchBarOffset.current = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
+            updateThreshold();
+          }}
+        >
+          <TouchableOpacity 
+            style={styles.searchContainer}
+            onPress={() => setIsSearchVisible(true)}
+            activeOpacity={0.9}
+          >
             <Ionicons name="search" size={20} color="#999" style={{ marginRight: 8 }} />
-            <TextInput 
-              placeholder="Search menu" 
-              style={styles.searchInput} 
-              placeholderTextColor="#999"
-            />
-          </View>
+            <Text style={{ fontSize: 15, color: '#999' }}>Search menu</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Categories Horizontal List */}
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={categories}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ paddingHorizontal: 16, marginTop: 16, paddingBottom: 8 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              onPress={() => handleCategoryPress(item.id)}
-              style={[
-                styles.categoryPill,
-                selectedCategoryId === item.id && styles.categoryPillActive
-              ]}
-            >
-              <Text style={[
-                styles.categoryPillText,
-                selectedCategoryId === item.id && styles.categoryPillTextActive
-              ]}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
+        <View onLayout={(event) => {
+           categoriesListOffset.current = event.nativeEvent.layout.y;
+           updateCategoriesThreshold();
+        }}>
+          <FlatList
+            ref={headerCategoryListRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={categories}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={{ paddingHorizontal: 16, marginTop: 16, paddingBottom: 8 }}
+            onScrollToIndexFailed={onScrollToIndexFailed}
+            renderItem={({ item }) => (
+              <TouchableOpacity 
+                onPress={() => handleCategoryPress(item.id)}
+                style={[
+                  styles.categoryPill,
+                  selectedCategoryId === item.id && styles.categoryPillActive
+                ]}
+              >
+                <Text style={[
+                  styles.categoryPillText,
+                  selectedCategoryId === item.id && styles.categoryPillTextActive
+                ]}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
       </View>
     );
   };
@@ -317,12 +538,8 @@ export default function MerchantScreen({ route, navigation }: any) {
             key={product.id} 
             style={[styles.productCard, { width: itemWidth }]}
             onPress={() => {
-              // Navigate to details if needed
-              if (product.productType === 'variable' || product.productType === 'grouped') {
-                 Alert.alert('Product', product.name);
-              } else {
-                 handleAddToCart(product);
-              }
+              // Navigate to product details
+              navigation.navigate('Product', { merchantProductId: product.id, merchantId });
             }}
           >
             {/* Image Container */}
@@ -365,10 +582,18 @@ export default function MerchantScreen({ route, navigation }: any) {
     );
   };
 
-  if (isLoading && !merchant) {
+  const showSkeleton = isLoading || isRefreshing;
+
+  if (showSkeleton) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color="#eba236" />
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <StatusBar barStyle="light-content" />
+        <PullToRefreshLayout
+          isRefreshing={isRefreshing}
+          onRefresh={handleRefresh}
+        >
+          <MerchantSkeleton />
+        </PullToRefreshLayout>
       </View>
     );
   }
@@ -376,7 +601,168 @@ export default function MerchantScreen({ route, navigation }: any) {
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       <StatusBar barStyle="light-content" />
-      <SectionList
+      
+      {/* Sticky Header Overlay */}
+      <Animated.View style={{ 
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        backgroundColor: headerBackgroundColor,
+        height: insets.top + 45,
+        paddingTop: insets.top,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        // Shadow only when opaque
+        ...Platform.select({
+          ios: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: scrollY.interpolate({
+              inputRange: [0, 100],
+              outputRange: [0, 0.1],
+              extrapolate: 'clamp',
+            }),
+            shadowRadius: 4,
+          },
+          android: {
+            elevation: scrollY.interpolate({
+              inputRange: [0, 100],
+              outputRange: [0, 4],
+              extrapolate: 'clamp',
+            }),
+          },
+        }),
+      }}>
+        {/* Back Button (Always Visible, fixed width container) */}
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={[styles.iconButton, { marginRight: 10, zIndex: 200 }]}
+        >
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+
+        {/* Right Side Content Container */}
+        <View style={{ flex: 1, height: '100%', justifyContent: 'center' }}>
+          
+          {/* Default State Icons */}
+          <Animated.View style={{ 
+            position: 'absolute', 
+            right: 0, 
+            top: 0, 
+            bottom: 0,
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            gap: 10,
+            opacity: defaultIconsOpacity,
+            transform: [{ translateY: defaultIconsTranslateY }],
+            zIndex: 10
+          }}>
+            <TouchableOpacity style={styles.iconButton}>
+              <Ionicons name="information-circle-outline" size={24} color="#000" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => toggleWishlist(merchantId)}
+            >
+              <Ionicons 
+                name={isHearted ? "heart" : "heart-outline"} 
+                size={24} 
+                color={isHearted ? "#f3a823" : "#000"} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton}>
+              <Ionicons name="share-outline" size={24} color="#000" />
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Scrolled State Search Bar & Ellipsis */}
+          <Animated.View style={{ 
+            position: 'absolute', 
+            left: 0, 
+            right: 0, 
+            top: 0, 
+            bottom: 0,
+            flexDirection: 'row', 
+            alignItems: 'center',
+            opacity: searchBarOpacity,
+            transform: [{ translateY: searchBarTranslateY }],
+            zIndex: 20
+          }}>
+             <View style={{ flex: 1, paddingRight: 8 }}>
+                <TouchableOpacity 
+                  style={[styles.searchContainer, { height: 36, backgroundColor: '#f5f5f5', borderWidth: 0 }]}
+                  onPress={() => setIsSearchVisible(true)}
+                  activeOpacity={0.9}
+                >
+                   <Ionicons name="search" size={18} color="#999" style={{ marginRight: 6 }} />
+                   <Text style={{ fontSize: 14, color: '#999' }}>Search menu</Text>
+                </TouchableOpacity>
+             </View>
+             <TouchableOpacity style={styles.iconButton}>
+               <Ionicons name="ellipsis-vertical" size={24} color="#000" />
+             </TouchableOpacity>
+          </Animated.View>
+
+        </View>
+      </Animated.View>
+
+      {/* Sticky Categories Header */}
+      <Animated.View style={{ 
+        position: 'absolute',
+        top: insets.top + 45, 
+        left: 0, 
+        right: 0, 
+        zIndex: 90,
+        backgroundColor: '#fff',
+        opacity: stickyCategoriesOpacity,
+        transform: [{ translateY: stickyCategoriesTranslateY }],
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+        // Shadow
+        ...Platform.select({
+          ios: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+          },
+          android: {
+            elevation: 2,
+          },
+        }),
+      }}>
+        <FlatList
+          ref={stickyCategoryListRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={categories}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+          onScrollToIndexFailed={onScrollToIndexFailed}
+          renderItem={({ item }) => (
+            <TouchableOpacity 
+              onPress={() => handleCategoryPress(item.id)}
+              style={[
+                styles.categoryPill,
+                selectedCategoryId === item.id && styles.categoryPillActive
+              ]}
+            >
+              <Text style={[
+                styles.categoryPillText,
+                selectedCategoryId === item.id && styles.categoryPillTextActive
+              ]}>
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </Animated.View>
+
+      <Animated.SectionList
         ref={sectionListRef}
         sections={sections}
         keyExtractor={(item, index) => index.toString()}
@@ -391,12 +777,56 @@ export default function MerchantScreen({ route, navigation }: any) {
           }
         }}
         onEndReachedThreshold={0.5}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChanged}
         ListFooterComponent={
           isFetchingNextPage ? (
             <ActivityIndicator style={{ margin: 20 }} color="#eba236" />
           ) : null
         }
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+            progressBackgroundColor={colors.background}
+          />
+        }
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
       />
+      
+      {/* Search Modal */}
+      <MerchantSearchModal
+        visible={isSearchVisible}
+        onClose={() => setIsSearchVisible(false)}
+        products={allProducts}
+        categories={categories}
+        onAddToCart={handleAddToCart}
+      />
+
+      {/* View Cart Floating Bar */}
+      {merchantCart && (
+        <View style={[styles.viewCartContainer, { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 }]}>
+          <TouchableOpacity 
+            style={[styles.viewCartButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('MerchantCart', { merchantId })}
+            activeOpacity={0.9}
+          >
+            <View style={styles.viewCartLeft}>
+              <View style={styles.cartCountBadge}>
+                <Text style={styles.cartCountText}>{merchantCart.totalItems}</Text>
+              </View>
+              <Text style={styles.viewCartText}>View your cart</Text>
+            </View>
+            <Text style={styles.cartTotalText}>${merchantCart.subtotal.toFixed(2)}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -476,53 +906,54 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   categoryPillActive: {
-    backgroundColor: '#fff', // Keep white bg
-    borderColor: '#333',   // Dark border for active
+    backgroundColor: '#eba236', // Orange bg
+    borderColor: '#eba236',
   },
   categoryPillText: {
     fontSize: 14,
+    fontWeight: '600',
     color: '#666',
-    fontWeight: '500',
   },
   categoryPillTextActive: {
-    color: '#333',
-    fontWeight: '600',
+    color: '#fff',
   },
   sectionHeader: {
     paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 12,
+    paddingVertical: 12,
     backgroundColor: '#fff',
   },
   sectionHeaderText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#111',
+    color: '#333',
   },
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
-    marginBottom: 16,
     gap: 12,
   },
   productCard: {
-    backgroundColor: '#fff',
+    marginBottom: 16,
     borderRadius: 12,
-    overflow: 'hidden',
-    // No shadow in screenshot, looks clean
+    backgroundColor: '#fff',
+    // shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   imageContainer: {
-    width: '100%',
-    aspectRatio: 1, // Square image
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
     position: 'relative',
-    marginBottom: 8,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden',
   },
   productImage: {
     width: '100%',
-    height: '100%',
-    borderRadius: 12,
+    aspectRatio: 1,
+    backgroundColor: '#f0f0f0',
   },
   addButton: {
     position: 'absolute',
@@ -541,23 +972,72 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   productContent: {
-    // paddingHorizontal: 4,
+    padding: 10,
   },
   productName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111',
-    lineHeight: 18,
+    color: '#333',
     marginBottom: 4,
+    height: 36, // 2 lines roughly
   },
   price: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#111',
+    color: '#333',
   },
   variableText: {
-    fontSize: 13,
+    fontSize: 12,
+    color: '#eba236',
     fontWeight: '500',
-    color: '#eba236', // Brand color for "Show Variations"
-  }
+  },
+  viewCartContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    backgroundColor: 'transparent', // Let button float
+    zIndex: 1000,
+  },
+  viewCartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  viewCartLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cartCountBadge: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 10,
+  },
+  cartCountText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  viewCartText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  cartTotalText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });

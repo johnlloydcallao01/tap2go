@@ -20,11 +20,13 @@ import LocationMerchantCard from '../components/LocationMerchantCard';
 import SearchModal from '../components/SearchModal';
 import { useQuery } from '@tanstack/react-query';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { useWishlist } from '../hooks/useWishlist';
 
 export default function SearchScreen({ route, navigation }: any) {
   const { query } = route.params || {};
   const { user } = useAuth();
   const colors = useThemeColors();
+  const { isWishlisted, toggleWishlist } = useWishlist();
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [modalQuery, setModalQuery] = useState('');
 
@@ -136,6 +138,8 @@ export default function SearchScreen({ route, navigation }: any) {
               onPress={(m) => {
                 navigation.navigate('Merchant', { merchantId: m.id });
               }}
+              isWishlisted={isWishlisted(item.id)}
+              onToggleWishlist={() => toggleWishlist(item.id)}
             />
           )}
           contentContainerStyle={styles.listContent}

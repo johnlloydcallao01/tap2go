@@ -1,217 +1,223 @@
-import React, { useState } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
-  Image,
+  StyleSheet,
+  useWindowDimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
+import { useWishlist } from '../hooks/useWishlist';
+import LocationMerchantCard from '../components/LocationMerchantCard';
+import { useThemeColors } from '../contexts/ThemeContext';
+import { LocationBasedMerchant, useMerchantAddresses } from '@encreasl/client-services';
+import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
 export default function WishlistScreen({ navigation }: any) {
-  const [wishlistItems, setWishlistItems] = useState([
-    {
-      id: '1',
-      name: 'Margherita Pizza',
-      restaurant: 'Pizza Corner',
-      price: 18.99,
-      image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
-      rating: 4.6,
-      deliveryTime: '20-30 min',
-      description: 'Fresh tomatoes, mozzarella, basil',
-    },
-    {
-      id: '2',
-      name: 'Chicken Burger',
-      restaurant: 'Burger Palace',
-      price: 12.99,
-      image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=400',
-      rating: 4.8,
-      deliveryTime: '15-25 min',
-      description: 'Grilled chicken, lettuce, tomato, mayo',
-    },
-    {
-      id: '3',
-      name: 'Salmon Sushi Roll',
-      restaurant: 'Sushi Express',
-      price: 24.99,
-      image: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400',
-      rating: 4.9,
-      deliveryTime: '25-35 min',
-      description: 'Fresh salmon, avocado, cucumber',
-    },
-    {
-      id: '4',
-      name: 'Caesar Salad',
-      restaurant: 'Green Bowl',
-      price: 9.99,
-      image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400',
-      rating: 4.7,
-      deliveryTime: '18-28 min',
-      description: 'Romaine lettuce, parmesan, croutons',
-    },
-  ]);
+  const { wishlistDocs, isLoading, isRefetching, isWishlisted, toggleWishlist, refetch } = useWishlist();
+  const colors = useThemeColors();
+  const { width } = useWindowDimensions();
 
-  const removeFromWishlist = (id: string) => {
-    setWishlistItems(items => items.filter(item => item.id !== id));
+  const merchants = useMemo(() => {
+    return wishlistDocs
+      .map((doc: any) => doc.merchant)
+      .filter((m: any): m is LocationBasedMerchant => !!m && typeof m === 'object');
+  }, [wishlistDocs]);
+
+  // Fetch active addresses for merchants
+  const { data: addressMap = {} } = useMerchantAddresses(merchants);
+
+  const handleMerchantPress = (merchant: LocationBasedMerchant) => {
+    navigation.navigate('Merchant', { 
+      merchantId: merchant.id,
+      distanceKm: (merchant as any).distanceKm,
+      distanceInMeters: (merchant as any).distanceInMeters
+    });
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-      {/* Brand color status bar area only */}
-      <SafeAreaView style={{ backgroundColor: '#f3a823' }} edges={['top']} />
+  const handleRefresh = useCallback(async () => {
+    // Force refetch of wishlist
+    await refetch();
+  }, [refetch]);
 
-      {/* Content area with light background */}
-      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-        {/* Header */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          backgroundColor: '#fff',
-          borderBottomWidth: 1,
-          borderBottomColor: '#e5e7eb',
-        }}>
+  const showSkeleton = isLoading || isRefetching;
+
+  const contentStyle = useMemo(() => {
+    if (merchants.length === 0 && !showSkeleton) {
+      return styles.emptyContainer;
+    }
+    return styles.listContent;
+  }, [merchants.length, showSkeleton]);
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }} />
+      
+      {/* Header */}
+      <View style={styles.header}>
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
-          style={{ padding: 8, marginRight: 8 }}
+          style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111827', flex: 1 }}>
-          Wishlist
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          My Wishlist
         </Text>
-        <View style={{
-          backgroundColor: '#f97316',
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-          borderRadius: 16,
-        }}>
-          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>
-            {wishlistItems.length} items
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>
+            {merchants.length} places
           </Text>
         </View>
       </View>
 
-      {wishlistItems.length === 0 ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
-          <View style={{
-            width: 120,
-            height: 120,
-            backgroundColor: '#f3f4f6',
-            borderRadius: 60,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 24,
-          }}>
-            <Ionicons name="heart-outline" size={60} color="#9ca3af" />
-          </View>
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 8, textAlign: 'center' }}>
-            Your wishlist is empty
-          </Text>
-          <Text style={{ color: '#6b7280', textAlign: 'center', marginBottom: 32, lineHeight: 20 }}>
-            Save your favorite dishes and restaurants to order them later!
-          </Text>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Home')}
-            style={{
-              backgroundColor: '#f97316',
-              paddingHorizontal: 32,
-              paddingVertical: 16,
-              borderRadius: 12,
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>
-              Explore Restaurants
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <ScrollView style={{ flex: 1 }}>
-          <View style={{ padding: 16 }}>
-            {wishlistItems.map((item) => (
+      <PullToRefreshLayout 
+        isRefreshing={isRefetching}
+        onRefresh={handleRefresh}
+        contentContainerStyle={contentStyle}
+      >
+        {showSkeleton ? (
+          [1, 2, 3].map(key => (
+            <View key={key} style={styles.cardWrapper}>
               <View
-                key={item.id}
                 style={{
-                  backgroundColor: '#fff',
+                  width: '100%',
+                  // Mimic LocationMerchantCard height roughly
+                  height: width * 0.6, 
                   borderRadius: 16,
-                  marginBottom: 16,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 3,
+                  backgroundColor: '#F3F4F6',
+                  padding: 16,
                 }}
               >
-                <Image
-                  source={{ uri: item.image }}
-                  style={{
-                    width: '100%',
-                    height: 160,
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                  }}
-                />
-                <View style={{ padding: 16 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 }}>
-                        {item.name}
-                      </Text>
-                      <Text style={{ color: '#6b7280', fontSize: 14, marginBottom: 4 }}>
-                        from {item.restaurant}
-                      </Text>
-                      <Text style={{ color: '#9ca3af', fontSize: 14, marginBottom: 8 }}>
-                        {item.description}
-                      </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                        <Ionicons name="star" size={16} color="#fbbf24" />
-                        <Text style={{ marginLeft: 4, color: '#6b7280', fontSize: 14 }}>
-                          {item.rating} • {item.deliveryTime}
-                        </Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => removeFromWishlist(item.id)}
-                      style={{
-                        padding: 8,
-                        backgroundColor: '#fef2f2',
-                        borderRadius: 8,
-                      }}
-                    >
-                      <Ionicons name="heart" size={20} color="#ef4444" />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#f97316' }}>
-                      ${item.price.toFixed(2)}
-                    </Text>
-                    <TouchableOpacity style={{
-                      backgroundColor: '#f97316',
-                      paddingHorizontal: 20,
-                      paddingVertical: 10,
-                      borderRadius: 8,
-                    }}>
-                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>
-                        Add to Cart
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                <View style={{ width: '100%', height: '60%', borderRadius: 12, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+                <View style={{ width: '60%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB', marginBottom: 8 }} />
+                <View style={{ width: '40%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
               </View>
-            ))}
-          </View>
-
-          <View style={{ height: 100 }} />
-          </ScrollView>
+            </View>
+          ))
+        ) : merchants.length === 0 ? (
+          <>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="heart-outline" size={60} color="#9ca3af" />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              Your wishlist is empty
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              Save your favorite restaurants to find them easily later!
+            </Text>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Home')}
+              style={styles.exploreButton}
+            >
+              <Text style={styles.exploreButtonText}>
+                Explore Restaurants
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          merchants.map((merchant) => (
+            <View key={merchant.id} style={styles.cardWrapper}>
+              <LocationMerchantCard
+                merchant={merchant}
+                onPress={handleMerchantPress}
+                addressName={addressMap[merchant.id] || null}
+                isWishlisted={isWishlisted(merchant.id)}
+                onToggleWishlist={toggleWishlist}
+              />
+            </View>
+          ))
         )}
-      </View>
-
-
+      </PullToRefreshLayout>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+    marginLeft: -8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  countBadge: {
+    backgroundColor: '#fff3e0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  countText: {
+    color: '#f97316',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  cardWrapper: {
+    marginBottom: 20,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 100,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+    fontSize: 16,
+  },
+  exploreButton: {
+    backgroundColor: '#f97316',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  exploreButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+});

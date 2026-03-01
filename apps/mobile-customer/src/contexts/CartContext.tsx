@@ -9,6 +9,7 @@ export interface MenuItem {
   price: number;
   image: string;
   restaurantId: string;
+  merchantName?: string;
   category: string;
   available: boolean;
 }
@@ -18,26 +19,32 @@ export interface CartItem {
   menuItem: MenuItem;
   quantity: number;
   specialInstructions?: string;
+  selectedModifiers?: any[]; 
   totalPrice: number;
 }
 
 export interface Cart {
   items: CartItem[];
-  restaurantId: string;
+}
+
+export interface MerchantCartSummary {
+  merchantId: string;
+  merchantName: string; // We might need to fetch this or store it in MenuItem
+  totalItems: number;
   subtotal: number;
-  deliveryFee: number;
-  tax: number;
-  total: number;
+  items: CartItem[];
 }
 
 export interface CartContextType {
   cart: Cart | null;
-  addToCart: (item: MenuItem, quantity: number, specialInstructions?: string) => void;
+  addToCart: (item: MenuItem, quantity: number, specialInstructions?: string, selectedModifiers?: any[]) => void;
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
-  getCartTotal: () => number;
-  getCartItemCount: () => number;
+  getCartTotal: () => number; // Global total
+  getCartItemCount: () => number; // Global count
+  getMerchantCart: (merchantId: string) => MerchantCartSummary | null;
+  getAllMerchantCarts: () => MerchantCartSummary[];
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -45,75 +52,57 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function useCart() {
   const context = useContext(CartContext);
   if (context === undefined) {
-    console.error('useCart must be used within a CartProvider');
-    // Return a safe fallback instead of throwing
-    return {
-      cart: null,
-      addToCart: () => console.warn('Cart not available'),
-      removeFromCart: () => console.warn('Cart not available'),
-      updateQuantity: () => console.warn('Cart not available'),
-      clearCart: () => console.warn('Cart not available'),
-      getCartTotal: () => 0,
-      getCartItemCount: () => 0,
-    };
+    throw new Error('useCart must be used within a CartProvider');
   }
   return context;
 }
 
 type CartAction =
-  | { type: 'ADD_ITEM'; payload: { item: MenuItem; quantity: number; specialInstructions?: string } }
+  | { type: 'ADD_ITEM'; payload: { item: MenuItem; quantity: number; specialInstructions?: string; selectedModifiers?: any[] } }
   | { type: 'REMOVE_ITEM'; payload: { itemId: string } }
   | { type: 'UPDATE_QUANTITY'; payload: { itemId: string; quantity: number } }
   | { type: 'CLEAR_CART' }
   | { type: 'LOAD_CART'; payload: Cart | null };
 
 function cartReducer(state: Cart | null, action: CartAction): Cart | null {
+  const currentItems = state?.items || [];
+
   switch (action.type) {
     case 'ADD_ITEM': {
-      const { item, quantity, specialInstructions } = action.payload;
+      const { item, quantity, specialInstructions, selectedModifiers } = action.payload;
       
-      if (!state || state.restaurantId !== item.restaurantId) {
-        // Create new cart or replace if different restaurant
-        const newCartItem: CartItem = {
-          id: `${item.id}-${Date.now()}`,
-          menuItem: item,
-          quantity,
-          specialInstructions,
-          totalPrice: item.price * quantity,
-        };
-        
-        const subtotal = newCartItem.totalPrice;
-        const deliveryFee = 5.99; // Default delivery fee
-        const tax = subtotal * 0.08; // 8% tax
-        
-        return {
-          items: [newCartItem],
-          restaurantId: item.restaurantId,
-          subtotal,
-          deliveryFee,
-          tax,
-          total: subtotal + deliveryFee + tax,
-        };
+      // Calculate price including modifiers
+      let unitPrice = item.price;
+      if (selectedModifiers) {
+        selectedModifiers.forEach(mod => {
+          unitPrice += (mod.price || 0);
+        });
       }
-      
-      // Add to existing cart
-      const existingItemIndex = state.items.findIndex(
-        cartItem => cartItem.menuItem.id === item.id && cartItem.specialInstructions === specialInstructions
+      const itemTotalPrice = unitPrice * quantity;
+
+      // Check if identical item exists (same id, options, modifiers)
+      const existingItemIndex = currentItems.findIndex(
+        cartItem => 
+          cartItem.menuItem.id === item.id && 
+          cartItem.specialInstructions === specialInstructions &&
+          JSON.stringify(cartItem.selectedModifiers) === JSON.stringify(selectedModifiers)
       );
       
       let newItems: CartItem[];
       
       if (existingItemIndex >= 0) {
         // Update existing item
-        newItems = state.items.map((cartItem, index) =>
-          index === existingItemIndex
-            ? {
-                ...cartItem,
-                quantity: cartItem.quantity + quantity,
-                totalPrice: (cartItem.quantity + quantity) * cartItem.menuItem.price,
-              }
-            : cartItem
-        );
+        newItems = currentItems.map((cartItem, index) => {
+          if (index === existingItemIndex) {
+            const newQuantity = cartItem.quantity + quantity;
+            return {
+              ...cartItem,
+              quantity: newQuantity,
+              totalPrice: unitPrice * newQuantity,
+            };
+          }
+          return cartItem;
+        });
       } else {
         // Add new item
         const newCartItem: CartItem = {
@@ -121,83 +110,57 @@ function cartReducer(state: Cart | null, action: CartAction): Cart | null {
           menuItem: item,
           quantity,
           specialInstructions,
-          totalPrice: item.price * quantity,
+          selectedModifiers,
+          totalPrice: itemTotalPrice,
         };
-        newItems = [...state.items, newCartItem];
+        newItems = [...currentItems, newCartItem];
       }
       
-      const subtotal = newItems.reduce((sum, item) => sum + item.totalPrice, 0);
-      const tax = subtotal * 0.08;
-      
-      return {
-        ...state,
-        items: newItems,
-        subtotal,
-        tax,
-        total: subtotal + state.deliveryFee + tax,
-      };
+      return { items: newItems };
     }
     
     case 'REMOVE_ITEM': {
-      if (!state) return null;
-      
-      const newItems = state.items.filter(item => item.id !== action.payload.itemId);
-      
-      if (newItems.length === 0) {
-        return null;
-      }
-      
-      const subtotal = newItems.reduce((sum, item) => sum + item.totalPrice, 0);
-      const tax = subtotal * 0.08;
-      
-      return {
-        ...state,
-        items: newItems,
-        subtotal,
-        tax,
-        total: subtotal + state.deliveryFee + tax,
-      };
+      const newItems = currentItems.filter(item => item.id !== action.payload.itemId);
+      return { items: newItems };
     }
     
     case 'UPDATE_QUANTITY': {
-      if (!state) return null;
-      
       const { itemId, quantity } = action.payload;
       
       if (quantity <= 0) {
-        return cartReducer(state, { type: 'REMOVE_ITEM', payload: { itemId } });
+        const newItems = currentItems.filter(item => item.id !== itemId);
+        return { items: newItems };
       }
       
-      const newItems = state.items.map(item =>
-        item.id === itemId
-          ? {
-              ...item,
-              quantity,
-              totalPrice: item.menuItem.price * quantity,
-            }
-          : item
-      );
+      const newItems = currentItems.map(item => {
+        if (item.id === itemId) {
+          // Recalculate price
+          let unitPrice = item.menuItem.price;
+          if (item.selectedModifiers) {
+            item.selectedModifiers.forEach(mod => {
+              unitPrice += (mod.price || 0);
+            });
+          }
+          return {
+            ...item,
+            quantity,
+            totalPrice: unitPrice * quantity,
+          };
+        }
+        return item;
+      });
       
-      const subtotal = newItems.reduce((sum, item) => sum + item.totalPrice, 0);
-      const tax = subtotal * 0.08;
-      
-      return {
-        ...state,
-        items: newItems,
-        subtotal,
-        tax,
-        total: subtotal + state.deliveryFee + tax,
-      };
+      return { items: newItems };
     }
     
     case 'CLEAR_CART':
-      return null;
+      return { items: [] };
     
     case 'LOAD_CART':
-      return action.payload;
+      return action.payload || { items: [] };
     
     default:
-      return state;
+      return state || { items: [] };
   }
 }
 
@@ -206,48 +169,39 @@ interface CartProviderProps {
 }
 
 export function CartProvider({ children }: CartProviderProps) {
-  const [cart, dispatch] = useReducer(cartReducer, null);
+  const [cart, dispatch] = useReducer(cartReducer, { items: [] });
 
-  // Load cart from AsyncStorage on mount with error handling
+  // Load cart from AsyncStorage on mount
   useEffect(() => {
     const loadCart = async () => {
       try {
-        if (AsyncStorage && typeof AsyncStorage.getItem === 'function') {
-          const savedCart = await AsyncStorage.getItem('cart');
-          if (savedCart) {
-            const parsedCart = JSON.parse(savedCart);
-            dispatch({ type: 'LOAD_CART', payload: parsedCart });
-          }
+        const savedCart = await AsyncStorage.getItem('cart');
+        if (savedCart) {
+          dispatch({ type: 'LOAD_CART', payload: JSON.parse(savedCart) });
         }
       } catch (error) {
-        console.error('Error loading cart from AsyncStorage:', error);
+        console.error('Error loading cart:', error);
       }
     };
-
     loadCart();
   }, []);
 
-  // Save cart to AsyncStorage whenever it changes with error handling
+  // Save cart to AsyncStorage whenever it changes
   useEffect(() => {
     const saveCart = async () => {
       try {
-        if (AsyncStorage && typeof AsyncStorage.setItem === 'function') {
-          if (cart) {
-            await AsyncStorage.setItem('cart', JSON.stringify(cart));
-          } else {
-            await AsyncStorage.removeItem('cart');
-          }
+        if (cart) {
+          await AsyncStorage.setItem('cart', JSON.stringify(cart));
         }
       } catch (error) {
-        console.error('Error saving cart to AsyncStorage:', error);
+        console.error('Error saving cart:', error);
       }
     };
-
     saveCart();
   }, [cart]);
 
-  const addToCart = (item: MenuItem, quantity: number, specialInstructions?: string) => {
-    dispatch({ type: 'ADD_ITEM', payload: { item, quantity, specialInstructions } });
+  const addToCart = (item: MenuItem, quantity: number, specialInstructions?: string, selectedModifiers?: any[]) => {
+    dispatch({ type: 'ADD_ITEM', payload: { item, quantity, specialInstructions, selectedModifiers } });
   };
 
   const removeFromCart = (itemId: string) => {
@@ -263,11 +217,60 @@ export function CartProvider({ children }: CartProviderProps) {
   };
 
   const getCartTotal = () => {
-    return cart?.total || 0;
+    return cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
   };
 
   const getCartItemCount = () => {
-    return cart?.items.reduce((total, item) => total + item.quantity, 0) || 0;
+    return cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  };
+
+  const getMerchantCart = (merchantId: string): MerchantCartSummary | null => {
+    if (!cart) return null;
+    const merchantItems = cart.items.filter(item => String(item.menuItem.restaurantId) === String(merchantId));
+    
+    if (merchantItems.length === 0) return null;
+
+    // Use the name from the first item if available
+    const merchantName = merchantItems[0]?.menuItem.merchantName || 'Merchant';
+
+    const subtotal = merchantItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const totalItems = merchantItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    return {
+      merchantId,
+      merchantName, // We might need to improve this
+      totalItems,
+      subtotal,
+      items: merchantItems
+    };
+  };
+
+  const getAllMerchantCarts = (): MerchantCartSummary[] => {
+    if (!cart) return [];
+    
+    const groups: Record<string, CartItem[]> = {};
+    
+    cart.items.forEach(item => {
+      const mId = String(item.menuItem.restaurantId);
+      if (!groups[mId]) groups[mId] = [];
+      groups[mId].push(item);
+    });
+
+    return Object.keys(groups).map(merchantId => {
+      const items = groups[merchantId];
+      const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
+      const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+      
+      const merchantName = items[0]?.menuItem.merchantName || 'Merchant';
+      
+      return {
+        merchantId,
+        merchantName,
+        totalItems,
+        subtotal,
+        items
+      };
+    });
   };
 
   const value: CartContextType = {
@@ -278,6 +281,8 @@ export function CartProvider({ children }: CartProviderProps) {
     clearCart,
     getCartTotal,
     getCartItemCount,
+    getMerchantCart,
+    getAllMerchantCarts
   };
 
   return (

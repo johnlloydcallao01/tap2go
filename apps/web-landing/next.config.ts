@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
-    domains: ['images.unsplash.com'],
   },
 
   // Security headers for production
