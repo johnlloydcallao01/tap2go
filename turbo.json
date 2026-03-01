@@ -21,14 +21,18 @@
         "VERCEL_ENV",
         "DATABASE_URI",
         "PAYLOAD_SECRET",
-        "PAYLOAD_API_KEY"
+        "PAYLOAD_API_KEY",
+        "EDGE_CONFIG",
+        "VERCEL_API_TOKEN",
+        "VERCEL_EDGE_CONFIG_ID"
       ],
       "passThroughEnv": [
         "NODE_VERSION",
         "NEXT_TELEMETRY_DISABLED",
         "DATABASE_URI",
         "PAYLOAD_SECRET",
-        "PAYLOAD_API_KEY"
+        "PAYLOAD_API_KEY",
+        "EDGE_CONFIG"
       ]
     },
     "dev": {
