@@ -64,7 +64,7 @@ import { TagGroupMemberships } from './collections/TagGroupMemberships'
 import { RecentSearches } from './collections/RecentSearches'
 import { RecentViews } from './collections/RecentViews'
 import { Wishlists } from './collections/Wishlists'
-
+import { SystemSettings } from './globals/SystemSettings'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -129,6 +129,9 @@ export default buildConfig({
     TagGroupMemberships,
     RecentViews,
     Wishlists,
+  ],
+  globals: [
+    SystemSettings,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

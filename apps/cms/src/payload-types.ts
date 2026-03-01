@@ -162,8 +162,12 @@ export interface Config {
   db: {
     defaultIDType: number;
   };
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    'system-settings': SystemSetting;
+  };
+  globalsSelect: {
+    'system-settings': SystemSettingsSelect<false> | SystemSettingsSelect<true>;
+  };
   locale: null;
   user: User & {
     collection: 'users';
@@ -3422,6 +3426,29 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "system-settings".
+ */
+export interface SystemSetting {
+  id: number;
+  /**
+   * Toggle maintenance mode for the public website. When enabled, all non-admin users will be redirected to the maintenance page.
+   */
+  maintenanceMode?: boolean | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "system-settings_select".
+ */
+export interface SystemSettingsSelect<T extends boolean = true> {
+  maintenanceMode?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

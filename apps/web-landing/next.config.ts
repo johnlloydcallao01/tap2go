@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@encreasl/ui"],
+  typedRoutes: false,
+  env: {
+    BASELINE_BROWSER_MAPPING_IGNORE_OLD_DATA: "true",
+    BROWSERSLIST_IGNORE_OLD_DATA: "true",
+  },
 
   // Image configuration for external domains
   images: {
@@ -44,6 +49,12 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+
+  turbopack: {
+    resolveAlias: {
+      "@/*": "./src/*",
+    },
   },
 };
 
