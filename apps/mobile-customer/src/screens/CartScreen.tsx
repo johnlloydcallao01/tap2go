@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart, MerchantCartSummary } from '../contexts/CartContext';
@@ -39,7 +39,7 @@ export default function CartScreen({ navigation }: any) {
                 <View style={styles.merchantInfo}>
                   <View style={styles.merchantHeader}>
                     <Text style={[styles.merchantName, { color: colors.text }]}>{cart.merchantName}</Text>
-                    <Ionicons name="chevron-forward" size={20} color={colors.text} opacity={0.5} />
+                    <Ionicons name="chevron-forward" size={20} color={colors.text} style={{ opacity: 0.5 }} />
                   </View>
                   
                   <View style={styles.cartPreview}>

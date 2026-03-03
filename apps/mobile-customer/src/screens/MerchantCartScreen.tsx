@@ -1,17 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../contexts/CartContext';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { formatCurrency } from '../utils/format';
-import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
 export default function MerchantCartScreen({ route, navigation }: any) {
   const { merchantId } = route.params;
   const colors = useThemeColors();
   const { getMerchantCart, updateQuantity, removeFromCart } = useCart();
-  const [isUpdating, setIsUpdating] = useState(false);
 
   const merchantCart = getMerchantCart(merchantId);
 

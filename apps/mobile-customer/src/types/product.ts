@@ -50,4 +50,9 @@ export interface Product {
     name: string;
     slug: string;
   };
+  merchant?: {
+    id: string;
+    name: string;
+    outletName?: string;
+  };
 }
