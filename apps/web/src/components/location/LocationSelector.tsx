@@ -695,14 +695,14 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
     <>
       <button
         onClick={handleClick}
-        className={`flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors ${className}`}
+        className={`flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors max-w-full ${className}`}
       >
         {isLoadingAddress ? (
           <AddressSkeleton />
         ) : (
           <>
-            <LocationIcon className="h-5 w-5 text-gray-500" />
-            <span className="truncate max-w-32">
+            <LocationIcon className="h-5 w-5 text-gray-500 flex-shrink-0" />
+            <span className="truncate">
               {selectedLocation?.name || selectedLocation?.formatted_address || 'Enter Address'}
             </span>
           </>

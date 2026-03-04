@@ -1,12 +1,42 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, Modal, ImageBackground } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '../../navigation/NavigationContext';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-// import { z } from 'zod';
-import { UserRegistrationSchema, UserRegistrationData, AuthService } from '@encreasl/client-services';
+import { z } from 'zod';
 import { Ionicons } from '@expo/vector-icons';
+
+// ========================================
+// SIMPLE REGISTRATION SCHEMA (matches web)
+// ========================================
+
+const SimpleRegistrationSchema = z.object({
+  firstName: z
+    .string()
+    .min(1, 'First name is required')
+    .max(100, 'First name too long'),
+  middleName: z
+    .string()
+    .max(100, 'Middle name too long')
+    .optional(),
+  lastName: z
+    .string()
+    .min(1, 'Last name is required')
+    .max(100, 'Last name too long'),
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Invalid email address'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters'),
+  agreeToTerms: z.boolean().refine((val) => val === true, {
+    message: 'You must agree to the terms',
+  }),
+});
+
+type SimpleRegistrationData = z.infer<typeof SimpleRegistrationSchema>;
 
 // ========================================
 // HELPER COMPONENTS
@@ -32,62 +62,6 @@ const SectionHeader = ({ title, icon }: { title: string, icon: any }) => (
   </View>
 );
 
-// Simple Select Modal
-const SelectInput = ({ label, value, options, onChange, error }: any) => {
-  const [modalVisible, setModalVisible] = useState(false);
-
-  const selectedLabel = options.find((opt: any) => opt.value === value)?.label || 'Select ' + label;
-
-  return (
-    <View className="mb-4">
-      <FormLabel required>{label}</FormLabel>
-      <TouchableOpacity
-        onPress={() => setModalVisible(true)}
-        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex-row justify-between items-center"
-      >
-        <Text className={value ? "text-gray-900" : "text-gray-400"}>{selectedLabel}</Text>
-        <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
-      </TouchableOpacity>
-      <ErrorMessage message={error} />
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-6 h-1/2">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-gray-900">Select {label}</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {options.map((option: any) => (
-                <TouchableOpacity
-                  key={option.value}
-                  className={`py-4 border-b border-gray-100 flex-row justify-between items-center ${value === option.value ? 'bg-[#eba336]/10 -mx-6 px-6' : ''}`}
-                  onPress={() => {
-                    onChange(option.value);
-                    setModalVisible(false);
-                  }}
-                >
-                  <Text className={`text-base ${value === option.value ? 'text-[#eba336] font-bold' : 'text-gray-700'}`}>
-                    {option.label}
-                  </Text>
-                  {value === option.value && <Ionicons name="checkmark" size={20} color="#eba336" />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </View>
-  );
-};
-
 // ========================================
 // MAIN COMPONENT
 // ========================================
@@ -96,476 +70,295 @@ export default function SignupScreen() {
   const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
 
-  // Extend schema to handle date string input for form, then transform
-  // But our schema expects Date object or string? Let's check schema.
-  // The schema uses DateSchema which expects string or date and transforms.
-  // We'll pass string from TextInput.
-  
-  const { control, handleSubmit, formState: { errors } } = useForm<UserRegistrationData>({
-    resolver: zodResolver(UserRegistrationSchema),
+  const { control, handleSubmit, formState: { errors } } = useForm<SimpleRegistrationData>({
+    resolver: zodResolver(SimpleRegistrationSchema),
     defaultValues: {
       firstName: '',
-      lastName: '',
       middleName: '',
-      nameExtension: '',
-      gender: 'prefer_not_to_say',
-      civilStatus: 'single',
-      srn: '',
-      nationality: '',
-      birthDate: '', // Will handle as string input YYYY-MM-DD
-      placeOfBirth: '',
-      completeAddress: '',
+      lastName: '',
       email: '',
-      phoneNumber: '',
-      username: '',
       password: '',
-      confirmPassword: '',
-      agreeToTerms: true, // Default true for smoother UX? Or false to force?
-      // Emergency fields optional
+      agreeToTerms: undefined as any,
     },
   });
 
-  const onSubmit = async (data: UserRegistrationData) => {
+  const onSubmit = async (data: SimpleRegistrationData) => {
     try {
       setIsLoading(true);
       setGeneralError(null);
-      
-      // Call register service (need to add register to AuthService if not present, but usually login is enough? No, we need register)
-      // I checked AuthService in shared package, it has `login` and `me`. It might NOT have `register`.
-      // I need to check AuthService again.
-      
-      // If missing, I will add it.
-      // Assuming I might need to add it.
-      
-      // Temporary: Simulate or call if exists.
-      // I will update AuthService first if needed.
-      
-      // Let's assume I need to check AuthService.
-      // For now, I'll put a placeholder or use fetch directly if service is missing.
-      
-      // Actually, I'll update AuthService in the next step if missing.
-      // I'll assume it exists for this file content.
-      
-      await AuthService.register(data);
-      
+
+      // Derive username from email (same as web)
+      const derivedUsername = data.email.split('@')[0];
+
+      const payload = {
+        firstName: data.firstName.trim(),
+        middleName: data.middleName?.trim() || '',
+        lastName: data.lastName.trim(),
+        email: data.email,
+        username: derivedUsername,
+        password: data.password,
+        agreeToTerms: data.agreeToTerms,
+      };
+
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+      const response = await fetch(`${API_URL}/customer-register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          throw new Error('Registration failed. Please try again.');
+        }
+
+        let errorMessage = 'Registration failed. Please try again.';
+        if (errorData?.type === 'duplicate') {
+          errorMessage = errorData.message || `This information is already registered.`;
+        } else if (errorData?.type === 'validation') {
+          errorMessage = errorData.message || 'Please check your form data and try again.';
+        } else if (errorData?.type === 'server_error') {
+          errorMessage = errorData.message || 'We encountered a server error. Please try again.';
+        } else {
+          errorMessage = errorData?.error || errorData?.message || 'Registration failed.';
+        }
+        throw new Error(errorMessage);
+      }
+
       Alert.alert(
         "Registration Successful",
         "Your account has been created. Please log in.",
         [{ text: "OK", onPress: () => navigation.navigate('Login') }]
       );
-      
+
     } catch (err) {
       setGeneralError(err instanceof Error ? err.message : 'Registration failed');
-      // Scroll to top to see error?
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <ImageBackground 
-      source={{ uri: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg' }} 
+    <ImageBackground
+      source={{ uri: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg' }}
       style={{ flex: 1 }}
       resizeMode="cover"
     >
       <View className="flex-1 bg-white/90">
         <SafeAreaView style={{ flex: 1 }}>
-          <KeyboardAvoidingView 
+          <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={{ flex: 1 }}
           >
             <View className="flex-row items-center p-4 border-b border-gray-100">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
-            <Ionicons name="arrow-back" size={24} color="#374151" />
-          </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-900">Create Account</Text>
-        </View>
-
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          
-          {generalError && (
-            <View className="bg-red-50 p-3 rounded-lg mb-6 border border-red-100">
-              <Text className="text-red-600 text-sm">{generalError}</Text>
-            </View>
-          )}
-
-          <Text className="text-gray-500 mb-6">
-            Please fill in the details below to create your customer account.
-          </Text>
-
-          {/* ======================================== */}
-          {/* PERSONAL INFORMATION */}
-          {/* ======================================== */}
-          <SectionHeader title="Personal Information" icon="person-outline" />
-
-          <View className="flex-row space-x-3">
-            <View className="flex-1 mb-4">
-              <FormLabel required>First Name</FormLabel>
-              <Controller
-                control={control}
-                name="firstName"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                  />
-                )}
-              />
-              <ErrorMessage message={errors.firstName?.message} />
-            </View>
-
-            <View className="flex-1 mb-4">
-              <FormLabel required>Last Name</FormLabel>
-              <Controller
-                control={control}
-                name="lastName"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                  />
-                )}
-              />
-              <ErrorMessage message={errors.lastName?.message} />
-            </View>
-          </View>
-
-          <View className="flex-row space-x-3">
-            <View className="flex-1 mb-4">
-              <FormLabel>Middle Name</FormLabel>
-              <Controller
-                control={control}
-                name="middleName"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value || ''}
-                  />
-                )}
-              />
-              <ErrorMessage message={errors.middleName?.message} />
-            </View>
-            
-             <View className="w-1/3 mb-4">
-              <FormLabel>Ext.</FormLabel>
-              <Controller
-                control={control}
-                name="nameExtension"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                    placeholder="Jr/Sr"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value || ''}
-                  />
-                )}
-              />
-              <ErrorMessage message={errors.nameExtension?.message} />
-            </View>
-          </View>
-
-          <Controller
-            control={control}
-            name="gender"
-            render={({ field: { onChange, value } }) => (
-              <SelectInput
-                label="Gender"
-                value={value}
-                onChange={onChange}
-                error={errors.gender?.message}
-                options={[
-                  { label: 'Male', value: 'male' },
-                  { label: 'Female', value: 'female' },
-                  { label: 'Other', value: 'other' },
-                  { label: 'Prefer not to say', value: 'prefer_not_to_say' },
-                ]}
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="civilStatus"
-            render={({ field: { onChange, value } }) => (
-              <SelectInput
-                label="Civil Status"
-                value={value}
-                onChange={onChange}
-                error={errors.civilStatus?.message}
-                options={[
-                  { label: 'Single', value: 'single' },
-                  { label: 'Married', value: 'married' },
-                  { label: 'Widowed', value: 'widowed' },
-                  { label: 'Separated', value: 'separated' },
-                  { label: 'Divorced', value: 'divorced' },
-                ]}
-              />
-            )}
-          />
-
-          <View className="mb-4">
-            <FormLabel required>Birth Date (YYYY-MM-DD)</FormLabel>
-            <Controller
-              control={control}
-              name="birthDate"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  placeholder="1990-01-31"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value as string}
-                  keyboardType="numeric"
-                />
-              )}
-            />
-            <ErrorMessage message={(errors.birthDate as any)?.message} />
-          </View>
-
-          <View className="mb-4">
-            <FormLabel required>Nationality</FormLabel>
-            <Controller
-              control={control}
-              name="nationality"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-            <ErrorMessage message={errors.nationality?.message} />
-          </View>
-
-          <View className="mb-4">
-            <FormLabel required>Place of Birth</FormLabel>
-            <Controller
-              control={control}
-              name="placeOfBirth"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-            <ErrorMessage message={errors.placeOfBirth?.message} />
-          </View>
-          
-           <View className="mb-4">
-            <FormLabel required>SRN (Student/Service ID)</FormLabel>
-            <Controller
-              control={control}
-              name="srn"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  autoCapitalize="characters"
-                />
-              )}
-            />
-            <ErrorMessage message={errors.srn?.message} />
-          </View>
-
-          {/* ======================================== */}
-          {/* CONTACT INFORMATION */}
-          {/* ======================================== */}
-          <SectionHeader title="Contact Information" icon="call-outline" />
-
-          <View className="mb-4">
-            <FormLabel required>Email Address</FormLabel>
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              )}
-            />
-            <ErrorMessage message={errors.email?.message} />
-          </View>
-
-          <View className="mb-4">
-            <FormLabel required>Phone Number</FormLabel>
-            <Controller
-              control={control}
-              name="phoneNumber"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  placeholder="09123456789"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  keyboardType="phone-pad"
-                />
-              )}
-            />
-            <ErrorMessage message={errors.phoneNumber?.message} />
-          </View>
-
-          <View className="mb-4">
-            <FormLabel required>Complete Address</FormLabel>
-            <Controller
-              control={control}
-              name="completeAddress"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  multiline
-                  numberOfLines={3}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  style={{ minHeight: 80, textAlignVertical: 'top' }}
-                />
-              )}
-            />
-            <ErrorMessage message={errors.completeAddress?.message} />
-          </View>
-
-          {/* ======================================== */}
-          {/* ACCOUNT SECURITY */}
-          {/* ======================================== */}
-          <SectionHeader title="Account Security" icon="lock-closed-outline" />
-
-          <View className="mb-4">
-            <FormLabel required>Username</FormLabel>
-            <Controller
-              control={control}
-              name="username"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  autoCapitalize="none"
-                />
-              )}
-            />
-            <ErrorMessage message={errors.username?.message} />
-          </View>
-
-          <View className="mb-4">
-            <FormLabel required>Password</FormLabel>
-            <View className="relative">
-              <Controller
-                control={control}
-                name="password"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 pr-12"
-                    secureTextEntry={!showPassword}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                  />
-                )}
-              />
-              <TouchableOpacity 
-                className="absolute right-4 top-3.5"
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <Ionicons 
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
-                  size={20} 
-                  color="#6B7280" 
-                />
+              <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
+                <Ionicons name="arrow-back" size={24} color="#374151" />
               </TouchableOpacity>
+              <Text className="text-xl font-bold text-gray-900">Create Account</Text>
             </View>
-            <ErrorMessage message={errors.password?.message} />
-          </View>
 
-          <View className="mb-4">
-            <FormLabel required>Confirm Password</FormLabel>
-            <View className="relative">
-              <Controller
-                control={control}
-                name="confirmPassword"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 pr-12"
-                    secureTextEntry={!showConfirmPassword}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+
+              {generalError && (
+                <View className="bg-red-50 p-3 rounded-lg mb-6 border border-red-100">
+                  <Text className="text-red-600 text-sm">{generalError}</Text>
+                </View>
+              )}
+
+              <Text className="text-gray-500 mb-2">
+                One Tap, Brings Yum
+              </Text>
+
+              {/* ======================================== */}
+              {/* PERSONAL INFORMATION */}
+              {/* ======================================== */}
+              <SectionHeader title="Personal Information" icon="person-outline" />
+
+              <View className="flex-row space-x-3">
+                <View className="flex-1 mb-4">
+                  <FormLabel required>First Name</FormLabel>
+                  <Controller
+                    control={control}
+                    name="firstName"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                        placeholder="Juan"
+                        placeholderTextColor="#9CA3AF"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        autoComplete="given-name"
+                        textContentType="givenName"
+                        importantForAutofill="yes"
+                      />
+                    )}
                   />
-                )}
-              />
-              <TouchableOpacity 
-                className="absolute right-4 top-3.5"
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
-                <Ionicons 
-                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} 
-                  size={20} 
-                  color="#6B7280" 
-                />
-              </TouchableOpacity>
-            </View>
-            <ErrorMessage message={errors.confirmPassword?.message} />
-          </View>
+                  <ErrorMessage message={errors.firstName?.message} />
+                </View>
 
-          {/* ======================================== */}
-          {/* MARKETING & TERMS */}
-          {/* ======================================== */}
-          <View className="flex-row items-center mt-6 mb-8">
-            <Controller
-              control={control}
-              name="agreeToTerms"
-              render={({ field: { onChange, value } }) => (
-                <TouchableOpacity 
-                  className="flex-row items-center" 
-                  onPress={() => onChange(!value)}
-                >
-                  <View className={`w-6 h-6 rounded border ${value ? 'bg-[#eba336] border-[#eba336]' : 'border-gray-300'} items-center justify-center mr-3`}>
-                    {value && <Ionicons name="checkmark" size={16} color="white" />}
-                  </View>
-                  <Text className="text-gray-600 flex-1">
-                    I agree to the <Text className="text-[#eba336] font-bold">Terms of Service</Text> and <Text className="text-[#eba336] font-bold">Privacy Policy</Text>
-                  </Text>
+                <View className="flex-1 mb-4">
+                  <FormLabel>Middle Name</FormLabel>
+                  <Controller
+                    control={control}
+                    name="middleName"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                        placeholder="Carlos"
+                        placeholderTextColor="#9CA3AF"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value || ''}
+                        autoComplete="additional-name"
+                        textContentType="middleName"
+                        importantForAutofill="yes"
+                      />
+                    )}
+                  />
+                  <ErrorMessage message={errors.middleName?.message} />
+                </View>
+              </View>
+
+              <View className="mb-4">
+                <FormLabel required>Last Name</FormLabel>
+                <Controller
+                  control={control}
+                  name="lastName"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                      placeholder="Dela Cruz"
+                      placeholderTextColor="#9CA3AF"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      autoComplete="family-name"
+                      textContentType="familyName"
+                      importantForAutofill="yes"
+                    />
+                  )}
+                />
+                <ErrorMessage message={errors.lastName?.message} />
+              </View>
+
+              {/* ======================================== */}
+              {/* EMAIL & PASSWORD */}
+              {/* ======================================== */}
+              <SectionHeader title="Email & Password" icon="lock-closed-outline" />
+
+              <View className="mb-4">
+                <FormLabel required>Email</FormLabel>
+                <Controller
+                  control={control}
+                  name="email"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                      placeholder="juan@example.com"
+                      placeholderTextColor="#9CA3AF"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="email"
+                      textContentType="emailAddress"
+                      importantForAutofill="yes"
+                    />
+                  )}
+                />
+                <ErrorMessage message={errors.email?.message} />
+              </View>
+
+              <View className="mb-4">
+                <FormLabel required>Password</FormLabel>
+                <View className="relative">
+                  <Controller
+                    control={control}
+                    name="password"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 pr-12"
+                        placeholder="Enter your password"
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!showPassword}
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        autoComplete="new-password"
+                        textContentType="newPassword"
+                        importantForAutofill="yes"
+                      />
+                    )}
+                  />
+                  <TouchableOpacity
+                    className="absolute right-4 top-3.5"
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={20}
+                      color="#6B7280"
+                    />
+                  </TouchableOpacity>
+                </View>
+                <ErrorMessage message={errors.password?.message} />
+              </View>
+
+              {/* ======================================== */}
+              {/* TERMS */}
+              {/* ======================================== */}
+              <View className="flex-row items-center mt-6 mb-8">
+                <Controller
+                  control={control}
+                  name="agreeToTerms"
+                  render={({ field: { onChange, value } }) => (
+                    <TouchableOpacity
+                      className="flex-row items-center"
+                      onPress={() => onChange(!value ? true : undefined)}
+                    >
+                      <View className={`w-6 h-6 rounded border ${value === true ? 'bg-[#eba336] border-[#eba336]' : 'border-gray-300'} items-center justify-center mr-3`}>
+                        {value === true && <Ionicons name="checkmark" size={16} color="white" />}
+                      </View>
+                      <Text className="text-gray-600 flex-1">
+                        I agree to the <Text className="text-[#eba336] font-bold">Terms of Service</Text> and <Text className="text-[#eba336] font-bold">Privacy Policy</Text>
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+              <ErrorMessage message={errors.agreeToTerms?.message} />
+
+              <TouchableOpacity
+                className={`w-full bg-[#eba336] rounded-xl py-4 items-center mb-8 ${isLoading ? 'opacity-70' : ''}`}
+                onPress={handleSubmit(onSubmit)}
+                disabled={isLoading}
+              >
+                <Text className="text-white font-bold text-lg">
+                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Footer */}
+              <View className="flex-row justify-center">
+                <Text className="text-gray-500">Already have an account? </Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                  <Text className="text-[#eba336] font-bold">Sign In</Text>
                 </TouchableOpacity>
-              )}
-            />
-          </View>
-          <ErrorMessage message={errors.agreeToTerms?.message} />
+              </View>
 
-          <TouchableOpacity
-            className={`w-full bg-[#eba336] rounded-xl py-4 items-center mb-8 ${isLoading ? 'opacity-70' : ''}`}
-            onPress={handleSubmit(onSubmit)}
-            disabled={isLoading}
-          >
-            <Text className="text-white font-bold text-lg">
-              {isLoading ? 'Creating Account...' : 'Create Account'}
-            </Text>
-          </TouchableOpacity>
-
-          </ScrollView>
-        </KeyboardAvoidingView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
     </ImageBackground>

@@ -529,7 +529,7 @@ export function Header({
         }`} style={{ backgroundColor: '#fff' }}>
         {!pathname?.startsWith('/results') && (
           <div className="lg:hidden flex items-center justify-between px-2.5 py-2 h-14" style={{ backgroundColor: '#fff' }}>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <LocationSelector
                 onLocationSelect={(location) => {
                   console.log('Selected location:', location);
@@ -581,7 +581,7 @@ export function Header({
                 console.log('Selected location:', location);
                 // Handle location selection here
               }}
-              className="ml-4"
+              className="ml-4 max-w-[200px] xl:max-w-[300px]"
             />
           </div>
 
@@ -727,10 +727,10 @@ export function Header({
                             return (
                               <div className="grid grid-cols-1 gap-6">
                                 {combined.map((merchant) => (
-                                  <LocationMerchantCard 
-                                    key={merchant.id} 
-                                    merchant={merchant} 
-                                    variant="list" 
+                                  <LocationMerchantCard
+                                    key={merchant.id}
+                                    merchant={merchant}
+                                    variant="list"
                                     isWishlisted={wishlistIds.has(String(merchant.id))}
                                     onToggleWishlist={toggleWishlist}
                                   />
