@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { 
   useMerchantsByProductSearch, 
   useLocationBasedMerchants, 
+  useLocationBasedCategories,
   LocationBasedMerchant,
   LocationBasedMerchantService 
 } from '@encreasl/client-services';
@@ -30,7 +31,7 @@ export default function SearchScreen({ route, navigation }: any) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [modalQuery, setModalQuery] = useState('');
 
-  // 0. Normalize Query
+  // 1. Normalize Query (Identical to Web)
   const normalizeQuery = (input: string): string => {
     let q = (input || "").toLowerCase().trim();
     if (!q) return "";
@@ -47,7 +48,7 @@ export default function SearchScreen({ route, navigation }: any) {
 
   const normalizedQuery = useMemo(() => normalizeQuery(query), [query]);
 
-  // 0. Get Customer ID
+  // 2. Get Customer ID
   const { data: customerId } = useQuery({
     queryKey: ['customerId', user?.id],
     queryFn: () => user?.id ? LocationBasedMerchantService.getCustomerIdFromUserId(user.id) : Promise.resolve(null),
@@ -55,23 +56,52 @@ export default function SearchScreen({ route, navigation }: any) {
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
-  // 1. Get all merchants (client-side filtering base)
-  // useLocationBasedMerchants requires customerId
+  // 3. Get all merchants (Base for text search)
   const { data: allMerchants = [], isLoading: isLoadingMerchants } = useLocationBasedMerchants(customerId || undefined, null, 9999);
   
-  // 2. Get merchants by product search
+  // 4. Get merchants by product search
   const { data: productMerchantIds = [], isLoading: isLoadingProducts } = useMerchantsByProductSearch(normalizedQuery);
 
-  const isLoading = (isLoadingMerchants && !!customerId) || isLoadingProducts;
+  // 5. Get merchants by category search (Logic from Web)
+  const { data: categories = [] } = useLocationBasedCategories(customerId || undefined);
 
+  const matchedCategory = useMemo(() => {
+    if (!normalizedQuery || !categories.length) return null;
+    const q = normalizedQuery;
+    const score = (c: any): number => {
+      const name = (c.name || '').toLowerCase();
+      const slug = (c.slug || '').toLowerCase();
+      if (name === q || slug === q) return 3;
+      if (name.startsWith(q) || slug.startsWith(q)) return 2;
+      if (name.includes(q) || slug.includes(q)) return 1;
+      return 0;
+    };
+    return categories
+      .map((c: any) => ({ c, s: score(c) }))
+      .filter(({ s }: any) => s > 0)
+      .sort((a: any, b: any) => b.s - a.s)[0]?.c || null;
+  }, [normalizedQuery, categories]);
+
+  const { data: categoryMerchants = [], isLoading: isLoadingCategory } = useQuery({
+    queryKey: ['merchants', 'category', customerId, matchedCategory?.id],
+    queryFn: () => LocationBasedMerchantService.getLocationBasedMerchants({
+      customerId: customerId!,
+      limit: 9999,
+      categoryId: String(matchedCategory!.id)
+    }),
+    enabled: !!customerId && !!matchedCategory,
+  });
+
+  const isLoading = (isLoadingMerchants && !!customerId) || isLoadingProducts || isLoadingCategory;
+
+  // 6. Combine Results (Exact Algorithm from Web)
+  // Priority: Category Matches > Product Matches > Text Matches
   const results = useMemo(() => {
     if (!normalizedQuery) return [];
     const q = normalizedQuery;
-    if (!q) return [];
-    if (!allMerchants.length) return [];
-
-    // Filter by text (name, vendor, description, tags)
-    const textMatches = allMerchants.filter(m => {
+    
+    // 6a. Text Matches
+    const textMatches = (allMerchants || []).filter(m => {
       const name = (m.outletName || "").toLowerCase();
       const vendor = (m.vendor?.businessName || "").toLowerCase();
       const desc = (m.description || "").toLowerCase();
@@ -79,16 +109,38 @@ export default function SearchScreen({ route, navigation }: any) {
       return name.includes(q) || vendor.includes(q) || desc.includes(q) || tags.includes(q);
     });
 
-    // Filter by product matches (using IDs from server)
-    const productMatches = allMerchants.filter(m => productMerchantIds.includes(String(m.id)));
+    // 6b. Product Matches
+    // Map productMerchantIds to actual merchant objects from allMerchants
+    // Note: In web, it fetches specific merchants. Here we filter from allMerchants which is efficient for mobile.
+    // If allMerchants doesn't contain the merchant, it won't be shown, which matches web behavior (must be in location).
+    const productMatches = (allMerchants || []).filter(m => productMerchantIds.includes(String(m.id)));
 
-    // Combine and Deduplicate
-    const combined = new Map<string, LocationBasedMerchant>();
-    textMatches.forEach(m => combined.set(String(m.id), m));
-    productMatches.forEach(m => combined.set(String(m.id), m));
+    // 6c. Combine and Deduplicate
+    
+    // Priority 1: Category Matches
+    // Priority 2: Product Matches
+    // Priority 3: Text Matches
+    
+    // Let's use a cleaner deduplication strategy that preserves order:
+    const finalResults: LocationBasedMerchant[] = [];
+    const seenIds = new Set<string>();
 
-    return Array.from(combined.values());
-  }, [allMerchants, productMerchantIds, normalizedQuery]);
+    const add = (merchants: LocationBasedMerchant[]) => {
+      for (const m of merchants) {
+        const id = String(m.id);
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          finalResults.push(m);
+        }
+      }
+    };
+
+    add(categoryMerchants || []);
+    add(productMatches || []);
+    add(textMatches || []);
+
+    return finalResults;
+  }, [allMerchants, productMerchantIds, categoryMerchants, normalizedQuery]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>

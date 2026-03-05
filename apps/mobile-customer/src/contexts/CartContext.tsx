@@ -1,50 +1,66 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { apiConfig } from '../config/environment';
+import { useAuth } from './AuthContext';
 
-// Types
-export interface MenuItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  image: string;
-  restaurantId: string;
-  merchantName?: string;
-  category: string;
-  available: boolean;
-}
-
-export interface CartItem {
-  id: string;
-  menuItem: MenuItem;
+// Web CartItem Type
+export type CartItem = {
+  id: number;
+  customer: number;
+  merchant: number;
+  product: number;
+  merchantProduct: number;
   quantity: number;
-  specialInstructions?: string;
-  selectedModifiers?: any[]; 
-  totalPrice: number;
-}
+  priceAtAdd: number;
+  compareAtPrice?: number | null;
+  subtotal: number;
+  productSize?: string | null;
+  selectedVariation?: number | null;
+  selectedModifiers?: any[] | null;
+  selectedAddons?: any[] | null;
+  isAvailable?: boolean;
+  unavailableReason?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  productName?: string;
+  merchantName?: string;
+  imageUrl?: string | null;
+  merchantLogoUrl?: string | null;
+};
 
-export interface Cart {
-  items: CartItem[];
-}
+export type AddToCartPayload = {
+  merchantId: number;
+  productId: number;
+  merchantProductId: number;
+  quantity: number;
+  priceAtAdd: number;
+  compareAtPrice?: number | null;
+  selectedModifiers?: any[] | null;
+};
 
+// Mobile specific helper types for UI grouping
 export interface MerchantCartSummary {
-  merchantId: string;
-  merchantName: string; // We might need to fetch this or store it in MenuItem
+  merchantId: string; // Keep as string for route params compatibility
+  merchantName: string;
+  merchantLogoUrl?: string | null;
   totalItems: number;
   subtotal: number;
   items: CartItem[];
 }
 
 export interface CartContextType {
-  cart: Cart | null;
-  addToCart: (item: MenuItem, quantity: number, specialInstructions?: string, selectedModifiers?: any[]) => void;
-  removeFromCart: (itemId: string) => void;
-  updateQuantity: (itemId: string, quantity: number) => void;
-  clearCart: () => void;
-  getCartTotal: () => number; // Global total
-  getCartItemCount: () => number; // Global count
-  getMerchantCart: (merchantId: string) => MerchantCartSummary | null;
+  items: CartItem[];
+  isLoading: boolean;
+  error: string | null;
+  totalQuantity: number;
+  reload: () => Promise<void>;
+  addToCart: (payload: AddToCartPayload) => Promise<void>;
+  removeFromCart: (id: number) => Promise<void>;
+  updateQuantity: (id: number, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  getMerchantCart: (merchantId: string | number) => MerchantCartSummary | null;
   getAllMerchantCarts: () => MerchantCartSummary[];
+  getCartTotal: () => number;
+  getCartItemCount: () => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -57,232 +73,358 @@ export function useCart() {
   return context;
 }
 
-type CartAction =
-  | { type: 'ADD_ITEM'; payload: { item: MenuItem; quantity: number; specialInstructions?: string; selectedModifiers?: any[] } }
-  | { type: 'REMOVE_ITEM'; payload: { itemId: string } }
-  | { type: 'UPDATE_QUANTITY'; payload: { itemId: string; quantity: number } }
-  | { type: 'CLEAR_CART' }
-  | { type: 'LOAD_CART'; payload: Cart | null };
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { customerId } = useAuth();
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingMerchantIds, setPendingMerchantIds] = useState<Set<number>>(new Set());
+  
+  // Track if initial load is done to avoid loading spinner on background refresh
+  const hasLoadedRef = useRef(false);
 
-function cartReducer(state: Cart | null, action: CartAction): Cart | null {
-  const currentItems = state?.items || [];
+  const API_BASE = apiConfig.baseUrl;
 
-  switch (action.type) {
-    case 'ADD_ITEM': {
-      const { item, quantity, specialInstructions, selectedModifiers } = action.payload;
-      
-      // Calculate price including modifiers
-      let unitPrice = item.price;
-      if (selectedModifiers) {
-        selectedModifiers.forEach(mod => {
-          unitPrice += (mod.price || 0);
-        });
+  const loadCart = useCallback(async () => {
+    try {
+      // Only show loading state on first load
+      if (!hasLoadedRef.current) setIsLoading(true);
+      setError(null);
+
+      if (!customerId) {
+        setItems([]);
+        setIsLoading(false);
+        hasLoadedRef.current = true;
+        return;
       }
-      const itemTotalPrice = unitPrice * quantity;
 
-      // Check if identical item exists (same id, options, modifiers)
-      const existingItemIndex = currentItems.findIndex(
-        cartItem => 
-          cartItem.menuItem.id === item.id && 
-          cartItem.specialInstructions === specialInstructions &&
-          JSON.stringify(cartItem.selectedModifiers) === JSON.stringify(selectedModifiers)
-      );
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = apiConfig.payloadApiKey;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+      const url = `${API_BASE}/cart-items?where[customer][equals]=${customerId}&depth=3&limit=200`;
+      const res = await fetch(url, { headers, cache: 'no-store' });
       
-      let newItems: CartItem[];
+      if (!res.ok) {
+        setItems([]);
+        setIsLoading(false);
+        return;
+      }
       
-      if (existingItemIndex >= 0) {
-        // Update existing item
-        newItems = currentItems.map((cartItem, index) => {
-          if (index === existingItemIndex) {
-            const newQuantity = cartItem.quantity + quantity;
-            return {
-              ...cartItem,
-              quantity: newQuantity,
-              totalPrice: unitPrice * newQuantity,
-            };
-          }
-          return cartItem;
-        });
-      } else {
-        // Add new item
-        const newCartItem: CartItem = {
-          id: `${item.id}-${Date.now()}`,
-          menuItem: item,
-          quantity,
-          specialInstructions,
-          selectedModifiers,
-          totalPrice: itemTotalPrice,
+      const data = await res.json();
+      const docs: any[] = Array.isArray(data?.docs) ? data.docs : [];
+      
+      const mapped: CartItem[] = docs.map((doc: any) => {
+        const product = doc.product || null;
+        const merchant = doc.merchant || null;
+        const media = product?.media?.primaryImage || null;
+        const imageUrl = media?.cloudinaryURL || media?.url || media?.thumbnailURL || null;
+        const merchantLogoMedia = merchant?.vendor?.logo || null;
+        const merchantLogoUrl =
+          merchantLogoMedia?.cloudinaryURL ||
+          merchantLogoMedia?.url ||
+          merchantLogoMedia?.thumbnailURL ||
+          null;
+          
+        return {
+          id: doc.id,
+          customer: typeof doc.customer === 'object' ? doc.customer.id : doc.customer,
+          merchant: typeof doc.merchant === 'object' ? doc.merchant.id : doc.merchant,
+          product: typeof doc.product === 'object' ? doc.product.id : doc.product,
+          merchantProduct: typeof doc.merchantProduct === 'object' ? doc.merchantProduct.id : doc.merchantProduct,
+          quantity: doc.quantity,
+          priceAtAdd: doc.priceAtAdd,
+          compareAtPrice: doc.compareAtPrice ?? null,
+          subtotal: doc.subtotal,
+          productSize: doc.productSize || null,
+          selectedVariation: doc.selectedVariation
+            ? (typeof doc.selectedVariation === 'object' ? doc.selectedVariation.id : doc.selectedVariation)
+            : null,
+          selectedModifiers: doc.selectedModifiers || null,
+          selectedAddons: doc.selectedAddons || null,
+          isAvailable: typeof doc.isAvailable === 'boolean' ? doc.isAvailable : true,
+          unavailableReason: doc.unavailableReason || null,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt,
+          productName: product?.name || '',
+          merchantName: merchant?.outletName || merchant?.name || '',
+          imageUrl,
+          merchantLogoUrl,
         };
-        newItems = [...currentItems, newCartItem];
-      }
-      
-      return { items: newItems };
-    }
-    
-    case 'REMOVE_ITEM': {
-      const newItems = currentItems.filter(item => item.id !== action.payload.itemId);
-      return { items: newItems };
-    }
-    
-    case 'UPDATE_QUANTITY': {
-      const { itemId, quantity } = action.payload;
-      
-      if (quantity <= 0) {
-        const newItems = currentItems.filter(item => item.id !== itemId);
-        return { items: newItems };
-      }
-      
-      const newItems = currentItems.map(item => {
-        if (item.id === itemId) {
-          // Recalculate price
-          let unitPrice = item.menuItem.price;
-          if (item.selectedModifiers) {
-            item.selectedModifiers.forEach(mod => {
-              unitPrice += (mod.price || 0);
-            });
-          }
-          return {
-            ...item,
-            quantity,
-            totalPrice: unitPrice * quantity,
-          };
-        }
-        return item;
       });
       
-      return { items: newItems };
+      setItems(mapped);
+      setIsLoading(false);
+      hasLoadedRef.current = true;
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load cart');
+      // Don't clear items on error if we had some, but maybe safer to clear?
+      // Web clears it.
+      setItems([]);
+      setIsLoading(false);
+      hasLoadedRef.current = true;
     }
-    
-    case 'CLEAR_CART':
-      return { items: [] };
-    
-    case 'LOAD_CART':
-      return action.payload || { items: [] };
-    
-    default:
-      return state || { items: [] };
-  }
-}
+  }, [customerId, API_BASE]);
 
-interface CartProviderProps {
-  children: React.ReactNode;
-}
-
-export function CartProvider({ children }: CartProviderProps) {
-  const [cart, dispatch] = useReducer(cartReducer, { items: [] });
-
-  // Load cart from AsyncStorage on mount
-  useEffect(() => {
-    const loadCart = async () => {
+  const addToCart = useCallback(
+    async (payload: AddToCartPayload) => {
       try {
-        const savedCart = await AsyncStorage.getItem('cart');
-        if (savedCart) {
-          dispatch({ type: 'LOAD_CART', payload: JSON.parse(savedCart) });
+        setError(null);
+        setPendingMerchantIds((prev) => {
+          const next = new Set(prev);
+          if (!next.has(payload.merchantId)) {
+            next.add(payload.merchantId);
+          }
+          return next;
+        });
+
+        if (!customerId) {
+          throw new Error('Please login to add items to cart');
         }
-      } catch (error) {
-        console.error('Error loading cart:', error);
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = apiConfig.payloadApiKey;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+        const body: any = {
+          customer: Number(customerId), // Ensure number if backend expects it
+          merchant: payload.merchantId,
+          product: payload.productId,
+          merchantProduct: payload.merchantProductId,
+          quantity: payload.quantity,
+          priceAtAdd: payload.priceAtAdd,
+        };
+        
+        if (payload.compareAtPrice != null) {
+          body.compareAtPrice = payload.compareAtPrice;
+        }
+        if (payload.selectedModifiers && payload.selectedModifiers.length > 0) {
+          body.selectedModifiers = payload.selectedModifiers;
+        }
+
+        const res = await fetch(`${API_BASE}/cart-items`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          let rawText = '';
+          let message = '';
+          try {
+            const data = await res.json();
+            const messages: string[] = [];
+            if (data && typeof (data as any).message === 'string') {
+              messages.push((data as any).message);
+            }
+            const errors = (data as any).errors;
+            if (Array.isArray(errors)) {
+              for (const err of errors) {
+                if (err && typeof err.message === 'string') {
+                  messages.push(err.message);
+                }
+              }
+            }
+            message = messages.join(' | ');
+            rawText = message || JSON.stringify(data);
+          } catch {
+            rawText = await res.text().catch(() => '');
+          }
+
+          const text = rawText || '';
+          if (text.includes('CART_ITEM_MERGED:')) {
+            await loadCart();
+            return;
+          }
+
+          throw new Error(text || `Add to cart failed (${res.status})`);
+        }
+
+        await loadCart();
+      } catch (e: any) {
+        setError(e?.message || 'Failed to add to cart');
+        throw e; // Re-throw so UI can handle it
+      } finally {
+        setPendingMerchantIds((prev) => {
+          const next = new Set(prev);
+          next.delete(payload.merchantId);
+          return next;
+        });
       }
-    };
+    },
+    [customerId, loadCart, API_BASE]
+  );
+
+  const removeFromCart = useCallback(
+    async (id: number) => {
+      try {
+        setError(null);
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = apiConfig.payloadApiKey;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+        const res = await fetch(`${API_BASE}/cart-items/${id}`, {
+          method: 'DELETE',
+          headers,
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `Remove from cart failed (${res.status})`);
+        }
+
+        await loadCart();
+      } catch (e: any) {
+        setError(e?.message || 'Failed to remove from cart');
+      }
+    },
+    [loadCart, API_BASE]
+  );
+
+  const updateQuantity = useCallback(
+    async (id: number, quantity: number) => {
+      try {
+        setError(null);
+        // Optimistic update
+        setItems((prev) =>
+          prev.map((item) => {
+            if (item.id !== id) return item;
+            if (quantity < 1) return item;
+            const unit =
+              item.quantity > 0 ? item.subtotal / item.quantity : item.priceAtAdd;
+            return {
+              ...item,
+              quantity,
+              subtotal: unit * quantity,
+            };
+          }),
+        );
+        
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = apiConfig.payloadApiKey;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+        const res = await fetch(`${API_BASE}/cart-items/${id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ quantity }),
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `Update quantity failed (${res.status})`);
+        }
+
+        await loadCart();
+      } catch (e: any) {
+        setError(e?.message || 'Failed to update quantity');
+      }
+    },
+    [loadCart, API_BASE]
+  );
+
+  const clearCart = useCallback(async () => {
+    // Implement by removing all items locally then reloading, 
+    // or deleting one by one since we don't have bulk delete endpoint confirmed.
+    // Ideally backend should have clear cart endpoint.
+    // For now, iterate and delete.
+    try {
+        // Parallel delete
+        await Promise.all(items.map(item => removeFromCart(item.id)));
+    } catch (e) {
+        console.error('Failed to clear cart', e);
+    }
+  }, [items, removeFromCart]);
+
+  useEffect(() => {
     loadCart();
-  }, []);
+  }, [loadCart]);
 
-  // Save cart to AsyncStorage whenever it changes
-  useEffect(() => {
-    const saveCart = async () => {
-      try {
-        if (cart) {
-          await AsyncStorage.setItem('cart', JSON.stringify(cart));
-        }
-      } catch (error) {
-        console.error('Error saving cart:', error);
-      }
-    };
-    saveCart();
-  }, [cart]);
-
-  const addToCart = (item: MenuItem, quantity: number, specialInstructions?: string, selectedModifiers?: any[]) => {
-    dispatch({ type: 'ADD_ITEM', payload: { item, quantity, specialInstructions, selectedModifiers } });
-  };
-
-  const removeFromCart = (itemId: string) => {
-    dispatch({ type: 'REMOVE_ITEM', payload: { itemId } });
-  };
-
-  const updateQuantity = (itemId: string, quantity: number) => {
-    dispatch({ type: 'UPDATE_QUANTITY', payload: { itemId, quantity } });
-  };
-
-  const clearCart = () => {
-    dispatch({ type: 'CLEAR_CART' });
-  };
+  const totalQuantity = useMemo(() => {
+    const merchantIds = new Set<number>();
+    for (const item of items) {
+      const id =
+        typeof item.merchant === 'number' ? item.merchant : Number(item.merchant);
+      if (!Number.isNaN(id)) merchantIds.add(id);
+    }
+    pendingMerchantIds.forEach((id) => {
+      if (!Number.isNaN(id)) merchantIds.add(id);
+    });
+    return merchantIds.size;
+  }, [items, pendingMerchantIds]);
 
   const getCartTotal = () => {
-    return cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
+    return items.reduce((sum, item) => sum + item.subtotal, 0);
   };
 
   const getCartItemCount = () => {
-    return cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
+    return totalQuantity;
   };
 
-  const getMerchantCart = (merchantId: string): MerchantCartSummary | null => {
-    if (!cart) return null;
-    const merchantItems = cart.items.filter(item => String(item.menuItem.restaurantId) === String(merchantId));
-    
-    if (merchantItems.length === 0) return null;
-
-    // Use the name from the first item if available
-    const merchantName = merchantItems[0]?.menuItem.merchantName || 'Merchant';
-
-    const subtotal = merchantItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const totalItems = merchantItems.reduce((sum, item) => sum + item.quantity, 0);
-
-    return {
-      merchantId,
-      merchantName, // We might need to improve this
-      totalItems,
-      subtotal,
-      items: merchantItems
-    };
-  };
-
-  const getAllMerchantCarts = (): MerchantCartSummary[] => {
-    if (!cart) return [];
-    
+  const getAllMerchantCarts = useCallback((): MerchantCartSummary[] => {
     const groups: Record<string, CartItem[]> = {};
     
-    cart.items.forEach(item => {
-      const mId = String(item.menuItem.restaurantId);
+    items.forEach(item => {
+      const mId = String(item.merchant);
       if (!groups[mId]) groups[mId] = [];
       groups[mId].push(item);
     });
 
     return Object.keys(groups).map(merchantId => {
-      const items = groups[merchantId];
-      const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
-      const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+      const groupItems = groups[merchantId];
+      const subtotal = groupItems.reduce((sum, item) => sum + item.subtotal, 0);
+      const totalItems = groupItems.reduce((sum, item) => sum + item.quantity, 0);
       
-      const merchantName = items[0]?.menuItem.merchantName || 'Merchant';
+      // Use the name/logo from the first item
+      const merchantName = groupItems[0]?.merchantName || 'Merchant';
+      const merchantLogoUrl = groupItems[0]?.merchantLogoUrl;
       
       return {
         merchantId,
         merchantName,
+        merchantLogoUrl,
         totalItems,
         subtotal,
-        items
+        items: groupItems
       };
     });
-  };
+  }, [items]);
+
+  const getMerchantCart = useCallback((merchantId: string | number): MerchantCartSummary | null => {
+    const mIdStr = String(merchantId);
+    const merchantItems = items.filter(item => String(item.merchant) === mIdStr);
+    
+    if (merchantItems.length === 0) return null;
+
+    const merchantName = merchantItems[0]?.merchantName || 'Merchant';
+    const merchantLogoUrl = merchantItems[0]?.merchantLogoUrl;
+    const subtotal = merchantItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const totalItems = merchantItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    return {
+      merchantId: mIdStr,
+      merchantName,
+      merchantLogoUrl,
+      totalItems,
+      subtotal,
+      items: merchantItems
+    };
+  }, [items]);
 
   const value: CartContextType = {
-    cart,
+    items,
+    isLoading,
+    error,
+    totalQuantity,
+    reload: loadCart,
     addToCart,
     removeFromCart,
     updateQuantity,
     clearCart,
-    getCartTotal,
-    getCartItemCount,
     getMerchantCart,
-    getAllMerchantCarts
+    getAllMerchantCarts,
+    getCartTotal,
+    getCartItemCount
   };
 
   return (

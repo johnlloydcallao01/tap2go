@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { useCart } from '../contexts/CartContext';
 
 interface FooterNavigationProps {
   navigation: any;
@@ -10,6 +11,7 @@ interface FooterNavigationProps {
 
 export default function FooterNavigation({ navigation, activeScreen }: FooterNavigationProps) {
   const colors = useThemeColors();
+  const { totalQuantity } = useCart();
 
   const tabs = [
     { name: 'Home', icon: 'home', screen: 'Home' },
@@ -90,26 +92,28 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
                     color={isActive ? colors.primary : colors.textSecondary}
                   />
                   {/* Badge */}
-                  <View style={{
-                    position: 'absolute',
-                    top: 0,
-                    right: 0,
-                    backgroundColor: '#f97316', // Orange badge
-                    borderRadius: 10,
-                    minWidth: 20,
-                    height: 20,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderWidth: 2,
-                    borderColor: 'white',
-                  }}>
-                    <Text style={{
-                      color: 'white',
-                      fontSize: 10,
-                      fontWeight: 'bold',
-                      paddingHorizontal: 4,
-                    }}>2</Text>
-                  </View>
+                  {totalQuantity > 0 && (
+                    <View style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      backgroundColor: '#f97316', // Orange badge
+                      borderRadius: 10,
+                      minWidth: 20,
+                      height: 20,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor: 'white',
+                    }}>
+                      <Text style={{
+                        color: 'white',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        paddingHorizontal: 4,
+                      }}>{totalQuantity > 99 ? '99+' : totalQuantity}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             ) : (

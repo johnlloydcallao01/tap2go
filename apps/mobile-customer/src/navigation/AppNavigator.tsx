@@ -17,6 +17,8 @@ import ProductScreen from '../screens/ProductScreen';
 import AccountScreen from '../screens/AccountScreen';
 import WishlistScreen from '../screens/WishlistScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import NearbyRestaurantsScreen from '../screens/NearbyRestaurantsScreen';
+import NewlyUpdatedScreen from '../screens/NewlyUpdatedScreen';
 
 // Import Auth screens
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -138,6 +140,10 @@ function FallbackNavigator() {
         return <WishlistScreen navigation={mockNavigation} route={mockRoute} />;
       case 'Notifications':
         return <NotificationsScreen navigation={mockNavigation} route={mockRoute} />;
+      case 'NearbyRestaurants':
+        return <NearbyRestaurantsScreen navigation={mockNavigation} route={mockRoute} />;
+      case 'NewlyUpdated':
+        return <NewlyUpdatedScreen navigation={mockNavigation} route={mockRoute} />;
       default:
         return <HomeScreen navigation={mockNavigation} route={mockRoute} />;
     }
@@ -156,8 +162,8 @@ function FallbackNavigator() {
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         {renderScreen()}
         
-        {/* Professional footer that extends to fill system bar area - ONLY IF AUTHENTICATED AND NOT IN PRODUCT VIEW */}
-        {isAuthenticated && currentScreen !== 'Product' && (
+        {/* Professional footer that extends to fill system bar area - ONLY IF AUTHENTICATED AND NOT IN PRODUCT/MERCHANT VIEW */}
+        {isAuthenticated && currentScreen !== 'Product' && currentScreen !== 'Merchant' && (
           <View style={{
             backgroundColor: colors.background,
             paddingBottom: insets.bottom, // Extends into system bar area

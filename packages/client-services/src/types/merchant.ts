@@ -106,6 +106,7 @@ export interface Merchant {
 // Product Display Interface for Merchant Menu
 export interface MerchantProductDisplay {
   id: string | number;
+  merchantProductId?: string | number;
   name: string;
   productType: string;
   basePrice: number | null;
@@ -113,6 +114,7 @@ export interface MerchantProductDisplay {
   shortDescription: string | null;
   imageUrl: string | null;
   categoryIds?: (number | string)[];
+  hasRequiredModifiers?: boolean;
 }
 
 // Category Display Interface for Merchant Menu

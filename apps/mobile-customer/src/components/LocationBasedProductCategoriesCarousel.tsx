@@ -119,17 +119,25 @@ export default function LocationBasedProductCategoriesCarousel({
               <View style={[
                 styles.iconContainer, 
                 { 
-                  backgroundColor: isSelected ? colors.primary : '#F3F4F6',
-                  borderColor: isSelected ? colors.primary : 'transparent',
+                  backgroundColor: isSelected ? '#FFFFFF' : '#F3F4F6',
+                  borderColor: 'transparent',
+                  transform: [{ scale: isSelected ? 1.15 : 1 }],
+                  ...(isSelected ? {
+                    shadowColor: "#000",
+                    shadowOffset: {
+                      width: 0,
+                      height: 2,
+                    },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3.84,
+                    elevation: 5,
+                  } : {})
                 }
               ]}>
                 {iconUrl ? (
                   <Image 
                     source={{ uri: iconUrl }} 
-                    style={[
-                      styles.icon,
-                      { tintColor: isSelected ? 'white' : undefined }
-                    ]} 
+                    style={styles.icon} 
                     resizeMode="contain"
                   />
                 ) : (
@@ -171,6 +179,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 12, // +4 margin on items = 16
+    paddingVertical: 12, // Added to prevent clipping of scaled items with shadow
   },
   categoryItem: {
     alignItems: 'center',
@@ -185,11 +194,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
     borderWidth: 2,
-    overflow: 'hidden',
+    // overflow: 'hidden', // Removed to allow shadow
   },
   icon: {
     width: '100%',
     height: '100%',
+    borderRadius: 32, // Added to clip image if needed
   },
   categoryName: {
     fontSize: 12,

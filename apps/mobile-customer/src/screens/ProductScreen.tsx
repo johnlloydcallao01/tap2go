@@ -95,7 +95,7 @@ export default function ProductScreen({ route, navigation }: any) {
     return price * quantity;
   }, [product, modifierSelection, quantity]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (hasInvalidModifiers) {
       Alert.alert('Required Options', 'Please make sure all required options are selected.');
       return;
@@ -126,34 +126,21 @@ export default function ProductScreen({ route, navigation }: any) {
       }
     }
 
-    const menuItem = {
-      id: String(product.merchantProductId || product.id), // Use merchantProductId to match MerchantScreen behavior, fallback to product.id
-      name: product.name,
-      description: product.description || product.shortDescription || '',
-      price: product.basePrice,
-      image: productImageUrl || '',
-      restaurantId: String(merchantId),
-      merchantName: product.merchant?.outletName || 'Merchant', // Ensure we pass merchant name if available in product
-      category: product.category?.name || '',
-      available: product.isAvailable,
-    };
-
-    // We need to pass merchantProductId somewhere if needed for backend order creation.
-    // For now, let's assume CartContext handles it or we pack it into the item.
-    // Actually, CartContext handles selectedModifiers.
-    
-    // Pass the calculated price including modifiers? 
-    // CartContext calculates total based on item.price * quantity.
-    // It doesn't seem to recalculate modifier prices in the reducer I saw earlier (it just stores them).
-    // Wait, I updated CartContext to:
-    // totalPrice: item.price * quantity (in ADD_ITEM)
-    // It seems I might need to update CartContext to handle modifier prices if not already.
-    // But for now, let's just add it.
-    
-    addToCart(menuItem, quantity, '', selectedModifierPayload);
-    
-    setIsAddingToCart(false);
-    navigation.goBack();
+    try {
+      await addToCart({
+        merchantId: Number(merchantId),
+        productId: Number(product.id),
+        merchantProductId: Number(product.merchantProductId || product.id), // Fallback if missing, but should be there
+        quantity,
+        priceAtAdd: product.basePrice,
+        selectedModifiers: selectedModifierPayload,
+      });
+      setIsAddingToCart(false);
+      navigation.goBack();
+    } catch (e: any) {
+      setIsAddingToCart(false);
+      Alert.alert('Error', e.message || 'Failed to add to cart');
+    }
   };
 
   if (isLoading) {

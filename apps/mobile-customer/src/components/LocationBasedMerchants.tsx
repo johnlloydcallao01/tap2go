@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { 
   LocationBasedMerchant,
   sortMerchantsByRecentlyUpdated,
@@ -9,6 +10,7 @@ import {
 import LocationMerchantCard from './LocationMerchantCard';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useWishlist } from '../hooks/useWishlist';
+import { useNavigation } from '../navigation/NavigationContext';
 
 interface LocationBasedMerchantsProps {
   customerId?: string;
@@ -24,9 +26,10 @@ export default function LocationBasedMerchants({
   onMerchantPress
 }: LocationBasedMerchantsProps) {
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const navigation = useNavigation();
 
   const { 
-    data: merchants = [], 
+    data: allMerchants = [], 
     isLoading, 
     isRefetching 
   } = useLocationBasedMerchants(
@@ -34,6 +37,19 @@ export default function LocationBasedMerchants({
     categoryId, 
     limit
   );
+  
+  // Apply limit logic for display:
+  // If no category filter (categoryId is null), show max 8 items.
+  // Otherwise, show all (or up to limit passed in props)
+  const merchants = useMemo(() => {
+    if (!categoryId) {
+      return allMerchants.slice(0, 8);
+    }
+    return allMerchants;
+  }, [allMerchants, categoryId]);
+
+  // Check if we have more than 8 merchants to show the chevron
+  const showChevron = !categoryId && allMerchants.length > 8;
   
   // Fetch active addresses for merchants
   const { data: addressMap = {} } = useMerchantAddresses(merchants);
@@ -45,104 +61,201 @@ export default function LocationBasedMerchants({
 
   // Compute newly updated merchants (Client-side sort using shared logic)
   // Only shown when no category filter is active, matching web logic
-  const newlyUpdatedMerchants = useMemo(() => {
+  const newlyUpdatedMerchantsFull = useMemo(() => {
     if (categoryId) return [];
-    return sortMerchantsByRecentlyUpdated(merchants).slice(0, 8); // Limit to top 8
-  }, [merchants, categoryId]);
+    return sortMerchantsByRecentlyUpdated(allMerchants);
+  }, [allMerchants, categoryId]);
+
+  const newlyUpdatedMerchants = useMemo(() => {
+    return newlyUpdatedMerchantsFull.slice(0, 8);
+  }, [newlyUpdatedMerchantsFull]);
+
+  const showChevronNewlyUpdated = newlyUpdatedMerchantsFull.length > 8;
+
+  const handleNavigateToNearby = () => {
+    navigation.navigate('NearbyRestaurants');
+  };
+
+  const handleNavigateToNewlyUpdated = () => {
+    navigation.navigate('NewlyUpdated');
+  };
 
   if (!customerId) return null;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          {categoryId ? 'Filtered Merchants' : 'Nearby Merchants'}
-        </Text>
+        <View style={styles.headerContent}>
+          <Text style={[styles.title, { color: colors.text }]}>
+            {categoryId ? 'Filtered Merchants' : 'Nearby Merchants'}
+          </Text>
+          {showChevron && (
+            <TouchableOpacity 
+              onPress={handleNavigateToNearby}
+              style={styles.chevronButton}
+            >
+              <Ionicons name="chevron-forward" size={16} color="#333" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {loading ? (
         <View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            decelerationRate="fast"
-            snapToInterval={width * 0.75 + 16}
-          >
-            {[1, 2, 3].map(key => (
-              <View
-                key={key}
-                style={{
-                  width: width * 0.75,
-                  marginRight: 16,
-                  borderRadius: 16,
-                  backgroundColor: '#F3F4F6',
-                  padding: 16,
-                }}
-              >
+          {categoryId ? (
+            <View style={styles.verticalList}>
+              {[1, 2, 3].map(key => (
                 <View
+                  key={key}
                   style={{
                     width: '100%',
-                    height: 140,
-                    borderRadius: 12,
-                    backgroundColor: '#E5E7EB',
-                    marginBottom: 12,
+                    marginBottom: 16,
+                    borderRadius: 16,
+                    backgroundColor: '#F3F4F6',
+                    padding: 16,
                   }}
-                />
+                >
+                  <View
+                    style={{
+                      width: '100%',
+                      height: 140,
+                      borderRadius: 12,
+                      backgroundColor: '#E5E7EB',
+                      marginBottom: 12,
+                    }}
+                  />
+                  <View
+                    style={{
+                      width: '60%',
+                      height: 12,
+                      borderRadius: 6,
+                      backgroundColor: '#E5E7EB',
+                      marginBottom: 8,
+                    }}
+                  />
+                  <View
+                    style={{
+                      width: '40%',
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor: '#E5E7EB',
+                    }}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              decelerationRate="fast"
+              snapToInterval={width * 0.75 + 16}
+            >
+              {[1, 2, 3].map(key => (
                 <View
+                  key={key}
                   style={{
-                    width: '60%',
-                    height: 12,
-                    borderRadius: 6,
-                    backgroundColor: '#E5E7EB',
-                    marginBottom: 8,
+                    width: width * 0.75,
+                    marginRight: 16,
+                    borderRadius: 16,
+                    backgroundColor: '#F3F4F6',
+                    padding: 16,
                   }}
-                />
-                <View
-                  style={{
-                    width: '40%',
-                    height: 10,
-                    borderRadius: 5,
-                    backgroundColor: '#E5E7EB',
-                  }}
-                />
-              </View>
-            ))}
-          </ScrollView>
+                >
+                  <View
+                    style={{
+                      width: '100%',
+                      height: 140,
+                      borderRadius: 12,
+                      backgroundColor: '#E5E7EB',
+                      marginBottom: 12,
+                    }}
+                  />
+                  <View
+                    style={{
+                      width: '60%',
+                      height: 12,
+                      borderRadius: 6,
+                      backgroundColor: '#E5E7EB',
+                      marginBottom: 8,
+                    }}
+                  />
+                  <View
+                    style={{
+                      width: '40%',
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor: '#E5E7EB',
+                    }}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
       ) : merchants.length > 0 ? (
         <View>
-          {/* Main List (Nearby) */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            decelerationRate="fast"
-            snapToInterval={width * 0.75 + 16} // card width + margin
-          >
-            {merchants.map((merchant) => (
-              <View 
-                key={merchant.id} 
-                style={{ width: width * 0.75, marginRight: 16 }}
-              >
-                <LocationMerchantCard
-                  merchant={merchant}
-                  onPress={onMerchantPress}
-                  addressName={addressMap[merchant.id] || null}
-                  isWishlisted={isWishlisted(merchant.id)}
-                  onToggleWishlist={toggleWishlist}
-                />
-              </View>
-            ))}
-          </ScrollView>
+          {/* Main List (Filtered = Vertical, Nearby = Horizontal) */}
+          {categoryId ? (
+            <View style={styles.verticalList}>
+              {merchants.map((merchant) => (
+                <View 
+                  key={merchant.id} 
+                  style={{ width: '100%', marginBottom: 16 }}
+                >
+                  <LocationMerchantCard
+                    merchant={merchant}
+                    onPress={onMerchantPress}
+                    addressName={addressMap[merchant.id] || null}
+                    isWishlisted={isWishlisted(merchant.id)}
+                    onToggleWishlist={toggleWishlist}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              decelerationRate="fast"
+              snapToInterval={width * 0.75 + 16} // card width + margin
+            >
+              {merchants.map((merchant) => (
+                <View 
+                  key={merchant.id} 
+                  style={{ width: width * 0.75, marginRight: 16 }}
+                >
+                  <LocationMerchantCard
+                    merchant={merchant}
+                    onPress={onMerchantPress}
+                    addressName={addressMap[merchant.id] || null}
+                    isWishlisted={isWishlisted(merchant.id)}
+                    onToggleWishlist={toggleWishlist}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          )}
 
-          {/* Newly Updated Section - Shown only if no category selected & we have data */}
+          {/* Newly Updated Section - Shown only if no category selected & we have data (Always Horizontal) */}
           {newlyUpdatedMerchants.length > 0 && (
             <View style={styles.sectionContainer}>
               <View style={styles.header}>
-                <Text style={[styles.title, { color: colors.text }]}>
-                  Newly Updated
-                </Text>
+                <View style={styles.headerContent}>
+                  <Text style={[styles.title, { color: colors.text }]}>
+                    Newly Updated
+                  </Text>
+                  {showChevronNewlyUpdated && (
+                    <TouchableOpacity 
+                      onPress={handleNavigateToNewlyUpdated}
+                      style={styles.chevronButton}
+                    >
+                      <Ionicons name="chevron-forward" size={16} color="#333" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
               
               <ScrollView 
@@ -193,15 +306,36 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 16,
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  chevronButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   list: {
     // Items handle their own spacing
   },
   horizontalList: {
     paddingRight: 16,
+  },
+  verticalList: {
+    paddingHorizontal: 0,
   },
   emptyContainer: {
     padding: 20,

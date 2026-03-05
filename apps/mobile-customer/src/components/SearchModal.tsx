@@ -14,14 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { 
-  useRecentSearches, 
-  useProductSuggestions, 
   useLocationBasedMerchants, 
   useLocationBasedCategories, 
   useActiveAddress,
   LocationBasedMerchantService 
 } from '@encreasl/client-services';
-import { useDebounce } from '../hooks/useDebounce';
+
+import { apiConfig } from '../config/environment';
 
 interface SearchModalProps {
   visible: boolean;
@@ -37,10 +36,14 @@ interface Suggestion {
 
 export default function SearchModal({ visible, onClose, initialQuery = '', navigation }: SearchModalProps) {
   const [query, setQuery] = useState(initialQuery);
-  const debouncedQuery = useDebounce(query, 300);
   const { user, token } = useAuth();
+  
+  // State for product suggestions (Manual fetch like Web)
+  const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
+  // State for recent searches (Manual fetch like Web)
+  const [serverRecentQueries, setServerRecentQueries] = useState<string[]>([]);
 
-  // Normalize Query Helper
+  // Normalize Query Helper (Identical to Web)
   const normalizeQuery = (input: string): string => {
     let q = (input || "").toLowerCase().trim();
     if (!q) return "";
@@ -55,8 +58,6 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
     return q;
   };
 
-  const normalizedDebouncedQuery = useMemo(() => normalizeQuery(debouncedQuery), [debouncedQuery]);
-  
   // Resolve User ID as string
   const userIdStr = user?.id ? String(user.id) : undefined;
 
@@ -71,17 +72,68 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
-  // 1. Recent Searches
-  const { data: recentSearches = [], refetch: refetchRecent, isLoading: isLoadingRecent } = useRecentSearches(userIdStr);
-
+  // 1. Recent Searches (Exact Web Logic)
   useEffect(() => {
-    if (visible && userIdStr) {
-      refetchRecent();
-    }
-  }, [visible, userIdStr, refetchRecent]);
+    let cancelled = false;
+    (async () => {
+      if (!visible) return;
+      try {
+        const userId = user?.id;
+        if (!userId) { setServerRecentQueries([]); return; }
 
-  // 2. Suggestions
-  const { data: productSuggestions = [], isLoading: isLoadingSuggestions } = useProductSuggestions(normalizedDebouncedQuery);
+        const API_BASE = apiConfig.baseUrl;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = apiConfig.payloadApiKey;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+        const url = `${API_BASE}/recent-searches?where[user][equals]=${encodeURIComponent(String(userId))}&where[scope][equals]=restaurants&sort=-updatedAt&limit=10`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) { setServerRecentQueries([]); return; }
+        
+        const data = await res.json();
+        const docs = Array.isArray(data?.docs) ? data.docs : [];
+        const queries: string[] = docs.map((d: any) => (d?.query || '')).filter((v: any) => typeof v === 'string' && v.trim().length > 0);
+        
+        if (!cancelled) setServerRecentQueries(queries);
+      } catch {
+        if (!cancelled) setServerRecentQueries([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [visible, user]);
+
+  // 2. Product Suggestions (Implemented EXACTLY like Web with inline fetch)
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!visible) return;
+      const q = normalizeQuery(query);
+      if (!q) { setProductSuggestions([]); return; }
+
+      const API_BASE = apiConfig.baseUrl;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = apiConfig.payloadApiKey;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+      try {
+        const url = `${API_BASE}/products?where[name][contains]=${encodeURIComponent(q)}&limit=12&depth=0`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) { setProductSuggestions([]); return; }
+        
+        const data = await res.json();
+        const docs = Array.isArray(data?.docs) ? data.docs : Array.isArray(data) ? data : [];
+        const names: string[] = docs.map((p: any) => p?.name).filter((n: any) => typeof n === 'string' && n.trim().length > 0);
+        const uniq: string[] = Array.from(new Set(names.map((n) => n.trim())));
+        
+        if (!cancelled) setProductSuggestions(uniq.slice(0, 12));
+      } catch {
+        if (!cancelled) setProductSuggestions([]);
+      }
+    };
+
+    const t = setTimeout(run, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query, visible]);
 
   // 3. Merchant Suggestions (Local)
   const { data: merchants = [] } = useLocationBasedMerchants(customerId || undefined, null, 9999);
@@ -93,45 +145,51 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
   const { data: addressData } = useActiveAddress(userIdStr, token || undefined);
   const activeAddressName = addressData?.address?.formatted_address;
 
+  // 6. Combined Suggestions (Exact Web Logic)
   const combinedSuggestions = useMemo((): Suggestion[] => {
-    const q = normalizedDebouncedQuery;
+    const q = query.trim();
     if (!q) return [];
+    const lower = q.toLowerCase();
 
     const loc = activeAddressName ? ` in ${activeAddressName}` : '';
     const withLoc = (base: string) => [base, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
     const withLocNearMe = (base: string) => [base, `${base} near me`, loc ? `${base}${loc}` : null].filter(Boolean) as string[];
 
     // Merchant Matches
-    const merchantMatches = merchants
+    const merchantMatches = (merchants || [])
       .filter((m: any) => {
         const name = (m.outletName || '').toLowerCase();
         const vendor = (m.vendor?.businessName || '').toLowerCase();
-        return name.includes(q) || vendor.includes(q);
+        return name.includes(lower) || vendor.includes(lower);
       })
       .map((m: any) => (m.outletName || m.vendor?.businessName || '').trim())
       .filter((v: string) => v.length > 0);
 
     // Category Matches
-    const categoryMatches = categories
-      .filter((c: any) => (c.name || '').toLowerCase().includes(q) || (c.slug || '').toLowerCase().includes(q))
+    const categoryMatches = (categories || [])
+      .filter((c: any) => (c.name || '').toLowerCase().includes(lower) || (c.slug || '').toLowerCase().includes(lower))
       .map((c: any) => c.name)
       .filter((v: string) => v && v.length > 0);
 
     // Tag Matches
     const tagMatches = (() => {
       const set = new Set<string>();
-      merchants.forEach((m: any) => (m.tags || []).forEach((t: string) => {
+      (merchants || []).forEach((m: any) => (m.tags || []).forEach((t: string) => {
         const k = (t || '').trim();
         if (!k) return;
-        if (k.toLowerCase().includes(q)) set.add(k);
+        if (k.toLowerCase().includes(lower)) set.add(k);
       }));
       return Array.from(set);
     })();
 
     const coll: Suggestion[] = [];
+    // Slice 6 for merchants
     merchantMatches.slice(0, 6).forEach((name: string) => withLocNearMe(name).forEach((text) => coll.push({ text, source: 'merchant' })));
+    // Slice 6 for categories
     categoryMatches.slice(0, 6).forEach((name: string) => withLoc(name).forEach((text) => coll.push({ text, source: 'category' })));
+    // Slice 6 for products (from state)
     productSuggestions.slice(0, 6).forEach((name: string) => coll.push({ text: name, source: 'product' }));
+    // Slice 4 for tags
     tagMatches.slice(0, 4).forEach((name: string) => withLoc(name).forEach((text) => coll.push({ text, source: 'tag' })));
 
     const seen = new Set<string>();
@@ -142,7 +200,19 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
       return true;
     });
     return list.slice(0, 12);
-  }, [normalizedDebouncedQuery, merchants, categories, productSuggestions, activeAddressName]);
+  }, [query, merchants, categories, productSuggestions, activeAddressName]);
+
+  const recentList = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    serverRecentQueries.forEach((t) => {
+      const k = t.trim().toLowerCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      out.push(t.trim());
+    });
+    return out.slice(0, 10);
+  }, [serverRecentQueries]);
 
   useEffect(() => {
     if (visible) {
@@ -150,11 +220,45 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
     }
   }, [visible, initialQuery]);
 
-  const handleSearch = (text: string) => {
-    if (!text.trim()) return;
+  const handleSearch = (val?: string) => {
+    const v = (val ?? query).trim();
+    if (!v) return;
+
+    // Fire and forget save (Exact Web Logic)
+    (async () => {
+      try {
+        const userId = user?.id;
+        if (!userId) return;
+        
+        const API_BASE = apiConfig.baseUrl;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = apiConfig.payloadApiKey;
+        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+        
+        const scope = 'restaurants';
+        const normalized = normalizeQuery(v);
+        const compositeKey = `${userId}:${scope}:${normalized}`;
+        // Note: addressText needs activeAddressName
+        const body = JSON.stringify({ user: userId, query: v, scope, source: 'web', addressText: activeAddressName || undefined });
+        
+        const res = await fetch(`${API_BASE}/recent-searches`, { method: 'POST', headers, body });
+        if (res.ok) return;
+        
+        const existsUrl = `${API_BASE}/recent-searches?where[compositeKey][equals]=${encodeURIComponent(compositeKey)}&limit=1`;
+        const getRes = await fetch(existsUrl, { headers });
+        if (!getRes.ok) return;
+        
+        const data = await getRes.json();
+        const id = data?.docs?.[0]?.id;
+        if (!id) return;
+        
+        await fetch(`${API_BASE}/recent-searches/${id}`, { method: 'PATCH', headers, body: '{}' });
+      } catch { }
+    })();
+
     onClose();
     setQuery(''); 
-    navigation.navigate('Search', { query: text.trim() });
+    navigation.navigate('Search', { query: v });
   };
 
   const renderItem = ({ item, index }: { item: Suggestion | string, index: number }) => {
@@ -185,8 +289,9 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
     );
   };
 
-  const data = query.trim() ? combinedSuggestions : recentSearches;
+  const data = query.trim() ? combinedSuggestions : recentList;
   const showList = data.length > 0;
+  const isLoading = false; 
 
   return (
     <Modal
@@ -236,14 +341,14 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
         
         {/* Content */}
         <View style={styles.content}>
-          {(isLoadingSuggestions && query.trim().length > 0) || (isLoadingRecent && query.trim().length === 0) ? (
+          {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color="#9CA3AF" />
             </View>
           ) : (
             <FlatList
               data={data}
-              keyExtractor={(item, index) => `${item}-${index}`}
+              keyExtractor={(item, index) => `${typeof item === 'string' ? item : item.text}-${index}`}
               renderItem={renderItem}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.listContent}

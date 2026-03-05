@@ -221,6 +221,7 @@ export class MerchantClientService {
 
         return {
           id: product?.id ?? mp?.id,
+          merchantProductId: mp?.id,
           name: product?.name ?? "",
           productType: product?.productType ?? "simple",
           basePrice: product?.basePrice ?? null,
@@ -228,8 +229,46 @@ export class MerchantClientService {
           shortDescription: product?.shortDescription ?? "",
           imageUrl,
           categoryIds,
+          hasRequiredModifiers: false, // Will be populated below
         };
       });
+
+      // Populate hasRequiredModifiers by fetching modifier-groups
+      const productIds = products.map(p => p.id).filter(Boolean);
+      if (productIds.length > 0) {
+        try {
+          // Query modifier-groups for these products that are required
+          // We need groups where product_id IN [ids] AND (is_required=true OR min_selections > 0)
+          const modParams = new URLSearchParams();
+          modParams.append('where[product_id][in]', productIds.join(','));
+          modParams.append('where[or][0][is_required][equals]', 'true');
+          modParams.append('where[or][1][min_selections][greater_than]', '0');
+          modParams.append('limit', '500'); // Fetch enough to cover
+          modParams.append('depth', '0'); // Minimal depth
+
+          const modUrl = `${MerchantClientService.API_BASE}/modifier-groups?${modParams.toString()}`;
+          const modRes = await fetch(modUrl, { headers });
+          
+          if (modRes.ok) {
+             const modData = await modRes.json();
+             const requiredProductIds = new Set<string | number>();
+             
+             (modData.docs || []).forEach((g: any) => {
+                const pid = typeof g.product_id === 'object' ? g.product_id?.id : g.product_id;
+                if (pid) requiredProductIds.add(pid);
+             });
+
+             // Update products
+             products.forEach(p => {
+                if (requiredProductIds.has(p.id)) {
+                   p.hasRequiredModifiers = true;
+                }
+             });
+          }
+        } catch (err) {
+          console.error('Error fetching modifier groups:', err);
+        }
+      }
 
       // Consolidate categories
       const collectedIds = new Set<number | string>();

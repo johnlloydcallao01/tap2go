@@ -1,89 +1,232 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useCart, MerchantCartSummary } from '../contexts/CartContext';
+import { useCart, MerchantCartSummary, CartItem } from '../contexts/CartContext';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { formatCurrency } from '../utils/format';
+import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+
+const CartSkeleton = () => {
+  return (
+    <View style={{ padding: 16, gap: 16 }}>
+      {[1, 2, 3].map((i) => (
+        <View key={i} style={{ 
+          backgroundColor: '#fff', 
+          borderRadius: 12, 
+          padding: 16,
+          borderWidth: 1,
+          borderColor: '#eee'
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f3f4f6' }} />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <View style={{ width: '60%', height: 20, backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 4 }} />
+              <View style={{ width: '30%', height: 14, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+             <View style={{ width: 80, height: 16, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+             <View style={{ width: 60, height: 16, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
 
 export default function CartScreen({ navigation }: any) {
-  const { getAllMerchantCarts, clearCart } = useCart();
-  const merchantCarts = getAllMerchantCarts();
+  const { getAllMerchantCarts, removeFromCart, reload, isLoading } = useCart();
   const colors = useThemeColors();
+  const merchantCarts = getAllMerchantCarts();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await reload();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reload]);
+
+  const showSkeleton = isLoading || refreshing;
 
   const handleMerchantPress = (merchantId: string) => {
     navigation.navigate('MerchantCart', { merchantId });
   };
 
+  const handleDeleteCart = (merchantId: string, items: CartItem[]) => {
+    Alert.alert(
+      "Delete Cart",
+      "Are you sure you want to delete this cart?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            items.forEach((item) => {
+              removeFromCart(item.id);
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  const handleMoreOptions = (cart: MerchantCartSummary) => {
+      Alert.alert(
+          cart.merchantName,
+          "Select an option",
+          [
+              {
+                  text: "Add more items",
+                  onPress: () => handleMerchantPress(cart.merchantId)
+              },
+              {
+                  text: "Delete cart",
+                  style: "destructive",
+                  onPress: () => handleDeleteCart(cart.merchantId, cart.items)
+              },
+              {
+                  text: "Cancel",
+                  style: "cancel"
+              }
+          ]
+      );
+  };
+
+  const renderMerchantCart = (cart: MerchantCartSummary) => (
+    <View
+      key={cart.merchantId}
+      style={[styles.merchantCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+    >
+      {/* Merchant Header */}
+      <View style={styles.merchantHeader}>
+        <View style={styles.merchantInfoContainer}>
+          {cart.merchantLogoUrl ? (
+            <Image 
+              source={{ uri: cart.merchantLogoUrl }} 
+              style={styles.merchantLogo} 
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.merchantLogoPlaceholder, { backgroundColor: colors.background }]}>
+               <Ionicons name="storefront" size={20} color={colors.text} style={{ opacity: 0.6 }} />
+            </View>
+          )}
+          <View style={styles.merchantTextContainer}>
+            <Text style={[styles.merchantName, { color: colors.text }]} numberOfLines={1}>
+              {cart.merchantName}
+            </Text>
+            <View style={styles.deliveryInfoContainer}>
+              <Text style={[styles.deliveryText, { color: colors.text, opacity: 0.6 }]}>10-25 mins</Text>
+              <View style={styles.dotSeparator} />
+              <Ionicons name="bicycle" size={12} color="#e81c63" />
+              <Text style={[styles.deliveryFreeText, { color: '#e81c63' }]}> Free</Text>
+            </View>
+          </View>
+        </View>
+        <TouchableOpacity
+            style={styles.moreOptionsButton}
+            onPress={() => handleMoreOptions(cart)}
+        >
+             <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} style={{ opacity: 0.5 }} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Items Horizontal Scroll */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsScroll} contentContainerStyle={styles.itemsScrollContent}>
+        {cart.items.map((item) => (
+          <View key={item.id} style={[styles.itemImageContainer, { backgroundColor: colors.background }]}>
+            {item.imageUrl ? (
+              <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
+            ) : (
+              <Ionicons name="fast-food-outline" size={20} color={colors.border} />
+            )}
+             {item.quantity > 1 && (
+                <View style={[styles.badgeContainer, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.badgeText}>{item.quantity}</Text>
+                </View>
+             )}
+          </View>
+        ))}
+         <TouchableOpacity
+            style={[styles.addItemButton, { borderColor: colors.border }]}
+            onPress={() => handleMerchantPress(cart.merchantId)}
+         >
+            <Ionicons name="add" size={20} color={colors.text} />
+         </TouchableOpacity>
+      </ScrollView>
+
+      {/* Subtotal & Action */}
+      <View style={[styles.footerContainer, { borderTopColor: colors.border }]}>
+        <View style={styles.subtotalRow}>
+          <Text style={[styles.subtotalLabel, { color: colors.text }]}>Subtotal</Text>
+          <Text style={[styles.subtotalValue, { color: colors.text }]}>{formatCurrency(cart.subtotal)}</Text>
+        </View>
+        
+        <TouchableOpacity
+          style={[styles.viewCartButton, { borderColor: colors.border }]}
+          onPress={() => handleMerchantPress(cart.merchantId)}
+        >
+          <Text style={[styles.viewCartText, { color: colors.text }]}>View your cart</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.card }}>
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Carts</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Your Carts</Text>
           {merchantCarts.length > 0 && (
-            <TouchableOpacity onPress={clearCart} style={styles.clearButton}>
-              <Text style={styles.clearButtonText}>Clear All</Text>
-            </TouchableOpacity>
+            <View style={styles.cartCountContainer}>
+               <Text style={[styles.cartCountText, { color: colors.text, opacity: 0.6 }]}>
+                   {merchantCarts.length} {merchantCarts.length === 1 ? 'cart' : 'carts'}
+               </Text>
+            </View>
           )}
         </View>
       </SafeAreaView>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {merchantCarts.length > 0 ? (
+      <PullToRefreshLayout
+        isRefreshing={refreshing}
+        onRefresh={handleRefresh}
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {showSkeleton ? (
+          <CartSkeleton />
+        ) : merchantCarts.length > 0 ? (
           <View style={styles.cartList}>
-            {merchantCarts.map((cart: MerchantCartSummary) => (
-              <TouchableOpacity
-                key={cart.merchantId}
-                style={[styles.merchantCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => handleMerchantPress(cart.merchantId)}
-              >
-                <View style={styles.merchantInfo}>
-                  <View style={styles.merchantHeader}>
-                    <Text style={[styles.merchantName, { color: colors.text }]}>{cart.merchantName}</Text>
-                    <Ionicons name="chevron-forward" size={20} color={colors.text} style={{ opacity: 0.5 }} />
-                  </View>
-                  
-                  <View style={styles.cartPreview}>
-                    <Text style={[styles.itemCount, { color: colors.text }]}>
-                      {cart.totalItems} item{cart.totalItems !== 1 ? 's' : ''}
-                    </Text>
-                    <Text style={[styles.subtotal, { color: colors.primary }]}>
-                      ${cart.subtotal.toFixed(2)}
-                    </Text>
-                  </View>
-                  
-                  {/* Preview of first few items */}
-                  <View style={styles.itemsPreview}>
-                    {cart.items.slice(0, 2).map((item, index) => (
-                      <Text key={item.id} style={[styles.previewItemText, { color: colors.text }]} numberOfLines={1}>
-                        • {item.quantity}x {item.menuItem.name}
-                      </Text>
-                    ))}
-                    {cart.items.length > 2 && (
-                      <Text style={[styles.moreItemsText, { color: colors.text }]}>
-                        + {cart.items.length - 2} more...
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {merchantCarts.map((cart) => renderMerchantCart(cart))}
           </View>
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons name="cart-outline" size={64} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>Your carts are empty</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.text }]}>
-              Explore restaurants and add items to your cart!
+            <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
+                 <Ionicons name="cart-outline" size={40} color={colors.border} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Your cart is empty</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.text, opacity: 0.6 }]}>
+              Looks like you haven&apos;t added any items to your cart yet. Start browsing to find delicious food!
             </Text>
             <TouchableOpacity 
-              style={[styles.browseButton, { backgroundColor: colors.primary }]}
+              style={[styles.browseButton, { backgroundColor: '#eba236' }]}
               onPress={() => navigation.navigate('Home')}
             >
+              <Ionicons name="restaurant-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.browseButtonText}>Browse Restaurants</Text>
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+        <View style={{ height: 100 }} /> 
+      </PullToRefreshLayout>
     </View>
   );
 }
@@ -96,111 +239,212 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
   },
-  clearButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#ef4444',
-    borderRadius: 6,
+  cartCountContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
   },
-  clearButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
+  cartCountText: {
+      fontSize: 14,
+      fontWeight: '500',
   },
   content: {
     flex: 1,
-    padding: 20,
+  },
+  contentContainer: {
+      paddingVertical: 16,
+      paddingHorizontal: 12,
   },
   cartList: {
-    gap: 16,
+      gap: 16,
   },
   merchantCard: {
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
-  },
-  merchantInfo: {
-    flex: 1,
+    marginBottom: 16,
   },
   merchantHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  merchantInfoContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+  },
+  merchantLogoPlaceholder: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+  },
+  merchantLogo: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 12,
+  },
+  merchantTextContainer: {
+      flex: 1,
   },
   merchantName: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  cartPreview: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  itemCount: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  subtotal: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  itemsPreview: {
-    gap: 4,
+  deliveryInfoContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
   },
-  previewItemText: {
-    fontSize: 13,
-    opacity: 0.8,
+  deliveryText: {
+      fontSize: 12,
   },
-  moreItemsText: {
-    fontSize: 12,
-    opacity: 0.6,
-    marginTop: 4,
-    fontStyle: 'italic',
+  dotSeparator: {
+      width: 3,
+      height: 3,
+      borderRadius: 1.5,
+      backgroundColor: '#ccc',
+      marginHorizontal: 6,
+  },
+  deliveryFreeText: {
+      fontSize: 12,
+      fontWeight: '600',
+  },
+  moreOptionsButton: {
+      padding: 4,
+  },
+  itemsScroll: {
+      marginBottom: 16,
+  },
+  itemsScrollContent: {
+      gap: 10,
+      alignItems: 'center',
+  },
+  itemImageContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+  },
+  itemImage: {
+      width: 48,
+      height: 48,
+      borderRadius: 8,
+  },
+  badgeContainer: {
+      position: 'absolute',
+      top: -6,
+      right: -6,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+      borderWidth: 1.5,
+      borderColor: '#fff',
+  },
+  badgeText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '700',
+  },
+  addItemButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 4,
+      borderStyle: 'dashed',
+  },
+  footerContainer: {
+      borderTopWidth: 1,
+      paddingTop: 12,
+      gap: 12,
+  },
+  subtotalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+  },
+  subtotalLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+  },
+  subtotalValue: {
+      fontSize: 14,
+      fontWeight: '600',
+  },
+  viewCartButton: {
+      width: '100%',
+      paddingVertical: 10,
+      borderRadius: 20,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+  },
+  viewCartText: {
+      fontSize: 14,
+      fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 60,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyIconContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 24,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 16,
+    fontWeight: '700',
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
-    opacity: 0.6,
     marginBottom: 32,
-    paddingHorizontal: 40,
+    lineHeight: 22,
+    maxWidth: 280,
   },
   browseButton: {
-    paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 25,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   browseButtonText: {
-    color: 'white',
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },

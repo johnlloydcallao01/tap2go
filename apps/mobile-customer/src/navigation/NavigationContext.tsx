@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 
 export interface NavigationContextType {
   currentScreen: string;
-  navigate: (screenName: string) => void;
+  navigate: (screenName: string, params?: any) => void;
   goBack: () => void;
 }
 

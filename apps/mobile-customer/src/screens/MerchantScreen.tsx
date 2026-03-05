@@ -32,6 +32,7 @@ import { formatCurrency } from '../utils/format';
 import MerchantSearchModal from '../components/MerchantSearchModal';
 import { useWishlist } from '../hooks/useWishlist';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+import { apiConfig } from '../config/environment';
 
 const MerchantSkeleton = () => {
   const { width } = useWindowDimensions();
@@ -95,7 +96,7 @@ export default function MerchantScreen({ route, navigation }: any) {
   const headerCategoryListRef = useRef<FlatList>(null);
   const isManualScroll = useRef(false);
   const scrollY = useRef(new Animated.Value(0)).current;
-  const { addToCart, getMerchantCart } = useCart();
+  const { addToCart, getMerchantCart, updateQuantity } = useCart();
   const merchantCart = getMerchantCart(String(merchantId));
   // Store threshold in state to trigger re-render for interpolation update
   const [headerThreshold, setHeaderThreshold] = useState(200);
@@ -346,29 +347,69 @@ export default function MerchantScreen({ route, navigation }: any) {
     }, 1000);
   };
 
-  const handleAddToCart = (product: MerchantProductDisplay) => {
+  const handleAddToCart = async (product: MerchantProductDisplay) => {
     // Basic Add to Cart implementation
-    // For now, we assume simple products or handle variations later
-    // In real app, check productType (simple vs variable)
+    // Check productType (simple vs variable)
     if (product.productType === 'variable' || product.productType === 'grouped') {
       // Navigate to product details
+      // Pass productId and merchantId so ProductScreen can fetch details
       navigation.navigate('Product', { merchantProductId: product.id, merchantId });
     } else {
-      // Adapt to MenuItem interface expected by CartContext
-      const menuItem = {
-        id: String(product.id),
-        name: product.name,
-        description: product.shortDescription || '',
-        price: product.basePrice || 0,
-        image: product.imageUrl || '',
-        restaurantId: String(merchantId),
-        merchantName: merchant?.outletName || 'Merchant', // Updated with merchantName
-        category: '', // Can be filled if needed, but not critical for add
-        available: true
-      };
-      
-      addToCart(menuItem, 1);
-      Alert.alert('Added to Cart', `${product.name} added to your cart.`);
+      try {
+        let merchantProductId = product.merchantProductId;
+
+        // Fetch Merchant Product ID if missing (backward compatibility)
+        if (!merchantProductId) {
+             const response = await fetch(`${apiConfig.baseUrl}/merchant-products?where[merchant][equals]=${merchantId}&where[product][equals]=${product.id}&depth=0`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `users API-Key ${apiConfig.payloadApiKey}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch merchant product details');
+            }
+
+            const data = await response.json();
+            const merchantProduct = data.docs?.[0];
+
+            if (!merchantProduct) {
+                Alert.alert('Error', 'Product not available at this merchant.');
+                return;
+            }
+            merchantProductId = merchantProduct.id;
+        }
+
+        // Check if item already exists in cart for this merchant
+        const existingItem = merchantCart?.items.find(item => 
+            Number(item.merchantProduct) === Number(merchantProductId) && 
+            (!item.selectedModifiers || item.selectedModifiers.length === 0)
+        );
+
+        if (existingItem) {
+            await updateQuantity(existingItem.id, existingItem.quantity + 1);
+            Alert.alert('Cart Updated', `${product.name} quantity increased.`);
+            return;
+        }
+
+        // Web AddToCartPayload
+        const payload = {
+            merchantId: Number(merchantId),
+            productId: Number(product.id),
+            merchantProductId: Number(merchantProductId),
+            quantity: 1,
+            priceAtAdd: product.basePrice || 0,
+            compareAtPrice: product.compareAtPrice || null,
+            selectedModifiers: [],
+        };
+        
+        await addToCart(payload);
+        Alert.alert('Added to Cart', `${product.name} added to your cart.`);
+      } catch (error) {
+        console.error('Error adding to cart:', error);
+        Alert.alert('Error', 'Failed to add item to cart. Please try again.');
+      }
     }
   };
 
@@ -552,9 +593,19 @@ export default function MerchantScreen({ route, navigation }: any) {
               {/* Add Button Overlay */}
               <TouchableOpacity 
                 style={styles.addButton}
-                onPress={() => handleAddToCart(product)}
+                onPress={() => {
+                  if (product.hasRequiredModifiers) {
+                    navigation.navigate('Product', { merchantProductId: product.id, merchantId });
+                  } else {
+                    handleAddToCart(product);
+                  }
+                }}
               >
-                <Ionicons name="add" size={20} color="#333" />
+                <Ionicons 
+                  name="add" 
+                  size={20} 
+                  color="#333" 
+                />
               </TouchableOpacity>
             </View>
 
@@ -997,9 +1048,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    backgroundColor: 'transparent', // Let button float
+    paddingTop: 12,
+    backgroundColor: '#fff',
     zIndex: 1000,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 20,
   },
   viewCartButton: {
     flexDirection: 'row',

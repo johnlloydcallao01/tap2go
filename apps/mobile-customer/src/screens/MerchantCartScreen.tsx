@@ -1,51 +1,60 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../contexts/CartContext';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { formatCurrency } from '../utils/format';
+import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+
+const MerchantCartSkeleton = () => {
+    return (
+        <View style={{ padding: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#f3f4f6' }} />
+                <View style={{ width: 120, height: 20, backgroundColor: '#f3f4f6', borderRadius: 4, marginLeft: 12 }} />
+            </View>
+            {[1, 2, 3].map((i) => (
+                <View key={i} style={{ flexDirection: 'row', marginBottom: 24 }}>
+                     <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#f3f4f6' }} />
+                     <View style={{ flex: 1, marginLeft: 12 }}>
+                         <View style={{ width: '70%', height: 16, backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 8 }} />
+                         <View style={{ width: '40%', height: 16, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+                     </View>
+                </View>
+            ))}
+        </View>
+    );
+};
 
 export default function MerchantCartScreen({ route, navigation }: any) {
   const { merchantId } = route.params;
   const colors = useThemeColors();
-  const { getMerchantCart, updateQuantity, removeFromCart } = useCart();
+  const { getMerchantCart, updateQuantity, removeFromCart, reload, isLoading } = useCart();
+  const [refreshing, setRefreshing] = useState(false);
 
   const merchantCart = getMerchantCart(merchantId);
 
-  const handleQuantityChange = (itemId: string, newQuantity: number) => {
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+        await reload();
+    } finally {
+        setRefreshing(false);
+    }
+  }, [reload]);
+
+  const showSkeleton = isLoading || refreshing;
+
+  const handleQuantityChange = (itemId: number, newQuantity: number) => {
     updateQuantity(itemId, newQuantity);
   };
 
-  const handleRemoveItem = (itemId: string) => {
+  const handleRemoveItem = (itemId: number) => {
     removeFromCart(itemId);
   };
 
-  if (!merchantCart) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: colors.card }}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={colors.text} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.text }]}>Cart</Text>
-                <View style={{ width: 40 }} />
-            </View>
-        </SafeAreaView>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="cart-outline" size={64} color={colors.border} />
-          <Text style={[styles.emptyText, { color: colors.text }]}>Your cart is empty for this merchant</Text>
-          <TouchableOpacity 
-            style={[styles.browseButton, { backgroundColor: colors.primary }]}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Text style={styles.browseButtonText}>Browse Restaurants</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const headerTitle = merchantCart ? merchantCart.merchantName : 'Cart';
 
   return (
     <View style={[styles.container, { backgroundColor: '#f9fafb' }]}>
@@ -54,87 +63,110 @@ export default function MerchantCartScreen({ route, navigation }: any) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={24} color="#333" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{merchantCart.merchantName || 'Cart'}</Text>
+            <Text style={styles.headerTitle}>{headerTitle}</Text>
             <View style={{ width: 40 }} />
         </View>
       </SafeAreaView>
 
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }}>
-        <View style={styles.merchantSection}>
-             <View style={styles.merchantHeader}>
-                 {/* Placeholder for merchant logo if available */}
-                 <View style={styles.merchantLogoPlaceholder}>
-                     <Ionicons name="storefront" size={20} color="#666" />
-                 </View>
-                 <Text style={styles.merchantName}>{merchantCart.merchantName}</Text>
-             </View>
-             
-             {merchantCart.items.map((item) => (
-                 <View key={item.id} style={styles.cartItem}>
-                     <View style={styles.itemRow}>
-                         {item.menuItem.image ? (
-                             <Image source={{ uri: item.menuItem.image }} style={styles.itemImage} />
-                         ) : (
-                             <View style={styles.itemImagePlaceholder} />
-                         )}
-                         <View style={styles.itemDetails}>
-                             <Text style={styles.itemName}>{item.menuItem.name}</Text>
-                             <Text style={styles.itemPrice}>{formatCurrency(item.totalPrice)}</Text>
-                             {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                                 <Text style={styles.modifiersText}>
-                                     {item.selectedModifiers.map(m => m.name).join(', ')}
-                                 </Text>
-                             )}
-                         </View>
-                     </View>
-                     
-                     <View style={styles.actionsRow}>
-                         <TouchableOpacity onPress={() => handleRemoveItem(item.id)}>
-                             <Text style={styles.removeText}>Remove</Text>
-                         </TouchableOpacity>
-                         
-                         <View style={styles.quantityControl}>
-                             <TouchableOpacity 
-                                onPress={() => handleQuantityChange(item.id, item.quantity - 1)}
-                                style={styles.qtyButton}
-                             >
-                                 <Text style={styles.qtyButtonText}>-</Text>
-                             </TouchableOpacity>
-                             <Text style={styles.qtyText}>{item.quantity}</Text>
-                             <TouchableOpacity 
-                                onPress={() => handleQuantityChange(item.id, item.quantity + 1)}
-                                style={styles.qtyButton}
-                             >
-                                 <Text style={styles.qtyButtonText}>+</Text>
-                             </TouchableOpacity>
-                         </View>
-                     </View>
-                 </View>
-             ))}
-        </View>
-        
-        <View style={styles.summarySection}>
-            <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(merchantCart.subtotal)}</Text>
+      <PullToRefreshLayout
+        isRefreshing={refreshing}
+        onRefresh={handleRefresh}
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
+        {showSkeleton ? (
+            <MerchantCartSkeleton />
+        ) : !merchantCart ? (
+             <View style={styles.emptyContainer}>
+                <Ionicons name="cart-outline" size={64} color={colors.border} />
+                <Text style={[styles.emptyText, { color: colors.text }]}>Your cart is empty for this merchant</Text>
+                <TouchableOpacity 
+                    style={[styles.browseButton, { backgroundColor: colors.primary }]}
+                    onPress={() => navigation.navigate('Home')}
+                >
+                    <Text style={styles.browseButtonText}>Browse Restaurants</Text>
+                </TouchableOpacity>
             </View>
-            <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Delivery Fee</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(59)}</Text>
+        ) : (
+            <View>
+                <View style={styles.merchantSection}>
+                    <View style={styles.merchantHeader}>
+                        {merchantCart.merchantLogoUrl ? (
+                            <Image source={{ uri: merchantCart.merchantLogoUrl }} style={styles.merchantLogo} />
+                        ) : (
+                            <View style={styles.merchantLogoPlaceholder}>
+                                <Ionicons name="storefront" size={20} color="#666" />
+                            </View>
+                        )}
+                        <Text style={styles.merchantName}>{merchantCart.merchantName}</Text>
+                    </View>
+                    
+                    {merchantCart.items.map((item) => (
+                        <View key={item.id} style={styles.cartItem}>
+                            <View style={styles.itemRow}>
+                                {item.imageUrl ? (
+                                    <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
+                                ) : (
+                                    <View style={styles.itemImagePlaceholder} />
+                                )}
+                                <View style={styles.itemDetails}>
+                                    <Text style={styles.itemName}>{item.productName}</Text>
+                                    <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
+                                    {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                        <Text style={styles.modifiersText}>
+                                            {item.selectedModifiers.map((m: any) => m.name).join(', ')}
+                                        </Text>
+                                    )}
+                                </View>
+                            </View>
+                            
+                            <View style={styles.actionsRow}>
+                                <TouchableOpacity onPress={() => handleRemoveItem(item.id)}>
+                                    <Text style={styles.removeText}>Remove</Text>
+                                </TouchableOpacity>
+                                
+                                <View style={styles.quantityControl}>
+                                    <TouchableOpacity 
+                                        onPress={() => handleQuantityChange(item.id, item.quantity - 1)}
+                                        style={styles.qtyButton}
+                                    >
+                                        <Text style={styles.qtyButtonText}>-</Text>
+                                    </TouchableOpacity>
+                                    <Text style={styles.qtyText}>{item.quantity}</Text>
+                                    <TouchableOpacity 
+                                        onPress={() => handleQuantityChange(item.id, item.quantity + 1)}
+                                        style={styles.qtyButton}
+                                    >
+                                        <Text style={styles.qtyButtonText}>+</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+                
+                <View style={styles.summarySection}>
+                    <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Subtotal</Text>
+                        <Text style={styles.summaryValue}>{formatCurrency(merchantCart.subtotal)}</Text>
+                    </View>
+                    <View style={[styles.summaryRow, { marginTop: 8, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 8 }]}>
+                        <Text style={styles.totalLabel}>Total</Text>
+                        <Text style={styles.totalValue}>{formatCurrency(merchantCart.subtotal)}</Text>
+                    </View>
+                </View>
             </View>
-             <View style={[styles.summaryRow, { marginTop: 8, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 8 }]}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatCurrency(merchantCart.subtotal + 59)}</Text>
-            </View>
-        </View>
-      </ScrollView>
+        )}
+      </PullToRefreshLayout>
 
-      <View style={styles.footer}>
-          <TouchableOpacity style={styles.checkoutButton}>
-              <Text style={styles.checkoutButtonText}>Checkout</Text>
-              <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal + 59)}</Text>
-          </TouchableOpacity>
-      </View>
+      {!showSkeleton && merchantCart && (
+        <View style={styles.footer}>
+            <TouchableOpacity style={styles.checkoutButton}>
+                <Text style={styles.checkoutButtonText}>Checkout</Text>
+                <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal)}</Text>
+            </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -192,6 +224,12 @@ const styles = StyleSheet.create({
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 16,
+  },
+  merchantLogo: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
   },
   merchantLogoPlaceholder: {
       width: 32,
