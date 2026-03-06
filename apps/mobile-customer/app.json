@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tap2Go",
     "slug": "tap2go-mobile-customer",
-    "version": "2.1.3",
+    "version": "2.1.4",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
