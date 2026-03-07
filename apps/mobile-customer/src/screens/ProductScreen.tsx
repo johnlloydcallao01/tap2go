@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  Image, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Alert, 
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   StatusBar
 } from 'react-native';
@@ -17,21 +17,34 @@ import { useCart } from '../contexts/CartContext';
 import ProductModifiers from '../components/ProductModifiers';
 import { formatCurrency } from '../utils/format';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+import { useQueryClient } from '@tanstack/react-query';
+import { dataCache } from '@encreasl/client-services';
 
 export default function ProductScreen({ route, navigation }: any) {
-  const { merchantProductId: productId, merchantId } = route.params; // merchantProductId param is actually productId from MerchantScreen
+  const { merchantProductId: productId, merchantId } = route.params;
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
-  
-  const { data: product, isLoading, error, refetch } = useProduct(productId, merchantId);
+  const queryClient = useQueryClient();
+
+  const { data: product, isLoading, isRefetching, error } = useProduct(productId, merchantId);
   const { addToCart } = useCart();
-  
+
   const [quantity, setQuantity] = useState(1);
   const [modifierSelection, setModifierSelection] = useState<Record<string, string[]>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    setRefreshing(true);
+    try {
+      console.log('🔄 ProductScreen: Pull-to-refresh triggered');
+      dataCache.clear();
+      await queryClient.resetQueries({ queryKey: ['product', productId, merchantId] });
+    } catch (error) {
+      console.error('ProductScreen pull-to-refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [queryClient, productId, merchantId]);
   // Helper function to resolve image URL
   const getImageUrl = (media: any): string | null => {
     if (!media) return null;
@@ -53,7 +66,7 @@ export default function ProductScreen({ route, navigation }: any) {
   // The product view request is "product view page... implement it... when we click such products".
   // It doesn't explicitly say "wishlist on product view", but web has it. I should probably add it if easy.
   // For now, I'll focus on the main product details and add to cart.
-  
+
   const hasInvalidModifiers = useMemo(() => {
     if (!product || !product.modifierGroups || product.modifierGroups.length === 0) {
       return false;
@@ -77,7 +90,7 @@ export default function ProductScreen({ route, navigation }: any) {
   const totalPrice = useMemo(() => {
     if (!product) return 0;
     let price = product.basePrice || 0;
-    
+
     // Add modifiers price
     if (product.modifierGroups) {
       product.modifierGroups.forEach(group => {
@@ -91,7 +104,7 @@ export default function ProductScreen({ route, navigation }: any) {
         }
       });
     }
-    
+
     return price * quantity;
   }, [product, modifierSelection, quantity]);
 
@@ -143,10 +156,43 @@ export default function ProductScreen({ route, navigation }: any) {
     }
   };
 
-  if (isLoading) {
+  const showSkeleton = isLoading || refreshing || isRefetching;
+
+  if (showSkeleton) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle="light-content" />
+        <PullToRefreshLayout
+          isRefreshing={refreshing || isRefetching}
+          onRefresh={onRefresh}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        >
+          {/* Skeleton image */}
+          <View style={{ width: '100%', height: 300, backgroundColor: '#F3F4F6' }}>
+            <TouchableOpacity
+              style={[styles.backButton, { top: insets.top + 10 }]}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+          </View>
+          {/* Skeleton content */}
+          <View style={{ padding: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+              <View style={{ width: '60%', height: 28, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
+              <View style={{ width: '25%', height: 24, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
+            </View>
+            <View style={{ width: '90%', height: 16, borderRadius: 8, backgroundColor: '#F3F4F6', marginBottom: 8 }} />
+            <View style={{ width: '70%', height: 16, borderRadius: 8, backgroundColor: '#F3F4F6', marginBottom: 24 }} />
+            <View style={{ width: '40%', height: 20, borderRadius: 8, backgroundColor: '#E5E7EB', marginBottom: 16 }} />
+            {[1, 2, 3].map(i => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#F3F4F6', marginRight: 12 }} />
+                <View style={{ width: '50%', height: 16, borderRadius: 8, backgroundColor: '#F3F4F6' }} />
+              </View>
+            ))}
+          </View>
+        </PullToRefreshLayout>
       </View>
     );
   }
@@ -165,15 +211,15 @@ export default function ProductScreen({ route, navigation }: any) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
-      
-      <PullToRefreshLayout 
+
+      <PullToRefreshLayout
         onRefresh={onRefresh}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* Header Image */}
         <View style={styles.imageContainer}>
           {productImageUrl ? (
-            <Image 
+            <Image
               source={{ uri: productImageUrl }}
               style={styles.image}
               resizeMode="cover"
@@ -183,9 +229,9 @@ export default function ProductScreen({ route, navigation }: any) {
               <Ionicons name="image-outline" size={64} color={colors.border} />
             </View>
           )}
-          
+
           {/* Back Button */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.backButton, { top: insets.top + 10 }]}
             onPress={() => navigation.goBack()}
           >
@@ -217,7 +263,7 @@ export default function ProductScreen({ route, navigation }: any) {
               )}
             </View>
           </View>
-          
+
           {product.shortDescription ? (
             <Text style={[styles.description, { color: colors.textSecondary }]}>
               {product.shortDescription}
@@ -226,7 +272,7 @@ export default function ProductScreen({ route, navigation }: any) {
 
           {/* Modifiers */}
           {product.modifierGroups && product.modifierGroups.length > 0 && (
-            <ProductModifiers 
+            <ProductModifiers
               modifierGroups={product.modifierGroups}
               selected={modifierSelection}
               onChange={setModifierSelection}
@@ -238,16 +284,16 @@ export default function ProductScreen({ route, navigation }: any) {
       {/* Bottom Action Bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10, backgroundColor: colors.card }]}>
         <View style={styles.quantityContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.quantityButton, { borderColor: colors.border }]}
             onPress={() => setQuantity(Math.max(1, quantity - 1))}
           >
             <Ionicons name="remove" size={20} color={colors.text} />
           </TouchableOpacity>
-          
+
           <Text style={[styles.quantityText, { color: colors.text }]}>{quantity}</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.quantityButton, { borderColor: colors.border }]}
             onPress={() => setQuantity(quantity + 1)}
           >
@@ -255,9 +301,9 @@ export default function ProductScreen({ route, navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.addToCartButton, 
+            styles.addToCartButton,
             { backgroundColor: hasInvalidModifiers ? '#ccc' : colors.primary }
           ]}
           onPress={handleAddToCart}

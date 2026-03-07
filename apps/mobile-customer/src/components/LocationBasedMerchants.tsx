@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { 
+import {
   LocationBasedMerchant,
   sortMerchantsByRecentlyUpdated,
   useLocationBasedMerchants,
@@ -28,16 +28,16 @@ export default function LocationBasedMerchants({
   const { isWishlisted, toggleWishlist } = useWishlist();
   const navigation = useNavigation();
 
-  const { 
-    data: allMerchants = [], 
-    isLoading, 
-    isRefetching 
+  const {
+    data: allMerchants = [],
+    isLoading,
+    isRefetching
   } = useLocationBasedMerchants(
-    customerId, 
-    categoryId, 
+    customerId,
+    categoryId,
     limit
   );
-  
+
   // Apply limit logic for display:
   // If no category filter (categoryId is null), show max 8 items.
   // Otherwise, show all (or up to limit passed in props)
@@ -50,12 +50,12 @@ export default function LocationBasedMerchants({
 
   // Check if we have more than 8 merchants to show the chevron
   const showChevron = !categoryId && allMerchants.length > 8;
-  
+
   // Fetch active addresses for merchants
   const { data: addressMap = {} } = useMerchantAddresses(merchants);
-  
+
   const loading = isLoading || isRefetching;
-  
+
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
 
@@ -90,7 +90,7 @@ export default function LocationBasedMerchants({
             {categoryId ? 'Filtered Merchants' : 'Nearby Merchants'}
           </Text>
           {showChevron && (
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleNavigateToNearby}
               style={styles.chevronButton}
             >
@@ -200,8 +200,8 @@ export default function LocationBasedMerchants({
           {categoryId ? (
             <View style={styles.verticalList}>
               {merchants.map((merchant) => (
-                <View 
-                  key={merchant.id} 
+                <View
+                  key={merchant.id}
                   style={{ width: '100%', marginBottom: 16 }}
                 >
                   <LocationMerchantCard
@@ -215,16 +215,16 @@ export default function LocationBasedMerchants({
               ))}
             </View>
           ) : (
-            <ScrollView 
-              horizontal 
+            <ScrollView
+              horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.horizontalList}
               decelerationRate="fast"
               snapToInterval={width * 0.75 + 16} // card width + margin
             >
               {merchants.map((merchant) => (
-                <View 
-                  key={merchant.id} 
+                <View
+                  key={merchant.id}
                   style={{ width: width * 0.75, marginRight: 16 }}
                 >
                   <LocationMerchantCard
@@ -248,7 +248,7 @@ export default function LocationBasedMerchants({
                     Newly Updated
                   </Text>
                   {showChevronNewlyUpdated && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={handleNavigateToNewlyUpdated}
                       style={styles.chevronButton}
                     >
@@ -257,17 +257,17 @@ export default function LocationBasedMerchants({
                   )}
                 </View>
               </View>
-              
-              <ScrollView 
-                horizontal 
+
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.horizontalList}
                 decelerationRate="fast"
                 snapToInterval={width * 0.75 + 16} // card width + margin
               >
                 {newlyUpdatedMerchants.map((merchant) => (
-                  <View 
-                    key={`newly-${merchant.id}`} 
+                  <View
+                    key={`newly-${merchant.id}`}
                     style={{ width: width * 0.75, marginRight: 16 }}
                   >
                     <LocationMerchantCard

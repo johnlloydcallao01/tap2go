@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
-import { 
+import {
   MERCHANT_KEYS,
   CATEGORY_KEYS,
   ADDRESS_KEYS,
@@ -29,25 +29,25 @@ export default function HomeScreen({ navigation }: any) {
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // No need for local customerId fetching logic anymore as it's handled in AuthContext
-  
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
       console.log('🔄 Pull-to-refresh triggered (TanStack Query)');
-      
+
       // Clear internal service memory cache to ensure fresh data fetch
       dataCache.clear();
-      
+
       // Reset queries to clear cache and force fresh fetch
       await Promise.all([
-              queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
-              queryClient.resetQueries({ queryKey: CATEGORY_KEYS.all }),
-              queryClient.resetQueries({ queryKey: ADDRESS_KEYS.all }),
-              queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
-              // Customer ID is now managed by AuthContext and is stable
-            ]);
+        queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
+        queryClient.resetQueries({ queryKey: CATEGORY_KEYS.all }),
+        queryClient.resetQueries({ queryKey: ADDRESS_KEYS.all }),
+        queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
+        // Customer ID is now managed by AuthContext and is stable
+      ]);
 
     } catch (error) {
       console.error('Pull-to-refresh error:', error);
@@ -64,7 +64,7 @@ export default function HomeScreen({ navigation }: any) {
   const handleMerchantPress = (merchant: any) => {
     // Navigate to Merchant Details
     console.log('Merchant pressed:', merchant.id);
-    navigation.navigate('Merchant', { 
+    navigation.navigate('Merchant', {
       merchantId: merchant.id,
       distanceKm: merchant.distanceKm,
       distanceInMeters: merchant.distanceInMeters
@@ -120,8 +120,8 @@ export default function HomeScreen({ navigation }: any) {
               onCategorySelect={handleCategorySelect}
             />
           ) : (
-             // Placeholder or empty while loading customer
-             <View style={{ height: 20 }} />
+            // Placeholder or empty while loading customer
+            <View style={{ height: 20 }} />
           )}
 
           {/* Merchants List */}
@@ -138,7 +138,7 @@ export default function HomeScreen({ navigation }: any) {
           )}
 
           {/* Bottom Padding for scroll */}
-          <View style={{ height: 20 }} />
+          <View style={{ height: 5 }} />
         </PullToRefreshLayout>
       </View>
     </View>

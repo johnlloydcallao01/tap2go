@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,26 +7,29 @@ import { useAuth } from '../contexts/AuthContext';
 import { useWishlist } from '../hooks/useWishlist';
 import LocationMerchantCard from '../components/LocationMerchantCard';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
-import { 
-  useLocationBasedMerchants, 
+import {
+  useLocationBasedMerchants,
   useMerchantAddresses,
-  LocationBasedMerchant 
+  LocationBasedMerchant,
+  dataCache,
+  MERCHANT_KEYS,
+  MERCHANT_ADDRESS_KEYS
 } from '@encreasl/client-services';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function NearbyRestaurantsScreen({ navigation }: any) {
   const colors = useThemeColors();
   const { customerId } = useAuth();
-  
+  const queryClient = useQueryClient();
   const { isWishlisted, toggleWishlist } = useWishlist();
 
   // Fetch all nearby merchants (limit: 50 for now)
-  const { 
-    data: merchants = [], 
-    isLoading, 
-    isRefetching,
-    refetch 
+  const {
+    data: merchants = [],
+    isLoading,
+    isRefetching
   } = useLocationBasedMerchants(
-    customerId || undefined, 
+    customerId || undefined,
     null, // No category filter
     50
   );
@@ -34,12 +37,26 @@ export default function NearbyRestaurantsScreen({ navigation }: any) {
   // Fetch active addresses for merchants
   const { data: addressMap = {} } = useMerchantAddresses(merchants);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   const handleRefresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    setRefreshing(true);
+    try {
+      console.log('🔄 NearbyRestaurantsScreen: Pull-to-refresh triggered');
+      dataCache.clear();
+      await Promise.all([
+        queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
+        queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
+      ]);
+    } catch (error) {
+      console.error('NearbyRestaurantsScreen pull-to-refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [queryClient]);
 
   const handleMerchantPress = (merchant: LocationBasedMerchant) => {
-    navigation.navigate('Merchant', { 
+    navigation.navigate('Merchant', {
       merchantId: merchant.id,
       distanceKm: (merchant as any).distanceKm,
       distanceInMeters: (merchant as any).distanceInMeters
@@ -58,13 +75,13 @@ export default function NearbyRestaurantsScreen({ navigation }: any) {
     </View>
   );
 
-  const showSkeleton = isLoading && !isRefetching;
+  const showSkeleton = isLoading || refreshing || isRefetching;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
@@ -77,35 +94,43 @@ export default function NearbyRestaurantsScreen({ navigation }: any) {
         </View>
       </SafeAreaView>
 
-      {showSkeleton ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Finding restaurants near you...
-          </Text>
-        </View>
-      ) : (
-        <PullToRefreshLayout
-          isRefreshing={isRefetching}
-          onRefresh={handleRefresh}
-          contentContainerStyle={styles.listContent}
-        >
-          {merchants.length > 0 ? (
-            merchants.map(merchant => (
-               <View key={merchant.id} style={styles.cardWrapper}>
-                 {renderItem({ item: merchant })}
-               </View>
-            ))
-          ) : (
-            <View style={styles.emptyContainer}>
-               <Ionicons name="location-outline" size={64} color={colors.border} />
-               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                 No restaurants found nearby.
-               </Text>
+      <PullToRefreshLayout
+        isRefreshing={refreshing || isRefetching}
+        onRefresh={handleRefresh}
+        contentContainerStyle={styles.listContent}
+      >
+        {showSkeleton ? (
+          [1, 2, 3].map(key => (
+            <View key={key} style={styles.cardWrapper}>
+              <View
+                style={{
+                  width: '100%',
+                  borderRadius: 16,
+                  backgroundColor: '#F3F4F6',
+                  padding: 16,
+                }}
+              >
+                <View style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+                <View style={{ width: '60%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB', marginBottom: 8 }} />
+                <View style={{ width: '40%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
+              </View>
             </View>
-          )}
-        </PullToRefreshLayout>
-      )}
+          ))
+        ) : merchants.length > 0 ? (
+          merchants.map(merchant => (
+            <View key={merchant.id} style={styles.cardWrapper}>
+              {renderItem({ item: merchant })}
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="location-outline" size={64} color={colors.border} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No restaurants found nearby.
+            </Text>
+          </View>
+        )}
+      </PullToRefreshLayout>
     </View>
   );
 }
