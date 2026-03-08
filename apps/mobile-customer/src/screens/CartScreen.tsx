@@ -2,40 +2,51 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useCart, MerchantCartSummary, CartItem } from '../contexts/CartContext';
+import { useCart, MerchantCartSummary } from '../contexts/CartContext';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { formatCurrency } from '../utils/format';
+import { useNavigation } from '../navigation/NavigationContext';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
 const CartSkeleton = () => {
   return (
     <View style={{ padding: 16, gap: 16 }}>
-      {[1, 2, 3].map((i) => (
+      {[1, 2].map((i) => (
         <View key={i} style={{ 
           backgroundColor: '#fff', 
-          borderRadius: 12, 
+          borderRadius: 16, 
           padding: 16,
-          borderWidth: 1,
-          borderColor: '#eee'
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 2,
         }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f3f4f6' }} />
             <View style={{ marginLeft: 12, flex: 1 }}>
-              <View style={{ width: '60%', height: 20, backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 4 }} />
-              <View style={{ width: '30%', height: 14, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+              <View style={{ width: '60%', height: 16, backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 4 }} />
+              <View style={{ width: '40%', height: 12, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
             </View>
           </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-             <View style={{ width: 80, height: 16, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
-             <View style={{ width: 60, height: 16, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+             <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: '#f3f4f6' }} />
+             <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: '#f3f4f6' }} />
           </View>
+          <View style={{ height: 1, backgroundColor: '#f3f4f6', marginBottom: 12 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+             <View style={{ width: 60, height: 16, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+             <View style={{ width: 80, height: 16, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+          </View>
+          <View style={{ height: 40, borderRadius: 20, backgroundColor: '#f3f4f6' }} />
         </View>
       ))}
     </View>
   );
 };
 
-export default function CartScreen({ navigation }: any) {
+export default function CartScreen() {
+  const navigation = useNavigation();
   const { getAllMerchantCarts, removeFromCart, reload, isLoading } = useCart();
   const colors = useThemeColors();
   const merchantCarts = getAllMerchantCarts();
@@ -50,32 +61,10 @@ export default function CartScreen({ navigation }: any) {
     }
   }, [reload]);
 
-  const showSkeleton = isLoading || refreshing;
+  const showSkeleton = isLoading && merchantCarts.length === 0;
 
   const handleMerchantPress = (merchantId: string) => {
     navigation.navigate('MerchantCart', { merchantId });
-  };
-
-  const handleDeleteCart = (merchantId: string, items: CartItem[]) => {
-    Alert.alert(
-      "Delete Cart",
-      "Are you sure you want to delete this cart?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            items.forEach((item) => {
-              removeFromCart(item.id);
-            });
-          }
-        }
-      ]
-    );
   };
 
   const handleMoreOptions = (cart: MerchantCartSummary) => {
@@ -85,12 +74,14 @@ export default function CartScreen({ navigation }: any) {
           [
               {
                   text: "Add more items",
-                  onPress: () => handleMerchantPress(cart.merchantId)
+                  onPress: () => navigation.navigate('Merchant', { merchantId: cart.merchantId })
               },
               {
                   text: "Delete cart",
                   style: "destructive",
-                  onPress: () => handleDeleteCart(cart.merchantId, cart.items)
+                  onPress: () => {
+                    cart.items.forEach((item) => removeFromCart(item.id));
+                  }
               },
               {
                   text: "Cancel",
@@ -100,182 +91,199 @@ export default function CartScreen({ navigation }: any) {
       );
   };
 
-  const renderMerchantCart = (cart: MerchantCartSummary) => (
-    <View
-      key={cart.merchantId}
-      style={[styles.merchantCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-    >
-      {/* Merchant Header */}
-      <View style={styles.merchantHeader}>
-        <View style={styles.merchantInfoContainer}>
-          {cart.merchantLogoUrl ? (
-            <Image 
-              source={{ uri: cart.merchantLogoUrl }} 
-              style={styles.merchantLogo} 
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.merchantLogoPlaceholder, { backgroundColor: colors.background }]}>
-               <Ionicons name="storefront" size={20} color={colors.text} style={{ opacity: 0.6 }} />
-            </View>
-          )}
-          <View style={styles.merchantTextContainer}>
-            <Text style={[styles.merchantName, { color: colors.text }]} numberOfLines={1}>
-              {cart.merchantName}
-            </Text>
-            <View style={styles.deliveryInfoContainer}>
-              <Text style={[styles.deliveryText, { color: colors.text, opacity: 0.6 }]}>10-25 mins</Text>
-              <View style={styles.dotSeparator} />
-              <Ionicons name="bicycle" size={12} color="#e81c63" />
-              <Text style={[styles.deliveryFreeText, { color: '#e81c63' }]}> Free</Text>
-            </View>
-          </View>
-        </View>
-        <TouchableOpacity
-            style={styles.moreOptionsButton}
-            onPress={() => handleMoreOptions(cart)}
-        >
-             <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} style={{ opacity: 0.5 }} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Items Horizontal Scroll */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsScroll} contentContainerStyle={styles.itemsScrollContent}>
-        {cart.items.map((item) => (
-          <View key={item.id} style={[styles.itemImageContainer, { backgroundColor: colors.background }]}>
-            {item.imageUrl ? (
-              <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
-            ) : (
-              <Ionicons name="fast-food-outline" size={20} color={colors.border} />
-            )}
-             {item.quantity > 1 && (
-                <View style={[styles.badgeContainer, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.badgeText}>{item.quantity}</Text>
-                </View>
-             )}
-          </View>
-        ))}
-         <TouchableOpacity
-            style={[styles.addItemButton, { borderColor: colors.border }]}
-            onPress={() => handleMerchantPress(cart.merchantId)}
-         >
-            <Ionicons name="add" size={20} color={colors.text} />
-         </TouchableOpacity>
-      </ScrollView>
-
-      {/* Subtotal & Action */}
-      <View style={[styles.footerContainer, { borderTopColor: colors.border }]}>
-        <View style={styles.subtotalRow}>
-          <Text style={[styles.subtotalLabel, { color: colors.text }]}>Subtotal</Text>
-          <Text style={[styles.subtotalValue, { color: colors.text }]}>{formatCurrency(cart.subtotal)}</Text>
-        </View>
-        
-        <TouchableOpacity
-          style={[styles.viewCartButton, { borderColor: colors.border }]}
-          onPress={() => handleMerchantPress(cart.merchantId)}
-        >
-          <Text style={[styles.viewCartText, { color: colors.text }]}>View your cart</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView edges={['top']} style={{ backgroundColor: colors.card }}>
+    <View style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Your Carts</Text>
-          {merchantCarts.length > 0 && (
-            <View style={styles.cartCountContainer}>
-               <Text style={[styles.cartCountText, { color: colors.text, opacity: 0.6 }]}>
-                   {merchantCarts.length} {merchantCarts.length === 1 ? 'cart' : 'carts'}
-               </Text>
-            </View>
-          )}
+          <Text style={styles.headerTitle}>Your Carts</Text>
+          <Text style={styles.headerCount}>{merchantCarts.length} carts</Text>
         </View>
       </SafeAreaView>
 
-      <PullToRefreshLayout
-        isRefreshing={refreshing}
+      <PullToRefreshLayout 
+        isRefreshing={refreshing} 
         onRefresh={handleRefresh}
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={styles.listContent}
       >
         {showSkeleton ? (
           <CartSkeleton />
-        ) : merchantCarts.length > 0 ? (
-          <View style={styles.cartList}>
-            {merchantCarts.map((cart) => renderMerchantCart(cart))}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
-                 <Ionicons name="cart-outline" size={40} color={colors.border} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>Your cart is empty</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.text, opacity: 0.6 }]}>
-              Looks like you haven&apos;t added any items to your cart yet. Start browsing to find delicious food!
+        ) : merchantCarts.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Image 
+              source={{ uri: 'https://cdn-icons-png.flaticon.com/512/11329/11329060.png' }} 
+              style={{ width: 120, height: 120, marginBottom: 24, opacity: 0.5 }}
+            />
+            <Text style={styles.emptyTitle}>Your cart is empty</Text>
+            <Text style={styles.emptySubtitle}>
+              Looks like you haven&apos;t added anything to your cart yet.
             </Text>
-            <TouchableOpacity 
-              style={[styles.browseButton, { backgroundColor: '#eba236' }]}
+            <TouchableOpacity
+              style={[styles.shopButton, { backgroundColor: colors.primary }]}
               onPress={() => navigation.navigate('Home')}
             >
-              <Ionicons name="restaurant-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.browseButtonText}>Browse Restaurants</Text>
+              <Text style={styles.shopButtonText}>Start Shopping</Text>
             </TouchableOpacity>
           </View>
+        ) : (
+          <View style={{ gap: 16 }}>
+            {merchantCarts.map((cart) => (
+              <View
+                key={cart.merchantId}
+                style={styles.cartCard}
+              >
+                {/* Merchant Header */}
+                <View style={styles.merchantHeader}>
+                  <View style={styles.merchantInfo}>
+                    {cart.merchantLogoUrl ? (
+                      <Image source={{ uri: cart.merchantLogoUrl }} style={styles.merchantLogo} />
+                    ) : (
+                      <View style={[styles.merchantLogo, { backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#6B7280' }}>
+                          {cart.merchantName.charAt(0)}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ marginLeft: 12 }}>
+                      <Text style={styles.merchantName}>{cart.merchantName}</Text>
+                      {/* Placeholder for delivery info to match screenshot style */}
+                      <Text style={styles.deliveryInfo}>
+                        10-25 mins • <Text style={{ color: '#E11D48', fontWeight: '500' }}>Free</Text>
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                      onPress={() => handleMoreOptions(cart)}
+                      style={{ padding: 4 }}
+                  >
+                      <Ionicons name="ellipsis-horizontal" size={20} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Items Row */}
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.itemsRow}
+                >
+                  {cart.items.map((item) => (
+                    <View key={item.id} style={styles.itemWrapper}>
+                      <Image
+                        source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
+                        style={styles.itemImage}
+                      />
+                      {item.quantity > 1 && (
+                        <View style={styles.quantityBadge}>
+                          <Text style={styles.quantityText}>{item.quantity}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                  
+                  {/* Add Button */}
+                  <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={() => navigation.navigate('Merchant', { merchantId: cart.merchantId })}
+                  >
+                    <Ionicons name="add" size={20} color="#374151" />
+                  </TouchableOpacity>
+                </ScrollView>
+
+                <View style={styles.divider} />
+
+                {/* Subtotal */}
+                <View style={styles.subtotalRow}>
+                  <Text style={styles.subtotalLabel}>Subtotal</Text>
+                  <Text style={styles.subtotalValue}>{formatCurrency(cart.subtotal || 0)}</Text>
+                </View>
+
+                {/* View Cart Button */}
+                <TouchableOpacity
+                  style={styles.viewCartButton}
+                  onPress={() => handleMerchantPress(cart.merchantId)}
+                >
+                  <Text style={styles.viewCartText}>View your cart</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
         )}
-        <View style={{ height: 100 }} /> 
       </PullToRefreshLayout>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
   },
-  cartCountContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
+  headerCount: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
-  cartCountText: {
-      fontSize: 14,
-      fontWeight: '500',
+  listContent: {
+    padding: 16,
+    paddingBottom: 100,
   },
-  content: {
+  emptyContainer: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
   },
-  contentContainer: {
-      paddingVertical: 16,
-      paddingHorizontal: 12,
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
   },
-  cartList: {
-      gap: 16,
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 32,
+    paddingHorizontal: 40,
+    lineHeight: 24,
   },
-  merchantCard: {
+  shopButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 30,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  shopButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  cartCard: {
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
-    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   merchantHeader: {
     flexDirection: 'row',
@@ -283,169 +291,104 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
   },
-  merchantInfoContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-  },
-  merchantLogoPlaceholder: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 12,
-  },
-  merchantLogo: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      marginRight: 12,
-  },
-  merchantTextContainer: {
-      flex: 1,
-  },
-  merchantName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  deliveryInfoContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-  },
-  deliveryText: {
-      fontSize: 12,
-  },
-  dotSeparator: {
-      width: 3,
-      height: 3,
-      borderRadius: 1.5,
-      backgroundColor: '#ccc',
-      marginHorizontal: 6,
-  },
-  deliveryFreeText: {
-      fontSize: 12,
-      fontWeight: '600',
-  },
-  moreOptionsButton: {
-      padding: 4,
-  },
-  itemsScroll: {
-      marginBottom: 16,
-  },
-  itemsScrollContent: {
-      gap: 10,
-      alignItems: 'center',
-  },
-  itemImageContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-      position: 'relative',
-  },
-  itemImage: {
-      width: 48,
-      height: 48,
-      borderRadius: 8,
-  },
-  badgeContainer: {
-      position: 'absolute',
-      top: -6,
-      right: -6,
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 4,
-      borderWidth: 1.5,
-      borderColor: '#fff',
-  },
-  badgeText: {
-      color: '#fff',
-      fontSize: 10,
-      fontWeight: '700',
-  },
-  addItemButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      borderWidth: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: 4,
-      borderStyle: 'dashed',
-  },
-  footerContainer: {
-      borderTopWidth: 1,
-      paddingTop: 12,
-      gap: 12,
-  },
-  subtotalRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-  },
-  subtotalLabel: {
-      fontSize: 14,
-      fontWeight: '600',
-  },
-  subtotalValue: {
-      fontSize: 14,
-      fontWeight: '600',
-  },
-  viewCartButton: {
-      width: '100%',
-      paddingVertical: 10,
-      borderRadius: 20,
-      borderWidth: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-  },
-  viewCartText: {
-      fontSize: 14,
-      fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-  },
-  emptyIconContainer: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 24,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 22,
-    maxWidth: 280,
-  },
-  browseButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+  merchantInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  browseButtonText: {
-    color: '#fff',
+  merchantLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  merchantName: {
     fontSize: 16,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  deliveryInfo: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  itemsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+    paddingRight: 16,
+  },
+  itemWrapper: {
+    position: 'relative',
+  },
+  itemImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+  },
+  quantityBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#F59E0B',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    paddingHorizontal: 4,
+  },
+  quantityText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  addButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 12,
+  },
+  subtotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  subtotalLabel: {
+    fontSize: 15,
     fontWeight: '600',
+    color: '#111827',
+  },
+  subtotalValue: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  viewCartButton: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  viewCartText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
   },
 });

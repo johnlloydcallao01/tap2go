@@ -20,7 +20,8 @@
       "DOM.Iterable"
     ],
     "types": [
-      "react"
+      "react",
+      "node"
     ],
     "paths": {
       "@/*": [

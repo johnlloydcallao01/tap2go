@@ -23,8 +23,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useWishlist } from '../hooks/useWishlist';
 
-export default function SearchScreen({ route, navigation }: any) {
-  const { query } = route.params || {};
+import { useNavigation } from '../navigation/NavigationContext';
+import { useLocalSearchParams } from 'expo-router';
+
+export default function SearchScreen() {
+  const navigation = useNavigation();
+  const params = useLocalSearchParams();
+  const query = params.query as string || '';
+  
   const { user } = useAuth();
   const colors = useThemeColors();
   const { isWishlisted, toggleWishlist } = useWishlist();

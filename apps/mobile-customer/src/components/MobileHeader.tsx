@@ -5,7 +5,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useResponsiveStyles, createResponsiveValue, createResponsiveSpacing, createResponsiveFontSize } from '../hooks/useResponsiveStyles';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useActiveAddress, ADDRESS_KEYS } from '@encreasl/client-services';
+import {
+  useActiveAddress,
+  ADDRESS_KEYS,
+  MERCHANT_KEYS,
+  CATEGORY_KEYS,
+  MERCHANT_ADDRESS_KEYS,
+  dataCache,
+} from '@encreasl/client-services';
 import AddressSelectionModal from './AddressSelectionModal';
 import SearchModal from './SearchModal';
 
@@ -31,9 +38,9 @@ export default function MobileHeader({
   const queryClient = useQueryClient();
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
-  
-  const { 
-    data: selectedAddress = null, 
+
+  const {
+    data: selectedAddress = null,
     isLoading: isLoadingAddress,
     isRefetching: isRefetchingAddress
   } = useActiveAddress(user?.id ? String(user.id) : undefined, token || undefined);
@@ -90,13 +97,26 @@ export default function MobileHeader({
     },
   }));
 
-  const handleAddressSelected = async (address: any) => {
-    // Invalidate address queries to force a refresh of the active address
-    await queryClient.invalidateQueries({ queryKey: ADDRESS_KEYS.all });
+  const handleAddressSelected = async (_address: any) => {
+    // 1. Clear the internal in-memory service cache so stale location-based
+    //    results don't bleed through on the next fetch.
+    dataCache.clear();
+
+    // 2. Reset (evict + refetch) every query that depends on the active address.
+    //    resetQueries wipes the cached data immediately, causing active consumers
+    //    (HomeScreen merchants/categories) to show their loading state and re-fetch
+    //    fresh data — exactly like FoodPanda does on address change.
+    await Promise.all([
+      queryClient.resetQueries({ queryKey: ADDRESS_KEYS.all }),
+      queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
+      queryClient.resetQueries({ queryKey: CATEGORY_KEYS.all }),
+      queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
+    ]);
+
     setIsAddressModalVisible(false);
   };
 
-  const displayAddress = selectedAddress 
+  const displayAddress = selectedAddress
     ? (selectedAddress.formatted_address || selectedAddress.name || 'Set Address')
     : 'Select Location';
 
@@ -104,7 +124,7 @@ export default function MobileHeader({
     <>
       <View style={styles.container}>
         {/* Left Side - Location */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.leftSection}
           onPress={() => setIsAddressModalVisible(true)}
         >
@@ -125,7 +145,7 @@ export default function MobileHeader({
 
         {/* Right Side - Icons */}
         <View style={styles.rightSection}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.iconButton}
             onPress={() => {
               if (onSearchPress) onSearchPress();
@@ -149,9 +169,9 @@ export default function MobileHeader({
         onClose={() => setIsAddressModalVisible(false)}
         onAddressSelected={handleAddressSelected}
       />
-      <SearchModal 
-        visible={isSearchModalVisible} 
-        onClose={() => setIsSearchModalVisible(false)} 
+      <SearchModal
+        visible={isSearchModalVisible}
+        onClose={() => setIsSearchModalVisible(false)}
         navigation={navigation}
       />
     </>

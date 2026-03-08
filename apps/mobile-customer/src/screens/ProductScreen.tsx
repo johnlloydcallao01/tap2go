@@ -20,8 +20,15 @@ import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { useQueryClient } from '@tanstack/react-query';
 import { dataCache } from '@encreasl/client-services';
 
-export default function ProductScreen({ route, navigation }: any) {
-  const { merchantProductId: productId, merchantId } = route.params;
+import { useNavigation } from '../navigation/NavigationContext';
+import { useLocalSearchParams } from 'expo-router';
+
+export default function ProductScreen() {
+  const navigation = useNavigation();
+  const params = useLocalSearchParams();
+  const productId = typeof params.id === 'string' ? params.id : params.productId as string;
+  const merchantId = params.merchantId as string;
+  
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();

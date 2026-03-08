@@ -1,7 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-// import { useColorScheme } from 'react-native';
-import * as NavigationBar from 'expo-navigation-bar';
-// import * as SystemUI from 'expo-system-ui';
 
 export type ColorScheme = 'light' | 'dark';
 
@@ -70,13 +67,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setThemeMode = useCallback(() => {}, []);
   
   const setNavigationBarStyle = useCallback(async () => {
-    try {
-      await NavigationBar.setBackgroundColorAsync(theme.colors.background);
-      await NavigationBar.setButtonStyleAsync('dark'); // Always dark buttons for light background
-    } catch (error) {
-      console.warn('Failed to set navigation bar style:', error);
-    }
-  }, [theme]);
+    // NavigationBar customization is not supported well with edge-to-edge
+    // and causes warnings. We should rely on system handling or expo-router.
+    // For now, we'll just suppress it or skip it to avoid the warning.
+  }, []);
   
   // Apply theme-related system UI settings
   useEffect(() => {

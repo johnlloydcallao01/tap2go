@@ -6,18 +6,18 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   ActivityIndicator
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  useLocationBasedMerchants, 
-  useLocationBasedCategories, 
+import {
+  useLocationBasedMerchants,
+  useLocationBasedCategories,
   useActiveAddress,
-  LocationBasedMerchantService 
+  LocationBasedMerchantService
 } from '@encreasl/client-services';
 
 import { apiConfig } from '../config/environment';
@@ -37,7 +37,7 @@ interface Suggestion {
 export default function SearchModal({ visible, onClose, initialQuery = '', navigation }: SearchModalProps) {
   const [query, setQuery] = useState(initialQuery);
   const { user, token } = useAuth();
-  
+
   // State for product suggestions (Manual fetch like Web)
   const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
   // State for recent searches (Manual fetch like Web)
@@ -89,11 +89,11 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
         const url = `${API_BASE}/recent-searches?where[user][equals]=${encodeURIComponent(String(userId))}&where[scope][equals]=restaurants&sort=-updatedAt&limit=10`;
         const res = await fetch(url, { headers });
         if (!res.ok) { setServerRecentQueries([]); return; }
-        
+
         const data = await res.json();
         const docs = Array.isArray(data?.docs) ? data.docs : [];
         const queries: string[] = docs.map((d: any) => (d?.query || '')).filter((v: any) => typeof v === 'string' && v.trim().length > 0);
-        
+
         if (!cancelled) setServerRecentQueries(queries);
       } catch {
         if (!cancelled) setServerRecentQueries([]);
@@ -119,12 +119,12 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
         const url = `${API_BASE}/products?where[name][contains]=${encodeURIComponent(q)}&limit=12&depth=0`;
         const res = await fetch(url, { headers });
         if (!res.ok) { setProductSuggestions([]); return; }
-        
+
         const data = await res.json();
         const docs = Array.isArray(data?.docs) ? data.docs : Array.isArray(data) ? data : [];
         const names: string[] = docs.map((p: any) => p?.name).filter((n: any) => typeof n === 'string' && n.trim().length > 0);
         const uniq: string[] = Array.from(new Set(names.map((n) => n.trim())));
-        
+
         if (!cancelled) setProductSuggestions(uniq.slice(0, 12));
       } catch {
         if (!cancelled) setProductSuggestions([]);
@@ -229,35 +229,35 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
       try {
         const userId = user?.id;
         if (!userId) return;
-        
+
         const API_BASE = apiConfig.baseUrl;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         const apiKey = apiConfig.payloadApiKey;
         if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
-        
+
         const scope = 'restaurants';
         const normalized = normalizeQuery(v);
         const compositeKey = `${userId}:${scope}:${normalized}`;
         // Note: addressText needs activeAddressName
         const body = JSON.stringify({ user: userId, query: v, scope, source: 'web', addressText: activeAddressName || undefined });
-        
+
         const res = await fetch(`${API_BASE}/recent-searches`, { method: 'POST', headers, body });
         if (res.ok) return;
-        
+
         const existsUrl = `${API_BASE}/recent-searches?where[compositeKey][equals]=${encodeURIComponent(compositeKey)}&limit=1`;
         const getRes = await fetch(existsUrl, { headers });
         if (!getRes.ok) return;
-        
+
         const data = await getRes.json();
         const id = data?.docs?.[0]?.id;
         if (!id) return;
-        
+
         await fetch(`${API_BASE}/recent-searches/${id}`, { method: 'PATCH', headers, body: '{}' });
       } catch { }
     })();
 
     onClose();
-    setQuery(''); 
+    setQuery('');
     navigation.navigate('Search', { query: v });
   };
 
@@ -265,17 +265,17 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
     const isRecent = !query.trim();
     const text = typeof item === 'string' ? item : item.text;
     const source = typeof item === 'string' ? 'recent' : item.source;
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.listItem}
         onPress={() => handleSearch(text)}
       >
-        <Ionicons 
-          name={isRecent ? "time-outline" : "search-outline"} 
-          size={20} 
-          color="#9CA3AF" 
-          style={styles.listIcon} 
+        <Ionicons
+          name={isRecent ? "time-outline" : "search-outline"}
+          size={20}
+          color="#9CA3AF"
+          style={styles.listIcon}
         />
         <View style={styles.listItemContent}>
           <Text style={styles.listText}>{text}</Text>
@@ -291,7 +291,7 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
 
   const data = query.trim() ? combinedSuggestions : recentList;
   const showList = data.length > 0;
-  const isLoading = false; 
+  const isLoading = false;
 
   return (
     <Modal
@@ -300,17 +300,17 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
-          
+
           <View style={styles.searchBar}>
             <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
             <View style={styles.inputContainer}>
               {!query && (
-                <Text 
+                <Text
                   style={styles.placeholderText}
                   numberOfLines={1}
                   ellipsizeMode="tail"
@@ -338,7 +338,7 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
             )}
           </View>
         </View>
-        
+
         {/* Content */}
         <View style={styles.content}>
           {isLoading ? (

@@ -18,6 +18,8 @@ import {
   RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '../navigation/NavigationContext';
+import { useLocalSearchParams } from 'expo-router';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -84,8 +86,13 @@ interface Section {
   id: number | string;
 }
 
-export default function MerchantScreen({ route, navigation }: any) {
-  const { merchantId, distanceKm, distanceInMeters } = route.params || {};
+export default function MerchantScreen() {
+  const navigation = useNavigation();
+  const params = useLocalSearchParams();
+  const merchantId = typeof params.id === 'string' ? params.id : params.merchantId as string;
+  const distanceKm = params.distanceKm ? Number(params.distanceKm) : undefined;
+  const distanceInMeters = params.distanceInMeters ? Number(params.distanceInMeters) : undefined;
+  
   const queryClient = useQueryClient();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const isHearted = isWishlisted(merchantId);
@@ -106,6 +113,7 @@ export default function MerchantScreen({ route, navigation }: any) {
   const searchBarOffset = useRef(0);
   const categoriesListOffset = useRef(0);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isScrolledPastThreshold, setIsScrolledPastThreshold] = useState(false);
 
   // Update threshold when search bar layout is measured
   const updateThreshold = useCallback(() => {
@@ -369,7 +377,7 @@ export default function MerchantScreen({ route, navigation }: any) {
     if (product.productType === 'variable' || product.productType === 'grouped') {
       // Navigate to product details
       // Pass productId and merchantId so ProductScreen can fetch details
-      navigation.navigate('Product', { merchantProductId: product.id, merchantId });
+      navigation.navigate('Product', { productId: product.id, merchantId, merchantProductId: product.merchantProductId });
     } else {
       try {
         let merchantProductId = product.merchantProductId;
@@ -596,7 +604,7 @@ export default function MerchantScreen({ route, navigation }: any) {
             style={[styles.productCard, { width: itemWidth }]}
             onPress={() => {
               // Navigate to product details
-              navigation.navigate('Product', { merchantProductId: product.id, merchantId });
+              navigation.navigate('Product', { productId: product.id, merchantId, merchantProductId: product.merchantProductId });
             }}
           >
             {/* Image Container */}
@@ -611,7 +619,7 @@ export default function MerchantScreen({ route, navigation }: any) {
                 style={styles.addButton}
                 onPress={() => {
                   if (product.hasRequiredModifiers) {
-                    navigation.navigate('Product', { merchantProductId: product.id, merchantId });
+                    navigation.navigate('Product', { productId: product.id, merchantId, merchantProductId: product.merchantProductId });
                   } else {
                     handleAddToCart(product);
                   }
@@ -746,7 +754,9 @@ export default function MerchantScreen({ route, navigation }: any) {
           </Animated.View>
 
           {/* Scrolled State Search Bar & Ellipsis */}
-          <Animated.View style={{
+          <Animated.View
+            pointerEvents={isScrolledPastThreshold ? 'auto' : 'none'}
+            style={{
             position: 'absolute',
             left: 0,
             right: 0,
@@ -862,7 +872,14 @@ export default function MerchantScreen({ route, navigation }: any) {
         }
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
+          {
+            useNativeDriver: false,
+            listener: (event: any) => {
+              const y = event.nativeEvent.contentOffset.y;
+              const isPast = y >= headerThreshold;
+              setIsScrolledPastThreshold(prev => prev !== isPast ? isPast : prev);
+            }
+          }
         )}
         scrollEventThrottle={16}
       />

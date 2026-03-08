@@ -9,7 +9,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 
-export default function NotificationsScreen({ navigation }: any) {
+import { useNavigation } from '../navigation/NavigationContext';
+
+export default function NotificationsScreen() {
+  const navigation = useNavigation();
   const [notifications, setNotifications] = useState([
     {
       id: '1',

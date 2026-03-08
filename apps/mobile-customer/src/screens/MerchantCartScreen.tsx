@@ -2,6 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '../navigation/NavigationContext';
+import { useLocalSearchParams } from 'expo-router';
 import { useCart } from '../contexts/CartContext';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { formatCurrency } from '../utils/format';
@@ -27,8 +29,11 @@ const MerchantCartSkeleton = () => {
     );
 };
 
-export default function MerchantCartScreen({ route, navigation }: any) {
-  const { merchantId } = route.params;
+export default function MerchantCartScreen() {
+  const navigation = useNavigation();
+  const params = useLocalSearchParams();
+  const merchantId = typeof params.id === 'string' ? params.id : params.merchantId as string;
+  
   const colors = useThemeColors();
   const { getMerchantCart, updateQuantity, removeFromCart, reload, isLoading } = useCart();
   const [refreshing, setRefreshing] = useState(false);

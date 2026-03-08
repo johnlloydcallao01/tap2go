@@ -8,8 +8,8 @@ export function useWishlist() {
   const queryClient = useQueryClient();
   const userId = user?.id;
 
-  const { 
-    data: wishlistIds = [], 
+  const {
+    data: wishlistIds = [],
     isLoading: isLoadingIds,
     isRefetching: isRefetchingIds,
     refetch: refetchIds
@@ -19,8 +19,8 @@ export function useWishlist() {
     enabled: !!userId,
   });
 
-  const { 
-    data: wishlistDocs = [], 
+  const {
+    data: wishlistDocs = [],
     isLoading: isLoadingDocs,
     isRefetching: isRefetchingDocs,
     refetch: refetchDocs
@@ -39,6 +39,24 @@ export function useWishlist() {
       if (!userId) throw new Error('User not logged in');
       return addMerchantToWishlist(userId, merchantId);
     },
+    onMutate: async (merchantId) => {
+      // Cancel any in-flight refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['wishlist-ids', userId] });
+      // Snapshot the previous value for rollback
+      const previousIds = queryClient.getQueryData<string[]>(['wishlist-ids', userId]);
+      // Optimistically add the merchant id to the cache immediately
+      queryClient.setQueryData<string[]>(['wishlist-ids', userId], (old = []) => [
+        ...old,
+        String(merchantId),
+      ]);
+      return { previousIds };
+    },
+    onError: (_err, _merchantId, context) => {
+      // Roll back to the snapshot on failure
+      if (context?.previousIds !== undefined) {
+        queryClient.setQueryData(['wishlist-ids', userId], context.previousIds);
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wishlist-ids', userId] });
       queryClient.invalidateQueries({ queryKey: ['wishlist-docs', userId] });
@@ -49,6 +67,23 @@ export function useWishlist() {
     mutationFn: (merchantId: string | number) => {
       if (!userId) throw new Error('User not logged in');
       return removeMerchantFromWishlist(userId, merchantId);
+    },
+    onMutate: async (merchantId) => {
+      // Cancel any in-flight refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['wishlist-ids', userId] });
+      // Snapshot the previous value for rollback
+      const previousIds = queryClient.getQueryData<string[]>(['wishlist-ids', userId]);
+      // Optimistically remove the merchant id from the cache immediately
+      queryClient.setQueryData<string[]>(['wishlist-ids', userId], (old = []) =>
+        old.filter((id) => id !== String(merchantId))
+      );
+      return { previousIds };
+    },
+    onError: (_err, _merchantId, context) => {
+      // Roll back to the snapshot on failure
+      if (context?.previousIds !== undefined) {
+        queryClient.setQueryData(['wishlist-ids', userId], context.previousIds);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wishlist-ids', userId] });

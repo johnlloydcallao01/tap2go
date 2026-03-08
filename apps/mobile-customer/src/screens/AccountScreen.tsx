@@ -14,8 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 // import DarkModeSettings from '../components/DarkModeSettings';
 // import SystemThemeValidator from '../components/SystemThemeValidator';
 
-
-export default function AccountScreen({ navigation }: any) {
+export default function AccountScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [locationEnabled, setLocationEnabled] = React.useState(true);
   const colors = useThemeColors();

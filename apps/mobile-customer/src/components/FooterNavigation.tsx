@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useCart } from '../contexts/CartContext';
 
@@ -12,6 +13,7 @@ interface FooterNavigationProps {
 export default function FooterNavigation({ navigation, activeScreen }: FooterNavigationProps) {
   const colors = useThemeColors();
   const { totalQuantity } = useCart();
+  const insets = useSafeAreaInsets();
 
   const tabs = [
     { name: 'Home', icon: 'home', screen: 'Home' },
@@ -26,8 +28,15 @@ export default function FooterNavigation({ navigation, activeScreen }: FooterNav
       flexDirection: 'row',
       backgroundColor: 'white',
       paddingTop: 8,
-      paddingBottom: 8,
-      height: 60,
+      paddingBottom: Math.max(insets.bottom, 8), // Respect safe area
+      height: 60 + Math.max(insets.bottom, 0), // Adjust height dynamically
+      borderTopWidth: 1,
+      borderTopColor: '#f0f0f0',
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
     }}>
       {tabs.map((tab, index) => {
         const isActive = activeScreen === tab.screen || 

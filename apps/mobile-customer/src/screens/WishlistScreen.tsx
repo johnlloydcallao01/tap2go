@@ -14,7 +14,10 @@ import { useThemeColors } from '../contexts/ThemeContext';
 import { LocationBasedMerchant, useMerchantAddresses } from '@encreasl/client-services';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
-export default function WishlistScreen({ navigation }: any) {
+import { useNavigation } from '../navigation/NavigationContext';
+
+export default function WishlistScreen() {
+  const navigation = useNavigation();
   const { wishlistDocs, isLoading, isRefetching, isWishlisted, toggleWishlist, refetch } = useWishlist();
   const colors = useThemeColors();
   const { width } = useWindowDimensions();

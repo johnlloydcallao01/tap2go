@@ -14,10 +14,13 @@ import {
 } from '@encreasl/client-services';
 import LocationBasedProductCategoriesCarousel from '../components/LocationBasedProductCategoriesCarousel';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+import { useNavigation } from '../navigation/NavigationContext';
 import LocationBasedMerchants from '../components/LocationBasedMerchants';
 
-export default function HomeScreen({ navigation }: any) {
-  console.log('🏠 HomeScreen: Component initializing...');
+export default function HomeScreen() {
+  // console.log('🏠 HomeScreen: Component initializing...');
+  
+  const navigation = useNavigation();
 
   const queryClient = useQueryClient();
   const colors = useThemeColors();

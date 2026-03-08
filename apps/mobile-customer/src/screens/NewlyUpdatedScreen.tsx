@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../contexts/ThemeContext';
@@ -18,7 +18,10 @@ import {
 } from '@encreasl/client-services';
 import { useQueryClient } from '@tanstack/react-query';
 
-export default function NewlyUpdatedScreen({ navigation }: any) {
+import { useNavigation } from '../navigation/NavigationContext';
+
+export default function NewlyUpdatedScreen() {
+  const navigation = useNavigation();
   const colors = useThemeColors();
   const { customerId } = useAuth();
   const queryClient = useQueryClient();
