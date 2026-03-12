@@ -46,6 +46,26 @@ export const MerchantProducts: CollectionConfig = {
         return data
       },
     ],
+    beforeDelete: [
+      async ({ req, id }) => {
+        const payload = req.payload
+        console.log(`🗑️ Cleaning up cart items before deleting merchant-product ${id}`)
+        try {
+          const cartItems = await payload.find({
+            collection: 'cart-items',
+            where: { merchantProduct: { equals: id } },
+            limit: 1000,
+          })
+          for (const ci of cartItems.docs) {
+            await payload.delete({ collection: 'cart-items', id: ci.id })
+          }
+          console.log(`✅ Cart items cleanup complete for merchant-product ${id}`)
+        } catch (e) {
+          console.error('❌ Error cleaning up cart items for merchant-product', e)
+          throw e
+        }
+      },
+    ],
   },
   access: {
     read: () => true,

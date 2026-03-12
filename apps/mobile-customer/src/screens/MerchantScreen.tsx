@@ -639,9 +639,14 @@ export default function MerchantScreen() {
 
               <View style={{ marginTop: 4 }}>
                 {product.productType === 'simple' ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                     {product.basePrice !== null && (
                       <Text style={styles.price}>{formatCurrency(product.basePrice)}</Text>
+                    )}
+                    {product.compareAtPrice && product.compareAtPrice > (product.basePrice || 0) && (
+                      <Text style={styles.comparePrice}>
+                        {formatCurrency(product.compareAtPrice)}
+                      </Text>
                     )}
                   </View>
                 ) : (
@@ -650,6 +655,12 @@ export default function MerchantScreen() {
                   </Text>
                 )}
               </View>
+
+              {product.shortDescription ? (
+                <Text style={styles.shortDescription} numberOfLines={2}>
+                  {product.shortDescription}
+                </Text>
+              ) : null}
             </View>
           </TouchableOpacity>
         ))}
@@ -1070,10 +1081,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+  comparePrice: {
+    fontSize: 12,
+    color: '#999',
+    textDecorationLine: 'line-through',
+    marginLeft: 6,
+  },
   variableText: {
     fontSize: 12,
     color: '#eba236',
     fontWeight: '500',
+  },
+  shortDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 6,
+    lineHeight: 16,
   },
   viewCartContainer: {
     position: 'absolute',

@@ -52,7 +52,7 @@ export default function MobileHeader({
   const styles = useResponsiveStyles((screenInfo) => ({
     container: {
       backgroundColor: 'white',
-      paddingHorizontal: createResponsiveSpacing(screenInfo, 16),
+      paddingHorizontal: createResponsiveSpacing(screenInfo, 10),
       paddingVertical: createResponsiveSpacing(screenInfo, 8),
       flexDirection: 'row',
       alignItems: 'center',
@@ -92,8 +92,18 @@ export default function MobileHeader({
       alignItems: 'center',
     },
     iconButton: {
-      padding: createResponsiveSpacing(screenInfo, 8),
-      marginLeft: createResponsiveSpacing(screenInfo, 4),
+      width: createResponsiveValue(screenInfo, { mobile: 38, tablet: 42, largeTablet: 46 }),
+      height: createResponsiveValue(screenInfo, { mobile: 38, tablet: 42, largeTablet: 46 }),
+      borderRadius: createResponsiveValue(screenInfo, { mobile: 10, tablet: 11, largeTablet: 12 }),
+      backgroundColor: 'white',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: createResponsiveSpacing(screenInfo, 8),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 2,
     },
   }));
 
@@ -152,14 +162,14 @@ export default function MobileHeader({
               setIsSearchModalVisible(true);
             }}
           >
-            <Ionicons name="search" size={22} color={colors.text} />
+            <Ionicons name="search-outline" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={onNotificationPress}
             style={styles.iconButton}
           >
-            <Ionicons name="notifications-outline" size={22} color={colors.text} />
+            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>

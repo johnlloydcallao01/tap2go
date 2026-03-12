@@ -1785,11 +1785,11 @@ export interface OrderItem {
   /**
    * Reference to the base product (for analytics)
    */
-  product: number | Product;
+  product?: (number | null) | Product;
   /**
    * Reference to the specific merchant listing
    */
-  merchant_product: number | MerchantProduct;
+  merchant_product?: (number | null) | MerchantProduct;
   /**
    * SNAPSHOT: Name of product at time of purchase
    */

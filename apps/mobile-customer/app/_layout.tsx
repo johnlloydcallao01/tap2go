@@ -1,7 +1,7 @@
 import 'expo-dev-client';
 import 'react-native-url-polyfill/auto';
 import { useEffect, useState } from 'react';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
@@ -56,7 +56,7 @@ function RootNavigation() {
       return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />; 
   }
 
-  return <Slot />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 export default function RootLayout() {

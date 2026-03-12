@@ -41,7 +41,7 @@ export const OrderItems: CollectionConfig = {
       name: 'product',
       type: 'relationship',
       relationTo: 'products',
-      required: true,
+      // required: true, // Removed to allow product deletion while keeping order history
       admin: {
         description: 'Reference to the base product (for analytics)',
       },
@@ -50,7 +50,7 @@ export const OrderItems: CollectionConfig = {
       name: 'merchant_product',
       type: 'relationship',
       relationTo: 'merchant-products',
-      required: true,
+      // required: true, // Removed to allow product deletion while keeping order history
       filterOptions: async ({ data, req }): Promise<Where> => {
         if (!data?.order) {
           return {}

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useLocalSearchParams } from 'expo-router';
@@ -32,6 +32,7 @@ const MerchantCartSkeleton = () => {
 export default function MerchantCartScreen() {
   const navigation = useNavigation();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const merchantId = typeof params.id === 'string' ? params.id : params.merchantId as string;
   
   const colors = useThemeColors();
@@ -165,7 +166,7 @@ export default function MerchantCartScreen() {
       </PullToRefreshLayout>
 
       {!showSkeleton && merchantCart && (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 }]}>
             <TouchableOpacity style={styles.checkoutButton}>
                 <Text style={styles.checkoutButtonText}>Checkout</Text>
                 <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal)}</Text>
@@ -371,7 +372,8 @@ const styles = StyleSheet.create({
       color: '#333',
   },
   footer: {
-      padding: 16,
+      paddingHorizontal: 16,
+      paddingTop: 12,
       backgroundColor: '#fff',
       borderTopWidth: 1,
       borderTopColor: '#f0f0f0',
