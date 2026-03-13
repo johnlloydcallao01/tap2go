@@ -236,7 +236,7 @@ export const Products: CollectionConfig = {
     {
       name: 'assign_to_all_vendor_merchants',
       type: 'checkbox',
-      defaultValue: false,
+      defaultValue: true,
       admin: {
         description: 'Assign this product to all merchants of the same vendor',
       },
