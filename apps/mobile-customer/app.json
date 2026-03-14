@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tap2Go",
     "slug": "tap2go-mobile-customer",
-    "version": "2.1.7",
+    "version": "2.1.8",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -25,7 +25,7 @@
         "backgroundColor": "#f3a823"
       },
       "package": "com.wnapp.id1721090048598",
-      "versionCode": 13,
+      "versionCode": 14,
       "userInterfaceStyle": "light",
       "edgeToEdgeEnabled": true,
       "permissions": [
