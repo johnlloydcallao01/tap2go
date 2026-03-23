@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AddressSearchInput } from '@/components/shared/AddressSearchInput';
-import { AddressService } from '@/lib/services/address-service';
+import { AddressService } from '@encreasl/client-services';
 import { useUser } from '@/hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { emitAddressChange, useAddressChange } from '@/hooks/useAddressChange';
@@ -92,7 +92,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
     }
 
     try {
-      const response = await AddressService.getUserAddresses(false);
+      const response = await AddressService.getUserAddresses(user.id, undefined, false);
       if (response.success && response.addresses) {
         setUserAddresses(response.addresses);
       } else {
@@ -101,7 +101,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
       }
 
       try {
-        const activeResponse = await AddressService.getActiveAddress(user.id, false);
+        const activeResponse = await AddressService.getActiveAddress(user.id, undefined, false);
         if (activeResponse.success && activeResponse.address) {
           setActiveAddressId(activeResponse.address.id);
         } else {
@@ -178,7 +178,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
     console.log('🎯 handleSetActiveAddress called with addressId:', addressId);
     setSettingActiveId(addressId);
     try {
-      const response = await AddressService.setActiveAddress(user.id, addressId);
+      const response = await AddressService.setActiveAddressForUser(user.id, addressId);
 
       if (response.success) {
         console.log('✅ Address set as active successfully, emitting change event...');
@@ -227,6 +227,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
         place: selectedAddress,
         address_type: 'home', // Default type - using valid PayloadCMS value
         is_default: false, // User can set default later
+        userId: user.id,
       });
 
       if (!saveResponse.success || !saveResponse.address) {
@@ -243,7 +244,7 @@ function LocationModal({ isOpen, onClose, onLocationSelect, onAddressesChanged }
       console.log('🔍 Address saved with ID:', addressId);
 
       // Step 2: Set the saved address as active
-      const setActiveResponse = await AddressService.setActiveAddress(user.id, addressId);
+      const setActiveResponse = await AddressService.setActiveAddressForUser(user.id, addressId);
 
       if (!setActiveResponse.success) {
         throw new Error(setActiveResponse.error || 'Failed to set address as active');
@@ -632,7 +633,7 @@ export function LocationSelector({ onLocationSelect, className = '' }: LocationS
       setIsLoadingAddress(true);
 
       // Try to get user's active address first
-      const activeAddressResponse = await AddressService.getActiveAddress(user.id, true);
+      const activeAddressResponse = await AddressService.getActiveAddress(user.id, undefined, true);
 
       if (activeAddressResponse.success && activeAddressResponse.address) {
         const activeAddress = activeAddressResponse.address;

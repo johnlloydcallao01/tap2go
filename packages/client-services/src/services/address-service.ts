@@ -68,14 +68,27 @@ export class AddressService {
     process.env.EXPO_PUBLIC_PAYLOAD_API_KEY ||
     '';
 
+  /**
+   * Get the authorization token from localStorage (Web only)
+   */
+  private static getAuthToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem('grandline_auth_token');
+    } catch {
+      return null;
+    }
+  }
+
   private static getHeaders(token?: string): HeadersInit {
+    const activeToken = token || this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
     if (this.PAYLOAD_API_KEY) {
       headers['Authorization'] = `users API-Key ${this.PAYLOAD_API_KEY}`;
-    } else if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    } else if (activeToken) {
+      headers['Authorization'] = `Bearer ${activeToken}`;
     }
     return headers;
   }
@@ -149,7 +162,7 @@ export class AddressService {
   /**
    * Save a new address directly to CMS
    */
-  static async saveAddress(request: AddressCreateRequest, token: string): Promise<AddressResponse> {
+  static async saveAddress(request: AddressCreateRequest, token?: string): Promise<AddressResponse> {
     try {
       // Parse the place data client-side
       const addressData = this.parsePlaceData(request.place, {
@@ -208,7 +221,7 @@ export class AddressService {
   /**
    * Get user addresses
    */
-  static async getUserAddresses(userId: string | number, token: string, useCache: boolean = true): Promise<AddressResponse> {
+  static async getUserAddresses(userId: string | number, token?: string, useCache: boolean = true): Promise<AddressResponse> {
     try {
       if (useCache) {
         const cached = this.getCachedAddresses();
@@ -236,6 +249,19 @@ export class AddressService {
       };
     } catch (error) {
       console.error('Error fetching addresses:', error);
+      
+      if (error instanceof Error && (
+        error.message.includes('fetch') || 
+        error.message.includes('network') || 
+        error.message.includes('Server error')
+      )) {
+        const cachedAddresses = this.getCachedAddresses();
+        if (cachedAddresses) {
+          console.log('🔄 Using cached addresses as fallback due to network error');
+          return { success: true, addresses: cachedAddresses };
+        }
+      }
+
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -246,7 +272,7 @@ export class AddressService {
   /**
    * Delete address
    */
-  static async deleteAddress(addressId: string, token: string): Promise<AddressResponse> {
+  static async deleteAddress(addressId: string, token?: string): Promise<AddressResponse> {
     try {
       const response = await fetch(`${this.API_BASE}/${this.COLLECTION_SLUG}/${addressId}`, {
         method: 'DELETE',
@@ -274,10 +300,88 @@ export class AddressService {
   }
 
   /**
+   * Update an address
+   */
+  static async updateAddress(addressId: string, updates: Partial<AddressCreateRequest>, token?: string): Promise<AddressResponse> {
+    try {
+      const response = await fetch(`${this.API_BASE}/${this.COLLECTION_SLUG}/${addressId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(token),
+        body: JSON.stringify(updates),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.errors?.[0]?.message || `HTTP error! status: ${response.status}`);
+      }
+
+      // Clear cache to force refresh since address was updated
+      if (data.success || data.doc) {
+        this.clearCache();
+      }
+
+      return {
+        success: true,
+        address: data.doc || data,
+        message: 'Address updated successfully'
+      };
+    } catch (error) {
+      console.error('Error updating address:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set an address as default
+   * Note: You may need a custom endpoint if you want to automatically unset other defaults.
+   * If you just PATCH this to true, others might remain true unless handled by Payload hooks.
+   */
+  static async setDefaultAddress(addressId: string, token?: string): Promise<AddressResponse> {
+    try {
+      // Assuming you have a custom endpoint or hook handling this. If not, this just sets is_default: true
+      const response = await fetch(`${this.API_BASE}/${this.COLLECTION_SLUG}/${addressId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(token),
+        body: JSON.stringify({ is_default: true }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.errors?.[0]?.message || `HTTP error! status: ${response.status}`);
+      }
+
+      if (data.doc || data.success) {
+        this.clearCache();
+      }
+
+      return {
+        success: true,
+        address: data.doc || data,
+        message: 'Default address updated'
+      };
+    } catch (error) {
+      console.error('Error setting default address:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to set default address' 
+      };
+    }
+  }
+
+  /**
    * Get active address for a user (via Customer relation)
    */
-  static async getActiveAddress(userId: string | number, token: string): Promise<AddressResponse> {
+  static async getActiveAddress(userId: string | number, token?: string, useCache: boolean = true): Promise<AddressResponse> {
     try {
+      if (useCache) {
+        const cachedAddress = this.getCachedActiveAddress(userId);
+        if (cachedAddress) {
+          return { success: true, address: cachedAddress };
+        }
+      }
+
       // 1. Fetch customer for this user
       const customerRes = await fetch(`${this.API_BASE}/customers?where[user][equals]=${userId}&depth=1`, {
         ...this.getFetchOptions('GET'),
@@ -299,6 +403,7 @@ export class AddressService {
 
       // 2. Return active address if exists
       if (customer.activeAddress && typeof customer.activeAddress === 'object') {
+        this.updateActiveAddressInCache(userId, customer.activeAddress);
         return {
           success: true,
           address: customer.activeAddress
@@ -312,6 +417,7 @@ export class AddressService {
          });
          const addressData = await addressRes.json();
          if (addressRes.ok) {
+           this.updateActiveAddressInCache(userId, addressData);
            return { success: true, address: addressData };
          }
       }
@@ -329,7 +435,7 @@ export class AddressService {
   /**
    * Set active address for a user (Look up customer first)
    */
-  static async setActiveAddressForUser(userId: string | number, addressId: string | number, token: string): Promise<AddressResponse> {
+  static async setActiveAddressForUser(userId: string | number, addressId: string | number, token?: string): Promise<AddressResponse> {
     try {
       // 1. Fetch customer for this user to get ID
       const customerRes = await fetch(`${this.API_BASE}/customers?where[user][equals]=${userId}&depth=0`, {
@@ -350,7 +456,15 @@ export class AddressService {
       }
 
       // 2. Set active address
-      return this.setActiveAddress(customer.id, addressId, token);
+      const result = await this.setActiveAddress(customer.id, addressId, token);
+      if (result.success && result.address) {
+        this.updateActiveAddressInCache(userId, result.address);
+      } else if (result.success) {
+        // If addressId was null/cleared
+        const cacheKey = CACHE_KEYS.ACTIVE_ADDRESS(userId);
+        dataCache.delete(cacheKey);
+      }
+      return result;
     } catch (error) {
       console.error('Error setting active address for user:', error);
       return {
@@ -365,7 +479,7 @@ export class AddressService {
    * Note: This interacts with the 'customers' collection, matching logic in apps/web/src/lib/services/address-service.ts
    * But here we call CMS directly.
    */
-  static async setActiveAddress(customerId: string | number, addressId: string | number, token: string): Promise<AddressResponse> {
+  static async setActiveAddress(customerId: string | number, addressId: string | number, token?: string): Promise<AddressResponse> {
     try {
       const response = await fetch(`${this.API_BASE}/customers/${customerId}`, {
         ...this.getFetchOptions('PATCH', { activeAddress: addressId }),
@@ -405,22 +519,60 @@ export class AddressService {
     return null;
   }
 
-  static updateCache(addresses: any[]): void {
+  static getCachedActiveAddress(userId: string | number): any | null {
+    const cacheKey = CACHE_KEYS.ACTIVE_ADDRESS(userId);
+    const cached = dataCache.get<{ address: any; timestamp: number }>(cacheKey);
+    if (cached && this.isCacheValid(cached.timestamp)) {
+      return cached.address;
+    }
+    return null;
+  }
+
+  static updateCache(addresses: any[], userId?: string | number): void {
     dataCache.set(CACHE_KEYS.ADDRESSES, {
       addresses,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      userId
     }, CACHE_TTL.ADDRESSES);
+  }
+
+  static updateCacheOptimized(newAddress: any, userId?: string | number): void {
+    const cached = dataCache.get<{ addresses: any[], timestamp: number, userId?: string | number }>(CACHE_KEYS.ADDRESSES);
+    if (cached && this.isCacheValid(cached.timestamp)) {
+      if (newAddress && newAddress.formatted_address && newAddress.id) {
+        const updatedAddresses = [...cached.addresses, newAddress];
+        this.updateCache(updatedAddresses, userId);
+      } else {
+        this.clearCache();
+      }
+    }
   }
 
   static clearCache(): void {
     dataCache.delete(CACHE_KEYS.ADDRESSES);
+    // Clear all active address caches
+    const cacheKeys = Array.from((dataCache as any).cache.keys()) as string[];
+    cacheKeys.forEach(key => {
+      if (key.startsWith('active-address-')) {
+        dataCache.delete(key);
+      }
+    });
   }
 
   static removeAddressFromCache(addressId: string): void {
-    const cached = this.getCachedAddresses();
-    if (cached) {
-      const updated = cached.filter(a => a.id !== addressId);
-      this.updateCache(updated);
+    const cached = dataCache.get<{ addresses: any[], timestamp: number, userId?: string | number }>(CACHE_KEYS.ADDRESSES);
+    if (cached && this.isCacheValid(cached.timestamp)) {
+      const updated = cached.addresses.filter(a => a.id !== addressId);
+      this.updateCache(updated, cached.userId);
     }
+  }
+
+  static updateActiveAddressInCache(userId: string | number, address: any): void {
+    const cacheKey = CACHE_KEYS.ACTIVE_ADDRESS(userId);
+    const cacheData = {
+      address,
+      timestamp: Date.now()
+    };
+    dataCache.set(cacheKey, cacheData, CACHE_TTL.ACTIVE_ADDRESS);
   }
 }

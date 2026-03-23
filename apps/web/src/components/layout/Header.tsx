@@ -10,8 +10,7 @@ import { LocationSelector } from '@/components/location';
 import SearchModal from '@/components/search/SearchModal';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
 import SearchField from '@/components/ui/SearchField';
-import AddressService from '@/lib/services/address-service';
-import { getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@encreasl/client-services';
+import { AddressService, getCurrentCustomerId as getCustomerIdForMerchants, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@encreasl/client-services';
 import { getWishlistMerchantIdsForCurrentUser, addMerchantToWishlist, removeMerchantFromWishlist } from '@/lib/client-services/wishlist-service';
 import { NotificationPopup, mockNotifications } from '@/components/notifications/NotificationPopup';
 import { useCart } from '@/contexts/CartContext';
@@ -449,8 +448,8 @@ export function Header({
       const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
       if (!userId) return;
       const [activeAddressResponse] = await Promise.all([
-        AddressService.getActiveAddress(userId, false), // Force fresh fetch
-        AddressService.getUserAddresses(false),
+        AddressService.getActiveAddress(userId, undefined, false), // Force fresh fetch
+        AddressService.getUserAddresses(userId, undefined, false),
       ]);
       if (activeAddressResponse?.success && activeAddressResponse.address?.formatted_address) {
         setActiveAddressName(activeAddressResponse.address.formatted_address);

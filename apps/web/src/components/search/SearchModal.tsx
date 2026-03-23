@@ -5,9 +5,8 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import SearchField from '@/components/ui/SearchField';
 import LocationMerchantCard from '@/components/cards/LocationMerchantCard';
-import { getCurrentCustomerId, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@encreasl/client-services';
+import { AddressService, getCurrentCustomerId, getLocationBasedMerchants, getLocationBasedMerchantCategories, type LocationBasedMerchant, type MerchantCategoryDisplay } from '@encreasl/client-services';
 import { getWishlistMerchantIdsForCurrentUser, addMerchantToWishlist, removeMerchantFromWishlist } from '@/lib/client-services/wishlist-service';
-import AddressService from '@/lib/services/address-service';
 import { toast } from 'react-hot-toast';
 
 type Props = {
@@ -202,7 +201,7 @@ export default function SearchModal({ isOpen, onClose, initialQuery }: Props) {
         const userStr = typeof window !== 'undefined' ? localStorage.getItem('grandline_auth_user') : null;
         const userId = userStr ? (() => { try { return JSON.parse(userStr)?.id; } catch { return null; } })() : null;
         if (!userId) return;
-        const res = await AddressService.getActiveAddress(userId);
+        const res = await AddressService.getActiveAddress(userId, undefined, false);
         if (!cancelled && res?.success && res.address?.formatted_address) {
           setActiveAddressName(res.address.formatted_address);
         }

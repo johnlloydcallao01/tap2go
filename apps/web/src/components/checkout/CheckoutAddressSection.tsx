@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { AddressSearchInput } from '@/components/shared/AddressSearchInput';
-import { AddressService } from '@/lib/services/address-service';
+import { AddressService } from '@encreasl/client-services';
 import { useUser } from '@/hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { emitAddressChange } from '@/hooks/useAddressChange';
@@ -43,7 +43,7 @@ export function CheckoutAddressSection({ className = '' }: CheckoutAddressSectio
     }
 
     try {
-      const response = await AddressService.getUserAddresses(false);
+      const response = await AddressService.getUserAddresses(user.id, undefined, false);
       if (response.success && response.addresses) {
         setUserAddresses(response.addresses);
       } else {
@@ -52,7 +52,7 @@ export function CheckoutAddressSection({ className = '' }: CheckoutAddressSectio
       }
 
       try {
-        const activeResponse = await AddressService.getActiveAddress(user.id, false);
+        const activeResponse = await AddressService.getActiveAddress(user.id, undefined, false);
         if (activeResponse.success && activeResponse.address) {
           setActiveAddressId(activeResponse.address.id);
         } else {
@@ -108,7 +108,7 @@ export function CheckoutAddressSection({ className = '' }: CheckoutAddressSectio
 
     setSettingActiveId(addressId);
     try {
-      const response = await AddressService.setActiveAddress(user.id, addressId);
+      const response = await AddressService.setActiveAddressForUser(user.id, addressId);
 
       if (response.success) {
         toast.success('Active address updated successfully!');
@@ -140,6 +140,7 @@ export function CheckoutAddressSection({ className = '' }: CheckoutAddressSectio
         place: selectedAddress,
         address_type: 'home',
         is_default: false,
+        userId: user.id,
       });
 
       if (!saveResponse.success || !saveResponse.address) {
@@ -151,7 +152,7 @@ export function CheckoutAddressSection({ className = '' }: CheckoutAddressSectio
         throw new Error('Address ID not found in response');
       }
 
-      const setActiveResponse = await AddressService.setActiveAddress(user.id, addressId);
+      const setActiveResponse = await AddressService.setActiveAddressForUser(user.id, addressId);
 
       if (!setActiveResponse.success) {
         throw new Error(setActiveResponse.error || 'Failed to set address as active');

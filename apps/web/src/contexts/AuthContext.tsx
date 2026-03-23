@@ -22,9 +22,9 @@ import {
   emitAuthEvent,
   hasValidStoredToken,
 } from '@/lib/auth';
-import AddressService from '@/lib/services/address-service';
 import { 
   dataCache, 
+  AddressService,
   MerchantClientService, 
   LocationBasedMerchantService, 
   LocationBasedProductCategoriesService 

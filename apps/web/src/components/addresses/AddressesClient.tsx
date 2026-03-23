@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { AddressService } from '@/lib/services/address-service';
+import { AddressService } from '@encreasl/client-services';
 import { useUser } from '@/hooks/useAuth';
 import { emitAddressChange } from '@/hooks/useAddressChange';
 import { ListItemSkeleton } from '@/components/ui/Skeleton';
@@ -32,10 +32,11 @@ export default function AddressesClient() {
     let cancelled = false;
 
     const loadAddresses = async () => {
+      if (!user?.id) return;
       try {
         setIsLoadingAddresses(true);
         setError(null);
-        const response = await AddressService.getUserAddresses(true);
+        const response = await AddressService.getUserAddresses(user.id, undefined, true);
         if (!cancelled && response.success && response.addresses) {
           const items = response.addresses as AddressItem[];
           setAddresses(items);
@@ -57,7 +58,7 @@ export default function AddressesClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -72,7 +73,7 @@ export default function AddressesClient() {
       setIsLoadingActive(true);
 
       try {
-        const response = await AddressService.getActiveAddress(user.id, true);
+        const response = await AddressService.getActiveAddress(user.id, undefined, true);
         if (!cancelled) {
           if (response.success && response.address && response.address.id != null) {
             setActiveAddressId(response.address.id);
@@ -152,7 +153,7 @@ export default function AddressesClient() {
     setError(null);
     setActiveAddressId(id);
     try {
-      const response = await AddressService.setActiveAddress(user.id, id);
+      const response = await AddressService.setActiveAddressForUser(user.id, id);
       if (!response.success) {
         throw new Error(response.error || 'Failed to set active address');
       }
@@ -247,9 +248,10 @@ export default function AddressesClient() {
             backgroundColor: 'white',
           }}
           onClick={() => {
+            if (!user?.id) return;
             setIsLoadingAddresses(true);
             setError(null);
-            AddressService.getUserAddresses(true)
+            AddressService.getUserAddresses(user.id, undefined, true)
               .then((response) => {
                 if (response.success && response.addresses) {
                   const items = response.addresses as AddressItem[];
