@@ -23,6 +23,7 @@ const getScreenName = (pathname: string): string => {
   if (pathname.includes('/wishlist')) return 'Wishlist';
   if (pathname.includes('/merchant/')) return 'Merchant';
   if (pathname.includes('/merchant-cart/')) return 'MerchantCart';
+  if (pathname.includes('/checkout/')) return 'Checkout';
   if (pathname.includes('/product/')) return 'Product';
   if (pathname.includes('/notifications')) return 'Notifications';
   if (pathname.includes('/nearby-restaurants')) return 'NearbyRestaurants';
@@ -83,6 +84,11 @@ export const useNavigation = (): NavigationContextType => {
         if (params?.id) router.push({ pathname: `/merchant-cart/${params.id}`, params });
         else if (params?.merchantId) router.push({ pathname: `/merchant-cart/${params.merchantId}`, params });
         else console.warn('Merchant ID missing for cart');
+        break;
+      case 'Checkout':
+        if (params?.id) router.push({ pathname: `/checkout/${params.id}`, params });
+        else if (params?.merchantId) router.push({ pathname: `/checkout/${params.merchantId}`, params });
+        else console.warn('Merchant ID missing for checkout');
         break;
       case 'Product':
          if (params?.id) router.push({ pathname: `/product/${params.id}`, params });

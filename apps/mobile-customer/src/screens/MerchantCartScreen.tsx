@@ -60,6 +60,11 @@ export default function MerchantCartScreen() {
     removeFromCart(itemId);
   };
 
+  const handleCheckout = () => {
+    if (!merchantId || !merchantCart || merchantCart.subtotal <= 0) return;
+    navigation.navigate('Checkout', { merchantId });
+  };
+
   const headerTitle = merchantCart ? merchantCart.merchantName : 'Cart';
 
   return (
@@ -165,12 +170,16 @@ export default function MerchantCartScreen() {
         )}
       </PullToRefreshLayout>
 
-      {!showSkeleton && merchantCart && (
-        <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 }]}>
-            <TouchableOpacity style={styles.checkoutButton}>
-                <Text style={styles.checkoutButtonText}>Checkout</Text>
-                <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal)}</Text>
-            </TouchableOpacity>
+      {merchantCart && merchantCart.items.length > 0 && (
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity 
+            style={[styles.checkoutButton, merchantCart.subtotal <= 0 && styles.checkoutButtonDisabled]}
+            onPress={handleCheckout}
+            disabled={merchantCart.subtotal <= 0}
+          >
+            <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+            <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal)}</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -385,6 +394,9 @@ const styles = StyleSheet.create({
       alignItems: 'center',
       padding: 16,
       borderRadius: 30,
+  },
+  checkoutButtonDisabled: {
+      opacity: 0.6,
   },
   checkoutButtonText: {
       color: '#fff',
