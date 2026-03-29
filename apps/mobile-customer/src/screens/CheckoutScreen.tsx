@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -88,8 +90,8 @@ export default function CheckoutScreen() {
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
 
-  const { getMerchantCart } = useCart();
-  const { user } = useAuth();
+  const { getMerchantCart, clearMerchantCart } = useCart();
+  const { user, customerId } = useAuth();
   
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('gcash');
@@ -113,7 +115,7 @@ export default function CheckoutScreen() {
   }, [paymentMethod, activeAddressId]);
 
   const handlePayNow = async () => {
-    if (!user || !activeAddressId) {
+    if (!user || !customerId || !activeAddressId) {
       Alert.alert('Error', 'Please select a delivery address');
       return;
     }
@@ -130,7 +132,12 @@ export default function CheckoutScreen() {
         throw new Error('Missing PayMongo public key');
       }
 
-      // 1. Create Payment Method directly with PayMongo API (like the web app does)
+      const cmsHeaders = {
+        'Content-Type': 'application/json',
+        Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+      };
+
+      // 1. Create Payment Method directly with PayMongo API
       const billing = {
         name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Tap2Go Customer',
         email: user.email || 'customer@example.com',
@@ -151,7 +158,7 @@ export default function CheckoutScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Basic ${btoa(pk + ':')}`, // Base64 encode the public key
+          Authorization: `Basic ${btoa(pk + ':')}`,
         },
         body: JSON.stringify(pmPayload),
       });
@@ -166,14 +173,10 @@ export default function CheckoutScreen() {
       // 2. Create Payment Intent via CMS
       const intentResponse = await fetch(`${apiConfig.baseUrl}/create-payment-intent`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
-        },
+        headers: cmsHeaders,
         body: JSON.stringify({
-          amount: Math.round(totalSubtotal * 100), // Amount in cents
+          amount: Math.round(totalSubtotal * 100),
           currency: 'PHP',
-          payment_method_allowed: [paymentMethod],
           description: `Order from ${merchantName}`,
           metadata: {
             userId: user.id,
@@ -189,7 +192,6 @@ export default function CheckoutScreen() {
         throw new Error(intentData.error || 'Failed to create payment intent');
       }
 
-      // Check how the CMS returns the data. It might be nested in a `data` object
       const intentId = intentData?.data?.id ? String(intentData.data.id) : null;
       const cKey = intentData?.data?.attributes?.client_key ? String(intentData.data.attributes.client_key) : null;
 
@@ -197,12 +199,84 @@ export default function CheckoutScreen() {
         throw new Error('Missing intent/client_key from CMS response');
       }
 
-      // 3. Attach Payment Method to Payment Intent
-      // PayMongo requires a valid standard http/https URL format for return_url.
-      // In a real production app, you would use a universal link here (e.g. https://yourdomain.com/checkout/return)
-      // Since this is just to satisfy the PayMongo API requirement for redirect flows (like 3DS or GCash auth),
-      // we can pass a generic web URL that won't necessarily be hit because we will intercept it natively or poll.
-      const returnUrl = `http://localhost:3000/checkout/${merchantId}/return`;
+      // 3. Create Pending Order in CMS
+      const orderPayload = {
+        customer: Number(customerId),
+        merchant: merchantId,
+        status: 'pending',
+        fulfillment_type: 'delivery',
+        total: totalSubtotal,
+        subtotal: totalSubtotal,
+        delivery_fee: 0,
+        platform_fee: 0,
+        placed_at: new Date().toISOString(),
+      };
+      
+      const orderRes = await fetch(`${apiConfig.baseUrl}/orders`, {
+        method: 'POST',
+        headers: cmsHeaders,
+        body: JSON.stringify(orderPayload),
+      });
+      const orderDataRes = await orderRes.json();
+      if (!orderRes.ok) throw new Error('Failed to create pending order');
+      const createdOrderId = orderDataRes.doc.id;
+
+      // 4. Fetch Address Details and Create Delivery Location Snapshot
+      const addrRes = await fetch(`${apiConfig.baseUrl}/addresses/${activeAddressId}`, { headers: cmsHeaders });
+      if (addrRes.ok) {
+        const addrData = await addrRes.json();
+        const addressText = [addrData.addressLine1, addrData.addressLine2, addrData.city, addrData.state, addrData.postalCode]
+            .filter(Boolean).join(', ');
+            
+        await fetch(`${apiConfig.baseUrl}/delivery-locations`, {
+          method: 'POST',
+          headers: cmsHeaders,
+          body: JSON.stringify({
+            order: createdOrderId,
+            formatted_address: addressText || 'Unknown Address',
+            coordinates: {
+              lat: addrData.latitude || 0,
+              lng: addrData.longitude || 0,
+            },
+            contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
+            label: addrData.label || 'other',
+          }),
+        });
+      }
+
+      // 5. Create Order Items
+      for (const item of merchantCart.items) {
+        await fetch(`${apiConfig.baseUrl}/order-items`, {
+          method: 'POST',
+          headers: cmsHeaders,
+          body: JSON.stringify({
+            order: createdOrderId,
+            product: item.product,
+            merchant_product: item.merchantProduct || null,
+            product_name_snapshot: item.productName,
+            price_at_purchase: item.priceAtAdd,
+            quantity: item.quantity,
+            total_price: item.subtotal,
+          }),
+        });
+      }
+
+      // 5. Create Pending Transaction
+      await fetch(`${apiConfig.baseUrl}/transactions`, {
+        method: 'POST',
+        headers: cmsHeaders,
+        body: JSON.stringify({
+          order: createdOrderId,
+          payment_intent_id: intentId,
+          payment_method: paymentMethod,
+          amount: totalSubtotal,
+          currency: 'PHP',
+          status: 'pending',
+        }),
+      });
+
+      // 6. Attach Payment Method to Payment Intent
+      const returnUrl = Linking.createURL('checkout/return');
       
       const attachResponse = await fetch(
         `https://api.paymongo.com/v1/payment_intents/${intentId}/attach`,
@@ -234,31 +308,48 @@ export default function CheckoutScreen() {
       const nextAction = attachData?.data?.attributes?.next_action;
 
       if (status === 'awaiting_next_action' && nextAction?.redirect?.url) {
-        // Just like the web app, we redirect the user to the PayMongo authorization URL
-        // They will complete the 3DS or GCash auth, and PayMongo will redirect them back
-        // to the returnUrl we provided earlier.
-        Alert.alert(
-          'Complete Payment',
-          'You will be redirected to complete your payment securely.',
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => setIsPaying(false),
-            },
-            {
-              text: 'Continue',
-              onPress: () => {
-                // In React Native, we use Linking to open external browser URLs
-                import('react-native').then(({ Linking }) => {
-                  Linking.openURL(nextAction.redirect.url);
-                });
-                navigation.navigate('Orders'); // We can navigate them to orders while they pay externally
-              },
-            },
-          ]
+        // Setup gcash intent handler before opening the browser
+        const subscription = Linking.addEventListener('url', ({ url }) => {
+          if (url.startsWith('gcash://')) {
+            Linking.openURL(url);
+          }
+        });
+
+        const result = await WebBrowser.openAuthSessionAsync(
+          nextAction.redirect.url,
+          returnUrl
         );
+
+        subscription.remove();
+
+        if (result.type === 'success' && result.url) {
+          const parsedUrl = Linking.parse(result.url);
+          const returnedIntentId = parsedUrl.queryParams?.payment_intent_id as string;
+          
+          if (returnedIntentId) {
+            // Verify backend status via CMS API before clearing cart
+            const verifyRes = await fetch(`${apiConfig.baseUrl}/transactions?where[payment_intent_id][equals]=${returnedIntentId}`, {
+              headers: cmsHeaders,
+            });
+            await verifyRes.json();
+            
+            // Note: Since webhooks can take a few seconds, if it's still pending here
+            // we could either poll, or just trust the PayMongo redirect success and let
+            // the webhook eventually update the order. 
+            // We'll proceed to clear the cart and let the user see their order in Orders screen.
+            clearMerchantCart(String(merchantId));
+            Alert.alert('Success', 'Payment completed successfully!');
+            navigation.navigate('Orders');
+          } else {
+            setIsPaying(false);
+            Alert.alert('Error', 'Could not verify payment intent ID.');
+          }
+        } else {
+          // User closed the browser or cancelled
+          setIsPaying(false);
+        }
       } else if (status === 'succeeded') {
+        clearMerchantCart(String(merchantId));
         Alert.alert('Success', 'Payment completed successfully!');
         navigation.navigate('Orders');
       } else {

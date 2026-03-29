@@ -57,6 +57,7 @@ export interface CartContextType {
   removeFromCart: (id: number) => Promise<void>;
   updateQuantity: (id: number, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  clearMerchantCart: (merchantId: string | number) => Promise<void>;
   getMerchantCart: (merchantId: string | number) => MerchantCartSummary | null;
   getAllMerchantCarts: () => MerchantCartSummary[];
   getCartTotal: () => number;
@@ -336,6 +337,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items, removeFromCart]);
 
+  const clearMerchantCart = useCallback(async (merchantId: string | number) => {
+    try {
+      const mIdStr = String(merchantId);
+      const itemsToDelete = items.filter(item => String(item.merchant) === mIdStr);
+      await Promise.all(itemsToDelete.map(item => removeFromCart(item.id)));
+    } catch (e) {
+      console.error('Failed to clear merchant cart', e);
+    }
+  }, [items, removeFromCart]);
+
   useEffect(() => {
     loadCart();
   }, [loadCart]);
@@ -421,6 +432,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     removeFromCart,
     updateQuantity,
     clearCart,
+    clearMerchantCart,
     getMerchantCart,
     getAllMerchantCarts,
     getCartTotal,
