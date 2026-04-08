@@ -31,6 +31,25 @@ if [ "$EAS_BUILD" = "true" ] || [ "$CI" = "true" ]; then
         echo "✅ Autolinking import fix completed"
     fi
 
+    # PATCH: Apply autolinking fix to android/app/build.gradle if it exists
+    if [ -f "android/app/build.gradle" ]; then
+        echo "🔧 Patching android/app/build.gradle with autolinking fix..."
+        if ! grep -q "android-autolinking-fix.gradle" "android/app/build.gradle"; then
+            # Add the fix after the apply plugin lines
+            sed -i '/apply plugin: "com.facebook.react"/a\\n// Apply autolinking fix for Expo SDK 53+\napply from: "../../android-autolinking-fix.gradle"' "android/app/build.gradle"
+            echo "✅ Android build.gradle patched with autolinking fix"
+        else
+            echo "ℹ️ Android build.gradle already contains autolinking fix"
+        fi
+    fi
+
+    # Also copy the gradle fix file into the build directory if android exists
+    if [ -f "android-autolinking-fix.gradle" ] && [ -d "android" ]; then
+        echo "📋 Ensuring android-autolinking-fix.gradle is in android directory..."
+        cp android-autolinking-fix.gradle android/
+        echo "✅ Gradle fix file copied to android directory"
+    fi
+
     echo "✅ Autolinking fixes applied successfully"
 else
     echo "⚠️ Not in EAS Build environment"

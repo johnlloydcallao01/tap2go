@@ -50,6 +50,10 @@ import * as migration_20260125_170000_disable_user_events_logging from './202601
 import * as migration_20260125_180000_remove_create_role_record from './20260125_180000_remove_create_role_record';
 import * as migration_20260128_000100_fix_users_role_triggers_cleanup from './20260128_000100_fix_users_role_triggers_cleanup';
 import * as migration_20260301_134303_add_system_settings_maintenance_mode from './20260301_134303_add_system_settings_maintenance_mode';
+import * as migration_20260309_fix_product_delete_constraints from './20260309_fix_product_delete_constraints';
+import * as migration_20260309_fix_product_delete_constraints_part2 from './20260309_fix_product_delete_constraints_part2';
+import * as migration_20260309_fix_product_delete_constraints_part3 from './20260309_fix_product_delete_constraints_part3';
+import * as migration_20260329_062428 from './20260329_062428';
 
 export const migrations = [
   {
@@ -310,6 +314,26 @@ export const migrations = [
   {
     up: migration_20260301_134303_add_system_settings_maintenance_mode.up,
     down: migration_20260301_134303_add_system_settings_maintenance_mode.down,
-    name: '20260301_134303_add_system_settings_maintenance_mode'
+    name: '20260301_134303_add_system_settings_maintenance_mode',
+  },
+  {
+    up: migration_20260309_fix_product_delete_constraints.up,
+    down: migration_20260309_fix_product_delete_constraints.down,
+    name: '20260309_fix_product_delete_constraints',
+  },
+  {
+    up: migration_20260309_fix_product_delete_constraints_part2.up,
+    down: migration_20260309_fix_product_delete_constraints_part2.down,
+    name: '20260309_fix_product_delete_constraints_part2',
+  },
+  {
+    up: migration_20260309_fix_product_delete_constraints_part3.up,
+    down: migration_20260309_fix_product_delete_constraints_part3.down,
+    name: '20260309_fix_product_delete_constraints_part3',
+  },
+  {
+    up: migration_20260329_062428.up,
+    down: migration_20260329_062428.down,
+    name: '20260329_062428'
   },
 ];

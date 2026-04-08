@@ -1612,6 +1612,22 @@ export interface CartItem {
    */
   merchantProduct: number | MerchantProduct;
   /**
+   * Core state of the cart item. Used for soft clearing instead of hard deletion.
+   */
+  status: 'active' | 'checked_out' | 'ordered' | 'abandoned' | 'removed';
+  /**
+   * Links the cart item to the order it became (if status is ordered or checked_out)
+   */
+  order_id?: (number | null) | Order;
+  /**
+   * Timestamp of when the item was converted to an order
+   */
+  ordered_at?: string | null;
+  /**
+   * Timestamp for soft deletion. If set, item is treated as deleted.
+   */
+  deleted_at?: string | null;
+  /**
    * Quantity of this product
    */
   quantity: number;
@@ -3051,6 +3067,10 @@ export interface CartItemsSelect<T extends boolean = true> {
   merchant?: T;
   product?: T;
   merchantProduct?: T;
+  status?: T;
+  order_id?: T;
+  ordered_at?: T;
+  deleted_at?: T;
   quantity?: T;
   priceAtAdd?: T;
   compareAtPrice?: T;

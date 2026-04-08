@@ -50,6 +50,7 @@ const nextConfig: NextConfig = {
 
 
   // ESLint configuration
+  // @ts-expect-error - eslint property is valid in Next.js but not in type definitions
   eslint: {
     // Warning: This allows production builds to successfully complete even if
     // your project has ESLint errors.

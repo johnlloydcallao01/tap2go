@@ -14,7 +14,7 @@ module.exports = {
     android: {
       sourceDir: './android',
       appName: 'app',
-      packageName: 'com.tap2go.mobile',
+      packageName: 'com.wnapp.id1721090048598',
     },
   },
   dependencies: {

@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { APIError } from 'payload'
 import { createHash } from 'crypto'
 
 export const CartItems: CollectionConfig = {
@@ -64,6 +65,46 @@ export const CartItems: CollectionConfig = {
             required: true,
             admin: {
                 description: 'Merchant-product junction record for price and availability'
+            }
+        },
+
+        // === LIFECYCLE & SOFT DELETE ===
+        {
+            name: 'status',
+            type: 'select',
+            required: true,
+            defaultValue: 'active',
+            options: [
+                { label: 'Active', value: 'active' },
+                { label: 'Checked Out', value: 'checked_out' },
+                { label: 'Ordered', value: 'ordered' },
+                { label: 'Abandoned', value: 'abandoned' },
+                { label: 'Removed', value: 'removed' }
+            ],
+            admin: {
+                description: 'Core state of the cart item. Used for soft clearing instead of hard deletion.'
+            }
+        },
+        {
+            name: 'order_id',
+            type: 'relationship',
+            relationTo: 'orders',
+            admin: {
+                description: 'Links the cart item to the order it became (if status is ordered or checked_out)'
+            }
+        },
+        {
+            name: 'ordered_at',
+            type: 'date',
+            admin: {
+                description: 'Timestamp of when the item was converted to an order'
+            }
+        },
+        {
+            name: 'deleted_at',
+            type: 'date',
+            admin: {
+                description: 'Timestamp for soft deletion. If set, item is treated as deleted.'
             }
         },
 
@@ -234,7 +275,7 @@ export const CartItems: CollectionConfig = {
 
     hooks: {
         beforeChange: [
-            async ({ data, operation, req }) => {
+            async ({ data, operation, req, originalDoc }) => {
                 // === VALIDATION: Quantity ===
                 if (data.quantity !== undefined) {
                     if (data.quantity < 1 || data.quantity > 999) {
@@ -275,7 +316,8 @@ export const CartItems: CollectionConfig = {
                             and: [
                                 { customer: { equals: data.customer } },
                                 { merchant: { equals: data.merchant } },
-                                { itemHash: { equals: data.itemHash } }
+                                { itemHash: { equals: data.itemHash } },
+                                { status: { equals: 'active' } }
                             ]
                         },
                         limit: 1
@@ -291,26 +333,31 @@ export const CartItems: CollectionConfig = {
                             }
                         })
                         // Throw special error that API can catch
-                        throw new Error(`CART_ITEM_MERGED:${existing.id}`)
+                        throw new APIError(`CART_ITEM_MERGED:${existing.id}`, 400, undefined, true)
                     }
                 }
 
                 // === CALCULATE: Subtotal ===
-                if (data.priceAtAdd && data.quantity) {
+                const currentPriceAtAdd = data.priceAtAdd ?? originalDoc?.priceAtAdd;
+                const currentQuantity = data.quantity ?? originalDoc?.quantity;
+                const currentModifiers = data.selectedModifiers ?? originalDoc?.selectedModifiers;
+                const currentAddons = data.selectedAddons ?? originalDoc?.selectedAddons;
+
+                if (currentPriceAtAdd !== undefined && currentQuantity !== undefined) {
                     let modifierTotal = 0
                     let addonTotal = 0
 
-                    if (data.selectedModifiers && Array.isArray(data.selectedModifiers)) {
-                        modifierTotal = data.selectedModifiers.reduce((sum, mod) => sum + (mod.price || 0), 0)
+                    if (currentModifiers && Array.isArray(currentModifiers)) {
+                        modifierTotal = currentModifiers.reduce((sum: number, mod: any) => sum + (mod.price || 0), 0)
                     }
 
-                    if (data.selectedAddons && Array.isArray(data.selectedAddons)) {
-                        addonTotal = data.selectedAddons.reduce((sum, addon) => {
+                    if (currentAddons && Array.isArray(currentAddons)) {
+                        addonTotal = currentAddons.reduce((sum: number, addon: any) => {
                             return sum + ((addon.price || 0) * (addon.quantity || 1))
                         }, 0)
                     }
 
-                    data.subtotal = (data.priceAtAdd + modifierTotal + addonTotal) * data.quantity
+                    data.subtotal = (currentPriceAtAdd + modifierTotal + addonTotal) * currentQuantity
                 }
 
                 // === VALIDATE: Merchant-Vendor Relationship ===
@@ -327,13 +374,27 @@ export const CartItems: CollectionConfig = {
                         depth: 0
                     })
 
-                    const merchantVendorId = typeof merchant.vendor === 'object' ? merchant.vendor.id : merchant.vendor
+                    const merchantVendorId = typeof merchant.vendor === 'object' ? merchant.vendor?.id : merchant.vendor
 
-                    if (merchantVendorId !== product.createdByVendor) {
+                    const productVendorId = typeof product.createdByVendor === 'object' ? product.createdByVendor?.id : product.createdByVendor;
+                    const productMerchantId = typeof product.createdByMerchant === 'object' ? product.createdByMerchant?.id : product.createdByMerchant;
+
+                    // A product is valid if:
+                    // 1. It was created by the same vendor as the merchant
+                    // 2. Or it was created by the specific merchant itself
+                    // 3. Or if it has no vendor/merchant (e.g. global admin product) - optional, but let's be strict for now and require match if set
+                    if (productVendorId && String(merchantVendorId) !== String(productVendorId)) {
                         throw new Error(
-                            `Cannot add product "${product.name}" (vendor ${product.createdByVendor}) ` +
+                            `Cannot add product "${product.name}" (vendor ${productVendorId}) ` +
                             `to cart for merchant "${merchant.outletName}" (vendor ${merchantVendorId}). ` +
                             `Product must belong to merchant's vendor.`
+                        )
+                    }
+
+                    if (productMerchantId && String(merchant.id) !== String(productMerchantId)) {
+                        throw new Error(
+                            `Cannot add product "${product.name}" to cart for merchant "${merchant.outletName}". ` +
+                            `Product is exclusive to a different merchant.`
                         )
                     }
                 }

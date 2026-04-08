@@ -75,6 +75,21 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
                   }
               });
               console.log(`Order ${orderId} updated to accepted.`);
+
+              // Update all CartItems linked to this order to 'ordered'
+              await req.payload.update({
+                  collection: 'cart-items',
+                  where: {
+                      order_id: {
+                          equals: orderId
+                      }
+                  },
+                  data: {
+                      status: 'ordered',
+                      ordered_at: new Date(resource.attributes.paid_at * 1000).toISOString(),
+                  }
+              });
+              console.log(`Cart items for order ${orderId} soft-cleared (status: ordered).`);
           }
       } else {
           console.warn(`No transaction found for payment_intent_id: ${paymentIntentId}`);

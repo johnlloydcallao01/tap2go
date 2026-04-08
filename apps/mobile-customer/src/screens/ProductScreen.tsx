@@ -122,6 +122,11 @@ export default function ProductScreen() {
     }
 
     if (!product) return;
+    
+    if (!product.merchantProductId) {
+      Alert.alert('Error', 'Merchant product details not found.');
+      return;
+    }
 
     setIsAddingToCart(true);
 
@@ -150,9 +155,9 @@ export default function ProductScreen() {
       await addToCart({
         merchantId: Number(merchantId),
         productId: Number(product.id),
-        merchantProductId: Number(product.merchantProductId || product.id), // Fallback if missing, but should be there
+        merchantProductId: Number(product.merchantProductId),
         quantity,
-        priceAtAdd: product.basePrice,
+        priceAtAdd: product.basePrice || 0,
         selectedModifiers: selectedModifierPayload,
       });
       setIsAddingToCart(false);

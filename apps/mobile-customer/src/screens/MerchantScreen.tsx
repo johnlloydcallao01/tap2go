@@ -384,7 +384,7 @@ export default function MerchantScreen() {
 
         // Fetch Merchant Product ID if missing (backward compatibility)
         if (!merchantProductId) {
-          const response = await fetch(`${apiConfig.baseUrl}/merchant-products?where[merchant][equals]=${merchantId}&where[product][equals]=${product.id}&depth=0`, {
+          const response = await fetch(`${apiConfig.baseUrl}/merchant-products?where[merchant_id][equals]=${merchantId}&where[product_id][equals]=${product.id}&depth=0`, {
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `users API-Key ${apiConfig.payloadApiKey}`

@@ -103,7 +103,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const apiKey = apiConfig.payloadApiKey;
       if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
 
-      const url = `${API_BASE}/cart-items?where[customer][equals]=${customerId}&depth=3&limit=200`;
+      const url = `${API_BASE}/cart-items?where[customer][equals]=${customerId}&where[status][equals]=active&depth=3&limit=200`;
       const res = await fetch(url, { headers, cache: 'no-store' });
       
       if (!res.ok) {
@@ -265,8 +265,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
 
         const res = await fetch(`${API_BASE}/cart-items/${id}`, {
-          method: 'DELETE',
+          method: 'PATCH',
           headers,
+          body: JSON.stringify({
+              status: 'removed',
+              deleted_at: new Date().toISOString()
+          })
         });
 
         if (!res.ok) {

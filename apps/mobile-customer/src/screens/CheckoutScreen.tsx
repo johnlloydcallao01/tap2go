@@ -90,7 +90,7 @@ export default function CheckoutScreen() {
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
 
-  const { getMerchantCart, clearMerchantCart } = useCart();
+  const { getMerchantCart, reload } = useCart();
   const { user, customerId } = useAuth();
   
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
@@ -259,6 +259,15 @@ export default function CheckoutScreen() {
             total_price: item.subtotal,
           }),
         });
+        
+        // Link Cart Item to Order
+        await fetch(`${apiConfig.baseUrl}/cart-items/${item.id}`, {
+          method: 'PATCH',
+          headers: cmsHeaders,
+          body: JSON.stringify({
+            order_id: createdOrderId,
+          }),
+        });
       }
 
       // 5. Create Pending Transaction
@@ -276,7 +285,11 @@ export default function CheckoutScreen() {
       });
 
       // 6. Attach Payment Method to Payment Intent
-      const returnUrl = Linking.createURL('checkout/return');
+      // PayMongo's API strictly validates that return_url must be an absolute http or https URL.
+      // Deep links (like tap2go-customer://) are NOT allowed in the PayMongo API validation step.
+      // Therefore, we pass our web redirect URL to satisfy the API, but we use Linking.createURL 
+      // inside WebBrowser.openAuthSessionAsync to intercept the return natively.
+      const returnUrlAPI = `https://tap2goph.com/checkout/${merchantId}/return`;
       
       const attachResponse = await fetch(
         `https://api.paymongo.com/v1/payment_intents/${intentId}/attach`,
@@ -291,7 +304,7 @@ export default function CheckoutScreen() {
               attributes: {
                 client_key: cKey,
                 payment_method: paymentMethodId,
-                return_url: returnUrl,
+                return_url: returnUrlAPI,
               },
             },
           }),
@@ -317,7 +330,7 @@ export default function CheckoutScreen() {
 
         const result = await WebBrowser.openAuthSessionAsync(
           nextAction.redirect.url,
-          returnUrl
+          Linking.createURL('checkout/return')
         );
 
         subscription.remove();
@@ -336,8 +349,8 @@ export default function CheckoutScreen() {
             // Note: Since webhooks can take a few seconds, if it's still pending here
             // we could either poll, or just trust the PayMongo redirect success and let
             // the webhook eventually update the order. 
-            // We'll proceed to clear the cart and let the user see their order in Orders screen.
-            clearMerchantCart(String(merchantId));
+            // We'll proceed to reload the cart and let the user see their order in Orders screen.
+            await reload();
             Alert.alert('Success', 'Payment completed successfully!');
             navigation.navigate('Orders');
           } else {
@@ -349,7 +362,7 @@ export default function CheckoutScreen() {
           setIsPaying(false);
         }
       } else if (status === 'succeeded') {
-        clearMerchantCart(String(merchantId));
+        await reload();
         Alert.alert('Success', 'Payment completed successfully!');
         navigation.navigate('Orders');
       } else {
