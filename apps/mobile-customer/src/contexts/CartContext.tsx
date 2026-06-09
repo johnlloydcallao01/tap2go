@@ -15,6 +15,7 @@ export type CartItem = {
   subtotal: number;
   productSize?: string | null;
   selectedVariation?: number | null;
+  selectedVariationName?: string | null;
   selectedModifiers?: any[] | null;
   selectedAddons?: any[] | null;
   isAvailable?: boolean;
@@ -35,6 +36,7 @@ export type AddToCartPayload = {
   priceAtAdd: number;
   compareAtPrice?: number | null;
   selectedModifiers?: any[] | null;
+  selectedVariation?: { relationTo: string; value: number | string } | null;
 };
 
 // Mobile specific helper types for UI grouping
@@ -139,8 +141,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           subtotal: doc.subtotal,
           productSize: doc.productSize || null,
           selectedVariation: doc.selectedVariation
-            ? (typeof doc.selectedVariation === 'object' ? doc.selectedVariation.id : doc.selectedVariation)
+            ? (typeof doc.selectedVariation === 'object' && doc.selectedVariation !== null
+                ? ('value' in doc.selectedVariation
+                    ? (typeof doc.selectedVariation.value === 'object' ? doc.selectedVariation.value.id : doc.selectedVariation.value)
+                    : doc.selectedVariation.id)
+                : doc.selectedVariation)
             : null,
+          selectedVariationName:
+            typeof doc.selectedVariation === 'object' && doc.selectedVariation !== null
+              ? ('value' in doc.selectedVariation
+                  ? (typeof doc.selectedVariation.value === 'object' ? doc.selectedVariation.value?.name || null : null)
+                  : doc.selectedVariation.name || null)
+              : null,
           selectedModifiers: doc.selectedModifiers || null,
           selectedAddons: doc.selectedAddons || null,
           isAvailable: typeof doc.isAvailable === 'boolean' ? doc.isAvailable : true,
@@ -201,6 +213,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
         if (payload.selectedModifiers && payload.selectedModifiers.length > 0) {
           body.selectedModifiers = payload.selectedModifiers;
+        }
+        if (payload.selectedVariation) {
+          body.selectedVariation = payload.selectedVariation;
         }
 
         const res = await fetch(`${API_BASE}/cart-items`, {

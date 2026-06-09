@@ -1,6 +1,133 @@
 import type { CollectionConfig } from 'payload'
 import { APIError } from 'payload'
 import { createHash } from 'crypto'
+import {
+    ModifierResolverService,
+    type EffectiveModifierGroup,
+} from '../services/ModifierResolverService'
+import {
+    extractRelationshipId,
+    extractRelationshipRelationTo,
+    toFiniteNumber,
+} from '../services/modifierUtils'
+
+type SelectedModifierInput = {
+    groupId?: unknown
+    group_id?: unknown
+    optionId?: unknown
+    option_id?: unknown
+}
+
+type NormalizedSelectedModifier = {
+    groupId: number
+    groupName: string
+    optionId: number
+    name: string
+    price: number
+    isRequired: boolean
+    source: string
+}
+
+function normalizeSelectedVariationInput(value: unknown): number | null {
+    const relationTo = extractRelationshipRelationTo(value as never)
+
+    if (relationTo && relationTo !== 'prod-variations') {
+        throw new Error('selectedVariation must reference prod-variations only')
+    }
+
+    return extractRelationshipId(value as never)
+}
+
+function normalizeSelectedModifiers(
+    rawValue: unknown,
+    effectiveGroups: EffectiveModifierGroup[],
+): NormalizedSelectedModifier[] {
+    if (rawValue === null || rawValue === undefined) {
+        rawValue = []
+    }
+
+    if (!Array.isArray(rawValue)) {
+        throw new Error('selectedModifiers must be an array')
+    }
+
+    if (effectiveGroups.length === 0) {
+        if (rawValue.length > 0) {
+            throw new Error('This product does not support modifier selections')
+        }
+
+        return []
+    }
+
+    const groupsById = new Map(
+        effectiveGroups.map((group) => [group.id, group]),
+    )
+    const seenSelections = new Set<string>()
+    const selectionCounts = new Map<number, number>()
+    const normalizedSelections: NormalizedSelectedModifier[] = []
+
+    for (const rawEntry of rawValue as SelectedModifierInput[]) {
+        const groupId = extractRelationshipId((rawEntry.groupId ?? rawEntry.group_id) as never)
+        const optionId = extractRelationshipId((rawEntry.optionId ?? rawEntry.option_id) as never)
+
+        if (!groupId || !optionId) {
+            throw new Error('Each selected modifier must include valid groupId and optionId values')
+        }
+
+        const group = groupsById.get(groupId)
+        if (!group) {
+            throw new Error(`Modifier group ${groupId} is not valid for this selection`)
+        }
+
+        const option = group.options.find((candidate) => candidate.id === optionId)
+        if (!option || !option.isAvailable) {
+            throw new Error(`Modifier option ${optionId} is not available for group "${group.name}"`)
+        }
+
+        const uniquenessKey = `${groupId}:${optionId}`
+        if (seenSelections.has(uniquenessKey)) {
+            throw new Error(`Modifier option "${option.name}" was selected more than once`)
+        }
+        seenSelections.add(uniquenessKey)
+
+        selectionCounts.set(groupId, (selectionCounts.get(groupId) ?? 0) + 1)
+        normalizedSelections.push({
+            groupId,
+            groupName: group.name,
+            optionId,
+            name: option.name,
+            price: option.priceAdjustment,
+            isRequired: group.isRequired,
+            source: group.source,
+        })
+    }
+
+    for (const group of effectiveGroups) {
+        const count = selectionCounts.get(group.id) ?? 0
+        const requiredMinimum = group.isRequired
+            ? Math.max(1, group.minSelections)
+            : group.minSelections
+
+        if (group.selectionType === 'single' && count > 1) {
+            throw new Error(`Modifier group "${group.name}" only allows one selection`)
+        }
+
+        if (count < requiredMinimum) {
+            throw new Error(`Modifier group "${group.name}" requires at least ${requiredMinimum} selection(s)`)
+        }
+
+        if (group.maxSelections !== null && count > group.maxSelections) {
+            throw new Error(`Modifier group "${group.name}" allows at most ${group.maxSelections} selection(s)`)
+        }
+    }
+
+    return normalizedSelections.sort((a, b) => {
+        if (a.groupId !== b.groupId) {
+            return a.groupId - b.groupId
+        }
+
+        return a.optionId - b.optionId
+    })
+}
 
 export const CartItems: CollectionConfig = {
     slug: 'cart-items',
@@ -168,7 +295,7 @@ export const CartItems: CollectionConfig = {
         {
             name: 'selectedVariation',
             type: 'relationship',
-            relationTo: 'products',
+            relationTo: 'prod-variations',
             admin: {
                 description: 'Selected product variation (if product type is variable)'
             }
@@ -276,6 +403,64 @@ export const CartItems: CollectionConfig = {
     hooks: {
         beforeChange: [
             async ({ data, operation, req, originalDoc }) => {
+                const currentProductId = extractRelationshipId(
+                    (data.product ?? originalDoc?.product) as never,
+                )
+                const currentMerchantProductId = extractRelationshipId(
+                    (data.merchantProduct ?? originalDoc?.merchantProduct) as never,
+                )
+                const rawSelectedVariation = data.selectedVariation ?? originalDoc?.selectedVariation
+                const currentVariationId = normalizeSelectedVariationInput(rawSelectedVariation)
+
+                if (data.selectedVariation !== undefined) {
+                    data.selectedVariation = currentVariationId
+                }
+
+                let effectiveModifierGroups: EffectiveModifierGroup[] = []
+
+                if (currentProductId) {
+                    const product = await req.payload.findByID({
+                        collection: 'products',
+                        id: currentProductId,
+                        depth: 0,
+                    })
+
+                    if (product.productType === 'variable' && !currentVariationId) {
+                        throw new Error('Variable products require a selectedVariation')
+                    }
+
+                    if (product.productType !== 'variable' && currentVariationId) {
+                        throw new Error('selectedVariation can only be used for variable products')
+                    }
+
+                    if (currentVariationId) {
+                        const variation = await req.payload.findByID({
+                            collection: 'prod-variations',
+                            id: currentVariationId,
+                            depth: 0,
+                        })
+
+                        const variationProductId = extractRelationshipId(variation.product_id as never)
+                        if (variationProductId !== currentProductId) {
+                            throw new Error('Selected variation does not belong to the requested product')
+                        }
+                    }
+
+                    const modifierResolver = new ModifierResolverService(req.payload)
+                    effectiveModifierGroups = await modifierResolver.resolveEffectiveGroups({
+                        productId: currentProductId,
+                        variationId: currentVariationId,
+                        merchantProductId: currentMerchantProductId,
+                    })
+                }
+
+                const currentModifiersRaw = data.selectedModifiers ?? originalDoc?.selectedModifiers
+                const normalizedModifiers = normalizeSelectedModifiers(
+                    currentModifiersRaw,
+                    effectiveModifierGroups,
+                )
+                data.selectedModifiers = normalizedModifiers
+
                 // === VALIDATION: Quantity ===
                 if (data.quantity !== undefined) {
                     if (data.quantity < 1 || data.quantity > 999) {
@@ -295,12 +480,14 @@ export const CartItems: CollectionConfig = {
 
                 // === GENERATE: Item Hash (MD5) ===
                 const hashComponents = {
-                    product: data.product,
-                    merchantProduct: data.merchantProduct,
+                    product: currentProductId,
+                    merchantProduct: extractRelationshipId(
+                        (data.merchantProduct ?? originalDoc?.merchantProduct) as never,
+                    ),
                     productSize: data.productSize || null,
-                    selectedModifiers: data.selectedModifiers || [],
+                    selectedModifiers: normalizedModifiers,
                     selectedAddons: data.selectedAddons || [],
-                    selectedVariation: data.selectedVariation || null,
+                    selectedVariation: currentVariationId,
                     specialInstructions: (data.specialInstructions || '').trim().toLowerCase()
                 }
 
@@ -340,7 +527,7 @@ export const CartItems: CollectionConfig = {
                 // === CALCULATE: Subtotal ===
                 const currentPriceAtAdd = data.priceAtAdd ?? originalDoc?.priceAtAdd;
                 const currentQuantity = data.quantity ?? originalDoc?.quantity;
-                const currentModifiers = data.selectedModifiers ?? originalDoc?.selectedModifiers;
+                const currentModifiers = normalizedModifiers;
                 const currentAddons = data.selectedAddons ?? originalDoc?.selectedAddons;
 
                 if (currentPriceAtAdd !== undefined && currentQuantity !== undefined) {
@@ -348,7 +535,7 @@ export const CartItems: CollectionConfig = {
                     let addonTotal = 0
 
                     if (currentModifiers && Array.isArray(currentModifiers)) {
-                        modifierTotal = currentModifiers.reduce((sum: number, mod: any) => sum + (mod.price || 0), 0)
+                        modifierTotal = currentModifiers.reduce((sum: number, mod: NormalizedSelectedModifier) => sum + toFiniteNumber(mod.price), 0)
                     }
 
                     if (currentAddons && Array.isArray(currentAddons)) {

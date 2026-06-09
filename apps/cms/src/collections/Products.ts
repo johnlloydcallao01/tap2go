@@ -447,8 +447,37 @@ export const Products: CollectionConfig = {
             where: { product_id: { equals: id } },
             limit: 1000,
           })
-          for (const mg of modifierGroups.docs) {
-            await payload.delete({ collection: 'modifier-groups', id: mg.id })
+          const modifierGroupIds = modifierGroups.docs.map((doc) => doc.id)
+          if (modifierGroupIds.length > 0) {
+            const variationModifierGroupOverrides = await payload.find({
+              collection: 'variation-modifier-group-overrides',
+              where: { base_modifier_group_id: { in: modifierGroupIds } },
+              limit: 1000,
+            })
+            for (const override of variationModifierGroupOverrides.docs) {
+              await payload.delete({ collection: 'variation-modifier-group-overrides', id: override.id })
+            }
+
+            const modifierOptions = await payload.find({
+              collection: 'modifier-options',
+              where: { modifier_group_id: { in: modifierGroupIds } },
+              limit: 1000,
+            })
+            const optionOverrideIds = modifierOptions.docs.map((doc) => doc.id)
+            if (optionOverrideIds.length > 0) {
+              const variationModifierOptionOverrides = await payload.find({
+                collection: 'variation-modifier-option-overrides',
+                where: { base_modifier_option_id: { in: optionOverrideIds } },
+                limit: 1000,
+              })
+              for (const override of variationModifierOptionOverrides.docs) {
+                await payload.delete({ collection: 'variation-modifier-option-overrides', id: override.id })
+              }
+            }
+
+            for (const mg of modifierGroups.docs) {
+              await payload.delete({ collection: 'modifier-groups', id: mg.id })
+            }
           }
 
           const groupedParent = await payload.find({

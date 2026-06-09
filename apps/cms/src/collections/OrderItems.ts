@@ -1,4 +1,5 @@
 import type { CollectionConfig, Where } from 'payload'
+import { normalizeOrderItemOptionsSnapshot } from '../services/orderItemSnapshot'
 
 export const OrderItems: CollectionConfig = {
   slug: 'order-items',
@@ -123,7 +124,8 @@ export const OrderItems: CollectionConfig = {
       name: 'options_snapshot',
       type: 'json',
       admin: {
-        description: 'SNAPSHOT: Selected modifiers and their specific prices. Example: [{"name": "Java Rice", "price": 20}]',
+        description:
+          'SNAPSHOT: Selected variation and modifier history. Example: [{ "entryType": "variation", "name": "Large", "selectedVariationId": 12, "price": 0 }, { "entryType": "modifier", "groupName": "Add-ons", "optionName": "Java Rice", "price": 20 }]',
       },
     },
     {
@@ -135,4 +137,19 @@ export const OrderItems: CollectionConfig = {
       },
     },
   ],
+  hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        if (!data) {
+          return data
+        }
+
+        if (data.options_snapshot !== undefined) {
+          data.options_snapshot = normalizeOrderItemOptionsSnapshot(data.options_snapshot)
+        }
+
+        return data
+      },
+    ],
+  },
 }

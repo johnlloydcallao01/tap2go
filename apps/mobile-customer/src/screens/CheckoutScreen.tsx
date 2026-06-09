@@ -246,6 +246,32 @@ export default function CheckoutScreen() {
 
       // 5. Create Order Items
       for (const item of merchantCart.items) {
+        const optionsSnapshot = [
+          ...(item.selectedVariation
+            ? [
+                {
+                  entryType: 'variation',
+                  name: item.selectedVariationName || `Variation #${item.selectedVariation}`,
+                  selectedVariationId: item.selectedVariation,
+                  selectedVariationName: item.selectedVariationName || undefined,
+                  price: 0,
+                },
+              ]
+            : []),
+          ...((item.selectedModifiers || []).map((modifier: any) => ({
+            entryType: 'modifier',
+            sourceType: modifier?.source,
+            groupId: modifier?.groupId,
+            groupName: modifier?.groupName,
+            optionId: modifier?.optionId,
+            optionName: modifier?.name,
+            selectedVariationId: item.selectedVariation || undefined,
+            selectedVariationName: item.selectedVariationName || undefined,
+            name: modifier?.name || 'Modifier',
+            price: typeof modifier?.price === 'number' ? modifier.price : 0,
+          }))),
+        ];
+
         await fetch(`${apiConfig.baseUrl}/order-items`, {
           method: 'POST',
           headers: cmsHeaders,
@@ -256,6 +282,7 @@ export default function CheckoutScreen() {
             product_name_snapshot: item.productName,
             price_at_purchase: item.priceAtAdd,
             quantity: item.quantity,
+            options_snapshot: optionsSnapshot,
             total_price: item.subtotal,
           }),
         });

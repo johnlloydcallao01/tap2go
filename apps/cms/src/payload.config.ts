@@ -12,6 +12,8 @@ import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './services/GeospatialService'
 import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
+import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
+import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
 import { sendOrderHelp } from './endpoints/sendOrderHelp'
 import { paymongoWebhook } from './endpoints/paymongoWebhook'
 import type { PayloadRequest } from 'payload'
@@ -57,6 +59,14 @@ import { ProdGroupedItems } from './collections/ProdGroupedItems'
 import { MerchantProducts } from './collections/MerchantProducts'
 import { ModifierGroups } from './collections/ModifierGroups'
 import { ModifierOptions } from './collections/ModifierOptions'
+import { VariationModifierGroups } from './collections/VariationModifierGroups'
+import { VariationModifierOptions } from './collections/VariationModifierOptions'
+import { VariationModifierGroupOverrides } from './collections/VariationModifierGroupOverrides'
+import { VariationModifierOptionOverrides } from './collections/VariationModifierOptionOverrides'
+import { MerchantProductModifierGroupOverrides } from './collections/MerchantProductModifierGroupOverrides'
+import { MerchantProductModifierOptionOverrides } from './collections/MerchantProductModifierOptionOverrides'
+import { MerchantVariationModifierGroupOverrides } from './collections/MerchantVariationModifierGroupOverrides'
+import { MerchantVariationModifierOptionOverrides } from './collections/MerchantVariationModifierOptionOverrides'
 import { ProdTags } from './collections/ProdTags'
 import { ProdTagsJunction } from './collections/ProdTagsJunction'
 import { TagGroups } from './collections/TagGroups'
@@ -123,6 +133,14 @@ export default buildConfig({
     MerchantProducts,
     ModifierGroups,
     ModifierOptions,
+    VariationModifierGroups,
+    VariationModifierOptions,
+    VariationModifierGroupOverrides,
+    VariationModifierOptionOverrides,
+    MerchantProductModifierGroupOverrides,
+    MerchantProductModifierOptionOverrides,
+    MerchantVariationModifierGroupOverrides,
+    MerchantVariationModifierOptionOverrides,
     ProdTags,
     ProdTagsJunction,
     TagGroups,
@@ -725,6 +743,16 @@ export default buildConfig({
       path: '/merchant/location-based-product-categories',
       method: 'get',
       handler: merchantLocationBasedProductCategoriesHandler,
+    },
+    {
+      path: '/effective-modifiers',
+      method: 'get',
+      handler: effectiveModifiersHandler,
+    },
+    {
+      path: '/merchant/product-detail',
+      method: 'get',
+      handler: merchantProductDetailHandler,
     },
 
     {

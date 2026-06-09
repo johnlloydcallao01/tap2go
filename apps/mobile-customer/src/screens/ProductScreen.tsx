@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,9 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
-  StatusBar
+  StatusBar,
+  ScrollView,
+  useWindowDimensions
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +24,26 @@ import { dataCache } from '@encreasl/client-services';
 
 import { useNavigation } from '../navigation/NavigationContext';
 import { useLocalSearchParams } from 'expo-router';
+import { fetchEffectiveModifierGroups } from '../services/product';
+import type { ModifierGroup } from '../types/product';
+
+function buildDefaultModifierSelection(modifierGroups: ModifierGroup[]): Record<string, string[]> {
+  return modifierGroups.reduce<Record<string, string[]>>((acc, group) => {
+    const defaultOptions = (group.options || []).filter((option) => option.is_default);
+
+    if (defaultOptions.length === 0) {
+      return acc;
+    }
+
+    if (group.selection_type === 'single') {
+      acc[group.id] = [defaultOptions[0].id];
+      return acc;
+    }
+
+    acc[group.id] = defaultOptions.map((option) => option.id);
+    return acc;
+  }, {});
+}
 
 export default function ProductScreen() {
   const navigation = useNavigation();
@@ -32,12 +54,15 @@ export default function ProductScreen() {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { width } = useWindowDimensions();
 
   const { data: product, isLoading, isRefetching, error } = useProduct(productId, merchantId);
   const { addToCart } = useCart();
 
   const [quantity, setQuantity] = useState(1);
   const [modifierSelection, setModifierSelection] = useState<Record<string, string[]>>({});
+  const [activeModifierGroups, setActiveModifierGroups] = useState<ModifierGroup[]>([]);
+  const [selectedVariationId, setSelectedVariationId] = useState<string | number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
@@ -55,10 +80,15 @@ export default function ProductScreen() {
   // Helper function to resolve image URL
   const getImageUrl = (media: any): string | null => {
     if (!media) return null;
-    return media.cloudinaryURL || media.url || media.thumbnailURL || null;
+    let url = media.cloudinaryURL || media.url || media.thumbnailURL || null;
+    if (url && !url.startsWith('http') && !url.startsWith('data:')) {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
+      const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+      const normalizedUrl = url.startsWith('/') ? url : `/${url}`;
+      url = `${baseUrl}${normalizedUrl}`;
+    }
+    return url;
   };
-
-  const productImageUrl = product ? getImageUrl(product.media?.primaryImage) : null;
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
@@ -75,10 +105,10 @@ export default function ProductScreen() {
   // For now, I'll focus on the main product details and add to cart.
 
   const hasInvalidModifiers = useMemo(() => {
-    if (!product || !product.modifierGroups || product.modifierGroups.length === 0) {
+    if (!product || activeModifierGroups.length === 0) {
       return false;
     }
-    for (const group of product.modifierGroups) {
+    for (const group of activeModifierGroups) {
       const selectedIds = modifierSelection[group.id] || [];
       const count = selectedIds.length;
       if (group.is_required && count === 0) {
@@ -92,15 +122,129 @@ export default function ProductScreen() {
       }
     }
     return false;
-  }, [product, modifierSelection]);
+  }, [product, activeModifierGroups, modifierSelection]);
+
+  const isVariableProduct = product?.productType === 'variable';
+  const isGroupedProduct = product?.productType === 'grouped';
+  const variations = useMemo(() => product?.variations || [], [product?.variations]);
+  const groupedItems = useMemo(() => product?.groupedItems || [], [product?.groupedItems]);
+  const variationCardWidth = width * 0.75;
+  const variationCardSpacing = 16;
+  const variationSnapInterval = variationCardWidth + variationCardSpacing;
+  const selectedVariation = useMemo(() => {
+    if (!product || !isVariableProduct || variations.length === 0) return null;
+    if (selectedVariationId != null) {
+      const matchedVariation = variations.find(
+        (variation) => String(variation.id) === String(selectedVariationId)
+      );
+      if (matchedVariation) return matchedVariation;
+    }
+    return variations[0] || null;
+  }, [isVariableProduct, product, selectedVariationId, variations]);
+
+  useEffect(() => {
+    if (!product) {
+      setActiveModifierGroups([]);
+      setModifierSelection({});
+      return;
+    }
+
+    const initialGroups = product.modifierGroups || [];
+    setActiveModifierGroups(initialGroups);
+    setModifierSelection(buildDefaultModifierSelection(initialGroups));
+  }, [product]);
+
+  useEffect(() => {
+    if (!product || !isVariableProduct) {
+      setSelectedVariationId(null);
+      return;
+    }
+
+    const nextVariationId = product.defaultVariationId ?? product.variations?.[0]?.id ?? null;
+    setSelectedVariationId((current) => {
+      if (current != null && product.variations?.some((variation) => String(variation.id) === String(current))) {
+        return current;
+      }
+      return nextVariationId;
+    });
+  }, [isVariableProduct, product]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadEffectiveModifiers = async () => {
+      if (!product) {
+        return;
+      }
+
+      if (isVariableProduct) {
+        if (!selectedVariationId) {
+          setActiveModifierGroups([]);
+          setModifierSelection({});
+          return;
+        }
+
+        try {
+          const groups = await fetchEffectiveModifierGroups(
+            product.id,
+            selectedVariationId,
+            merchantId,
+          );
+          if (!isCancelled) {
+            setActiveModifierGroups(groups);
+            setModifierSelection(buildDefaultModifierSelection(groups));
+          }
+        } catch (modifierError) {
+          console.error('Failed to refresh variation modifiers:', modifierError);
+          if (!isCancelled) {
+            setActiveModifierGroups([]);
+            setModifierSelection({});
+          }
+        }
+
+        return;
+      }
+
+      const groups = product.modifierGroups || [];
+      setActiveModifierGroups(groups);
+      setModifierSelection(buildDefaultModifierSelection(groups));
+    };
+
+    loadEffectiveModifiers();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isVariableProduct, product, selectedVariationId]);
+
+  const effectiveBasePrice = selectedVariation?.base_price ?? product?.basePrice ?? 0;
+  const effectiveCompareAtPrice = selectedVariation?.compare_at_price ?? product?.compareAtPrice;
+  const effectiveDescription =
+    selectedVariation?.short_description || product?.shortDescription || '';
+  const bottomContentSpacing = insets.bottom + (isGroupedProduct ? 150 : 190);
+  const effectiveImageUrl = selectedVariation?.image
+    ? getImageUrl(selectedVariation.image)
+    : product
+      ? getImageUrl(product.media?.primaryImage)
+      : null;
+  const isSelectedVariationOutOfStock =
+    isVariableProduct &&
+    !!selectedVariation &&
+    typeof selectedVariation.stock_quantity === 'number' &&
+    selectedVariation.stock_quantity <= 0;
+  const hasVariationChoices = isVariableProduct && variations.length > 0;
+  const cannotAddVariableProduct =
+    isVariableProduct && (!selectedVariation || variations.length === 0 || isSelectedVariationOutOfStock);
+  const hasGroupedItems = isGroupedProduct && groupedItems.length > 0;
+  const cannotAddGroupedProduct = isGroupedProduct;
 
   const totalPrice = useMemo(() => {
     if (!product) return 0;
-    let price = product.basePrice || 0;
+    let price = effectiveBasePrice;
 
     // Add modifiers price
-    if (product.modifierGroups) {
-      product.modifierGroups.forEach(group => {
+    if (activeModifierGroups.length > 0) {
+      activeModifierGroups.forEach(group => {
         const selectedIds = modifierSelection[group.id] || [];
         if (group.options) {
           group.options.forEach(opt => {
@@ -113,7 +257,7 @@ export default function ProductScreen() {
     }
 
     return price * quantity;
-  }, [product, modifierSelection, quantity]);
+  }, [product, activeModifierGroups, modifierSelection, quantity, effectiveBasePrice]);
 
   const handleAddToCart = async () => {
     if (hasInvalidModifiers) {
@@ -122,6 +266,26 @@ export default function ProductScreen() {
     }
 
     if (!product) return;
+
+    if (cannotAddVariableProduct) {
+      Alert.alert(
+        'Select Variation',
+        hasVariationChoices
+          ? 'Please choose an available variation before adding this item.'
+          : 'This variable product has no available variations yet.'
+      );
+      return;
+    }
+
+    if (cannotAddGroupedProduct) {
+      Alert.alert(
+        'Grouped Product',
+        hasGroupedItems
+          ? 'Add the grouped items individually from the list below.'
+          : 'This grouped product has no available items yet.'
+      );
+      return;
+    }
     
     if (!product.merchantProductId) {
       Alert.alert('Error', 'Merchant product details not found.');
@@ -132,8 +296,8 @@ export default function ProductScreen() {
 
     // Prepare selected modifiers for CartContext
     const selectedModifierPayload: any[] = [];
-    if (product.modifierGroups && product.modifierGroups.length > 0) {
-      for (const group of product.modifierGroups) {
+    if (activeModifierGroups.length > 0) {
+      for (const group of activeModifierGroups) {
         const selectedIds = modifierSelection[group.id] || [];
         const options = group.options || [];
         selectedIds.forEach((id) => {
@@ -157,14 +321,60 @@ export default function ProductScreen() {
         productId: Number(product.id),
         merchantProductId: Number(product.merchantProductId),
         quantity,
-        priceAtAdd: product.basePrice || 0,
+        priceAtAdd: effectiveBasePrice,
+        compareAtPrice: effectiveCompareAtPrice ?? null,
         selectedModifiers: selectedModifierPayload,
+        selectedVariation: selectedVariation
+          ? { relationTo: 'prod-variations', value: selectedVariation.id }
+          : null,
       });
       setIsAddingToCart(false);
       navigation.goBack();
     } catch (e: any) {
       setIsAddingToCart(false);
       Alert.alert('Error', e.message || 'Failed to add to cart');
+    }
+  };
+
+  const handleGroupedItemPress = async (item: NonNullable<typeof product>['groupedItems'][number]) => {
+    if (!item.isAvailable) {
+      Alert.alert('Unavailable', `${item.name} is currently unavailable at this merchant.`);
+      return;
+    }
+
+    if (!item.merchantProductId) {
+      navigation.navigate('Product', {
+        productId: String(item.productId),
+        merchantId,
+      });
+      return;
+    }
+
+    if (item.productType !== 'simple' || item.hasRequiredModifiers) {
+      navigation.navigate('Product', {
+        productId: String(item.productId),
+        merchantId,
+        merchantProductId: item.merchantProductId,
+      });
+      return;
+    }
+
+    try {
+      setIsAddingToCart(true);
+      await addToCart({
+        merchantId: Number(merchantId),
+        productId: Number(item.productId),
+        merchantProductId: Number(item.merchantProductId),
+        quantity: item.defaultQuantity || 1,
+        priceAtAdd: item.basePrice || 0,
+        compareAtPrice: item.compareAtPrice ?? null,
+        selectedModifiers: [],
+      });
+      Alert.alert('Added to Cart', `${item.name} added to your order.`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to add grouped item');
+    } finally {
+      setIsAddingToCart(false);
     }
   };
 
@@ -177,7 +387,7 @@ export default function ProductScreen() {
         <PullToRefreshLayout
           isRefreshing={refreshing || isRefetching}
           onRefresh={onRefresh}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: bottomContentSpacing }}
         >
           {/* Skeleton image */}
           <View style={{ width: '100%', height: 300, backgroundColor: '#F3F4F6' }}>
@@ -220,19 +430,23 @@ export default function ProductScreen() {
     );
   }
 
+  const selectedVariationSummary = selectedVariation?.attributeItems
+    ?.map((item) => `${item.attributeName}: ${item.termName}`)
+    .join(' • ');
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
 
       <PullToRefreshLayout
         onRefresh={onRefresh}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: bottomContentSpacing }}
       >
         {/* Header Image */}
         <View style={styles.imageContainer}>
-          {productImageUrl ? (
+          {effectiveImageUrl ? (
             <Image
-              source={{ uri: productImageUrl }}
+              source={{ uri: effectiveImageUrl }}
               style={styles.image}
               resizeMode="cover"
             />
@@ -266,26 +480,245 @@ export default function ProductScreen() {
             <Text style={[styles.title, { color: colors.text }]}>{product.name}</Text>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[styles.price, { color: colors.primary }]}>
-                {formatCurrency(product.basePrice || 0)}
+                {formatCurrency(effectiveBasePrice)}
               </Text>
-              {product.compareAtPrice && product.compareAtPrice > (product.basePrice || 0) && (
+              {effectiveCompareAtPrice && effectiveCompareAtPrice > effectiveBasePrice && (
                 <Text style={[styles.comparePrice, { color: colors.textSecondary }]}>
-                  {formatCurrency(product.compareAtPrice)}
+                  {formatCurrency(effectiveCompareAtPrice)}
                 </Text>
               )}
             </View>
           </View>
 
-          {product.shortDescription ? (
+          {selectedVariationSummary ? (
+            <View style={styles.selectedVariationBadge}>
+              <Ionicons name="options-outline" size={16} color={colors.primary} />
+              <Text style={[styles.selectedVariationText, { color: colors.primary }]}>
+                {selectedVariationSummary}
+              </Text>
+            </View>
+          ) : null}
+
+          {effectiveDescription ? (
             <Text style={[styles.description, { color: colors.textSecondary }]}>
-              {product.shortDescription}
+              {effectiveDescription}
             </Text>
           ) : null}
 
+          {isVariableProduct && (
+            <View style={styles.variationsContainer}>
+              <Text style={styles.sectionTitle}>Choose variation</Text>
+              {hasVariationChoices ? (
+                <View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.variationCarouselList}
+                    decelerationRate="fast"
+                    snapToInterval={variationSnapInterval}
+                    snapToAlignment="start"
+                    disableIntervalMomentum
+                    onMomentumScrollEnd={(event) => {
+                      const nextIndex = Math.round(
+                        event.nativeEvent.contentOffset.x / variationSnapInterval
+                      );
+                      const nextVariation = variations[nextIndex];
+                      if (nextVariation) {
+                        setSelectedVariationId(nextVariation.id);
+                      }
+                    }}
+                  >
+                    {variations.map((variation) => {
+                      const isSelected = !!selectedVariation && String(selectedVariation.id) === String(variation.id);
+                      const isOutOfStock =
+                        typeof variation.stock_quantity === 'number' && variation.stock_quantity <= 0;
+                      const variationImageUrl = variation.image ? getImageUrl(variation.image) : null;
+                      const variationSummary = variation.attributeItems
+                        ?.map((item) => `${item.attributeName}: ${item.termName}`)
+                        .join(' • ');
+
+                      return (
+                        <View
+                          key={String(variation.id)}
+                          style={{ width: variationCardWidth, marginRight: variationCardSpacing }}
+                        >
+                          <TouchableOpacity
+                            style={[
+                              styles.variationCarouselCard,
+                              isSelected && styles.variationCarouselCardSelected,
+                              isOutOfStock && styles.variationOptionDisabled,
+                            ]}
+                            onPress={() => {
+                              if (!isOutOfStock) {
+                                setSelectedVariationId(variation.id);
+                              }
+                            }}
+                            activeOpacity={0.9}
+                            disabled={isOutOfStock}
+                          >
+                            <View style={styles.variationCarouselImageContainer}>
+                              {variationImageUrl ? (
+                                <Image
+                                  source={{ uri: variationImageUrl }}
+                                  style={styles.variationCarouselImage}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <View style={styles.variationCarouselImagePlaceholder}>
+                                  <Ionicons name="image-outline" size={28} color="#9CA3AF" />
+                                </View>
+                              )}
+                              <View style={styles.variationCarouselBadgeRow}>
+                                <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                                  {isSelected ? <View style={styles.radioInner} /> : null}
+                                </View>
+                                <View
+                                  style={[
+                                    styles.variationStatusBadge,
+                                    isOutOfStock && styles.variationStatusBadgeDisabled,
+                                  ]}
+                                >
+                                  <Text style={styles.variationStatusBadgeText}>
+                                    {isOutOfStock ? 'Out of stock' : 'Available'}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+
+                            <View style={styles.variationCarouselInfo}>
+                              <Text
+                                style={[
+                                  styles.variationName,
+                                  isSelected && styles.variationNameSelected,
+                                  isOutOfStock && styles.variationNameDisabled,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {variation.name}
+                              </Text>
+                              {variationSummary ? (
+                                <Text style={styles.variationSummary} numberOfLines={2}>
+                                  {variationSummary}
+                                </Text>
+                              ) : null}
+                              {variation.short_description ? (
+                                <Text style={styles.variationDescription} numberOfLines={2}>
+                                  {variation.short_description}
+                                </Text>
+                              ) : null}
+                              <View style={styles.variationCarouselFooter}>
+                                <View>
+                                  <Text style={styles.variationPrice}>
+                                    {formatCurrency(variation.base_price || 0)}
+                                  </Text>
+                                  {variation.compare_at_price && variation.compare_at_price > (variation.base_price || 0) ? (
+                                    <Text style={styles.variationComparePrice}>
+                                      {formatCurrency(variation.compare_at_price)}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                                <Ionicons
+                                  name="chevron-forward"
+                                  size={18}
+                                  color={isSelected ? '#eba236' : '#9CA3AF'}
+                                />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              ) : (
+                <View style={styles.variationEmptyState}>
+                  <Text style={styles.variationEmptyStateText}>
+                    Variations are not available for this product yet.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {isGroupedProduct && (
+            <View style={styles.groupedContainer}>
+              <Text style={styles.sectionTitle}>Included items</Text>
+              {hasGroupedItems ? (
+                <View style={styles.groupedList}>
+                  {groupedItems.map((item) => {
+                    const itemImageUrl = item.image ? getImageUrl(item.image) : null;
+                    const actionLabel = !item.isAvailable
+                      ? 'Unavailable'
+                      : item.productType === 'simple' && !item.hasRequiredModifiers
+                        ? 'Add'
+                        : item.productType === 'variable'
+                          ? 'Choose'
+                          : item.productType === 'grouped'
+                            ? 'Open'
+                            : 'Customize';
+
+                    return (
+                      <TouchableOpacity
+                        key={String(item.id)}
+                        style={styles.groupedCard}
+                        activeOpacity={0.92}
+                        onPress={() => handleGroupedItemPress(item)}
+                      >
+                        <View style={styles.groupedCardTopRow}>
+                          <View style={styles.groupedImageWrap}>
+                            {itemImageUrl ? (
+                              <Image source={{ uri: itemImageUrl }} style={styles.groupedImage} resizeMode="cover" />
+                            ) : (
+                              <View style={styles.groupedImagePlaceholder}>
+                                <Ionicons name="image-outline" size={22} color="#9CA3AF" />
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.groupedInfo}>
+                            <View style={styles.groupedMetaRow}>
+                              <Text style={styles.groupedQtyBadge}>x{item.defaultQuantity}</Text>
+                              <Text style={styles.groupedTypeBadge}>{item.productType}</Text>
+                            </View>
+                            <Text style={styles.groupedName}>{item.name}</Text>
+                            {item.shortDescription ? (
+                              <Text style={styles.groupedDescription} numberOfLines={2}>
+                                {item.shortDescription}
+                              </Text>
+                            ) : null}
+                            <View style={styles.groupedPriceRow}>
+                              <Text style={styles.groupedPrice}>{formatCurrency(item.basePrice || 0)}</Text>
+                              {item.compareAtPrice && item.compareAtPrice > (item.basePrice || 0) ? (
+                                <Text style={styles.groupedComparePrice}>{formatCurrency(item.compareAtPrice)}</Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        </View>
+                        <View style={styles.groupedCardBottomRow}>
+                          <Text style={[styles.groupedAvailability, !item.isAvailable && styles.groupedAvailabilityUnavailable]}>
+                            {item.isAvailable ? 'Available' : 'Currently unavailable'}
+                          </Text>
+                          <View style={[styles.groupedActionButton, !item.isAvailable && styles.groupedActionButtonDisabled]}>
+                            <Text style={styles.groupedActionButtonText}>{actionLabel}</Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.groupedEmptyState}>
+                  <Text style={styles.groupedEmptyStateText}>
+                    Grouped items are not available for this product yet.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Modifiers */}
-          {product.modifierGroups && product.modifierGroups.length > 0 && (
+          {activeModifierGroups.length > 0 && (
             <ProductModifiers
-              modifierGroups={product.modifierGroups}
+              modifierGroups={activeModifierGroups}
               selected={modifierSelection}
               onChange={setModifierSelection}
             />
@@ -295,40 +728,51 @@ export default function ProductScreen() {
 
       {/* Bottom Action Bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10, backgroundColor: colors.card }]}>
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity
-            style={[styles.quantityButton, { borderColor: colors.border }]}
-            onPress={() => setQuantity(Math.max(1, quantity - 1))}
-          >
-            <Ionicons name="remove" size={20} color={colors.text} />
-          </TouchableOpacity>
-
-          <Text style={[styles.quantityText, { color: colors.text }]}>{quantity}</Text>
-
-          <TouchableOpacity
-            style={[styles.quantityButton, { borderColor: colors.border }]}
-            onPress={() => setQuantity(quantity + 1)}
-          >
-            <Ionicons name="add" size={20} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.addToCartButton,
-            { backgroundColor: hasInvalidModifiers ? '#ccc' : colors.primary }
-          ]}
-          onPress={handleAddToCart}
-          disabled={hasInvalidModifiers || isAddingToCart}
-        >
-          {isAddingToCart ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.addToCartText}>
-              Add to Order • {formatCurrency(totalPrice)}
+        {isGroupedProduct ? (
+          <View style={styles.groupedBottomBarMessage}>
+            <Ionicons name="layers-outline" size={18} color={colors.textSecondary} />
+            <Text style={[styles.groupedBottomBarText, { color: colors.textSecondary }]}>
+              Add the grouped items individually from the list above
             </Text>
-          )}
-        </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={[styles.quantityButton, { borderColor: colors.border }]}
+                onPress={() => setQuantity(Math.max(1, quantity - 1))}
+              >
+                <Ionicons name="remove" size={20} color={colors.text} />
+              </TouchableOpacity>
+
+              <Text style={[styles.quantityText, { color: colors.text }]}>{quantity}</Text>
+
+              <TouchableOpacity
+                style={[styles.quantityButton, { borderColor: colors.border }]}
+                onPress={() => setQuantity(quantity + 1)}
+              >
+                <Ionicons name="add" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.addToCartButton,
+                { backgroundColor: hasInvalidModifiers || cannotAddVariableProduct ? '#ccc' : colors.primary }
+              ]}
+              onPress={handleAddToCart}
+              disabled={hasInvalidModifiers || cannotAddVariableProduct || isAddingToCart}
+            >
+              {isAddingToCart ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.addToCartText}>
+                  Add to Order • {formatCurrency(totalPrice)}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -406,6 +850,160 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 20,
   },
+  selectedVariationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFF7E8',
+    marginBottom: 12,
+  },
+  selectedVariationText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  groupedContainer: {
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  groupedList: {
+    gap: 12,
+  },
+  groupedCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#fff',
+    padding: 14,
+  },
+  groupedCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  groupedImageWrap: {
+    marginRight: 12,
+  },
+  groupedImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+  },
+  groupedImagePlaceholder: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupedInfo: {
+    flex: 1,
+  },
+  groupedMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  groupedQtyBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+    backgroundColor: '#FFF7E8',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  groupedTypeBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+    textTransform: 'uppercase',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  groupedName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  groupedDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  groupedPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  groupedPrice: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  groupedComparePrice: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+    marginLeft: 8,
+  },
+  groupedCardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  groupedAvailability: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  groupedAvailabilityUnavailable: {
+    color: '#DC2626',
+  },
+  groupedActionButton: {
+    minWidth: 88,
+    borderRadius: 999,
+    backgroundColor: '#eba236',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  groupedActionButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  groupedActionButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  groupedEmptyState: {
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  groupedEmptyStateText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -452,5 +1050,210 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  groupedBottomBarMessage: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+  },
+  groupedBottomBarText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#111827',
+  },
+  variationsContainer: {
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  variationsList: {
+    gap: 12,
+  },
+  variationCarouselList: {
+    paddingRight: 16,
+  },
+  variationCarouselCard: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    overflow: 'hidden',
+  },
+  variationCarouselCardSelected: {
+    borderColor: '#eba236',
+    backgroundColor: '#FFF9F0',
+  },
+  variationCarouselImageContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 150,
+    backgroundColor: '#F3F4F6',
+  },
+  variationCarouselImage: {
+    width: '100%',
+    height: '100%',
+  },
+  variationCarouselImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  variationCarouselBadgeRow: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  variationStatusBadge: {
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  variationStatusBadgeDisabled: {
+    backgroundColor: 'rgba(127,29,29,0.78)',
+  },
+  variationStatusBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  variationCarouselInfo: {
+    padding: 12,
+  },
+  variationCarouselFooter: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  variationOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#fff',
+  },
+  variationOptionSelected: {
+    borderColor: '#eba236',
+    backgroundColor: '#FFF9F0',
+  },
+  variationOptionDisabled: {
+    opacity: 0.55,
+  },
+  variationOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    flex: 1,
+  },
+  variationThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+  },
+  variationTextBlock: {
+    flex: 1,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioSelected: {
+    borderColor: '#eba236',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#eba236',
+  },
+  variationName: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  variationNameSelected: {
+    color: '#111827',
+    fontWeight: '600',
+  },
+  variationNameDisabled: {
+    color: '#9CA3AF',
+  },
+  variationSummary: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  variationDescription: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  variationStock: {
+    fontSize: 12,
+    color: '#059669',
+    marginTop: 6,
+    fontWeight: '600',
+  },
+  variationStockDisabled: {
+    color: '#DC2626',
+  },
+  variationPriceBlock: {
+    alignItems: 'flex-end',
+    marginLeft: 12,
+  },
+  variationPrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  variationComparePrice: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+    marginTop: 4,
+  },
+  variationEmptyState: {
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  variationEmptyStateText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
   },
 });

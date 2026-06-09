@@ -234,6 +234,10 @@ export const enum_prod_attributes_type = pgEnum('enum_prod_attributes_type', [
   'button',
   'radio',
 ])
+export const enum_prod_variations_modifier_behavior_mode = pgEnum(
+  'enum_prod_variations_modifier_behavior_mode',
+  ['inherit_product', 'variation_specific', 'hybrid'],
+)
 export const enum_merchant_products_added_by = pgEnum('enum_merchant_products_added_by', [
   'vendor',
   'merchant',
@@ -242,6 +246,62 @@ export const enum_modifier_groups_selection_type = pgEnum('enum_modifier_groups_
   'single',
   'multiple',
 ])
+export const enum_variation_modifier_groups_selection_type = pgEnum(
+  'enum_variation_modifier_groups_selection_type',
+  ['single', 'multiple'],
+)
+export const enum_variation_modifier_group_overrides_mode = pgEnum(
+  'enum_variation_modifier_group_overrides_mode',
+  ['inherit', 'hide', 'override'],
+)
+export const enum_variation_modifier_group_overrides_required_behavior = pgEnum(
+  'enum_variation_modifier_group_overrides_required_behavior',
+  ['inherit', 'required', 'optional'],
+)
+export const enum_variation_modifier_option_overrides_mode = pgEnum(
+  'enum_variation_modifier_option_overrides_mode',
+  ['inherit', 'hide', 'override'],
+)
+export const enum_variation_modifier_option_overrides_default_behavior = pgEnum(
+  'enum_variation_modifier_option_overrides_default_behavior',
+  ['inherit', 'default', 'not_default'],
+)
+export const enum_variation_modifier_option_overrides_availability_behavior = pgEnum(
+  'enum_variation_modifier_option_overrides_availability_behavior',
+  ['inherit', 'available', 'unavailable'],
+)
+export const enum_merchant_modifier_selection_type = pgEnum(
+  'enum_merchant_modifier_selection_type',
+  ['single', 'multiple'],
+)
+export const enum_merchant_modifier_group_override_mode = pgEnum(
+  'enum_merchant_modifier_group_override_mode',
+  ['inherit', 'hide', 'override'],
+)
+export const enum_merchant_modifier_group_required_behavior = pgEnum(
+  'enum_merchant_modifier_group_required_behavior',
+  ['inherit', 'required', 'optional'],
+)
+export const enum_merchant_modifier_option_override_mode = pgEnum(
+  'enum_merchant_modifier_option_override_mode',
+  ['inherit', 'hide', 'override'],
+)
+export const enum_merchant_modifier_option_default_behavior = pgEnum(
+  'enum_merchant_modifier_option_default_behavior',
+  ['inherit', 'default', 'not_default'],
+)
+export const enum_merchant_modifier_option_availability_behavior = pgEnum(
+  'enum_merchant_modifier_option_availability_behavior',
+  ['inherit', 'available', 'unavailable'],
+)
+export const enum_merchant_variation_modifier_group_target_source = pgEnum(
+  'enum_merchant_variation_modifier_group_target_source',
+  ['product_base', 'variation_added'],
+)
+export const enum_merchant_variation_modifier_option_target_source = pgEnum(
+  'enum_merchant_variation_modifier_option_target_source',
+  ['product_base', 'variation_added'],
+)
 export const enum_prod_tags_tag_type = pgEnum('enum_prod_tags_tag_type', [
   'general',
   'dietary',
@@ -1434,7 +1494,7 @@ export const cart_items = pgTable(
     compareAtPrice: numeric('compare_at_price'),
     subtotal: numeric('subtotal').notNull(),
     productSize: enum_cart_items_product_size('product_size'),
-    selectedVariation: integer('selected_variation_id').references(() => products.id, {
+    selectedVariation: integer('selected_variation_id').references(() => prod_variations.id, {
       onDelete: 'set null',
     }),
     selectedModifiers: jsonb('selected_modifiers'),
@@ -1547,9 +1607,16 @@ export const prod_variations = pgTable(
     base_price: numeric('base_price'),
     compare_at_price: numeric('compare_at_price'),
     stock_quantity: numeric('stock_quantity').default('0'),
+    modifier_behavior_mode: enum_prod_variations_modifier_behavior_mode('modifier_behavior_mode')
+      .default('inherit_product')
+      .notNull(),
     is_used_for_variations: boolean('is_used_for_variations').default(true),
     is_visible: boolean('is_visible').default(true),
     sort_order: numeric('sort_order').default('0'),
+    modifier_configuration_hint: varchar('modifier_configuration_hint').default(
+      'Choose a Modifier Behavior Mode first. Then manage the related records in Variation Modifier Groups / Options and Variation Modifier Overrides.',
+    ),
+    effective_modifier_preview: jsonb('effective_modifier_preview'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1747,6 +1814,382 @@ export const modifier_options = pgTable(
     ),
     modifier_options_updated_at_idx: index('modifier_options_updated_at_idx').on(columns.updatedAt),
     modifier_options_created_at_idx: index('modifier_options_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const variation_modifier_groups = pgTable(
+  'variation_modifier_groups',
+  {
+    id: serial('id').primaryKey(),
+    variation_id: integer('variation_id')
+      .notNull()
+      .references(() => prod_variations.id, {
+        onDelete: 'set null',
+      }),
+    name: varchar('name').notNull(),
+    selection_type: enum_variation_modifier_groups_selection_type('selection_type')
+      .default('single')
+      .notNull(),
+    is_required: boolean('is_required').default(false),
+    min_selections: numeric('min_selections').default('0'),
+    max_selections: numeric('max_selections'),
+    sort_order: numeric('sort_order').default('0'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    variation_modifier_groups_variation_sort_idx: index(
+      'variation_modifier_groups_variation_sort_idx',
+    ).on(columns.variation_id, columns.sort_order),
+    variation_modifier_groups_updated_at_idx: index(
+      'variation_modifier_groups_updated_at_idx',
+    ).on(columns.updatedAt),
+    variation_modifier_groups_created_at_idx: index(
+      'variation_modifier_groups_created_at_idx',
+    ).on(columns.createdAt),
+  }),
+)
+
+export const variation_modifier_options = pgTable(
+  'variation_modifier_options',
+  {
+    id: serial('id').primaryKey(),
+    variation_modifier_group_id: integer('variation_modifier_group_id')
+      .notNull()
+      .references(() => variation_modifier_groups.id, {
+        onDelete: 'set null',
+      }),
+    name: varchar('name').notNull(),
+    price_adjustment: numeric('price_adjustment').default('0'),
+    is_default: boolean('is_default').default(false),
+    is_available: boolean('is_available').default(true),
+    sort_order: numeric('sort_order').default('0'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    variation_modifier_options_group_sort_idx: index(
+      'variation_modifier_options_group_sort_idx',
+    ).on(columns.variation_modifier_group_id, columns.sort_order),
+    variation_modifier_options_updated_at_idx: index(
+      'variation_modifier_options_updated_at_idx',
+    ).on(columns.updatedAt),
+    variation_modifier_options_created_at_idx: index(
+      'variation_modifier_options_created_at_idx',
+    ).on(columns.createdAt),
+  }),
+)
+
+export const variation_modifier_group_overrides = pgTable(
+  'variation_modifier_group_overrides',
+  {
+    id: serial('id').primaryKey(),
+    variation_id: integer('variation_id')
+      .notNull()
+      .references(() => prod_variations.id, {
+        onDelete: 'set null',
+      }),
+    base_modifier_group_id: integer('base_modifier_group_id')
+      .notNull()
+      .references(() => modifier_groups.id, {
+        onDelete: 'set null',
+      }),
+    mode: enum_variation_modifier_group_overrides_mode('mode').default('inherit').notNull(),
+    name_override: varchar('name_override'),
+    selection_type_override: enum_variation_modifier_groups_selection_type('selection_type_override'),
+    required_behavior: enum_variation_modifier_group_overrides_required_behavior(
+      'required_behavior',
+    ).default('inherit'),
+    min_selections_override: numeric('min_selections_override'),
+    max_selections_override: numeric('max_selections_override'),
+    sort_order_override: numeric('sort_order_override'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    variation_modifier_group_overrides_variation_group_idx: index(
+      'variation_modifier_group_overrides_variation_group_idx',
+    ).on(columns.variation_id, columns.base_modifier_group_id),
+    variation_modifier_group_overrides_updated_at_idx: index(
+      'variation_modifier_group_overrides_updated_at_idx',
+    ).on(columns.updatedAt),
+    variation_modifier_group_overrides_created_at_idx: index(
+      'variation_modifier_group_overrides_created_at_idx',
+    ).on(columns.createdAt),
+  }),
+)
+
+export const variation_modifier_option_overrides = pgTable(
+  'variation_modifier_option_overrides',
+  {
+    id: serial('id').primaryKey(),
+    variation_id: integer('variation_id')
+      .notNull()
+      .references(() => prod_variations.id, {
+        onDelete: 'set null',
+      }),
+    base_modifier_option_id: integer('base_modifier_option_id')
+      .notNull()
+      .references(() => modifier_options.id, {
+        onDelete: 'set null',
+      }),
+    mode: enum_variation_modifier_option_overrides_mode('mode').default('inherit').notNull(),
+    name_override: varchar('name_override'),
+    price_adjustment_override: numeric('price_adjustment_override'),
+    default_behavior: enum_variation_modifier_option_overrides_default_behavior(
+      'default_behavior',
+    ).default('inherit'),
+    availability_behavior: enum_variation_modifier_option_overrides_availability_behavior(
+      'availability_behavior',
+    ).default('inherit'),
+    sort_order_override: numeric('sort_order_override'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    variation_modifier_option_overrides_variation_option_idx: index(
+      'variation_modifier_option_overrides_variation_option_idx',
+    ).on(columns.variation_id, columns.base_modifier_option_id),
+    variation_modifier_option_overrides_updated_at_idx: index(
+      'variation_modifier_option_overrides_updated_at_idx',
+    ).on(columns.updatedAt),
+    variation_modifier_option_overrides_created_at_idx: index(
+      'variation_modifier_option_overrides_created_at_idx',
+    ).on(columns.createdAt),
+  }),
+)
+
+export const merchant_product_modifier_group_overrides = pgTable(
+  'merchant_product_modifier_group_overrides',
+  {
+    id: serial('id').primaryKey(),
+    merchant_product_id: integer('merchant_product_id')
+      .notNull()
+      .references(() => merchant_products.id, {
+        onDelete: 'set null',
+      }),
+    base_modifier_group_id: integer('base_modifier_group_id')
+      .notNull()
+      .references(() => modifier_groups.id, {
+        onDelete: 'set null',
+      }),
+    mode: enum_merchant_modifier_group_override_mode('mode').default('inherit').notNull(),
+    name_override: varchar('name_override'),
+    selection_type_override: enum_merchant_modifier_selection_type('selection_type_override'),
+    required_behavior: enum_merchant_modifier_group_required_behavior('required_behavior').default(
+      'inherit',
+    ),
+    min_selections_override: numeric('min_selections_override'),
+    max_selections_override: numeric('max_selections_override'),
+    sort_order_override: numeric('sort_order_override'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    merchant_product_modifier_group_overrides_lookup_idx: index(
+      'merchant_product_modifier_group_overrides_lookup_idx',
+    ).on(columns.merchant_product_id, columns.base_modifier_group_id),
+    merchant_product_modifier_group_overrides_updated_at_idx: index(
+      'merchant_product_modifier_group_overrides_updated_at_idx',
+    ).on(columns.updatedAt),
+    merchant_product_modifier_group_overrides_created_at_idx: index(
+      'merchant_product_modifier_group_overrides_created_at_idx',
+    ).on(columns.createdAt),
+  }),
+)
+
+export const merchant_product_modifier_option_overrides = pgTable(
+  'merchant_product_modifier_option_overrides',
+  {
+    id: serial('id').primaryKey(),
+    merchant_product_id: integer('merchant_product_id')
+      .notNull()
+      .references(() => merchant_products.id, {
+        onDelete: 'set null',
+      }),
+    base_modifier_option_id: integer('base_modifier_option_id')
+      .notNull()
+      .references(() => modifier_options.id, {
+        onDelete: 'set null',
+      }),
+    mode: enum_merchant_modifier_option_override_mode('mode').default('inherit').notNull(),
+    name_override: varchar('name_override'),
+    price_adjustment_override: numeric('price_adjustment_override'),
+    default_behavior: enum_merchant_modifier_option_default_behavior('default_behavior').default(
+      'inherit',
+    ),
+    availability_behavior: enum_merchant_modifier_option_availability_behavior(
+      'availability_behavior',
+    ).default('inherit'),
+    sort_order_override: numeric('sort_order_override'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    merchant_product_modifier_option_overrides_lookup_idx: index(
+      'merchant_product_modifier_option_overrides_lookup_idx',
+    ).on(columns.merchant_product_id, columns.base_modifier_option_id),
+    merchant_product_modifier_option_overrides_updated_at_idx: index(
+      'merchant_product_modifier_option_overrides_updated_at_idx',
+    ).on(columns.updatedAt),
+    merchant_product_modifier_option_overrides_created_at_idx: index(
+      'merchant_product_modifier_option_overrides_created_at_idx',
+    ).on(columns.createdAt),
+  }),
+)
+
+export const merchant_variation_modifier_group_overrides = pgTable(
+  'merchant_variation_modifier_group_overrides',
+  {
+    id: serial('id').primaryKey(),
+    merchant_product_id: integer('merchant_product_id')
+      .notNull()
+      .references(() => merchant_products.id, {
+        onDelete: 'set null',
+      }),
+    variation_id: integer('variation_id')
+      .notNull()
+      .references(() => prod_variations.id, {
+        onDelete: 'set null',
+      }),
+    target_group_source: enum_merchant_variation_modifier_group_target_source(
+      'target_group_source',
+    )
+      .default('product_base')
+      .notNull(),
+    base_modifier_group_id: integer('base_modifier_group_id').references(() => modifier_groups.id, {
+      onDelete: 'set null',
+    }),
+    variation_modifier_group_id: integer('variation_modifier_group_id').references(
+      () => variation_modifier_groups.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+    mode: enum_merchant_modifier_group_override_mode('mode').default('inherit').notNull(),
+    name_override: varchar('name_override'),
+    selection_type_override: enum_merchant_modifier_selection_type('selection_type_override'),
+    required_behavior: enum_merchant_modifier_group_required_behavior('required_behavior').default(
+      'inherit',
+    ),
+    min_selections_override: numeric('min_selections_override'),
+    max_selections_override: numeric('max_selections_override'),
+    sort_order_override: numeric('sort_order_override'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    merchant_variation_modifier_group_overrides_base_idx: index(
+      'merchant_variation_modifier_group_overrides_base_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.base_modifier_group_id),
+    merchant_variation_modifier_group_overrides_variation_added_idx: index(
+      'merchant_variation_modifier_group_overrides_variation_added_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.variation_modifier_group_id),
+    merchant_variation_modifier_group_overrides_updated_at_idx: index(
+      'merchant_variation_modifier_group_overrides_updated_at_idx',
+    ).on(columns.updatedAt),
+    merchant_variation_modifier_group_overrides_created_at_idx: index(
+      'merchant_variation_modifier_group_overrides_created_at_idx',
+    ).on(columns.createdAt),
+  }),
+)
+
+export const merchant_variation_modifier_option_overrides = pgTable(
+  'merchant_variation_modifier_option_overrides',
+  {
+    id: serial('id').primaryKey(),
+    merchant_product_id: integer('merchant_product_id')
+      .notNull()
+      .references(() => merchant_products.id, {
+        onDelete: 'set null',
+      }),
+    variation_id: integer('variation_id')
+      .notNull()
+      .references(() => prod_variations.id, {
+        onDelete: 'set null',
+      }),
+    target_option_source: enum_merchant_variation_modifier_option_target_source(
+      'target_option_source',
+    )
+      .default('product_base')
+      .notNull(),
+    base_modifier_option_id: integer('base_modifier_option_id').references(
+      () => modifier_options.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+    variation_modifier_option_id: integer('variation_modifier_option_id').references(
+      () => variation_modifier_options.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+    mode: enum_merchant_modifier_option_override_mode('mode').default('inherit').notNull(),
+    name_override: varchar('name_override'),
+    price_adjustment_override: numeric('price_adjustment_override'),
+    default_behavior: enum_merchant_modifier_option_default_behavior('default_behavior').default(
+      'inherit',
+    ),
+    availability_behavior: enum_merchant_modifier_option_availability_behavior(
+      'availability_behavior',
+    ).default('inherit'),
+    sort_order_override: numeric('sort_order_override'),
+    is_active: boolean('is_active').default(true),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    merchant_variation_modifier_option_overrides_base_idx: index(
+      'merchant_variation_modifier_option_overrides_base_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.base_modifier_option_id),
+    merchant_variation_modifier_option_overrides_variation_added_idx: index(
+      'merchant_variation_modifier_option_overrides_variation_added_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.variation_modifier_option_id),
+    merchant_variation_modifier_option_overrides_updated_at_idx: index(
+      'merchant_variation_modifier_option_overrides_updated_at_idx',
+    ).on(columns.updatedAt),
+    merchant_variation_modifier_option_overrides_created_at_idx: index(
+      'merchant_variation_modifier_option_overrides_created_at_idx',
+    ).on(columns.createdAt),
   }),
 )
 
@@ -1952,6 +2395,22 @@ export const payload_locked_documents_rels = pgTable(
     'merchant-productsID': integer('merchant_products_id'),
     'modifier-groupsID': integer('modifier_groups_id'),
     'modifier-optionsID': integer('modifier_options_id'),
+    'variation-modifier-groupsID': integer('variation_modifier_groups_id'),
+    'variation-modifier-optionsID': integer('variation_modifier_options_id'),
+    'variation-modifier-group-overridesID': integer('variation_modifier_group_overrides_id'),
+    'variation-modifier-option-overridesID': integer('variation_modifier_option_overrides_id'),
+    'merchant-product-modifier-group-overridesID': integer(
+      'merchant_product_modifier_group_overrides_id',
+    ),
+    'merchant-product-modifier-option-overridesID': integer(
+      'merchant_product_modifier_option_overrides_id',
+    ),
+    'merchant-variation-modifier-group-overridesID': integer(
+      'merchant_variation_modifier_group_overrides_id',
+    ),
+    'merchant-variation-modifier-option-overridesID': integer(
+      'merchant_variation_modifier_option_overrides_id',
+    ),
     'prod-tagsID': integer('prod_tags_id'),
     'prod-tags-junctionID': integer('prod_tags_junction_id'),
     'tag-groupsID': integer('tag_groups_id'),
@@ -2042,6 +2501,30 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_modifier_options_id_idx: index(
       'payload_locked_documents_rels_modifier_options_id_idx',
     ).on(columns['modifier-optionsID']),
+    payload_locked_documents_rels_variation_modifier_groups_id_idx: index(
+      'payload_locked_documents_rels_variation_modifier_groups_id_idx',
+    ).on(columns['variation-modifier-groupsID']),
+    payload_locked_documents_rels_variation_modifier_options_id_idx: index(
+      'payload_locked_documents_rels_variation_modifier_options_id_idx',
+    ).on(columns['variation-modifier-optionsID']),
+    payload_locked_documents_rels_variation_modifier_group_overrides_id_idx: index(
+      'payload_locked_documents_rels_variation_modifier_group_overrides_id_idx',
+    ).on(columns['variation-modifier-group-overridesID']),
+    payload_locked_documents_rels_variation_modifier_option_overrides_id_idx: index(
+      'payload_locked_documents_rels_variation_modifier_option_overrides_id_idx',
+    ).on(columns['variation-modifier-option-overridesID']),
+    payload_locked_documents_rels_merchant_product_modifier_group_overrides_id_idx: index(
+      'payload_locked_documents_rels_merchant_product_modifier_group_overrides_id_idx',
+    ).on(columns['merchant-product-modifier-group-overridesID']),
+    payload_locked_documents_rels_merchant_product_modifier_option_overrides_id_idx: index(
+      'payload_locked_documents_rels_merchant_product_modifier_option_overrides_id_idx',
+    ).on(columns['merchant-product-modifier-option-overridesID']),
+    payload_locked_documents_rels_merchant_variation_modifier_group_overrides_id_idx: index(
+      'payload_locked_documents_rels_merchant_variation_modifier_group_overrides_id_idx',
+    ).on(columns['merchant-variation-modifier-group-overridesID']),
+    payload_locked_documents_rels_merchant_variation_modifier_option_overrides_id_idx: index(
+      'payload_locked_documents_rels_merchant_variation_modifier_option_overrides_id_idx',
+    ).on(columns['merchant-variation-modifier-option-overridesID']),
     payload_locked_documents_rels_prod_tags_id_idx: index(
       'payload_locked_documents_rels_prod_tags_id_idx',
     ).on(columns['prod-tagsID']),
@@ -2660,9 +3143,9 @@ export const relations_cart_items = relations(cart_items, ({ one }) => ({
     references: [merchant_products.id],
     relationName: 'merchantProduct',
   }),
-  selectedVariation: one(products, {
+  selectedVariation: one(prod_variations, {
     fields: [cart_items.selectedVariation],
-    references: [products.id],
+    references: [prod_variations.id],
     relationName: 'selectedVariation',
   }),
 }))
@@ -2741,6 +3224,136 @@ export const relations_modifier_options = relations(modifier_options, ({ one }) 
     relationName: 'modifier_group_id',
   }),
 }))
+export const relations_variation_modifier_groups = relations(
+  variation_modifier_groups,
+  ({ one }) => ({
+    variation_id: one(prod_variations, {
+      fields: [variation_modifier_groups.variation_id],
+      references: [prod_variations.id],
+      relationName: 'variation_id',
+    }),
+  }),
+)
+export const relations_variation_modifier_options = relations(
+  variation_modifier_options,
+  ({ one }) => ({
+    variation_modifier_group_id: one(variation_modifier_groups, {
+      fields: [variation_modifier_options.variation_modifier_group_id],
+      references: [variation_modifier_groups.id],
+      relationName: 'variation_modifier_group_id',
+    }),
+  }),
+)
+export const relations_variation_modifier_group_overrides = relations(
+  variation_modifier_group_overrides,
+  ({ one }) => ({
+    variation_id: one(prod_variations, {
+      fields: [variation_modifier_group_overrides.variation_id],
+      references: [prod_variations.id],
+      relationName: 'variation_id',
+    }),
+    base_modifier_group_id: one(modifier_groups, {
+      fields: [variation_modifier_group_overrides.base_modifier_group_id],
+      references: [modifier_groups.id],
+      relationName: 'base_modifier_group_id',
+    }),
+  }),
+)
+export const relations_variation_modifier_option_overrides = relations(
+  variation_modifier_option_overrides,
+  ({ one }) => ({
+    variation_id: one(prod_variations, {
+      fields: [variation_modifier_option_overrides.variation_id],
+      references: [prod_variations.id],
+      relationName: 'variation_id',
+    }),
+    base_modifier_option_id: one(modifier_options, {
+      fields: [variation_modifier_option_overrides.base_modifier_option_id],
+      references: [modifier_options.id],
+      relationName: 'base_modifier_option_id',
+    }),
+  }),
+)
+export const relations_merchant_product_modifier_group_overrides = relations(
+  merchant_product_modifier_group_overrides,
+  ({ one }) => ({
+    merchant_product_id: one(merchant_products, {
+      fields: [merchant_product_modifier_group_overrides.merchant_product_id],
+      references: [merchant_products.id],
+      relationName: 'merchant_product_id',
+    }),
+    base_modifier_group_id: one(modifier_groups, {
+      fields: [merchant_product_modifier_group_overrides.base_modifier_group_id],
+      references: [modifier_groups.id],
+      relationName: 'base_modifier_group_id',
+    }),
+  }),
+)
+export const relations_merchant_product_modifier_option_overrides = relations(
+  merchant_product_modifier_option_overrides,
+  ({ one }) => ({
+    merchant_product_id: one(merchant_products, {
+      fields: [merchant_product_modifier_option_overrides.merchant_product_id],
+      references: [merchant_products.id],
+      relationName: 'merchant_product_id',
+    }),
+    base_modifier_option_id: one(modifier_options, {
+      fields: [merchant_product_modifier_option_overrides.base_modifier_option_id],
+      references: [modifier_options.id],
+      relationName: 'base_modifier_option_id',
+    }),
+  }),
+)
+export const relations_merchant_variation_modifier_group_overrides = relations(
+  merchant_variation_modifier_group_overrides,
+  ({ one }) => ({
+    merchant_product_id: one(merchant_products, {
+      fields: [merchant_variation_modifier_group_overrides.merchant_product_id],
+      references: [merchant_products.id],
+      relationName: 'merchant_product_id',
+    }),
+    variation_id: one(prod_variations, {
+      fields: [merchant_variation_modifier_group_overrides.variation_id],
+      references: [prod_variations.id],
+      relationName: 'variation_id',
+    }),
+    base_modifier_group_id: one(modifier_groups, {
+      fields: [merchant_variation_modifier_group_overrides.base_modifier_group_id],
+      references: [modifier_groups.id],
+      relationName: 'base_modifier_group_id',
+    }),
+    variation_modifier_group_id: one(variation_modifier_groups, {
+      fields: [merchant_variation_modifier_group_overrides.variation_modifier_group_id],
+      references: [variation_modifier_groups.id],
+      relationName: 'variation_modifier_group_id',
+    }),
+  }),
+)
+export const relations_merchant_variation_modifier_option_overrides = relations(
+  merchant_variation_modifier_option_overrides,
+  ({ one }) => ({
+    merchant_product_id: one(merchant_products, {
+      fields: [merchant_variation_modifier_option_overrides.merchant_product_id],
+      references: [merchant_products.id],
+      relationName: 'merchant_product_id',
+    }),
+    variation_id: one(prod_variations, {
+      fields: [merchant_variation_modifier_option_overrides.variation_id],
+      references: [prod_variations.id],
+      relationName: 'variation_id',
+    }),
+    base_modifier_option_id: one(modifier_options, {
+      fields: [merchant_variation_modifier_option_overrides.base_modifier_option_id],
+      references: [modifier_options.id],
+      relationName: 'base_modifier_option_id',
+    }),
+    variation_modifier_option_id: one(variation_modifier_options, {
+      fields: [merchant_variation_modifier_option_overrides.variation_modifier_option_id],
+      references: [variation_modifier_options.id],
+      relationName: 'variation_modifier_option_id',
+    }),
+  }),
+)
 export const relations_prod_tags = relations(prod_tags, ({ one }) => ({
   parent_tag_id: one(prod_tags, {
     fields: [prod_tags.parent_tag_id],
@@ -2926,6 +3539,55 @@ export const relations_payload_locked_documents_rels = relations(
       references: [modifier_options.id],
       relationName: 'modifier-options',
     }),
+    'variation-modifier-groupsID': one(variation_modifier_groups, {
+      fields: [payload_locked_documents_rels['variation-modifier-groupsID']],
+      references: [variation_modifier_groups.id],
+      relationName: 'variation-modifier-groups',
+    }),
+    'variation-modifier-optionsID': one(variation_modifier_options, {
+      fields: [payload_locked_documents_rels['variation-modifier-optionsID']],
+      references: [variation_modifier_options.id],
+      relationName: 'variation-modifier-options',
+    }),
+    'variation-modifier-group-overridesID': one(variation_modifier_group_overrides, {
+      fields: [payload_locked_documents_rels['variation-modifier-group-overridesID']],
+      references: [variation_modifier_group_overrides.id],
+      relationName: 'variation-modifier-group-overrides',
+    }),
+    'variation-modifier-option-overridesID': one(variation_modifier_option_overrides, {
+      fields: [payload_locked_documents_rels['variation-modifier-option-overridesID']],
+      references: [variation_modifier_option_overrides.id],
+      relationName: 'variation-modifier-option-overrides',
+    }),
+    'merchant-product-modifier-group-overridesID': one(merchant_product_modifier_group_overrides, {
+      fields: [payload_locked_documents_rels['merchant-product-modifier-group-overridesID']],
+      references: [merchant_product_modifier_group_overrides.id],
+      relationName: 'merchant-product-modifier-group-overrides',
+    }),
+    'merchant-product-modifier-option-overridesID': one(
+      merchant_product_modifier_option_overrides,
+      {
+        fields: [payload_locked_documents_rels['merchant-product-modifier-option-overridesID']],
+        references: [merchant_product_modifier_option_overrides.id],
+        relationName: 'merchant-product-modifier-option-overrides',
+      },
+    ),
+    'merchant-variation-modifier-group-overridesID': one(
+      merchant_variation_modifier_group_overrides,
+      {
+        fields: [payload_locked_documents_rels['merchant-variation-modifier-group-overridesID']],
+        references: [merchant_variation_modifier_group_overrides.id],
+        relationName: 'merchant-variation-modifier-group-overrides',
+      },
+    ),
+    'merchant-variation-modifier-option-overridesID': one(
+      merchant_variation_modifier_option_overrides,
+      {
+        fields: [payload_locked_documents_rels['merchant-variation-modifier-option-overridesID']],
+        references: [merchant_variation_modifier_option_overrides.id],
+        relationName: 'merchant-variation-modifier-option-overrides',
+      },
+    ),
     'prod-tagsID': one(prod_tags, {
       fields: [payload_locked_documents_rels['prod-tagsID']],
       references: [prod_tags.id],
@@ -3013,8 +3675,23 @@ type DatabaseSchema = {
   enum_products_catalog_visibility: typeof enum_products_catalog_visibility
   enum_cart_items_product_size: typeof enum_cart_items_product_size
   enum_prod_attributes_type: typeof enum_prod_attributes_type
+  enum_prod_variations_modifier_behavior_mode: typeof enum_prod_variations_modifier_behavior_mode
   enum_merchant_products_added_by: typeof enum_merchant_products_added_by
   enum_modifier_groups_selection_type: typeof enum_modifier_groups_selection_type
+  enum_variation_modifier_groups_selection_type: typeof enum_variation_modifier_groups_selection_type
+  enum_variation_modifier_group_overrides_mode: typeof enum_variation_modifier_group_overrides_mode
+  enum_variation_modifier_group_overrides_required_behavior: typeof enum_variation_modifier_group_overrides_required_behavior
+  enum_variation_modifier_option_overrides_mode: typeof enum_variation_modifier_option_overrides_mode
+  enum_variation_modifier_option_overrides_default_behavior: typeof enum_variation_modifier_option_overrides_default_behavior
+  enum_variation_modifier_option_overrides_availability_behavior: typeof enum_variation_modifier_option_overrides_availability_behavior
+  enum_merchant_modifier_selection_type: typeof enum_merchant_modifier_selection_type
+  enum_merchant_modifier_group_override_mode: typeof enum_merchant_modifier_group_override_mode
+  enum_merchant_modifier_group_required_behavior: typeof enum_merchant_modifier_group_required_behavior
+  enum_merchant_modifier_option_override_mode: typeof enum_merchant_modifier_option_override_mode
+  enum_merchant_modifier_option_default_behavior: typeof enum_merchant_modifier_option_default_behavior
+  enum_merchant_modifier_option_availability_behavior: typeof enum_merchant_modifier_option_availability_behavior
+  enum_merchant_variation_modifier_group_target_source: typeof enum_merchant_variation_modifier_group_target_source
+  enum_merchant_variation_modifier_option_target_source: typeof enum_merchant_variation_modifier_option_target_source
   enum_prod_tags_tag_type: typeof enum_prod_tags_tag_type
   enum_prod_tags_junction_added_by_type: typeof enum_prod_tags_junction_added_by_type
   users_reset_password_tokens: typeof users_reset_password_tokens
@@ -3053,6 +3730,14 @@ type DatabaseSchema = {
   merchant_products: typeof merchant_products
   modifier_groups: typeof modifier_groups
   modifier_options: typeof modifier_options
+  variation_modifier_groups: typeof variation_modifier_groups
+  variation_modifier_options: typeof variation_modifier_options
+  variation_modifier_group_overrides: typeof variation_modifier_group_overrides
+  variation_modifier_option_overrides: typeof variation_modifier_option_overrides
+  merchant_product_modifier_group_overrides: typeof merchant_product_modifier_group_overrides
+  merchant_product_modifier_option_overrides: typeof merchant_product_modifier_option_overrides
+  merchant_variation_modifier_group_overrides: typeof merchant_variation_modifier_group_overrides
+  merchant_variation_modifier_option_overrides: typeof merchant_variation_modifier_option_overrides
   prod_tags: typeof prod_tags
   prod_tags_junction: typeof prod_tags_junction
   tag_groups: typeof tag_groups
@@ -3098,6 +3783,14 @@ type DatabaseSchema = {
   relations_merchant_products: typeof relations_merchant_products
   relations_modifier_groups: typeof relations_modifier_groups
   relations_modifier_options: typeof relations_modifier_options
+  relations_variation_modifier_groups: typeof relations_variation_modifier_groups
+  relations_variation_modifier_options: typeof relations_variation_modifier_options
+  relations_variation_modifier_group_overrides: typeof relations_variation_modifier_group_overrides
+  relations_variation_modifier_option_overrides: typeof relations_variation_modifier_option_overrides
+  relations_merchant_product_modifier_group_overrides: typeof relations_merchant_product_modifier_group_overrides
+  relations_merchant_product_modifier_option_overrides: typeof relations_merchant_product_modifier_option_overrides
+  relations_merchant_variation_modifier_group_overrides: typeof relations_merchant_variation_modifier_group_overrides
+  relations_merchant_variation_modifier_option_overrides: typeof relations_merchant_variation_modifier_option_overrides
   relations_prod_tags: typeof relations_prod_tags
   relations_prod_tags_junction: typeof relations_prod_tags_junction
   relations_tag_groups: typeof relations_tag_groups

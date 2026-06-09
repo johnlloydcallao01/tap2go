@@ -102,6 +102,14 @@ export interface Config {
     'merchant-products': MerchantProduct;
     'modifier-groups': ModifierGroup;
     'modifier-options': ModifierOption;
+    'variation-modifier-groups': VariationModifierGroup;
+    'variation-modifier-options': VariationModifierOption;
+    'variation-modifier-group-overrides': VariationModifierGroupOverride;
+    'variation-modifier-option-overrides': VariationModifierOptionOverride;
+    'merchant-product-modifier-group-overrides': MerchantProductModifierGroupOverride;
+    'merchant-product-modifier-option-overrides': MerchantProductModifierOptionOverride;
+    'merchant-variation-modifier-group-overrides': MerchantVariationModifierGroupOverride;
+    'merchant-variation-modifier-option-overrides': MerchantVariationModifierOptionOverride;
     'prod-tags': ProdTag;
     'prod-tags-junction': ProdTagsJunction;
     'tag-groups': TagGroup;
@@ -149,6 +157,14 @@ export interface Config {
     'merchant-products': MerchantProductsSelect<false> | MerchantProductsSelect<true>;
     'modifier-groups': ModifierGroupsSelect<false> | ModifierGroupsSelect<true>;
     'modifier-options': ModifierOptionsSelect<false> | ModifierOptionsSelect<true>;
+    'variation-modifier-groups': VariationModifierGroupsSelect<false> | VariationModifierGroupsSelect<true>;
+    'variation-modifier-options': VariationModifierOptionsSelect<false> | VariationModifierOptionsSelect<true>;
+    'variation-modifier-group-overrides': VariationModifierGroupOverridesSelect<false> | VariationModifierGroupOverridesSelect<true>;
+    'variation-modifier-option-overrides': VariationModifierOptionOverridesSelect<false> | VariationModifierOptionOverridesSelect<true>;
+    'merchant-product-modifier-group-overrides': MerchantProductModifierGroupOverridesSelect<false> | MerchantProductModifierGroupOverridesSelect<true>;
+    'merchant-product-modifier-option-overrides': MerchantProductModifierOptionOverridesSelect<false> | MerchantProductModifierOptionOverridesSelect<true>;
+    'merchant-variation-modifier-group-overrides': MerchantVariationModifierGroupOverridesSelect<false> | MerchantVariationModifierGroupOverridesSelect<true>;
+    'merchant-variation-modifier-option-overrides': MerchantVariationModifierOptionOverridesSelect<false> | MerchantVariationModifierOptionOverridesSelect<true>;
     'prod-tags': ProdTagsSelect<false> | ProdTagsSelect<true>;
     'prod-tags-junction': ProdTagsJunctionSelect<false> | ProdTagsJunctionSelect<true>;
     'tag-groups': TagGroupsSelect<false> | TagGroupsSelect<true>;
@@ -1650,7 +1666,7 @@ export interface CartItem {
   /**
    * Selected product variation (if product type is variable)
    */
-  selectedVariation?: (number | null) | Product;
+  selectedVariation?: (number | null) | ProdVariation;
   /**
    * Modifiers/options: [{ groupId, optionId, name, price }]. E.g., spice level, cooking preference
    */
@@ -1735,6 +1751,22 @@ export interface MerchantProduct {
    * Quick toggle on/off
    */
   is_available?: boolean | null;
+  /**
+   * Read-only guidance for admins. Use Merchant Product Modifier Overrides for merchant-wide base changes, and Merchant Variation Modifier Overrides when one merchant needs different rules for one selected variation.
+   */
+  merchant_modifier_configuration_hint?: string | null;
+  /**
+   * Read-only preview of the merchant-level effective modifiers for the base product context. Variation-specific merchant overrides are applied when a variation is selected through merchant-aware reads.
+   */
+  effective_modifier_preview?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1787,6 +1819,63 @@ export interface Order {
   createdAt: string;
 }
 /**
+ * Sellable variations for variable products, including variation-specific and hybrid modifier behavior.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prod-variations".
+ */
+export interface ProdVariation {
+  id: number;
+  /**
+   * The variable product this variation belongs to
+   */
+  product_id: number | Product;
+  /**
+   * Inherit Product = use only product-level modifiers. Variation Specific = use only variation-owned groups. Hybrid = combine product groups with overrides and variation-only groups.
+   */
+  modifier_behavior_mode: 'inherit_product' | 'variation_specific' | 'hybrid';
+  name?: string | null;
+  /**
+   * Brief variation description (max 500 characters)
+   */
+  short_description?: string | null;
+  /**
+   * Variation image
+   */
+  image?: (number | null) | Media;
+  sku?: string | null;
+  base_price?: number | null;
+  compare_at_price?: number | null;
+  stock_quantity?: number | null;
+  /**
+   * Whether this attribute is used to create variations
+   */
+  is_used_for_variations?: boolean | null;
+  /**
+   * Whether shown on product page
+   */
+  is_visible?: boolean | null;
+  sort_order?: number | null;
+  /**
+   * Read-only guidance for admins. Use variation-modifier-groups for variation-specific groups, and variation-modifier-group-overrides / variation-modifier-option-overrides for hybrid inheritance rules.
+   */
+  modifier_configuration_hint?: string | null;
+  /**
+   * Read-only preview of the final effective modifier configuration for this variation after inheritance, variation-specific ownership, and hybrid overrides are applied.
+   */
+  effective_modifier_preview?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Links products to an order with Snapshot Pricing
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1819,7 +1908,7 @@ export interface OrderItem {
    */
   quantity: number;
   /**
-   * SNAPSHOT: Selected modifiers and their specific prices. Example: [{"name": "Java Rice", "price": 20}]
+   * SNAPSHOT: Selected variation and modifier history. Example: [{ "entryType": "variation", "name": "Large", "selectedVariationId": 12, "price": 0 }, { "entryType": "modifier", "groupName": "Add-ons", "optionName": "Java Rice", "price": 20 }]
    */
   options_snapshot?:
     | {
@@ -2101,41 +2190,6 @@ export interface ProdAttributeTerm {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "prod-variations".
- */
-export interface ProdVariation {
-  id: number;
-  /**
-   * The variable product this variation belongs to
-   */
-  product_id: number | Product;
-  name?: string | null;
-  /**
-   * Brief variation description (max 500 characters)
-   */
-  short_description?: string | null;
-  /**
-   * Variation image
-   */
-  image?: (number | null) | Media;
-  sku?: string | null;
-  base_price?: number | null;
-  compare_at_price?: number | null;
-  stock_quantity?: number | null;
-  /**
-   * Whether this attribute is used to create variations
-   */
-  is_used_for_variations?: boolean | null;
-  /**
-   * Whether shown on product page
-   */
-  is_visible?: boolean | null;
-  sort_order?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "prod-variation-values".
  */
 export interface ProdVariationValue {
@@ -2208,6 +2262,261 @@ export interface ModifierOption {
   is_default?: boolean | null;
   is_available?: boolean | null;
   sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Variation-owned modifier groups. Use these when a specific variation needs its own required/optional choices.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-groups".
+ */
+export interface VariationModifierGroup {
+  id: number;
+  /**
+   * Choose the specific variation that owns this modifier group.
+   */
+  variation_id: number | ProdVariation;
+  /**
+   * Examples: Large-only toppings, Combo side choice, Premium sauces.
+   */
+  name: string;
+  /**
+   * Single = radio-style, Multiple = checkbox-style.
+   */
+  selection_type: 'single' | 'multiple';
+  /**
+   * If enabled, the customer must satisfy the selection rule before checkout.
+   */
+  is_required?: boolean | null;
+  min_selections?: number | null;
+  /**
+   * Leave empty for unlimited
+   */
+  max_selections?: number | null;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Variation-owned modifier options. These options belong only to a specific variation modifier group.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-options".
+ */
+export interface VariationModifierOption {
+  id: number;
+  /**
+   * Pick the variation-owned group that this option belongs to.
+   */
+  variation_modifier_group_id: number | VariationModifierGroup;
+  /**
+   * Examples: Extra Cheese, Sweet Corn, Garlic Mayo.
+   */
+  name: string;
+  /**
+   * Additional amount added when this option is selected.
+   */
+  price_adjustment?: number | null;
+  is_default?: boolean | null;
+  is_available?: boolean | null;
+  sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Hybrid rules for inherited product-level modifier groups. Use these to hide or override base product groups for one variation.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-group-overrides".
+ */
+export interface VariationModifierGroupOverride {
+  id: number;
+  /**
+   * Choose the variation that will inherit, hide, or override a base product modifier group.
+   */
+  variation_id: number | ProdVariation;
+  /**
+   * Only product-level modifier groups from the selected variation parent product are allowed.
+   */
+  base_modifier_group_id: number | ModifierGroup;
+  /**
+   * Inherit keeps the base group, Hide removes it, Override changes how the inherited group behaves.
+   */
+  mode: 'inherit' | 'hide' | 'override';
+  name_override?: string | null;
+  selection_type_override?: ('single' | 'multiple') | null;
+  required_behavior?: ('inherit' | 'required' | 'optional') | null;
+  min_selections_override?: number | null;
+  max_selections_override?: number | null;
+  sort_order_override?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Hybrid rules for inherited product-level modifier options. Use these to hide or override base options for one variation.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-option-overrides".
+ */
+export interface VariationModifierOptionOverride {
+  id: number;
+  /**
+   * Choose the variation that will inherit, hide, or override a base product modifier option.
+   */
+  variation_id: number | ProdVariation;
+  /**
+   * Only options from product-level modifier groups of the selected variation parent product are allowed.
+   */
+  base_modifier_option_id: number | ModifierOption;
+  /**
+   * Inherit keeps the base option, Hide removes it, Override changes inherited pricing or availability.
+   */
+  mode: 'inherit' | 'hide' | 'override';
+  name_override?: string | null;
+  price_adjustment_override?: number | null;
+  default_behavior?: ('inherit' | 'default' | 'not_default') | null;
+  availability_behavior?: ('inherit' | 'available' | 'unavailable') | null;
+  sort_order_override?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Merchant-level overrides for inherited product modifier groups. Use these when one merchant needs different modifier rules for the same catalog product.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-product-modifier-group-overrides".
+ */
+export interface MerchantProductModifierGroupOverride {
+  id: number;
+  /**
+   * Choose the merchant product that should override the base product modifier group.
+   */
+  merchant_product_id: number | MerchantProduct;
+  /**
+   * Only product-level modifier groups from the merchant product catalog item are allowed.
+   */
+  base_modifier_group_id: number | ModifierGroup;
+  /**
+   * Inherit keeps the base group, Hide removes it, Override changes how the group behaves for this merchant.
+   */
+  mode: 'inherit' | 'hide' | 'override';
+  name_override?: string | null;
+  selection_type_override?: ('single' | 'multiple') | null;
+  required_behavior?: ('inherit' | 'required' | 'optional') | null;
+  min_selections_override?: number | null;
+  max_selections_override?: number | null;
+  sort_order_override?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Merchant-level overrides for inherited product modifier options. Use these when one merchant needs different option names, pricing, or availability.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-product-modifier-option-overrides".
+ */
+export interface MerchantProductModifierOptionOverride {
+  id: number;
+  /**
+   * Choose the merchant product that should override the base product modifier option.
+   */
+  merchant_product_id: number | MerchantProduct;
+  /**
+   * Only options from product-level modifier groups of the merchant product catalog item are allowed.
+   */
+  base_modifier_option_id: number | ModifierOption;
+  /**
+   * Inherit keeps the base option, Hide removes it, Override changes pricing, naming, availability, or default status for this merchant.
+   */
+  mode: 'inherit' | 'hide' | 'override';
+  name_override?: string | null;
+  price_adjustment_override?: number | null;
+  default_behavior?: ('inherit' | 'default' | 'not_default') | null;
+  availability_behavior?: ('inherit' | 'available' | 'unavailable') | null;
+  sort_order_override?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Merchant-level overrides for one selected variation. Target inherited product groups or variation-owned groups after the variation behavior mode is resolved.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-variation-modifier-group-overrides".
+ */
+export interface MerchantVariationModifierGroupOverride {
+  id: number;
+  /**
+   * Choose the merchant product that owns this merchant-specific variation override.
+   */
+  merchant_product_id: number | MerchantProduct;
+  /**
+   * Only variations from the merchant product catalog item are allowed.
+   */
+  variation_id: number | ProdVariation;
+  /**
+   * Product Base targets inherited product groups. Variation Added targets groups owned directly by the selected variation.
+   */
+  target_group_source: 'product_base' | 'variation_added';
+  /**
+   * Use this when overriding a product-level group that the variation inherits.
+   */
+  base_modifier_group_id?: (number | null) | ModifierGroup;
+  /**
+   * Use this when overriding a group that belongs directly to the selected variation.
+   */
+  variation_modifier_group_id?: (number | null) | VariationModifierGroup;
+  mode: 'inherit' | 'hide' | 'override';
+  name_override?: string | null;
+  selection_type_override?: ('single' | 'multiple') | null;
+  required_behavior?: ('inherit' | 'required' | 'optional') | null;
+  min_selections_override?: number | null;
+  max_selections_override?: number | null;
+  sort_order_override?: number | null;
+  is_active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Merchant-level overrides for one selected variation option. Target inherited product options or variation-owned options after the variation behavior mode is resolved.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-variation-modifier-option-overrides".
+ */
+export interface MerchantVariationModifierOptionOverride {
+  id: number;
+  /**
+   * Choose the merchant product that owns this merchant-specific variation option override.
+   */
+  merchant_product_id: number | MerchantProduct;
+  /**
+   * Only variations from the merchant product catalog item are allowed.
+   */
+  variation_id: number | ProdVariation;
+  /**
+   * Product Base targets inherited product options. Variation Added targets options owned directly by the selected variation.
+   */
+  target_option_source: 'product_base' | 'variation_added';
+  /**
+   * Use this when overriding a product-level option that the variation inherits.
+   */
+  base_modifier_option_id?: (number | null) | ModifierOption;
+  /**
+   * Use this when overriding an option that belongs directly to the selected variation.
+   */
+  variation_modifier_option_id?: (number | null) | VariationModifierOption;
+  mode: 'inherit' | 'hide' | 'override';
+  name_override?: string | null;
+  price_adjustment_override?: number | null;
+  default_behavior?: ('inherit' | 'default' | 'not_default') | null;
+  availability_behavior?: ('inherit' | 'available' | 'unavailable') | null;
+  sort_order_override?: number | null;
+  is_active?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2504,6 +2813,38 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'modifier-options';
         value: number | ModifierOption;
+      } | null)
+    | ({
+        relationTo: 'variation-modifier-groups';
+        value: number | VariationModifierGroup;
+      } | null)
+    | ({
+        relationTo: 'variation-modifier-options';
+        value: number | VariationModifierOption;
+      } | null)
+    | ({
+        relationTo: 'variation-modifier-group-overrides';
+        value: number | VariationModifierGroupOverride;
+      } | null)
+    | ({
+        relationTo: 'variation-modifier-option-overrides';
+        value: number | VariationModifierOptionOverride;
+      } | null)
+    | ({
+        relationTo: 'merchant-product-modifier-group-overrides';
+        value: number | MerchantProductModifierGroupOverride;
+      } | null)
+    | ({
+        relationTo: 'merchant-product-modifier-option-overrides';
+        value: number | MerchantProductModifierOptionOverride;
+      } | null)
+    | ({
+        relationTo: 'merchant-variation-modifier-group-overrides';
+        value: number | MerchantVariationModifierGroupOverride;
+      } | null)
+    | ({
+        relationTo: 'merchant-variation-modifier-option-overrides';
+        value: number | MerchantVariationModifierOptionOverride;
       } | null)
     | ({
         relationTo: 'prod-tags';
@@ -3240,6 +3581,7 @@ export interface ProdAttributeTermsSelect<T extends boolean = true> {
  */
 export interface ProdVariationsSelect<T extends boolean = true> {
   product_id?: T;
+  modifier_behavior_mode?: T;
   name?: T;
   short_description?: T;
   image?: T;
@@ -3250,6 +3592,8 @@ export interface ProdVariationsSelect<T extends boolean = true> {
   is_used_for_variations?: T;
   is_visible?: T;
   sort_order?: T;
+  modifier_configuration_hint?: T;
+  effective_modifier_preview?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3289,6 +3633,8 @@ export interface MerchantProductsSelect<T extends boolean = true> {
   stock_quantity?: T;
   is_active?: T;
   is_available?: T;
+  merchant_modifier_configuration_hint?: T;
+  effective_modifier_preview?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3318,6 +3664,147 @@ export interface ModifierOptionsSelect<T extends boolean = true> {
   is_default?: T;
   is_available?: T;
   sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-groups_select".
+ */
+export interface VariationModifierGroupsSelect<T extends boolean = true> {
+  variation_id?: T;
+  name?: T;
+  selection_type?: T;
+  is_required?: T;
+  min_selections?: T;
+  max_selections?: T;
+  sort_order?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-options_select".
+ */
+export interface VariationModifierOptionsSelect<T extends boolean = true> {
+  variation_modifier_group_id?: T;
+  name?: T;
+  price_adjustment?: T;
+  is_default?: T;
+  is_available?: T;
+  sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-group-overrides_select".
+ */
+export interface VariationModifierGroupOverridesSelect<T extends boolean = true> {
+  variation_id?: T;
+  base_modifier_group_id?: T;
+  mode?: T;
+  name_override?: T;
+  selection_type_override?: T;
+  required_behavior?: T;
+  min_selections_override?: T;
+  max_selections_override?: T;
+  sort_order_override?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variation-modifier-option-overrides_select".
+ */
+export interface VariationModifierOptionOverridesSelect<T extends boolean = true> {
+  variation_id?: T;
+  base_modifier_option_id?: T;
+  mode?: T;
+  name_override?: T;
+  price_adjustment_override?: T;
+  default_behavior?: T;
+  availability_behavior?: T;
+  sort_order_override?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-product-modifier-group-overrides_select".
+ */
+export interface MerchantProductModifierGroupOverridesSelect<T extends boolean = true> {
+  merchant_product_id?: T;
+  base_modifier_group_id?: T;
+  mode?: T;
+  name_override?: T;
+  selection_type_override?: T;
+  required_behavior?: T;
+  min_selections_override?: T;
+  max_selections_override?: T;
+  sort_order_override?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-product-modifier-option-overrides_select".
+ */
+export interface MerchantProductModifierOptionOverridesSelect<T extends boolean = true> {
+  merchant_product_id?: T;
+  base_modifier_option_id?: T;
+  mode?: T;
+  name_override?: T;
+  price_adjustment_override?: T;
+  default_behavior?: T;
+  availability_behavior?: T;
+  sort_order_override?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-variation-modifier-group-overrides_select".
+ */
+export interface MerchantVariationModifierGroupOverridesSelect<T extends boolean = true> {
+  merchant_product_id?: T;
+  variation_id?: T;
+  target_group_source?: T;
+  base_modifier_group_id?: T;
+  variation_modifier_group_id?: T;
+  mode?: T;
+  name_override?: T;
+  selection_type_override?: T;
+  required_behavior?: T;
+  min_selections_override?: T;
+  max_selections_override?: T;
+  sort_order_override?: T;
+  is_active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "merchant-variation-modifier-option-overrides_select".
+ */
+export interface MerchantVariationModifierOptionOverridesSelect<T extends boolean = true> {
+  merchant_product_id?: T;
+  variation_id?: T;
+  target_option_source?: T;
+  base_modifier_option_id?: T;
+  variation_modifier_option_id?: T;
+  mode?: T;
+  name_override?: T;
+  price_adjustment_override?: T;
+  default_behavior?: T;
+  availability_behavior?: T;
+  sort_order_override?: T;
+  is_active?: T;
   updatedAt?: T;
   createdAt?: T;
 }

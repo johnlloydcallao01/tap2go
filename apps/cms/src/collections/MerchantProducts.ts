@@ -1,4 +1,5 @@
 import { CollectionConfig } from 'payload'
+import { ModifierResolverService } from '../services/ModifierResolverService'
 
 export const MerchantProducts: CollectionConfig = {
   slug: 'merchant-products',
@@ -59,11 +60,52 @@ export const MerchantProducts: CollectionConfig = {
           for (const ci of cartItems.docs) {
             await payload.delete({ collection: 'cart-items', id: ci.id })
           }
+
+          const cleanupCollections = [
+            'merchant-product-modifier-group-overrides',
+            'merchant-product-modifier-option-overrides',
+            'merchant-variation-modifier-group-overrides',
+            'merchant-variation-modifier-option-overrides',
+          ] as const
+
+          for (const collection of cleanupCollections) {
+            const docs = await payload.find({
+              collection,
+              where: { merchant_product_id: { equals: id } },
+              limit: 1000,
+              depth: 0,
+            })
+
+            for (const doc of docs.docs) {
+              await payload.delete({ collection, id: doc.id })
+            }
+          }
+
           console.log(`✅ Cart items cleanup complete for merchant-product ${id}`)
         } catch (e) {
           console.error('❌ Error cleaning up cart items for merchant-product', e)
           throw e
         }
+      },
+    ],
+    afterRead: [
+      async ({ doc, req }) => {
+        const productId = typeof doc?.product_id === 'object' ? doc.product_id?.id : doc?.product_id
+        if (!productId || !doc?.id) {
+          return doc
+        }
+
+        try {
+          const resolver = new ModifierResolverService(req.payload)
+          const effectiveModifiers = await resolver.resolveEffectiveGroups({
+            productId: Number(productId),
+            merchantProductId: Number(doc.id),
+          })
+
+          ;(doc as Record<string, unknown>).effective_modifier_preview = effectiveModifiers
+        } catch {}
+
+        return doc
       },
     ],
   },
@@ -180,6 +222,28 @@ export const MerchantProducts: CollectionConfig = {
       label: 'Is Available',
       admin: {
         description: 'Quick toggle on/off',
+      },
+    },
+    {
+      name: 'merchant_modifier_configuration_hint',
+      type: 'textarea',
+      label: 'Merchant Modifier Configuration Guide',
+      admin: {
+        readOnly: true,
+        description:
+          'Read-only guidance for admins. Use Merchant Product Modifier Overrides for merchant-wide base changes, and Merchant Variation Modifier Overrides when one merchant needs different rules for one selected variation.',
+      },
+      defaultValue:
+        'Use Merchant Product Modifier Overrides for merchant-wide base rules. Use Merchant Variation Modifier Overrides for variation-specific merchant customization.',
+    },
+    {
+      name: 'effective_modifier_preview',
+      type: 'json',
+      label: 'Effective Modifier Preview',
+      admin: {
+        readOnly: true,
+        description:
+          'Read-only preview of the merchant-level effective modifiers for the base product context. Variation-specific merchant overrides are applied when a variation is selected through merchant-aware reads.',
       },
     },
   ],

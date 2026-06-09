@@ -54,6 +54,9 @@ import * as migration_20260309_fix_product_delete_constraints from './20260309_f
 import * as migration_20260309_fix_product_delete_constraints_part2 from './20260309_fix_product_delete_constraints_part2';
 import * as migration_20260309_fix_product_delete_constraints_part3 from './20260309_fix_product_delete_constraints_part3';
 import * as migration_20260329_062428 from './20260329_062428';
+import * as migration_20260521_120000_variation_modifier_models from './20260521_120000_variation_modifier_models';
+import * as migration_20260521_160000_variation_modifier_behavior_mode from './20260521_160000_variation_modifier_behavior_mode';
+import * as migration_20260521_200000_merchant_modifier_overrides from './20260521_200000_merchant_modifier_overrides';
 
 export const migrations = [
   {
@@ -335,5 +338,20 @@ export const migrations = [
     up: migration_20260329_062428.up,
     down: migration_20260329_062428.down,
     name: '20260329_062428'
+  },
+  {
+    up: migration_20260521_120000_variation_modifier_models.up,
+    down: migration_20260521_120000_variation_modifier_models.down,
+    name: '20260521_120000_variation_modifier_models'
+  },
+  {
+    up: migration_20260521_160000_variation_modifier_behavior_mode.up,
+    down: migration_20260521_160000_variation_modifier_behavior_mode.down,
+    name: '20260521_160000_variation_modifier_behavior_mode'
+  },
+  {
+    up: migration_20260521_200000_merchant_modifier_overrides.up,
+    down: migration_20260521_200000_merchant_modifier_overrides.down,
+    name: '20260521_200000_merchant_modifier_overrides'
   },
 ];
