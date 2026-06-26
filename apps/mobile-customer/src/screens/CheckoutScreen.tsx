@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   View,
   Text,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -20,6 +21,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../utils/format';
 import { CheckoutAddressSection } from '../components/checkout/CheckoutAddressSection';
 import { apiConfig } from '../config/environment';
+import {
+  clearPendingCheckoutSession,
+  finalizePaidOrder,
+  findActiveCartLinkedOrder,
+  getCheckoutPaymentStatus,
+  getPendingCheckoutSession,
+  savePendingCheckoutSession,
+} from '../services/checkoutReturn';
 
 type PaymentMethod =
   | 'card'
@@ -86,6 +95,7 @@ const methodLogos: Record<PaymentMethod, { srcs: any[]; label: string; icon: any
 
 export default function CheckoutScreen() {
   const navigation = useNavigation();
+  const router = useRouter();
   const params = useLocalSearchParams();
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
@@ -96,6 +106,10 @@ export default function CheckoutScreen() {
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('gcash');
   const [isPaying, setIsPaying] = useState(false);
+  const [isCheckingPaymentState, setIsCheckingPaymentState] = useState(false);
+  const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
+  const reconcileInFlightRef = useRef(false);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const merchantCart = getMerchantCart(String(merchantId));
   const merchantName = merchantCart?.merchantName || 'Merchant';
@@ -113,6 +127,96 @@ export default function CheckoutScreen() {
     // Don't validate card details right now since we are deferring to PayMongo redirect logic natively
     return true;
   }, [paymentMethod, activeAddressId]);
+
+  const reconcileExistingPayment = useCallback(async (showLoader = false) => {
+    if (!customerId || Number.isNaN(merchantId) || reconcileInFlightRef.current) {
+      return;
+    }
+
+    reconcileInFlightRef.current = true;
+    if (showLoader) {
+      setIsCheckingPaymentState(true);
+    }
+
+    try {
+      const customerKey = String(customerId);
+      const merchantKey = String(merchantId);
+      const pendingSession = await getPendingCheckoutSession(customerKey, merchantKey);
+      const linkedOrderId = await findActiveCartLinkedOrder(customerKey, merchantKey);
+
+      const paymentStatus = await getCheckoutPaymentStatus({
+        paymentIntentId: pendingSession?.paymentIntentId,
+        orderId: pendingSession?.orderId || linkedOrderId || undefined,
+      });
+
+      if (paymentStatus.status === 'paid') {
+        await finalizePaidOrder(paymentStatus.orderId, paymentStatus.paidAt || null);
+        await clearPendingCheckoutSession(customerKey, merchantKey);
+        await reload();
+
+        router.replace({
+          pathname: '/order-success',
+          params: {
+            orderId: paymentStatus.orderId,
+            merchantId: merchantKey,
+          },
+        });
+        return;
+      }
+
+      if (paymentStatus.status === 'failed') {
+        await clearPendingCheckoutSession(customerKey, merchantKey);
+        setHasPendingRecovery(false);
+        return;
+      }
+
+      setHasPendingRecovery(paymentStatus.status === 'pending');
+    } catch (error) {
+      console.error('Checkout payment reconciliation failed:', error);
+    } finally {
+      reconcileInFlightRef.current = false;
+      if (showLoader) {
+        setIsCheckingPaymentState(false);
+      }
+    }
+  }, [customerId, merchantId, reload, router]);
+
+  useEffect(() => {
+    reconcileExistingPayment(true).catch(() => undefined);
+  }, [reconcileExistingPayment]);
+
+  useEffect(() => {
+    if (!hasPendingRecovery) {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    pollingIntervalRef.current = setInterval(() => {
+      reconcileExistingPayment(false).catch(() => undefined);
+    }, 2500);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [hasPendingRecovery, reconcileExistingPayment]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        reconcileExistingPayment(true).catch(() => undefined);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [reconcileExistingPayment]);
 
   const handlePayNow = async () => {
     if (!user || !customerId || !activeAddressId) {
@@ -311,12 +415,20 @@ export default function CheckoutScreen() {
         }),
       });
 
+      await savePendingCheckoutSession({
+        customerId: String(customerId),
+        merchantId: String(merchantId),
+        orderId: String(createdOrderId),
+        paymentIntentId: intentId,
+        createdAt: new Date().toISOString(),
+      });
+
       // 6. Attach Payment Method to Payment Intent
       // PayMongo's API strictly validates that return_url must be an absolute http or https URL.
       // Deep links (like tap2go-customer://) are NOT allowed in the PayMongo API validation step.
       // Therefore, we pass our web redirect URL to satisfy the API, but we use Linking.createURL 
       // inside WebBrowser.openAuthSessionAsync to intercept the return natively.
-      const returnUrlAPI = `https://tap2goph.com/checkout/${merchantId}/return`;
+      const returnUrlAPI = `https://tap2goph.com/checkout/${merchantId}/return?order_id=${createdOrderId}`;
       
       const attachResponse = await fetch(
         `https://api.paymongo.com/v1/payment_intents/${intentId}/attach`,
@@ -367,37 +479,41 @@ export default function CheckoutScreen() {
           const returnedIntentId = parsedUrl.queryParams?.payment_intent_id as string;
           
           if (returnedIntentId) {
-            // Verify backend status via CMS API before clearing cart
-            const verifyRes = await fetch(`${apiConfig.baseUrl}/transactions?where[payment_intent_id][equals]=${returnedIntentId}`, {
-              headers: cmsHeaders,
+            router.replace({
+              pathname: '/checkout/return',
+              params: {
+                payment_intent_id: returnedIntentId,
+                merchantId: String(merchantId),
+                order_id: String(createdOrderId),
+              },
             });
-            await verifyRes.json();
-            
-            // Note: Since webhooks can take a few seconds, if it's still pending here
-            // we could either poll, or just trust the PayMongo redirect success and let
-            // the webhook eventually update the order. 
-            // We'll proceed to reload the cart and let the user see their order in Orders screen.
-            await reload();
-            Alert.alert('Success', 'Payment completed successfully!');
-            navigation.navigate('Orders');
           } else {
             setIsPaying(false);
             Alert.alert('Error', 'Could not verify payment intent ID.');
           }
         } else {
-          // User closed the browser or cancelled
           setIsPaying(false);
+          setHasPendingRecovery(true);
+          reconcileExistingPayment(true).catch(() => undefined);
         }
       } else if (status === 'succeeded') {
-        await reload();
-        Alert.alert('Success', 'Payment completed successfully!');
-        navigation.navigate('Orders');
+        router.replace({
+          pathname: '/checkout/return',
+          params: {
+            payment_intent_id: intentId,
+            merchantId: String(merchantId),
+            order_id: String(createdOrderId),
+          },
+        });
       } else {
         throw new Error(`Unexpected payment status: ${status}`);
       }
       
     } catch (error) {
       console.error('Payment error:', error);
+      if (customerId && !Number.isNaN(merchantId)) {
+        await clearPendingCheckoutSession(String(customerId), String(merchantId));
+      }
       Alert.alert('Payment Failed', error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setIsPaying(false);
@@ -485,6 +601,27 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
+        {(isCheckingPaymentState || hasPendingRecovery) && (
+          <View style={styles.section}>
+            <View style={styles.processingCard}>
+              <View style={styles.processingIconWrap}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#92400E" />
+              </View>
+              <View style={styles.processingContent}>
+                <Text style={styles.processingTitle}>
+                  {hasPendingRecovery ? 'Payment confirmation in progress' : 'Checking payment status'}
+                </Text>
+                <Text style={styles.processingText}>
+                  {hasPendingRecovery
+                    ? 'We found an existing payment attempt for this checkout. Once PayMongo confirms it, this screen will move automatically to your thank-you page.'
+                    : 'Please wait while we verify whether this checkout already has a completed payment.'}
+                </Text>
+              </View>
+              <ActivityIndicator color="#F59E0B" />
+            </View>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
           <View style={styles.paymentMethodsGrid}>
@@ -542,16 +679,18 @@ export default function CheckoutScreen() {
         <TouchableOpacity
           style={[
             styles.payButton,
-            (!isFormValid || isPaying) && styles.payButtonDisabled
+            (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState) && styles.payButtonDisabled
           ]}
           onPress={handlePayNow}
-          disabled={!isFormValid || isPaying}
+          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState}
         >
-          {isPaying ? (
+          {isPaying || isCheckingPaymentState ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.payButtonText}>
-              Pay {formatCurrency(totalSubtotal)}
+              {hasPendingRecovery
+                ? 'Confirming payment...'
+                : `Pay ${formatCurrency(totalSubtotal)}`}
             </Text>
           )}
         </TouchableOpacity>
@@ -707,6 +846,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
+  processingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  processingIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  processingContent: {
+    flex: 1,
+  },
+  processingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  processingText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#9A3412',
+  },
   paymentMethodsGrid: {
     gap: 8,
   },
@@ -735,8 +906,8 @@ const styles = StyleSheet.create({
   footer: {
     backgroundColor: '#fff',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 32, // for safe area bottom
+    paddingTop: 20,
+    paddingBottom: 44,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
   },

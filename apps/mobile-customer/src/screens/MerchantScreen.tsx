@@ -33,6 +33,7 @@ import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-quer
 import { useCart } from '../contexts/CartContext';
 import { formatCurrency } from '../utils/format';
 import MerchantSearchModal from '../components/MerchantSearchModal';
+import ViewCartBar from '../components/shared/ViewCartBar';
 import { useWishlist } from '../hooks/useWishlist';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { apiConfig } from '../config/environment';
@@ -906,21 +907,12 @@ export default function MerchantScreen() {
 
       {/* View Cart Floating Bar */}
       {merchantCart && (
-        <View style={[styles.viewCartContainer, { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 }]}>
-          <TouchableOpacity
-            style={[styles.viewCartButton, { backgroundColor: colors.primary }]}
-            onPress={() => navigation.navigate('MerchantCart', { merchantId })}
-            activeOpacity={0.9}
-          >
-            <View style={styles.viewCartLeft}>
-              <View style={styles.cartCountBadge}>
-                <Text style={styles.cartCountText}>{merchantCart.totalItems}</Text>
-              </View>
-              <Text style={styles.viewCartText}>View your cart</Text>
-            </View>
-            <Text style={styles.cartTotalText}>${merchantCart.subtotal.toFixed(2)}</Text>
-          </TouchableOpacity>
-        </View>
+        <ViewCartBar
+          itemCount={merchantCart.totalItems}
+          subtotal={merchantCart.subtotal}
+          paddingBottom={insets.bottom > 0 ? insets.bottom : 20}
+          onPress={() => navigation.navigate('MerchantCart', { merchantId })}
+        />
       )}
     </View>
   );
@@ -1097,61 +1089,5 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 6,
     lineHeight: 16,
-  },
-  viewCartContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: '#fff',
-    zIndex: 1000,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 20,
-  },
-  viewCartButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  viewCartLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cartCountBadge: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 10,
-  },
-  cartCountText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  viewCartText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  cartTotalText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

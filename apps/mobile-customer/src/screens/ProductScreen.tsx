@@ -17,6 +17,7 @@ import { useThemeColors } from '../contexts/ThemeContext';
 import { useProduct } from '../hooks/useProduct';
 import { useCart } from '../contexts/CartContext';
 import ProductModifiers from '../components/ProductModifiers';
+import ViewCartBar from '../components/shared/ViewCartBar';
 import { formatCurrency } from '../utils/format';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { useQueryClient } from '@tanstack/react-query';
@@ -25,7 +26,7 @@ import { dataCache } from '@encreasl/client-services';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useLocalSearchParams } from 'expo-router';
 import { fetchEffectiveModifierGroups } from '../services/product';
-import type { ModifierGroup } from '../types/product';
+import type { GroupedProductItem, ModifierGroup } from '../types/product';
 
 function buildDefaultModifierSelection(modifierGroups: ModifierGroup[]): Record<string, string[]> {
   return modifierGroups.reduce<Record<string, string[]>>((acc, group) => {
@@ -45,6 +46,23 @@ function buildDefaultModifierSelection(modifierGroups: ModifierGroup[]): Record<
   }, {});
 }
 
+function getGroupedItemKey(item: GroupedProductItem): string {
+  if (item.merchantProductId != null) {
+    return `merchant-${String(item.merchantProductId)}`;
+  }
+
+  return `product-${String(item.productId)}`;
+}
+
+function canStageGroupedItem(item: GroupedProductItem): boolean {
+  return Boolean(
+    item.isAvailable &&
+    item.merchantProductId != null &&
+    item.productType === 'simple' &&
+    !item.hasRequiredModifiers
+  );
+}
+
 export default function ProductScreen() {
   const navigation = useNavigation();
   const params = useLocalSearchParams();
@@ -57,13 +75,14 @@ export default function ProductScreen() {
   const { width } = useWindowDimensions();
 
   const { data: product, isLoading, isRefetching, error } = useProduct(productId, merchantId);
-  const { addToCart } = useCart();
+  const { addToCart, items: cartItems, getMerchantCart } = useCart();
 
   const [quantity, setQuantity] = useState(1);
   const [modifierSelection, setModifierSelection] = useState<Record<string, string[]>>({});
   const [activeModifierGroups, setActiveModifierGroups] = useState<ModifierGroup[]>([]);
   const [selectedVariationId, setSelectedVariationId] = useState<string | number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [stagedGroupedItems, setStagedGroupedItems] = useState<Record<string, number>>({});
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -215,13 +234,17 @@ export default function ProductScreen() {
     return () => {
       isCancelled = true;
     };
-  }, [isVariableProduct, product, selectedVariationId]);
+  }, [isVariableProduct, merchantId, product, selectedVariationId]);
+
+  useEffect(() => {
+    setStagedGroupedItems({});
+  }, [product?.id]);
 
   const effectiveBasePrice = selectedVariation?.base_price ?? product?.basePrice ?? 0;
   const effectiveCompareAtPrice = selectedVariation?.compare_at_price ?? product?.compareAtPrice;
   const effectiveDescription =
     selectedVariation?.short_description || product?.shortDescription || '';
-  const bottomContentSpacing = insets.bottom + (isGroupedProduct ? 150 : 190);
+  const bottomContentSpacing = insets.bottom + (isGroupedProduct ? 220 : 190);
   const effectiveImageUrl = selectedVariation?.image
     ? getImageUrl(selectedVariation.image)
     : product
@@ -236,7 +259,53 @@ export default function ProductScreen() {
   const cannotAddVariableProduct =
     isVariableProduct && (!selectedVariation || variations.length === 0 || isSelectedVariationOutOfStock);
   const hasGroupedItems = isGroupedProduct && groupedItems.length > 0;
-  const cannotAddGroupedProduct = isGroupedProduct;
+  const eligibleGroupedItems = useMemo(
+    () => groupedItems.filter((item) => canStageGroupedItem(item)),
+    [groupedItems]
+  );
+  const groupedItemsInCart = useMemo(() => {
+    const quantities = new Map<string, number>();
+
+    cartItems.forEach((item) => {
+      if (String(item.merchant) !== String(merchantId)) {
+        return;
+      }
+
+      const key = `merchant-${String(item.merchantProduct)}`;
+      quantities.set(key, (quantities.get(key) || 0) + item.quantity);
+    });
+
+    return quantities;
+  }, [cartItems, merchantId]);
+  const selectedGroupedItemCount = useMemo(
+    () => eligibleGroupedItems.filter((item) => (stagedGroupedItems[getGroupedItemKey(item)] || 0) > 0).length,
+    [eligibleGroupedItems, stagedGroupedItems]
+  );
+  const selectedGroupedUnits = useMemo(
+    () => Object.values(stagedGroupedItems).reduce((sum, quantity) => sum + quantity, 0),
+    [stagedGroupedItems]
+  );
+  const stagedGroupedSubtotal = useMemo(
+    () =>
+      eligibleGroupedItems.reduce((sum, item) => {
+        const quantity = stagedGroupedItems[getGroupedItemKey(item)] || 0;
+        return sum + (item.basePrice || 0) * quantity;
+      }, 0),
+    [eligibleGroupedItems, stagedGroupedItems]
+  );
+  const allEligibleGroupedItemsSelected =
+    eligibleGroupedItems.length > 0 &&
+    eligibleGroupedItems.every((item) => (stagedGroupedItems[getGroupedItemKey(item)] || 0) > 0);
+  const groupedSelectionProgress = groupedItems.length > 0
+    ? selectedGroupedItemCount / groupedItems.length
+    : 0;
+  const groupedSelectionProgressWidth = `${groupedSelectionProgress * 100}%` as `${number}%`;
+  const groupedItemsUnavailableCount = groupedItems.filter((item) => !item.isAvailable).length;
+  const groupedItemsRequiringDetailCount = groupedItems.filter(
+    (item) => item.isAvailable && !canStageGroupedItem(item)
+  ).length;
+  const merchantCart = getMerchantCart(String(merchantId));
+  const shouldShowViewCartBar = Boolean(merchantCart && merchantCart.items.length > 0);
 
   const totalPrice = useMemo(() => {
     if (!product) return 0;
@@ -277,16 +346,6 @@ export default function ProductScreen() {
       return;
     }
 
-    if (cannotAddGroupedProduct) {
-      Alert.alert(
-        'Grouped Product',
-        hasGroupedItems
-          ? 'Add the grouped items individually from the list below.'
-          : 'This grouped product has no available items yet.'
-      );
-      return;
-    }
-    
     if (!product.merchantProductId) {
       Alert.alert('Error', 'Merchant product details not found.');
       return;
@@ -336,9 +395,83 @@ export default function ProductScreen() {
     }
   };
 
-  const handleGroupedItemPress = async (item: NonNullable<typeof product>['groupedItems'][number]) => {
+  const toggleGroupedItemSelection = useCallback((item: GroupedProductItem) => {
+    if (!canStageGroupedItem(item)) {
+      return;
+    }
+
+    const key = getGroupedItemKey(item);
+
+    setStagedGroupedItems((current) => {
+      if (current[key]) {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      }
+
+      return {
+        ...current,
+        [key]: item.defaultQuantity || 1,
+      };
+    });
+  }, []);
+
+  const handleSelectAllGroupedItems = useCallback(() => {
+    if (allEligibleGroupedItemsSelected) {
+      setStagedGroupedItems({});
+      return;
+    }
+
+    const nextSelections = eligibleGroupedItems.reduce<Record<string, number>>((acc, item) => {
+      acc[getGroupedItemKey(item)] = item.defaultQuantity || 1;
+      return acc;
+    }, {});
+
+    setStagedGroupedItems(nextSelections);
+  }, [allEligibleGroupedItemsSelected, eligibleGroupedItems]);
+
+  const handleAddGroupedItemsToCart = useCallback(async () => {
+    if (!selectedGroupedItemCount) {
+      return;
+    }
+
+    try {
+      setIsAddingToCart(true);
+
+      for (const item of eligibleGroupedItems) {
+        const quantity = stagedGroupedItems[getGroupedItemKey(item)] || 0;
+
+        if (!quantity || !item.merchantProductId) {
+          continue;
+        }
+
+        await addToCart({
+          merchantId: Number(merchantId),
+          productId: Number(item.productId),
+          merchantProductId: Number(item.merchantProductId),
+          quantity,
+          priceAtAdd: item.basePrice || 0,
+          compareAtPrice: item.compareAtPrice ?? null,
+          selectedModifiers: [],
+        });
+      }
+
+      setStagedGroupedItems({});
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to add grouped items');
+    } finally {
+      setIsAddingToCart(false);
+    }
+  }, [addToCart, eligibleGroupedItems, merchantId, selectedGroupedItemCount, stagedGroupedItems]);
+
+  const handleGroupedItemPress = (item: GroupedProductItem) => {
     if (!item.isAvailable) {
       Alert.alert('Unavailable', `${item.name} is currently unavailable at this merchant.`);
+      return;
+    }
+
+    if (canStageGroupedItem(item)) {
+      toggleGroupedItemSelection(item);
       return;
     }
 
@@ -359,23 +492,11 @@ export default function ProductScreen() {
       return;
     }
 
-    try {
-      setIsAddingToCart(true);
-      await addToCart({
-        merchantId: Number(merchantId),
-        productId: Number(item.productId),
-        merchantProductId: Number(item.merchantProductId),
-        quantity: item.defaultQuantity || 1,
-        priceAtAdd: item.basePrice || 0,
-        compareAtPrice: item.compareAtPrice ?? null,
-        selectedModifiers: [],
-      });
-      Alert.alert('Added to Cart', `${item.name} added to your order.`);
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to add grouped item');
-    } finally {
-      setIsAddingToCart(false);
-    }
+    navigation.navigate('Product', {
+      productId: String(item.productId),
+      merchantId,
+      merchantProductId: item.merchantProductId,
+    });
   };
 
   const showSkeleton = isLoading || refreshing || isRefetching;
@@ -642,15 +763,95 @@ export default function ProductScreen() {
 
           {isGroupedProduct && (
             <View style={styles.groupedContainer}>
+              {hasGroupedItems ? (
+                <View style={styles.groupedComposerCard}>
+                  <View style={styles.groupedComposerHeader}>
+                    <View style={styles.groupedComposerHeaderCopy}>
+                      <Text style={styles.sectionTitle}>Build your bundle</Text>
+                      <Text style={styles.groupedComposerText}>
+                        Stage the items you want, review them here, then add everything to your order in one step.
+                      </Text>
+                    </View>
+                    <View style={styles.groupedProgressBadge}>
+                      <Text style={styles.groupedProgressBadgeText}>
+                        {selectedGroupedItemCount}/{groupedItems.length} selected
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.groupedProgressTrack}>
+                    <View style={[styles.groupedProgressFill, { width: groupedSelectionProgressWidth }]} />
+                  </View>
+
+                  <View style={styles.groupedComposerStats}>
+                    <View style={styles.groupedStatChip}>
+                      <Ionicons name="cube-outline" size={14} color="#111827" />
+                      <Text style={styles.groupedStatChipText}>
+                        {selectedGroupedUnits} units staged
+                      </Text>
+                    </View>
+                    <View style={styles.groupedStatChip}>
+                      <Ionicons name="wallet-outline" size={14} color="#111827" />
+                      <Text style={styles.groupedStatChipText}>
+                        {formatCurrency(stagedGroupedSubtotal)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.groupedComposerActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.groupedComposerActionButton,
+                        eligibleGroupedItems.length === 0 && styles.groupedComposerActionButtonDisabled,
+                      ]}
+                      onPress={handleSelectAllGroupedItems}
+                      disabled={eligibleGroupedItems.length === 0}
+                    >
+                      <Text style={styles.groupedComposerActionButtonText}>
+                        {allEligibleGroupedItemsSelected ? 'Clear all' : 'Select all eligible'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {selectedGroupedItemCount > 0 ? (
+                      <TouchableOpacity
+                        style={styles.groupedComposerGhostButton}
+                        onPress={() => setStagedGroupedItems({})}
+                      >
+                        <Text style={styles.groupedComposerGhostButtonText}>Reset staged items</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  {groupedItemsRequiringDetailCount > 0 ? (
+                    <Text style={styles.groupedComposerHint}>
+                      {groupedItemsRequiringDetailCount} item{groupedItemsRequiringDetailCount === 1 ? '' : 's'} still need customization or a separate detail view before they can be staged here.
+                    </Text>
+                  ) : null}
+
+                  {groupedItemsUnavailableCount > 0 ? (
+                    <Text style={styles.groupedComposerHint}>
+                      {groupedItemsUnavailableCount} item{groupedItemsUnavailableCount === 1 ? '' : 's'} are currently unavailable at this merchant.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
               <Text style={styles.sectionTitle}>Included items</Text>
               {hasGroupedItems ? (
                 <View style={styles.groupedList}>
                   {groupedItems.map((item) => {
+                    const groupedItemKey = getGroupedItemKey(item);
                     const itemImageUrl = item.image ? getImageUrl(item.image) : null;
+                    const isStageable = canStageGroupedItem(item);
+                    const isSelected = (stagedGroupedItems[groupedItemKey] || 0) > 0;
+                    const stagedQuantity = stagedGroupedItems[groupedItemKey] || 0;
+                    const inCartQuantity = groupedItemsInCart.get(groupedItemKey) || 0;
                     const actionLabel = !item.isAvailable
                       ? 'Unavailable'
-                      : item.productType === 'simple' && !item.hasRequiredModifiers
-                        ? 'Add'
+                      : isStageable && isSelected
+                        ? 'Remove'
+                        : isStageable
+                          ? 'Add'
                         : item.productType === 'variable'
                           ? 'Choose'
                           : item.productType === 'grouped'
@@ -660,7 +861,11 @@ export default function ProductScreen() {
                     return (
                       <TouchableOpacity
                         key={String(item.id)}
-                        style={styles.groupedCard}
+                        style={[
+                          styles.groupedCard,
+                          isSelected && styles.groupedCardSelected,
+                          !item.isAvailable && styles.groupedCardUnavailable,
+                        ]}
                         activeOpacity={0.92}
                         onPress={() => handleGroupedItemPress(item)}
                       >
@@ -678,6 +883,12 @@ export default function ProductScreen() {
                             <View style={styles.groupedMetaRow}>
                               <Text style={styles.groupedQtyBadge}>x{item.defaultQuantity}</Text>
                               <Text style={styles.groupedTypeBadge}>{item.productType}</Text>
+                              {isSelected ? (
+                                <View style={styles.groupedSelectedBadge}>
+                                  <Ionicons name="checkmark-circle" size={14} color="#166534" />
+                                  <Text style={styles.groupedSelectedBadgeText}>Staged</Text>
+                                </View>
+                              ) : null}
                             </View>
                             <Text style={styles.groupedName}>{item.name}</Text>
                             {item.shortDescription ? (
@@ -695,9 +906,23 @@ export default function ProductScreen() {
                         </View>
                         <View style={styles.groupedCardBottomRow}>
                           <Text style={[styles.groupedAvailability, !item.isAvailable && styles.groupedAvailabilityUnavailable]}>
-                            {item.isAvailable ? 'Available' : 'Currently unavailable'}
+                            {!item.isAvailable
+                              ? 'Currently unavailable'
+                              : isSelected
+                                ? `Ready to add x${stagedQuantity}`
+                                : inCartQuantity > 0
+                                  ? `Already in cart x${inCartQuantity}`
+                                  : isStageable
+                                    ? 'Tap to stage this item'
+                                    : 'Open for customization'}
                           </Text>
-                          <View style={[styles.groupedActionButton, !item.isAvailable && styles.groupedActionButtonDisabled]}>
+                          <View
+                            style={[
+                              styles.groupedActionButton,
+                              isSelected && styles.groupedActionButtonSelected,
+                              !item.isAvailable && styles.groupedActionButtonDisabled,
+                            ]}
+                          >
                             <Text style={styles.groupedActionButtonText}>{actionLabel}</Text>
                           </View>
                         </View>
@@ -727,15 +952,69 @@ export default function ProductScreen() {
       </PullToRefreshLayout>
 
       {/* Bottom Action Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10, backgroundColor: colors.card }]}>
-        {isGroupedProduct ? (
-          <View style={styles.groupedBottomBarMessage}>
-            <Ionicons name="layers-outline" size={18} color={colors.textSecondary} />
-            <Text style={[styles.groupedBottomBarText, { color: colors.textSecondary }]}>
-              Add the grouped items individually from the list above
-            </Text>
+      {isGroupedProduct ? (
+        selectedGroupedItemCount > 0 ? (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10, backgroundColor: colors.card }]}>
+            <View style={styles.groupedBottomBar}>
+              <View style={styles.groupedBottomBarSummary}>
+                <Text style={[styles.groupedBottomBarTitle, { color: colors.text }]}>
+                  {`${selectedGroupedItemCount}/${groupedItems.length} items staged`}
+                </Text>
+                <Text style={[styles.groupedBottomBarText, { color: colors.textSecondary }]}>
+                  {`${selectedGroupedUnits} units • ${formatCurrency(stagedGroupedSubtotal)}`}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.groupedBottomBarButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={handleAddGroupedItemsToCart}
+                disabled={isAddingToCart}
+              >
+                {isAddingToCart ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.groupedBottomBarButtonText}>
+                    Add to Order • {formatCurrency(stagedGroupedSubtotal)}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
+        ) : shouldShowViewCartBar ? (
+          <ViewCartBar
+            itemCount={merchantCart.totalItems}
+            subtotal={merchantCart.subtotal}
+            paddingBottom={insets.bottom > 0 ? insets.bottom : 20}
+            onPress={() => navigation.navigate('MerchantCart', { merchantId })}
+          />
         ) : (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10, backgroundColor: colors.card }]}>
+            <View style={styles.groupedBottomBar}>
+              <View style={styles.groupedBottomBarSummary}>
+                <Text style={[styles.groupedBottomBarTitle, { color: colors.text }]}>
+                  Build your grouped order
+                </Text>
+                <Text style={[styles.groupedBottomBarText, { color: colors.textSecondary }]}>
+                  {eligibleGroupedItems.length > 0
+                    ? 'Select grouped items first, then add them together.'
+                    : 'No eligible grouped items are ready for direct add yet.'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )
+      ) : shouldShowViewCartBar ? (
+        <ViewCartBar
+          itemCount={merchantCart.totalItems}
+          subtotal={merchantCart.subtotal}
+          paddingBottom={insets.bottom > 0 ? insets.bottom : 20}
+          onPress={() => navigation.navigate('MerchantCart', { merchantId })}
+        />
+      ) : (
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10, backgroundColor: colors.card }]}>
           <>
             <View style={styles.quantityContainer}>
               <TouchableOpacity
@@ -772,8 +1051,8 @@ export default function ProductScreen() {
               )}
             </TouchableOpacity>
           </>
-        )}
-      </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -881,6 +1160,120 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 14,
   },
+  groupedCardSelected: {
+    borderColor: '#eba236',
+    backgroundColor: '#FFF9F0',
+  },
+  groupedCardUnavailable: {
+    opacity: 0.7,
+  },
+  groupedComposerCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#F3E1C4',
+    backgroundColor: '#FFFBF5',
+    padding: 16,
+    marginBottom: 16,
+    gap: 14,
+  },
+  groupedComposerHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  groupedComposerHeaderCopy: {
+    flex: 1,
+  },
+  groupedComposerText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#6B7280',
+    marginTop: -2,
+  },
+  groupedProgressBadge: {
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#F3E1C4',
+  },
+  groupedProgressBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  groupedProgressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+    overflow: 'hidden',
+  },
+  groupedProgressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#eba236',
+  },
+  groupedComposerStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  groupedStatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  groupedStatChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  groupedComposerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  groupedComposerActionButton: {
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  groupedComposerActionButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  groupedComposerActionButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  groupedComposerGhostButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  groupedComposerGhostButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  groupedComposerHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6B7280',
+  },
   groupedCardTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -931,6 +1324,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     overflow: 'hidden',
+  },
+  groupedSelectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#DCFCE7',
+  },
+  groupedSelectedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
   },
   groupedName: {
     fontSize: 16,
@@ -986,6 +1393,9 @@ const styles = StyleSheet.create({
   },
   groupedActionButtonDisabled: {
     backgroundColor: '#D1D5DB',
+  },
+  groupedActionButtonSelected: {
+    backgroundColor: '#111827',
   },
   groupedActionButtonText: {
     fontSize: 13,
@@ -1051,18 +1461,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  groupedBottomBarMessage: {
+  groupedBottomBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
+    gap: 12,
+    minHeight: 56,
+  },
+  groupedBottomBarSummary: {
+    flex: 1,
+  },
+  groupedBottomBarTitle: {
+    fontSize: 15,
+    fontWeight: '700',
   },
   groupedBottomBarText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    textAlign: 'center',
+    marginTop: 4,
+  },
+  groupedBottomBarButton: {
+    minWidth: 168,
+    height: 50,
+    paddingHorizontal: 18,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  groupedBottomBarButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
   sectionTitle: {
     fontSize: 18,
