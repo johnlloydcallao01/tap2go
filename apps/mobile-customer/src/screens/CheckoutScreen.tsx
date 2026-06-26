@@ -428,7 +428,7 @@ export default function CheckoutScreen() {
       // Deep links (like tap2go-customer://) are NOT allowed in the PayMongo API validation step.
       // Therefore, we pass our web redirect URL to satisfy the API, but we use Linking.createURL 
       // inside WebBrowser.openAuthSessionAsync to intercept the return natively.
-      const returnUrlAPI = `https://tap2goph.com/checkout/${merchantId}/return?order_id=${createdOrderId}`;
+      const returnUrlAPI = `https://app.tap2goph.com/checkout/${merchantId}/return?order_id=${createdOrderId}`;
       
       const attachResponse = await fetch(
         `https://api.paymongo.com/v1/payment_intents/${intentId}/attach`,

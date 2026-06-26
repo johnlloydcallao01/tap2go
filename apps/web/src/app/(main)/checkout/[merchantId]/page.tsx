@@ -243,7 +243,7 @@ export default function CheckoutPage() {
       const returnUrl =
         typeof window !== 'undefined'
           ? `${window.location.origin}/checkout/${merchantId}/return`
-          : `https://tap2goph.com/checkout/${merchantId}/return`;
+          : `https://app.tap2goph.com/checkout/${merchantId}/return`;
       const resp = await fetch(
         `https://api.paymongo.com/v1/payment_intents/${intentId}/attach`,
         {
