@@ -23,7 +23,6 @@ import { CheckoutAddressSection } from '../components/checkout/CheckoutAddressSe
 import { apiConfig } from '../config/environment';
 import {
   clearPendingCheckoutSession,
-  finalizePaidOrder,
   findActiveCartLinkedOrder,
   getCheckoutPaymentStatus,
   getPendingCheckoutSession,
@@ -39,6 +38,8 @@ type PaymentMethod =
   | 'dob'
   | 'brankas'
   | 'qrph';
+
+const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
 
 const methodLogos: Record<PaymentMethod, { srcs: any[]; label: string; icon: any }> = {
   card: {
@@ -100,7 +101,7 @@ export default function CheckoutScreen() {
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
 
-  const { getMerchantCart, reload } = useCart();
+  const { getMerchantCart } = useCart();
   const { user, customerId } = useAuth();
   
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
@@ -110,11 +111,13 @@ export default function CheckoutScreen() {
   const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
   const reconcileInFlightRef = useRef(false);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasNavigatedToReturnRef = useRef(false);
 
   const merchantCart = getMerchantCart(String(merchantId));
   const merchantName = merchantCart?.merchantName || 'Merchant';
   const merchantLogoUrl = merchantCart?.merchantLogoUrl;
   const totalSubtotal = merchantCart?.subtotal || 0;
+  const isBelowPayMongoMinimum = totalSubtotal < PAYMONGO_MINIMUM_AMOUNT_PHP;
 
   // Filter out 'card' just like the web app
   const availablePaymentMethods = (Object.keys(methodLogos) as PaymentMethod[]).filter(
@@ -128,15 +131,31 @@ export default function CheckoutScreen() {
     return true;
   }, [paymentMethod, activeAddressId]);
 
+  const redirectToCheckoutReturn = useCallback(
+    (paymentIntentId: string, orderId: string, merchantKey: string) => {
+      if (hasNavigatedToReturnRef.current) {
+        return;
+      }
+
+      hasNavigatedToReturnRef.current = true;
+      router.replace({
+        pathname: '/checkout/return',
+        params: {
+          payment_intent_id: paymentIntentId,
+          merchantId: merchantKey,
+          order_id: orderId,
+        },
+      });
+    },
+    [router],
+  );
+
   const reconcileExistingPayment = useCallback(async (showLoader = false) => {
     if (!customerId || Number.isNaN(merchantId) || reconcileInFlightRef.current) {
       return;
     }
 
     reconcileInFlightRef.current = true;
-    if (showLoader) {
-      setIsCheckingPaymentState(true);
-    }
 
     try {
       const customerKey = String(customerId);
@@ -154,6 +173,10 @@ export default function CheckoutScreen() {
         return;
       }
 
+      if (showLoader) {
+        setIsCheckingPaymentState(true);
+      }
+
       if (linkedOrderId && linkedOrderId !== pendingSession.orderId) {
         await clearPendingCheckoutSession(customerKey, merchantKey);
         setHasPendingRecovery(false);
@@ -166,17 +189,11 @@ export default function CheckoutScreen() {
       });
 
       if (paymentStatus.status === 'paid') {
-        await finalizePaidOrder(paymentStatus.orderId, paymentStatus.paidAt || null);
-        await clearPendingCheckoutSession(customerKey, merchantKey);
-        await reload();
-
-        router.replace({
-          pathname: '/order-success',
-          params: {
-            orderId: paymentStatus.orderId,
-            merchantId: merchantKey,
-          },
-        });
+        redirectToCheckoutReturn(
+          paymentStatus.paymentIntentId || pendingSession.paymentIntentId,
+          paymentStatus.orderId,
+          merchantKey,
+        );
         return;
       }
 
@@ -195,7 +212,7 @@ export default function CheckoutScreen() {
         setIsCheckingPaymentState(false);
       }
     }
-  }, [customerId, merchantId, reload, router]);
+  }, [customerId, merchantId, redirectToCheckoutReturn]);
 
   useEffect(() => {
     reconcileExistingPayment(true).catch(() => undefined);
@@ -242,6 +259,14 @@ export default function CheckoutScreen() {
 
     if (!paymentMethod) {
       Alert.alert('Error', 'Please select a payment method');
+      return;
+    }
+
+    if (isBelowPayMongoMinimum) {
+      Alert.alert(
+        'Checkout total too low',
+        'This checkout is below the PayMongo minimum of PHP 1.00. Please review your cart or choose the required priced options before paying.',
+      );
       return;
     }
 
@@ -498,36 +523,17 @@ export default function CheckoutScreen() {
         subscription.remove();
 
         if (result.type === 'success' && result.url) {
-          const parsedUrl = Linking.parse(result.url);
-          const returnedIntentId = parsedUrl.queryParams?.payment_intent_id as string;
-          
-          if (returnedIntentId) {
-            router.replace({
-              pathname: '/checkout/return',
-              params: {
-                payment_intent_id: returnedIntentId,
-                merchantId: String(merchantId),
-                order_id: String(createdOrderId),
-              },
-            });
-          } else {
-            setIsPaying(false);
-            Alert.alert('Error', 'Could not verify payment intent ID.');
-          }
+          // Expo Router already handles the incoming deep link. Doing an extra manual
+          // replace here causes duplicate mounts of the return/success screens.
+          hasNavigatedToReturnRef.current = true;
+          return;
         } else {
           setIsPaying(false);
           setHasPendingRecovery(true);
           reconcileExistingPayment(true).catch(() => undefined);
         }
       } else if (status === 'succeeded') {
-        router.replace({
-          pathname: '/checkout/return',
-          params: {
-            payment_intent_id: intentId,
-            merchantId: String(merchantId),
-            order_id: String(createdOrderId),
-          },
-        });
+        redirectToCheckoutReturn(intentId, String(createdOrderId), String(merchantId));
       } else {
         throw new Error(`Unexpected payment status: ${status}`);
       }
@@ -624,6 +630,22 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
+        {isBelowPayMongoMinimum && (
+          <View style={styles.section}>
+            <View style={styles.minimumAmountCard}>
+              <View style={styles.minimumAmountIconWrap}>
+                <Ionicons name="alert-circle-outline" size={20} color="#B45309" />
+              </View>
+              <View style={styles.minimumAmountContent}>
+                <Text style={styles.minimumAmountTitle}>Checkout total is below PHP 1.00</Text>
+                <Text style={styles.minimumAmountText}>
+                  PayMongo rejects payments below PHP 1.00. This usually means one of the items in the cart has an incomplete or underpriced configuration.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {(isCheckingPaymentState || hasPendingRecovery) && (
           <View style={styles.section}>
             <View style={styles.processingCard}>
@@ -702,10 +724,11 @@ export default function CheckoutScreen() {
         <TouchableOpacity
           style={[
             styles.payButton,
-            (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState) && styles.payButtonDisabled
+            (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum) &&
+              styles.payButtonDisabled
           ]}
           onPress={handlePayNow}
-          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState}
+          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum}
         >
           {isPaying || isCheckingPaymentState ? (
             <ActivityIndicator color="#fff" />
@@ -889,6 +912,38 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#FCD34D',
+  },
+  minimumAmountCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  minimumAmountIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFEDD5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minimumAmountContent: {
+    flex: 1,
+  },
+  minimumAmountTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#9A3412',
+    marginBottom: 4,
+  },
+  minimumAmountText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#9A3412',
   },
   processingIconWrap: {
     width: 36,

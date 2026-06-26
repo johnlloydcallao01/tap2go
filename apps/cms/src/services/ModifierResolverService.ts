@@ -550,22 +550,26 @@ export class ModifierResolverService {
 
         const isOverrideMode = override?.mode === 'override'
 
+        const resolvedIsRequired = isOverrideMode
+          ? override?.required_behavior === 'required'
+            ? true
+            : override?.required_behavior === 'optional'
+              ? false
+              : group.isRequired
+          : group.isRequired
+
+        const resolvedMinSelections = isOverrideMode
+          ? toNullableNumber(override?.min_selections_override) ?? group.minSelections
+          : group.minSelections
+
         return {
           ...group,
           name: isOverrideMode ? toOptionalTrimmedText(override?.name_override) ?? group.name : group.name,
           selectionType: isOverrideMode
             ? (override?.selection_type_override ?? group.selectionType)
             : group.selectionType,
-          isRequired: isOverrideMode
-            ? override?.required_behavior === 'required'
-              ? true
-              : override?.required_behavior === 'optional'
-                ? false
-                : group.isRequired
-            : group.isRequired,
-          minSelections: isOverrideMode
-            ? toNullableNumber(override?.min_selections_override) ?? group.minSelections
-            : group.minSelections,
+          isRequired: resolvedIsRequired,
+          minSelections: resolvedIsRequired ? resolvedMinSelections : 0,
           maxSelections: isOverrideMode
             ? toNullableNumber(override?.max_selections_override) ?? group.maxSelections
             : group.maxSelections,
@@ -682,14 +686,15 @@ export class ModifierResolverService {
           return null
         }
 
-        const minSelections = toFiniteNumber(group.min_selections)
+        const isRequired = Boolean(group.is_required)
+        const minSelections = isRequired ? toFiniteNumber(group.min_selections) : 0
         const maxSelections = toNullableNumber(group.max_selections)
 
         return {
           id: groupId,
           name: toOptionalTrimmedText(group.name) ?? `Group ${groupId}`,
           selectionType: (group.selection_type ?? 'single') as SelectionType,
-          isRequired: Boolean(group.is_required),
+          isRequired,
           minSelections,
           maxSelections,
           sortOrder: toFiniteNumber(group.sort_order),

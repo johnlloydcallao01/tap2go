@@ -1035,9 +1035,17 @@ export default buildConfig({
             : Promise.resolve((req as unknown as MaybeBody).body))) ?? {};
             
           const { amount, currency = 'PHP' } = parsed as { amount?: number; currency?: string };
+          const normalizedAmount = Number(amount);
 
-          if (!amount) {
+          if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
              return Response.json({ error: 'Amount is required (in centavos)' }, { status: 400 });
+          }
+
+          if (normalizedAmount < 100) {
+             return Response.json(
+               { error: 'Checkout total must be at least PHP 1.00 before creating a payment intent.' },
+               { status: 400 },
+             );
           }
 
           // 3. Create Payment Intent via PayMongo
@@ -1056,7 +1064,7 @@ export default buildConfig({
             body: JSON.stringify({
               data: {
                 attributes: {
-                  amount, // Amount in centavos
+                  amount: normalizedAmount, // Amount in centavos
                   payment_method_allowed: [
                     'card',
                     'gcash',

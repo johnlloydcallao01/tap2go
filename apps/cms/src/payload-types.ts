@@ -2238,6 +2238,9 @@ export interface ModifierGroup {
   name: string;
   selection_type: 'single' | 'multiple';
   is_required?: boolean | null;
+  /**
+   * Used only when the group is required. Optional groups are normalized to 0.
+   */
   min_selections?: number | null;
   /**
    * Leave empty for unlimited
@@ -2289,6 +2292,9 @@ export interface VariationModifierGroup {
    * If enabled, the customer must satisfy the selection rule before checkout.
    */
   is_required?: boolean | null;
+  /**
+   * Used only when the group is required. Optional groups are normalized to 0.
+   */
   min_selections?: number | null;
   /**
    * Leave empty for unlimited

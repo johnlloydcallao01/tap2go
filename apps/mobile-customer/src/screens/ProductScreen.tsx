@@ -28,6 +28,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { fetchEffectiveModifierGroups } from '../services/product';
 import type { GroupedProductItem, ModifierGroup } from '../types/product';
 
+const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
+
 function buildDefaultModifierSelection(modifierGroups: ModifierGroup[]): Record<string, string[]> {
   return modifierGroups.reduce<Record<string, string[]>>((acc, group) => {
     const defaultOptions = (group.options || []).filter((option) => option.is_default);
@@ -133,7 +135,11 @@ export default function ProductScreen() {
       if (group.is_required && count === 0) {
         return true;
       }
-      if (group.min_selections > 0 && count < group.min_selections) {
+
+      // Optional groups should not block checkout when nothing is selected.
+      // If the user starts selecting within an optional group, we then enforce
+      // the group's minimum rule for that in-progress selection.
+      if (group.min_selections > 0 && count > 0 && count < group.min_selections) {
         return true;
       }
       if (typeof group.max_selections === 'number' && count > group.max_selections) {
@@ -327,10 +333,19 @@ export default function ProductScreen() {
 
     return price * quantity;
   }, [product, activeModifierGroups, modifierSelection, quantity, effectiveBasePrice]);
+  const isBelowPayMongoMinimum = totalPrice < PAYMONGO_MINIMUM_AMOUNT_PHP;
 
   const handleAddToCart = async () => {
     if (hasInvalidModifiers) {
       Alert.alert('Required Options', 'Please make sure all required options are selected.');
+      return;
+    }
+
+    if (isBelowPayMongoMinimum) {
+      Alert.alert(
+        'Configuration total too low',
+        'This item configuration is below the PayMongo minimum of PHP 1.00. Choose additional priced options or update the base price in CMS.',
+      );
       return;
     }
 
@@ -1037,10 +1052,10 @@ export default function ProductScreen() {
             <TouchableOpacity
               style={[
                 styles.addToCartButton,
-                { backgroundColor: hasInvalidModifiers || cannotAddVariableProduct ? '#ccc' : colors.primary }
+                { backgroundColor: hasInvalidModifiers || cannotAddVariableProduct || isBelowPayMongoMinimum ? '#ccc' : colors.primary }
               ]}
               onPress={handleAddToCart}
-              disabled={hasInvalidModifiers || cannotAddVariableProduct || isAddingToCart}
+              disabled={hasInvalidModifiers || cannotAddVariableProduct || isAddingToCart || isBelowPayMongoMinimum}
             >
               {isAddingToCart ? (
                 <ActivityIndicator color="#fff" />

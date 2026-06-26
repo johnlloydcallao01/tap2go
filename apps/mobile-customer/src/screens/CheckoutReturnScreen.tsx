@@ -11,6 +11,9 @@ import {
 } from '../services/checkoutReturn';
 import { useAuth } from '../contexts/AuthContext';
 
+const handledReturnFlowTimestamps = new Map<string, number>();
+const RETURN_FLOW_DEDUP_WINDOW_MS = 15000;
+
 export default function CheckoutReturnScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -34,6 +37,10 @@ export default function CheckoutReturnScreen() {
       if (!paymentIntentId) {
         Alert.alert('Payment Error', 'Missing payment confirmation reference.');
         router.replace(merchantId ? `/checkout/${merchantId}` : '/(tabs)/orders');
+        return;
+      }
+
+      if (!claimReturnFlow(paymentIntentId)) {
         return;
       }
 
@@ -90,6 +97,24 @@ export default function CheckoutReturnScreen() {
       </View>
     </View>
   );
+}
+
+function claimReturnFlow(paymentIntentId: string): boolean {
+  const now = Date.now();
+
+  for (const [key, startedAt] of handledReturnFlowTimestamps.entries()) {
+    if (now - startedAt > RETURN_FLOW_DEDUP_WINDOW_MS) {
+      handledReturnFlowTimestamps.delete(key);
+    }
+  }
+
+  const existingStartedAt = handledReturnFlowTimestamps.get(paymentIntentId);
+  if (existingStartedAt && now - existingStartedAt <= RETURN_FLOW_DEDUP_WINDOW_MS) {
+    return false;
+  }
+
+  handledReturnFlowTimestamps.set(paymentIntentId, now);
+  return true;
 }
 
 const styles = StyleSheet.create({

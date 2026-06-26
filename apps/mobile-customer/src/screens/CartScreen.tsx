@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart, MerchantCartSummary } from '../contexts/CartContext';
@@ -51,6 +51,8 @@ export default function CartScreen() {
   const colors = useThemeColors();
   const merchantCarts = getAllMerchantCarts();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCart, setSelectedCart] = useState<MerchantCartSummary | null>(null);
+  const [isOptionsModalVisible, setIsOptionsModalVisible] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -67,29 +69,27 @@ export default function CartScreen() {
     navigation.navigate('MerchantCart', { merchantId });
   };
 
+  const closeOptionsModal = useCallback(() => {
+    setIsOptionsModalVisible(false);
+    setSelectedCart(null);
+  }, []);
+
   const handleMoreOptions = (cart: MerchantCartSummary) => {
-      Alert.alert(
-          cart.merchantName,
-          "Select an option",
-          [
-              {
-                  text: "Add more items",
-                  onPress: () => navigation.navigate('Merchant', { merchantId: cart.merchantId })
-              },
-              {
-                  text: "Delete cart",
-                  style: "destructive",
-                  onPress: () => {
-                    cart.items.forEach((item) => removeFromCart(item.id));
-                  }
-              },
-              {
-                  text: "Cancel",
-                  style: "cancel"
-              }
-          ]
-      );
+      setSelectedCart(cart);
+      setIsOptionsModalVisible(true);
   };
+
+  const handleAddMoreItems = useCallback(() => {
+    if (!selectedCart) return;
+    closeOptionsModal();
+    navigation.navigate('Merchant', { merchantId: selectedCart.merchantId });
+  }, [closeOptionsModal, navigation, selectedCart]);
+
+  const handleDeleteCart = useCallback(() => {
+    if (!selectedCart) return;
+    selectedCart.items.forEach((item) => removeFromCart(item.id));
+    closeOptionsModal();
+  }, [closeOptionsModal, removeFromCart, selectedCart]);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
@@ -208,6 +208,77 @@ export default function CartScreen() {
           </View>
         )}
       </PullToRefreshLayout>
+
+      <Modal
+        visible={isOptionsModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={closeOptionsModal}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={closeOptionsModal} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View style={styles.modalBrandBadge}>
+                {selectedCart?.merchantLogoUrl ? (
+                  <Image source={{ uri: selectedCart.merchantLogoUrl }} style={styles.modalBrandImage} />
+                ) : (
+                  <Ionicons name="storefront-outline" size={18} color="#374151" />
+                )}
+              </View>
+              <Text style={styles.modalTitle}>{selectedCart?.merchantName || 'Cart options'}</Text>
+              <Text style={styles.modalSubtitle}>
+                Choose what you want to do with this cart.
+              </Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalActionCard, styles.modalActionPrimary]}
+                activeOpacity={0.9}
+                onPress={handleAddMoreItems}
+              >
+                <View style={[styles.modalActionIconWrap, styles.modalActionIconPrimary]}>
+                  <Ionicons name="add-circle-outline" size={20} color="#B45309" />
+                </View>
+                <View style={styles.modalActionContent}>
+                  <Text style={styles.modalActionTitle}>Add more items</Text>
+                  <Text style={styles.modalActionDescription}>
+                    Go back to the merchant page and keep building this order.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalActionCard, styles.modalActionDanger]}
+                activeOpacity={0.9}
+                onPress={handleDeleteCart}
+              >
+                <View style={[styles.modalActionIconWrap, styles.modalActionIconDanger]}>
+                  <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                </View>
+                <View style={styles.modalActionContent}>
+                  <Text style={styles.modalActionTitle}>Delete cart</Text>
+                  <Text style={styles.modalActionDescription}>
+                    Remove all items from this merchant cart.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              activeOpacity={0.85}
+              onPress={closeOptionsModal}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -389,6 +460,130 @@ const styles = StyleSheet.create({
   viewCartText: {
     fontSize: 15,
     fontWeight: '600',
+    color: '#111827',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(17, 24, 39, 0.32)',
+  },
+  modalBackdrop: {
+    flex: 1,
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 18,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 18,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalBrandBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 12,
+  },
+  modalBrandImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  modalActions: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  modalActionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  modalActionPrimary: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  modalActionDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  modalActionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  modalActionIconPrimary: {
+    backgroundColor: '#FEF3C7',
+  },
+  modalActionIconDanger: {
+    backgroundColor: '#FEE2E2',
+  },
+  modalActionContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  modalActionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  modalActionDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6B7280',
+  },
+  modalCancelButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    borderRadius: 18,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: '#111827',
   },
 });

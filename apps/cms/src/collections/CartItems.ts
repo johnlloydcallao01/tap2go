@@ -105,7 +105,7 @@ function normalizeSelectedModifiers(
         const count = selectionCounts.get(group.id) ?? 0
         const requiredMinimum = group.isRequired
             ? Math.max(1, group.minSelections)
-            : group.minSelections
+            : 0
 
         if (group.selectionType === 'single' && count > 1) {
             throw new Error(`Modifier group "${group.name}" only allows one selection`)

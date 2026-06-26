@@ -9,6 +9,8 @@ import { useThemeColors } from '../contexts/ThemeContext';
 import { formatCurrency } from '../utils/format';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
+const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
+
 const MerchantCartSkeleton = () => {
     return (
         <View style={{ padding: 16 }}>
@@ -40,6 +42,7 @@ export default function MerchantCartScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const merchantCart = getMerchantCart(merchantId);
+  const isBelowPayMongoMinimum = Boolean(merchantCart && merchantCart.subtotal < PAYMONGO_MINIMUM_AMOUNT_PHP);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -61,7 +64,7 @@ export default function MerchantCartScreen() {
   };
 
   const handleCheckout = () => {
-    if (!merchantId || !merchantCart || merchantCart.subtotal <= 0) return;
+    if (!merchantId || !merchantCart || merchantCart.subtotal < PAYMONGO_MINIMUM_AMOUNT_PHP) return;
     navigation.navigate('Checkout', { merchantId });
   };
 
@@ -166,6 +169,15 @@ export default function MerchantCartScreen() {
                         <Text style={styles.totalValue}>{formatCurrency(merchantCart.subtotal)}</Text>
                     </View>
                 </View>
+
+                {isBelowPayMongoMinimum && (
+                    <View style={styles.minimumAmountNotice}>
+                        <Ionicons name="alert-circle-outline" size={18} color="#B45309" />
+                        <Text style={styles.minimumAmountNoticeText}>
+                            This cart is below the PayMongo minimum of PHP 1.00. Review the item options or pricing before checkout.
+                        </Text>
+                    </View>
+                )}
             </View>
         )}
       </PullToRefreshLayout>
@@ -173,9 +185,9 @@ export default function MerchantCartScreen() {
       {merchantCart && merchantCart.items.length > 0 && (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <TouchableOpacity 
-            style={[styles.checkoutButton, merchantCart.subtotal <= 0 && styles.checkoutButtonDisabled]}
+            style={[styles.checkoutButton, isBelowPayMongoMinimum && styles.checkoutButtonDisabled]}
             onPress={handleCheckout}
-            disabled={merchantCart.subtotal <= 0}
+            disabled={isBelowPayMongoMinimum}
           >
             <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
             <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal)}</Text>
@@ -379,6 +391,24 @@ const styles = StyleSheet.create({
       fontSize: 16,
       fontWeight: 'bold',
       color: '#333',
+  },
+  minimumAmountNotice: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      backgroundColor: '#FFF7ED',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#FDBA74',
+      padding: 12,
+      marginBottom: 24,
+  },
+  minimumAmountNoticeText: {
+      flex: 1,
+      fontSize: 13,
+      lineHeight: 18,
+      color: '#9A3412',
+      fontWeight: '500',
   },
   footer: {
       paddingHorizontal: 16,

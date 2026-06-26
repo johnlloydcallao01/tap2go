@@ -67,6 +67,9 @@ export const VariationModifierGroups: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       label: 'Minimum Selections',
+      admin: {
+        description: 'Used only when the group is required. Optional groups are normalized to 0.',
+      },
     },
     {
       name: 'max_selections',
@@ -128,7 +131,10 @@ export const VariationModifierGroups: CollectionConfig = {
           throw new Error('Single-selection groups cannot allow more than 1 selection')
         }
 
-        return data
+        return {
+          ...data,
+          min_selections: data.is_required ? minSelections : 0,
+        }
       },
     ],
   },

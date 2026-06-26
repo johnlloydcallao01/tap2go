@@ -12,6 +12,25 @@ interface ProductModifiersProps {
 export default function ProductModifiers({ modifierGroups, selected, onChange }: ProductModifiersProps) {
   if (!modifierGroups || modifierGroups.length === 0) return null;
 
+  const getSelectionHint = (group: ModifierGroup): string => {
+    if (group.selection_type === 'single') {
+      return group.is_required ? 'Select 1' : 'Optional';
+    }
+
+    if (group.is_required) {
+      const minText = group.min_selections > 0 ? `Select at least ${group.min_selections}` : 'Select options';
+      return group.max_selections ? `${minText} (Max ${group.max_selections})` : minText;
+    }
+
+    if (group.min_selections > 0) {
+      return group.max_selections
+        ? `Optional, but choose at least ${group.min_selections} if selecting (Max ${group.max_selections})`
+        : `Optional, but choose at least ${group.min_selections} if selecting`;
+    }
+
+    return group.max_selections ? `Optional (Max ${group.max_selections})` : 'Optional';
+  };
+
   const handleOptionToggle = (group: ModifierGroup, optionId: string) => {
     const current = selected[group.id] || [];
     const isChecked = current.includes(optionId);
@@ -64,13 +83,10 @@ export default function ProductModifiers({ modifierGroups, selected, onChange }:
                   </View>
                 )}
                 {group.selection_type === 'multiple' && (
-                  <Text style={styles.selectionText}>
-                    {group.min_selections > 0 ? `Select at least ${group.min_selections}` : ''}
-                    {group.max_selections ? ` (Max ${group.max_selections})` : ''}
-                  </Text>
+                  <Text style={styles.selectionText}>{getSelectionHint(group)}</Text>
                 )}
                 {group.selection_type === 'single' && (
-                  <Text style={styles.selectionText}>Select 1</Text>
+                  <Text style={styles.selectionText}>{getSelectionHint(group)}</Text>
                 )}
               </View>
             </View>

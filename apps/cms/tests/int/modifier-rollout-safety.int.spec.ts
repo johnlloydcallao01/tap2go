@@ -166,6 +166,56 @@ describe('Phase 11 rollout safety - CartItems hook', () => {
     expect(result.itemHash.length).toBe(32)
   })
 
+  it('allows optional modifier groups to be skipped even if min_selections was configured above zero', async () => {
+    const payload = createMockPayload(
+      createBaseCollections({
+        'modifier-groups': [
+          {
+            id: 11,
+            product_id: 100,
+            name: 'Rice Choice',
+            selection_type: 'single',
+            is_required: false,
+            min_selections: 1,
+            max_selections: 1,
+            sort_order: 0,
+          },
+        ],
+        'modifier-options': [
+          {
+            id: 101,
+            modifier_group_id: 11,
+            name: 'Java Rice',
+            price_adjustment: 25,
+            is_default: false,
+            is_available: true,
+            sort_order: 0,
+          },
+        ],
+      }),
+    )
+
+    const hook = getCartBeforeChangeHook()
+    const result = (await hook({
+      data: {
+        customer: 501,
+        merchant: 300,
+        product: 100,
+        merchantProduct: 900,
+        quantity: 1,
+        priceAtAdd: 120,
+        selectedModifiers: [],
+        selectedAddons: [],
+      },
+      operation: 'create',
+      req: { payload },
+      originalDoc: {},
+    } as any)) as Record<string, any>
+
+    expect(result.selectedModifiers).toEqual([])
+    expect(result.subtotal).toBe(120)
+  })
+
   it('accepts variable products that inherit product-level modifiers', async () => {
     const payload = createMockPayload(
       createBaseCollections({
