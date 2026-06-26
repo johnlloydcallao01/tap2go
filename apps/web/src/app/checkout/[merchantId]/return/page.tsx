@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
-import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 
 export default function MobileCheckoutReturnBridgePage() {
   const params = useParams<{ merchantId: string }>()
   const searchParams = useSearchParams()
   const merchantId = params?.merchantId || ''
+  const [showFallback, setShowFallback] = useState(false)
 
   const deepLink = useMemo(() => {
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -20,11 +20,29 @@ export default function MobileCheckoutReturnBridgePage() {
   }, [merchantId, searchParams])
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      window.location.replace(deepLink)
-    }, 150)
+    const openDeepLink = () => {
+      window.location.href = deepLink
+    }
 
-    return () => window.clearTimeout(timeout)
+    // Try immediately for browsers that allow the app switch after the payment redirect.
+    openDeepLink()
+
+    // Retry shortly after in case the first handoff is dropped.
+    const retryTimer = window.setTimeout(() => {
+      openDeepLink()
+    }, 400)
+
+    // Only reveal fallback UI if the page is still visible after the auto-open attempts.
+    const fallbackTimer = window.setTimeout(() => {
+      if (!document.hidden) {
+        setShowFallback(true)
+      }
+    }, 1400)
+
+    return () => {
+      window.clearTimeout(retryTimer)
+      window.clearTimeout(fallbackTimer)
+    }
   }, [deepLink])
 
   return (
@@ -56,23 +74,46 @@ export default function MobileCheckoutReturnBridgePage() {
         <p style={{ fontSize: '15px', lineHeight: 1.6, color: '#6b7280', marginBottom: '20px' }}>
           Your payment result is being handed back to the mobile app so we can confirm the order properly.
         </p>
-        <Link
-          href={deepLink}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '48px',
-            padding: '0 20px',
-            borderRadius: '999px',
-            background: '#f59e0b',
-            color: '#fff',
-            fontWeight: 700,
-            textDecoration: 'none',
-          }}
-        >
-          Open Tap2Go
-        </Link>
+        {!showFallback ? (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '48px',
+              padding: '0 20px',
+              borderRadius: '999px',
+              background: '#fef3c7',
+              color: '#92400e',
+              fontWeight: 700,
+            }}
+          >
+            Opening Tap2Go...
+          </div>
+        ) : (
+          <>
+            <a
+              href={deepLink}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '48px',
+                padding: '0 20px',
+                borderRadius: '999px',
+                background: '#f59e0b',
+                color: '#fff',
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              Open Tap2Go
+            </a>
+            <p style={{ fontSize: '13px', lineHeight: 1.6, color: '#6b7280', marginTop: '14px' }}>
+              If the app did not open automatically, tap the button once to continue in Tap2Go.
+            </p>
+          </>
+        )}
       </section>
     </main>
   )
