@@ -17,6 +17,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tap2go.customer",
+      "associatedDomains": [
+        "applinks:app.tap2goph.com"
+      ],
       "userInterfaceStyle": "light"
     },
     "android": {
@@ -37,6 +40,11 @@
             "DEFAULT"
           ],
           "data": [
+            {
+              "scheme": "http",
+              "host": "app.tap2goph.com",
+              "pathPrefix": "/checkout/"
+            },
             {
               "scheme": "https",
               "host": "app.tap2goph.com",
