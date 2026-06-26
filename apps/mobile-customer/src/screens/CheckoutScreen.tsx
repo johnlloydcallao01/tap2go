@@ -104,7 +104,7 @@ export default function CheckoutScreen() {
   const { user, customerId } = useAuth();
   
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('gcash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [isCheckingPaymentState, setIsCheckingPaymentState] = useState(false);
   const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
@@ -144,9 +144,25 @@ export default function CheckoutScreen() {
       const pendingSession = await getPendingCheckoutSession(customerKey, merchantKey);
       const linkedOrderId = await findActiveCartLinkedOrder(customerKey, merchantKey);
 
+      // Only auto-recover a checkout that this device actually started recently.
+      // Without this guard, any stale order/cart link can hijack a fresh checkout.
+      if (!pendingSession || !isPendingSessionFresh(pendingSession.createdAt)) {
+        if (pendingSession) {
+          await clearPendingCheckoutSession(customerKey, merchantKey);
+        }
+        setHasPendingRecovery(false);
+        return;
+      }
+
+      if (linkedOrderId && linkedOrderId !== pendingSession.orderId) {
+        await clearPendingCheckoutSession(customerKey, merchantKey);
+        setHasPendingRecovery(false);
+        return;
+      }
+
       const paymentStatus = await getCheckoutPaymentStatus({
-        paymentIntentId: pendingSession?.paymentIntentId,
-        orderId: pendingSession?.orderId || linkedOrderId || undefined,
+        paymentIntentId: pendingSession.paymentIntentId,
+        orderId: pendingSession.orderId,
       });
 
       if (paymentStatus.status === 'paid') {
@@ -424,11 +440,21 @@ export default function CheckoutScreen() {
       });
 
       // 6. Attach Payment Method to Payment Intent
-      // PayMongo's API strictly validates that return_url must be an absolute http or https URL.
-      // Deep links (like tap2go-customer://) are NOT allowed in the PayMongo API validation step.
-      // Therefore, we pass our web redirect URL to satisfy the API, but we use Linking.createURL 
-      // inside WebBrowser.openAuthSessionAsync to intercept the return natively.
-      const returnUrlAPI = `https://app.tap2goph.com/checkout/${merchantId}/return?order_id=${createdOrderId}`;
+      // PayMongo requires an absolute http/https return_url, so we send the user to our web bridge.
+      // The bridge then forwards to the exact runtime app URL, which is critical in Expo Go where
+      // the live app URL is exp://... instead of the standalone app scheme.
+      const appReturnUrl = Linking.createURL('checkout/return', {
+        queryParams: {
+          payment_intent_id: intentId,
+          merchantId: String(merchantId),
+          order_id: String(createdOrderId),
+        },
+      });
+      const returnUrlAPI =
+        `https://app.tap2goph.com/checkout/${merchantId}/return?` +
+        `payment_intent_id=${encodeURIComponent(intentId)}` +
+        `&order_id=${encodeURIComponent(String(createdOrderId))}` +
+        `&app_redirect=${encodeURIComponent(appReturnUrl)}`;
       
       const attachResponse = await fetch(
         `https://api.paymongo.com/v1/payment_intents/${intentId}/attach`,
@@ -467,10 +493,7 @@ export default function CheckoutScreen() {
           }
         });
 
-        const result = await WebBrowser.openAuthSessionAsync(
-          nextAction.redirect.url,
-          Linking.createURL('checkout/return')
-        );
+        const result = await WebBrowser.openAuthSessionAsync(nextAction.redirect.url, appReturnUrl);
 
         subscription.remove();
 
@@ -697,6 +720,17 @@ export default function CheckoutScreen() {
       </View>
     </View>
   );
+}
+
+const PENDING_SESSION_MAX_AGE_MS = 1000 * 60 * 90;
+
+function isPendingSessionFresh(createdAt: string): boolean {
+  const createdAtMs = Date.parse(createdAt);
+  if (Number.isNaN(createdAtMs)) {
+    return false;
+  }
+
+  return Date.now() - createdAtMs <= PENDING_SESSION_MAX_AGE_MS;
 }
 
 const styles = StyleSheet.create({

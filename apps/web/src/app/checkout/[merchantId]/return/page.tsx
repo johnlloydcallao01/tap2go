@@ -10,7 +10,13 @@ export default function MobileCheckoutReturnBridgePage() {
   const [showFallback, setShowFallback] = useState(false)
 
   const deepLink = useMemo(() => {
+    const appRedirect = searchParams.get('app_redirect')
+    if (appRedirect && isAllowedAppRedirect(appRedirect)) {
+      return appRedirect
+    }
+
     const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete('app_redirect')
     if (merchantId && !nextParams.has('merchantId')) {
       nextParams.set('merchantId', merchantId)
     }
@@ -117,4 +123,8 @@ export default function MobileCheckoutReturnBridgePage() {
       </section>
     </main>
   )
+}
+
+function isAllowedAppRedirect(url: string): boolean {
+  return /^(exp|exps|tap2go-customer):\/\//i.test(url)
 }
