@@ -109,6 +109,9 @@ export default function CheckoutScreen() {
   const [isPaying, setIsPaying] = useState(false);
   const [isCheckingPaymentState, setIsCheckingPaymentState] = useState(false);
   const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [qrIntentId, setQrIntentId] = useState<string | null>(null);
+  const [qrOrderId, setQrOrderId] = useState<string | null>(null);
   const reconcileInFlightRef = useRef(false);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasNavigatedToReturnRef = useRef(false);
@@ -249,6 +252,49 @@ export default function CheckoutScreen() {
     return () => {
       subscription.remove();
     };
+  }, [reconcileExistingPayment]);
+
+  useEffect(() => {
+    if (!qrIntentId || !customerId) return;
+
+    let cancelled = false;
+    const intervalId = setInterval(async () => {
+      if (cancelled) return;
+      try {
+        const paymentStatus = await getCheckoutPaymentStatus({ paymentIntentId: qrIntentId });
+        if (paymentStatus.status === 'paid') {
+          clearInterval(intervalId);
+          if (!cancelled) {
+            redirectToCheckoutReturn(qrIntentId, paymentStatus.orderId || qrOrderId || '', String(merchantId));
+          }
+        } else if (paymentStatus.status === 'failed') {
+          clearInterval(intervalId);
+          if (!cancelled) {
+            Alert.alert('Payment Failed', 'Your QR Ph payment was not completed.');
+            setQrImage(null);
+            setQrIntentId(null);
+            setQrOrderId(null);
+            setHasPendingRecovery(true);
+            reconcileExistingPayment(false).catch(() => undefined);
+          }
+        }
+      } catch {
+        // keep polling
+      }
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [qrIntentId, qrOrderId, customerId, merchantId, redirectToCheckoutReturn, reconcileExistingPayment]);
+
+  const dismissQr = useCallback(() => {
+    setQrImage(null);
+    setQrIntentId(null);
+    setQrOrderId(null);
+    setHasPendingRecovery(true);
+    reconcileExistingPayment(true).catch(() => undefined);
   }, [reconcileExistingPayment]);
 
   const handlePayNow = async () => {
@@ -510,27 +556,35 @@ export default function CheckoutScreen() {
       const status = attachData?.data?.attributes?.status;
       const nextAction = attachData?.data?.attributes?.next_action;
 
-      if (status === 'awaiting_next_action' && nextAction?.redirect?.url) {
-        // Setup gcash intent handler before opening the browser
-        const subscription = Linking.addEventListener('url', ({ url }) => {
-          if (url.startsWith('gcash://')) {
-            Linking.openURL(url);
+      if (status === 'awaiting_next_action' && nextAction) {
+        if (nextAction.redirect?.url) {
+          // Setup gcash intent handler before opening the browser
+          const subscription = Linking.addEventListener('url', ({ url }) => {
+            if (url.startsWith('gcash://')) {
+              Linking.openURL(url);
+            }
+          });
+
+          const result = await WebBrowser.openAuthSessionAsync(nextAction.redirect.url, appReturnUrl);
+
+          subscription.remove();
+
+          if (result.type === 'success' && result.url) {
+            // Expo Router already handles the incoming deep link. Doing an extra manual
+            // replace here causes duplicate mounts of the return/success screens.
+            hasNavigatedToReturnRef.current = true;
+            return;
+          } else {
+            setIsPaying(false);
+            setHasPendingRecovery(true);
+            reconcileExistingPayment(true).catch(() => undefined);
           }
-        });
-
-        const result = await WebBrowser.openAuthSessionAsync(nextAction.redirect.url, appReturnUrl);
-
-        subscription.remove();
-
-        if (result.type === 'success' && result.url) {
-          // Expo Router already handles the incoming deep link. Doing an extra manual
-          // replace here causes duplicate mounts of the return/success screens.
-          hasNavigatedToReturnRef.current = true;
-          return;
-        } else {
+        } else if (nextAction.code?.image_url) {
+          setQrImage(nextAction.code.image_url);
+          setQrIntentId(intentId);
+          setQrOrderId(String(createdOrderId));
           setIsPaying(false);
-          setHasPendingRecovery(true);
-          reconcileExistingPayment(true).catch(() => undefined);
+          return;
         }
       } else if (status === 'succeeded') {
         redirectToCheckoutReturn(intentId, String(createdOrderId), String(merchantId));
@@ -711,7 +765,31 @@ export default function CheckoutScreen() {
             })}
           </View>
         </View>
-        
+
+        {qrImage && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Scan QR Code to Pay</Text>
+            <View style={styles.qrCard}>
+              <Image
+                source={{ uri: qrImage }}
+                style={styles.qrImage}
+                resizeMode="contain"
+              />
+              <Text style={styles.qrInstructions}>
+                Scan this QR code using your preferred banking or e-wallet app{'\n'}
+                (Maya, GCash, BDO, BPI, etc.) to complete your payment.
+              </Text>
+              <TouchableOpacity
+                style={styles.qrCancelButton}
+                onPress={dismissQr}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.qrCancelButtonText}>Cancel Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Bottom Padding */}
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -1037,5 +1115,38 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#6B7280',
+  },
+  qrCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  qrImage: {
+    width: 220,
+    height: 220,
+    marginBottom: 16,
+  },
+  qrInstructions: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  qrCancelButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  qrCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
   },
 });

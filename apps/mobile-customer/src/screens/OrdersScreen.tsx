@@ -41,6 +41,7 @@ export default function OrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [showFilters, setShowFilters] = useState(true);
 
   const filters = ['All', 'pending', 'accepted', 'preparing', 'ready_for_pickup', 'on_delivery', 'delivered', 'cancelled'];
 
@@ -205,8 +206,15 @@ export default function OrdersScreen() {
           <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111827', flex: 1 }}>
             Orders
           </Text>
-          <TouchableOpacity style={{ padding: 8 }}>
-            <Ionicons name="filter-outline" size={24} color="#6b7280" />
+          <TouchableOpacity
+            style={{ padding: 8 }}
+            onPress={() => setShowFilters(prev => !prev)}
+          >
+            <Ionicons
+              name={showFilters ? 'filter' : 'filter-outline'}
+              size={24}
+              color={selectedFilter !== 'All' ? '#f97316' : '#6b7280'}
+            />
           </TouchableOpacity>
         </View>
 
@@ -238,33 +246,35 @@ export default function OrdersScreen() {
           </View>
 
           {/* Filters */}
-          <View style={{ paddingLeft: 16, marginBottom: 16 }}>
-            <PullToRefreshLayout horizontal showsHorizontalScrollIndicator={false}>
-              {filters.map((filter) => (
-                <TouchableOpacity
-                  key={filter}
-                  onPress={() => setSelectedFilter(filter)}
-                  style={{
-                    backgroundColor: selectedFilter === filter ? '#f97316' : '#fff',
-                    paddingHorizontal: 16,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    marginRight: 8,
-                    borderWidth: 1,
-                    borderColor: selectedFilter === filter ? '#f97316' : '#e5e7eb',
-                  }}
-                >
-                  <Text style={{
-                    color: selectedFilter === filter ? '#fff' : '#6b7280',
-                    fontWeight: '600',
-                    fontSize: 14,
-                  }}>
-                    {filter === 'All' ? 'All' : formatStatus(filter)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </PullToRefreshLayout>
-          </View>
+          {showFilters && (
+            <View style={{ paddingLeft: 16, marginBottom: 16 }}>
+              <PullToRefreshLayout horizontal showsHorizontalScrollIndicator={false}>
+                {filters.map((filter) => (
+                  <TouchableOpacity
+                    key={filter}
+                    onPress={() => setSelectedFilter(filter)}
+                    style={{
+                      backgroundColor: selectedFilter === filter ? '#f97316' : '#fff',
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      marginRight: 8,
+                      borderWidth: 1,
+                      borderColor: selectedFilter === filter ? '#f97316' : '#e5e7eb',
+                    }}
+                  >
+                    <Text style={{
+                      color: selectedFilter === filter ? '#fff' : '#6b7280',
+                      fontWeight: '600',
+                      fontSize: 14,
+                    }}>
+                      {filter === 'All' ? 'All' : formatStatus(filter)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </PullToRefreshLayout>
+            </View>
+          )}
 
           {/* Content */}
           {loading && !refreshing ? (
