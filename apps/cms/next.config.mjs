@@ -2,6 +2,14 @@ import { withPayload } from '@payloadcms/next/withPayload'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: [
+    'localhost',
+    'localhost:3001',
+    'localhost:8081',
+    'api-dev.tap2goph.com',
+    'cms-dev.tap2goph.com',
+    'dev.tap2goph.com',
+  ],
   // Redirect root path to admin
   async redirects() {
     return [

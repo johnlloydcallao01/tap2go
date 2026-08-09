@@ -121,6 +121,40 @@ export async function finalizePaidOrder(orderId: string, paidAt?: string | null)
       }).catch(() => undefined)
     )
   );
+
+  // Book the Lalamove delivery now that payment is confirmed.
+  await bookLalamoveDelivery(orderId).catch((err) => {
+    console.error(`[checkoutReturn] Failed to book Lalamove delivery for order ${orderId}:`, err);
+  });
+}
+
+/**
+ * Books a Lalamove delivery for a paid order via the CMS.
+ * Safe to call multiple times — the CMS returns 409 if already booked.
+ */
+export async function bookLalamoveDelivery(orderId: string): Promise<{
+  deliveryBookingId: number;
+  lalamoveOrderId: string;
+  shareLink: string;
+  deliveryFee: number;
+  status: string;
+}> {
+  const headers = buildCmsHeaders();
+  const response = await fetch(`${apiConfig.baseUrl}/delivery/book`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ orderId: Number(orderId) }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message =
+      data?.error || `Failed to book delivery (${response.status})`;
+    throw new Error(message);
+  }
+
+  return data?.data;
 }
 
 export async function savePendingCheckoutSession(session: PendingCheckoutSession): Promise<void> {

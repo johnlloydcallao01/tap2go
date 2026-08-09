@@ -24,6 +24,7 @@ export interface MobileAuthState extends AuthState {
 
 export interface MobileAuthContextType extends AuthContextType {
   customerId: string | null;
+  updateUser: (user: User) => void;
 }
 
 // ========================================
@@ -39,7 +40,8 @@ type AuthAction =
   | { type: 'REFRESH_SUCCESS'; payload: { user: User } }
   | { type: 'CLEAR_ERROR' }
   | { type: 'SESSION_EXPIRED' }
-  | { type: 'SET_CUSTOMER_ID'; payload: { customerId: string | null } };
+  | { type: 'SET_CUSTOMER_ID'; payload: { customerId: string | null } }
+  | { type: 'UPDATE_USER'; payload: { user: User } };
 
 const initialState: MobileAuthState = {
   user: null,
@@ -128,6 +130,13 @@ function authReducer(state: MobileAuthState, action: AuthAction): MobileAuthStat
       return {
         ...state,
         customerId: action.payload.customerId,
+      };
+
+    case 'UPDATE_USER':
+      return {
+        ...state,
+        user: action.payload.user,
+        isAuthenticated: true,
       };
 
     default:
@@ -292,6 +301,11 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
     }
   }, []);
 
+  const updateUser = useCallback((updatedUser: User) => {
+    dispatch({ type: 'UPDATE_USER', payload: { user: updatedUser } });
+    AsyncStorage.setItem('grandline_auth_user', JSON.stringify(updatedUser));
+  }, []);
+
   const refreshSession = useCallback(async () => {
     // Implementation for refresh token if needed
     // For now, we rely on the token validity
@@ -317,6 +331,7 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
     token, // Expose token
     login,
     logout,
+    updateUser,
     refreshSession,
     clearError,
     checkAuthStatus,

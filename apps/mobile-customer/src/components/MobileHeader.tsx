@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useResponsiveStyles, createResponsiveValue, createResponsiveSpacing, createResponsiveFontSize } from '../hooks/useResponsiveStyles';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationsContext';
 import {
   useActiveAddress,
   ADDRESS_KEYS,
@@ -35,6 +36,7 @@ export default function MobileHeader({
 }: MobileHeaderProps) {
   const colors = useThemeColors();
   const { user, token } = useAuth();
+  const { unseenCount, markAllAsSeen } = useNotifications();
   const queryClient = useQueryClient();
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
@@ -166,10 +168,38 @@ export default function MobileHeader({
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={onNotificationPress}
+            onPress={(event) => {
+              event?.stopPropagation?.();
+              // Facebook-style: clicking the bell clears the badge (seen) but
+              // the notifications stay unread until individually read.
+              markAllAsSeen();
+              if (onNotificationPress) onNotificationPress();
+            }}
             style={styles.iconButton}
           >
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+            <View>
+              <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+              {unseenCount > 0 && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -8,
+                    backgroundColor: colors.notification,
+                    borderRadius: 9,
+                    minWidth: 18,
+                    height: 18,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingHorizontal: 3,
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: 'bold' }}>
+                    {unseenCount > 9 ? '9+' : unseenCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
         </View>
       </View>

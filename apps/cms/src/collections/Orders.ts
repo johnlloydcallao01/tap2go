@@ -1,4 +1,14 @@
 import type { CollectionConfig } from 'payload'
+import { createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
+
+function resolveId(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (typeof value === 'object' && value !== null && 'id' in (value as any)) {
+    return String((value as any).id)
+  }
+  return null
+}
 
 export const Orders: CollectionConfig = {
   slug: 'orders',
@@ -7,6 +17,73 @@ export const Orders: CollectionConfig = {
     defaultColumns: ['id', 'status', 'total', 'placed_at'],
     group: 'Ordering System',
     description: 'Central entity for all transactions',
+  },
+  hooks: {
+    afterChange: [
+      async ({ doc, previousDoc, operation, req }) => {
+        try {
+          const customerId = resolveId(doc?.customer)
+          if (!customerId) return doc
+
+          const customer = await req.payload.findByID({
+            collection: 'customers',
+            id: customerId,
+            depth: 0,
+            overrideAccess: true,
+          })
+          const userId = resolveId(customer?.user)
+          if (!userId) return doc
+
+          const orderId = resolveId(doc?.id) || String(doc?.id ?? '')
+          const merchantId = resolveId(doc?.merchant)
+          const status = doc?.status ?? null
+
+          if (operation === 'create') {
+            await createNotificationFanout({
+              payload: req.payload,
+              userId,
+              typeKey: 'order.created',
+              domain: 'order',
+              priority: 'info',
+              title: 'New order placed',
+              body: `Your order #${orderId} has been placed. We'll let you know as soon as it's confirmed.`,
+              sourceEntityType: 'order',
+              sourceEntityId: orderId,
+              metadata: {
+                orderId,
+                status,
+                merchantId,
+              },
+            })
+          } else if (operation === 'update') {
+            const previousStatus = previousDoc?.status ?? null
+            if (previousStatus && status && previousStatus !== status) {
+              const label = getOrderStatusLabel(status)
+              await createNotificationFanout({
+                payload: req.payload,
+                userId,
+                typeKey: 'order.status_changed',
+                domain: 'order',
+                priority: status === 'cancelled' ? 'warning' : 'info',
+                title: `Order ${getOrderStatusLabel(status)}`,
+                body: `Your order #${orderId} is now ${label.toLowerCase()}.`,
+                sourceEntityType: 'order',
+                sourceEntityId: orderId,
+                metadata: {
+                  orderId,
+                  status,
+                  previousStatus,
+                  merchantId,
+                },
+              })
+            }
+          }
+        } catch (error) {
+          console.error('[orders] afterChange notification error:', error)
+        }
+        return doc
+      },
+    ],
   },
   access: {
     read: ({ req: { user } }) => {
@@ -121,6 +198,52 @@ export const Orders: CollectionConfig = {
       defaultValue: () => new Date().toISOString(),
       admin: {
         description: 'Timestamp when order was confirmed',
+      },
+    },
+
+    // ─── Lalamove delivery fields ─────────────────────────────────────────────
+    {
+      name: 'lalamove_order_id',
+      type: 'text',
+      admin: {
+        description: 'Lalamove delivery order ID (denormalized for quick lookups)',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'delivery_service_type',
+      type: 'text',
+      defaultValue: 'MOTORCYCLE',
+      admin: {
+        description: 'Lalamove vehicle type for this delivery',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'delivery_status',
+      type: 'select',
+      options: [
+        { label: 'No Delivery', value: 'none' },
+        { label: 'Pending', value: 'pending' },
+        { label: 'Assigning Driver', value: 'assigning_driver' },
+        { label: 'Driver Assigned', value: 'driver_assigned' },
+        { label: 'Picked Up', value: 'picked_up' },
+        { label: 'Delivered', value: 'completed' },
+        { label: 'Canceled', value: 'canceled' },
+        { label: 'Expired', value: 'expired' },
+      ],
+      defaultValue: 'none',
+      admin: {
+        description: 'Denormalized delivery status from Lalamove',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'delivery_tracking_link',
+      type: 'text',
+      admin: {
+        description: 'Lalamove public share link for tracking',
+        position: 'sidebar',
       },
     },
   ],

@@ -6,9 +6,11 @@ import {
   Image,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { apiConfig } from '../config/environment';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
@@ -31,10 +33,14 @@ interface Order {
   items: OrderItem[];
   restaurant: string;
   merchantLogo: string | null;
+  fulfillmentType?: string;
+  deliveryStatus?: string;
+  priorityFee?: number;
 }
 
 export default function OrdersScreen() {
   const { user } = useAuth();
+  const router = useRouter();
   
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +48,7 @@ export default function OrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(true);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
 
   const filters = ['All', 'pending', 'accepted', 'preparing', 'ready_for_pickup', 'on_delivery', 'delivered', 'cancelled'];
 
@@ -143,6 +150,14 @@ export default function OrdersScreen() {
           items: mappedItems,
           restaurant: merchantName,
           merchantLogo: merchantLogo,
+          fulfillmentType: order.fulfillment_type,
+          deliveryStatus: order.delivery_status,
+          priorityFee:
+            order.deliveryBooking &&
+            typeof order.deliveryBooking === 'object' &&
+            Number(order.deliveryBooking.priority_fee) > 0
+              ? Number(order.deliveryBooking.priority_fee)
+              : 0,
         };
       });
 
@@ -163,6 +178,49 @@ export default function OrdersScreen() {
     await fetchOrders();
     setRefreshing(false);
   };
+
+  const handleCancelOrder = useCallback(async (order: Order) => {
+    if (cancelingId) return;
+    setCancelingId(order.orderId);
+    try {
+      const headers = {
+        'Authorization': `users API-Key ${apiConfig.payloadApiKey}`,
+        'Content-Type': 'application/json',
+      };
+      const res = await fetch(`${apiConfig.baseUrl}/delivery/cancel`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ orderId: Number(order.orderId) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('Cannot cancel order', data?.error || 'The delivery could not be cancelled.');
+        return;
+      }
+      Alert.alert('Order cancelled', 'Your delivery has been cancelled. The delivery fee was not charged.');
+      fetchOrders();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to cancel the order.');
+    } finally {
+      setCancelingId(null);
+    }
+  }, [cancelingId, fetchOrders]);
+
+  const confirmCancel = useCallback((order: Order) => {
+    Alert.alert(
+      'Cancel order?',
+      'The delivery has not been matched to a rider yet, so it can still be cancelled and the delivery fee will not be charged. Continue?',
+      [
+        { text: 'Keep order', style: 'cancel' },
+        { text: 'Cancel order', style: 'destructive', onPress: () => handleCancelOrder(order) },
+      ],
+    );
+  }, [handleCancelOrder]);
+
+  const canCancelOrder = (order: Order) =>
+    order.fulfillmentType === 'delivery' &&
+    order.status !== 'cancelled' &&
+    ['assigning_driver', 'pending', 'none'].includes(order.deliveryStatus || '');
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.restaurant.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -311,7 +369,7 @@ export default function OrdersScreen() {
                     elevation: 3,
                   }}
                   onPress={() => {
-                    // Navigate to order details if implemented
+                    router.push(`/order/${order.orderId}`);
                   }}
                 >
                   <View style={{ padding: 16 }}>
@@ -347,6 +405,23 @@ export default function OrdersScreen() {
                           {formatStatus(order.status)}
                         </Text>
                       </View>
+                      {order.priorityFee > 0 && (
+                        <View style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: '#f97316',
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                          marginLeft: 6,
+                          gap: 3,
+                        }}>
+                          <Ionicons name="flash" size={11} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
+                            Priority
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
                     <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 12, marginBottom: 12 }}>
@@ -371,18 +446,43 @@ export default function OrdersScreen() {
                       <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#111827' }}>
                         ₱{order.total.toFixed(2)}
                       </Text>
-                      {(order.status === 'delivered' || order.status === 'cancelled') && (
-                        <TouchableOpacity style={{
-                          backgroundColor: '#f3f4f6',
-                          paddingHorizontal: 16,
-                          paddingVertical: 8,
-                          borderRadius: 8,
-                        }}>
-                          <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600' }}>
-                            Reorder
-                          </Text>
-                        </TouchableOpacity>
-                      )}
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {canCancelOrder(order) && (
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: '#fff',
+                              borderWidth: 1,
+                              borderColor: '#ef4444',
+                              paddingHorizontal: 14,
+                              paddingVertical: 8,
+                              borderRadius: 8,
+                              marginRight: 8,
+                            }}
+                            onPress={() => confirmCancel(order)}
+                            disabled={cancelingId === order.orderId}
+                          >
+                            {cancelingId === order.orderId ? (
+                              <ActivityIndicator color="#ef4444" size="small" />
+                            ) : (
+                              <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>
+                                Cancel
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                        {(order.status === 'delivered' || order.status === 'cancelled') && (
+                          <TouchableOpacity style={{
+                            backgroundColor: '#f3f4f6',
+                            paddingHorizontal: 16,
+                            paddingVertical: 8,
+                            borderRadius: 8,
+                          }}>
+                            <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600' }}>
+                              Reorder
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
                   </View>
                 </TouchableOpacity>

@@ -8,8 +8,18 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { AddressService } from '@encreasl/client-services';
 import { AddressSearchInput } from '../shared/AddressSearchInput';
+import { ActiveAddressCard } from '../shared/ActiveAddressCard';
+import { MovableAddressPreviewMap } from '../shared/MovableAddressPreviewMap';
+import { AddressEditView } from '../shared/AddressEditView';
+import {
+  buildAddressUpdate,
+  ReverseGeocodeDetails,
+} from '../../services/geocoding';
+import { invalidateAddressDependentQueries } from '../../services/addressQueryInvalidation';
+import { Ionicons } from '@expo/vector-icons';
 
 interface CheckoutAddressSectionProps {
   onAddressChange?: (addressId: string) => void;
@@ -18,9 +28,10 @@ interface CheckoutAddressSectionProps {
 
 export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddressSectionProps) {
   const { user, token } = useAuth();
+  const queryClient = useQueryClient();
 
   // ── Step state ──────────────────────────────────────────────────────────────
-  const [currentStep, setCurrentStep] = useState<'search' | 'preview'>('search');
+  const [currentStep, setCurrentStep] = useState<'list' | 'search' | 'preview' | 'edit'>('list');
 
   // ── Address management state ────────────────────────────────────────────────
   const [userAddresses, setUserAddresses] = useState<any[]>([]);
@@ -30,6 +41,11 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
   const [settingActiveId, setSettingActiveId] = useState<string | null>(null);
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
+  const [previewCoords, setPreviewCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [editingAddress, setEditingAddress] = useState<any>(null);
+  const [editCoords, setEditCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [editAddressDetails, setEditAddressDetails] = useState<ReverseGeocodeDetails | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const loadUserAddresses = useCallback(async () => {
     if (!user?.id || !token) return;
@@ -69,6 +85,12 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
 
   const handleAddressSelect = (placeDetails: any) => {
     setSelectedAddress(placeDetails);
+    const placedLat = placeDetails?.geometry?.location?.lat;
+    const placedLng = placeDetails?.geometry?.location?.lng;
+    setPreviewCoords({
+      lat: typeof placedLat === 'number' ? placedLat : (placedLat?.() ?? null),
+      lng: typeof placedLng === 'number' ? placedLng : (placedLng?.() ?? null),
+    });
     setCurrentStep('preview');
   };
 
@@ -77,9 +99,22 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
 
     setIsSaving(true);
     try {
+      const placeForSave = previewCoords
+        ? {
+            ...selectedAddress,
+            geometry: {
+              ...(selectedAddress?.geometry || {}),
+              location: {
+                lat: previewCoords.lat,
+                lng: previewCoords.lng,
+              },
+            },
+          }
+        : selectedAddress;
+
       const saveResponse = await AddressService.saveAddress(
         {
-          place: selectedAddress,
+          place: placeForSave,
           address_type: 'home',
           is_default: false,
           userId: user.id,
@@ -105,7 +140,7 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
       await loadUserAddresses();
       onAddressChange?.(newActiveId);
       
-      setCurrentStep('search');
+      setCurrentStep('list');
       setSelectedAddress(null);
       Alert.alert('Success', 'Address saved and activated successfully!');
     } catch (error) {
@@ -135,6 +170,48 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
       await loadUserAddresses();
     } finally {
       setSettingActiveId(null);
+    }
+  };
+
+  const handleStartEdit = (address: any) => {
+    setEditingAddress(address);
+    setEditAddressDetails(null);
+    setEditCoords({
+      lat: typeof address?.latitude === 'number' ? address.latitude : null,
+      lng: typeof address?.longitude === 'number' ? address.longitude : null,
+    });
+    setCurrentStep('edit');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingAddress || !editCoords || !user?.id || !token) return;
+
+    setIsUpdating(true);
+    try {
+      const updates = buildAddressUpdate(editCoords, editAddressDetails);
+
+      const response = await AddressService.updateAddress(editingAddress.id, updates, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update address');
+      }
+
+      AddressService.clearCache();
+      await loadUserAddresses();
+
+      // Refresh the header's active-address + location-based sections immediately.
+      await invalidateAddressDependentQueries(queryClient);
+
+      setEditingAddress(null);
+      setEditCoords(null);
+      setEditAddressDetails(null);
+      setCurrentStep('list');
+      Alert.alert('Success', 'Address updated successfully!');
+    } catch (error) {
+      console.error('Error updating address:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update address');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -168,23 +245,40 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
   };
 
   const handleBackToSearch = () => {
-    setCurrentStep('search');
+    setCurrentStep('list');
     setSelectedAddress(null);
+    setEditingAddress(null);
+    setEditCoords(null);
+    setEditAddressDetails(null);
   };
 
-  return (
-    <View style={[styles.container, style]}>
-      <Text style={styles.headerTitle}>
-        {currentStep === 'preview' ? 'Confirm Delivery Address' : 'Delivery Address'}
-      </Text>
-      
-      {currentStep === 'search' ? (
-        <>
-          <AddressSearchInput 
-            onAddressSelect={handleAddressSelect} 
-            containerStyle={styles.searchContainer}
-          />
+  // Active address pinned to top, rest follow original order
+  const sortedAddresses = [...userAddresses].sort((a, b) => {
+    const aIsActive = String(a.id) === String(activeAddressId) ? 0 : 1;
+    const bIsActive = String(b.id) === String(activeAddressId) ? 0 : 1;
+    return aIsActive - bIsActive;
+  });
 
+  return (
+    <View
+      style={[
+        styles.container,
+        currentStep === 'edit' && styles.containerEdit,
+        style,
+      ]}
+    >
+      {currentStep !== 'edit' && (
+        <Text style={styles.headerTitle}>
+          {currentStep === 'preview'
+            ? 'Confirm Delivery Address'
+            : currentStep === 'search'
+              ? 'Add New Address'
+              : 'Delivery Address'}
+        </Text>
+      )}
+      
+      {currentStep === 'list' ? (
+        <>
           {user?.id && (
             <View style={styles.savedAddressesContainer}>
               <Text style={styles.savedAddressesTitle}>SAVED ADDRESSES</Text>
@@ -197,8 +291,22 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
                 <Text style={styles.emptyText}>No saved addresses found.</Text>
               ) : (
                 <View style={styles.addressList}>
-                  {userAddresses.map((address) => {
+                  {sortedAddresses.map((address) => {
                     const isActive = String(activeAddressId) === String(address.id);
+                    const isSettingActive = settingActiveId === address.id;
+                    const isDeleting = deletingAddressId === address.id;
+                    const isBusy = isSettingActive || isDeleting;
+                    if (isActive) {
+                      return (
+                        <ActiveAddressCard
+                          key={`active-${address.id}`}
+                          address={address}
+                          onDelete={() => handleDeleteAddress(address.id)}
+                          onEdit={handleStartEdit}
+                          isDeleting={isDeleting}
+                        />
+                      );
+                    }
                     return (
                       <View 
                         key={address.id} 
@@ -207,47 +315,60 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
                           isActive ? styles.addressCardActive : styles.addressCardInactive
                         ]}
                       >
-                        <View style={styles.addressInfo}>
-                          <Text style={styles.addressText}>{address.formatted_address}</Text>
-                          <View style={styles.badgesContainer}>
-                            {address.address_type && (
-                              <View style={styles.typeBadge}>
-                                <Text style={styles.typeBadgeText}>{address.address_type}</Text>
-                              </View>
-                            )}
-                            {isActive && (
-                              <View style={styles.activeBadge}>
-                                <Text style={styles.activeBadgeText}>Active</Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
+                        <TouchableOpacity
+                          style={styles.addressRow}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            if (!isActive) handleSetActiveAddress(address);
+                          }}
+                          disabled={isBusy}
+                        >
+                          {isSettingActive ? (
+                            <ActivityIndicator size="small" color="#2563EB" style={styles.radio} />
+                          ) : (
+                            <View style={[styles.radio, isActive && styles.radioActive]}>
+                              {isActive && <View style={styles.radioDot} />}
+                            </View>
+                          )}
 
-                        <View style={styles.addressActions}>
+                          <View style={styles.addressInfo}>
+                            <Text style={styles.addressText}>{address.formatted_address}</Text>
+                            <View style={styles.badgesContainer}>
+                              {address.address_type && (
+                                <View style={styles.typeBadge}>
+                                  <Text style={styles.typeBadgeText}>{address.address_type}</Text>
+                                </View>
+                              )}
+                              {isActive && (
+                                <View style={styles.activeBadge}>
+                                  <Text style={styles.activeBadgeText}>Active</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+
+                        <View style={styles.cardActions}>
                           <TouchableOpacity
-                            style={[
-                              styles.actionButton,
-                              isActive ? styles.activeButton : styles.useButton
-                            ]}
-                            onPress={() => !isActive && handleSetActiveAddress(address)}
-                            disabled={settingActiveId === address.id || isActive}
+                            style={styles.deleteIconButton}
+                            onPress={() => handleStartEdit(address)}
+                            disabled={isBusy}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Text style={[
-                              styles.actionButtonText,
-                              isActive ? styles.activeButtonText : styles.useButtonText
-                            ]}>
-                              {settingActiveId === address.id ? 'Setting...' : isActive ? 'Active' : 'Use'}
-                            </Text>
+                            <Ionicons name="pencil-outline" size={20} color="#374151" />
                           </TouchableOpacity>
 
                           <TouchableOpacity
-                            style={[styles.actionButton, styles.deleteButton]}
+                            style={styles.deleteIconButton}
                             onPress={() => handleDeleteAddress(address.id)}
-                            disabled={deletingAddressId === address.id}
+                            disabled={isBusy}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Text style={[styles.actionButtonText, styles.deleteText]}>
-                              {deletingAddressId === address.id ? '...' : 'Delete'}
-                            </Text>
+                            {isDeleting ? (
+                              <ActivityIndicator size="small" color="#DC2626" />
+                            ) : (
+                              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                            )}
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -257,17 +378,47 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
               )}
             </View>
           )}
+
+          <TouchableOpacity
+            style={styles.addAddressButton}
+            activeOpacity={0.8}
+            onPress={() => setCurrentStep('search')}
+          >
+            <Ionicons name="add" size={20} color="#2563EB" />
+            <Text style={styles.addAddressText}>Add New Address</Text>
+          </TouchableOpacity>
         </>
+      ) : currentStep === 'search' ? (
+        <AddressSearchInput
+          onAddressSelect={handleAddressSelect}
+          containerStyle={styles.searchContainer}
+        />
+      ) : currentStep === 'edit' ? (
+        <AddressEditView
+          address={editingAddress}
+          initialLat={editCoords?.lat ?? null}
+          initialLng={editCoords?.lng ?? null}
+          isSaving={isUpdating}
+          onChangeCoords={(lat, lng) => setEditCoords({ lat, lng })}
+          onAddressDetails={setEditAddressDetails}
+          onSave={handleSaveEdit}
+          onCancel={handleBackToSearch}
+        />
       ) : (
         <View style={styles.previewContainer}>
-          <View style={styles.previewCard}>
-            <Text style={styles.previewTitle}>
-              {selectedAddress?.name || selectedAddress?.formatted_address}
-            </Text>
-            <Text style={styles.previewAddress}>
-              {selectedAddress?.formatted_address}
-            </Text>
-          </View>
+          <MovableAddressPreviewMap
+            initialLat={previewCoords?.lat ?? null}
+            initialLng={previewCoords?.lng ?? null}
+            onChange={(lat, lng) => setPreviewCoords({ lat, lng })}
+          />
+
+          <Text style={styles.previewTitle}>
+            {selectedAddress?.name || selectedAddress?.formatted_address}
+          </Text>
+
+          <Text style={styles.previewHint}>
+            Drag the map to fine-tune the exact pin location.
+          </Text>
 
           <View style={styles.previewActions}>
             <TouchableOpacity
@@ -314,6 +465,11 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 12,
   },
+  containerEdit: {
+    padding: 0,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   searchContainer: {
     marginBottom: 0,
   },
@@ -340,6 +496,24 @@ const styles = StyleSheet.create({
   addressList: {
     gap: 12,
   },
+  addAddressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FBFCFF',
+  },
+  addAddressText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
   addressCard: {
     borderRadius: 12,
     padding: 12,
@@ -354,7 +528,8 @@ const styles = StyleSheet.create({
     borderColor: '#E9D5FF',
   },
   addressInfo: {
-    marginBottom: 8,
+    flex: 1,
+    minWidth: 0,
   },
   addressText: {
     fontSize: 14,
@@ -391,57 +566,53 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
   },
-  addressActions: {
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    gap: 12,
+  },
+  radio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  radioActive: {
+    borderColor: '#2563EB',
+  },
+  radioDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#2563EB',
+  },
+  cardActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: 12,
+    marginTop: 8,
   },
-  actionButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-    backgroundColor: '#fff',
-  },
-  actionButtonText: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
-  useButton: {
-    borderColor: '#DBEAFE',
-  },
-  useButtonText: {
-    color: '#2563EB',
-  },
-  activeButton: {
-    borderColor: '#E9D5FF',
-  },
-  activeButtonText: {
-    color: '#9333EA',
-  },
-  deleteButton: {
-    borderColor: '#FECACA',
-  },
-  deleteText: {
-    color: '#DC2626',
+  deleteIconButton: {
+    padding: 4,
   },
   previewContainer: {
     gap: 16,
   },
-  previewCard: {
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 12,
-  },
   previewTitle: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
+    marginTop: 4,
   },
-  previewAddress: {
-    fontSize: 14,
-    color: '#4B5563',
+  previewHint: {
+    fontSize: 13,
+    color: '#6B7280',
   },
   previewActions: {
     flexDirection: 'row',

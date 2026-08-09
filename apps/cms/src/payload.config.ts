@@ -16,6 +16,11 @@ import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
 import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
 import { sendOrderHelp } from './endpoints/sendOrderHelp'
 import { paymongoWebhook } from './endpoints/paymongoWebhook'
+import { deliveryQuoteHandler } from './endpoints/deliveryQuote'
+import { deliveryBookHandler } from './endpoints/deliveryBook'
+import { deliveryCancelHandler } from './endpoints/deliveryCancel'
+import { deliveryTrackHandler } from './endpoints/deliveryTrack'
+import { lalamoveWebhookHandler } from './endpoints/lalamoveWebhook'
 import type { PayloadRequest } from 'payload'
 import type { User as PayloadUser } from './payload-types'
 // import sharp from 'sharp'
@@ -47,6 +52,7 @@ import { DeliveryLocations } from './collections/DeliveryLocations'
 import { Transactions } from './collections/Transactions'
 import { OrderTracking } from './collections/OrderTracking'
 import { DriverAssignments } from './collections/DriverAssignments'
+import { DeliveryBookings } from './collections/DeliveryBookings'
 import { OrderDiscounts } from './collections/OrderDiscounts'
 import { Reviews } from './collections/Reviews'
 
@@ -121,6 +127,7 @@ export default buildConfig({
     Transactions,
     OrderTracking,
     DriverAssignments,
+    DeliveryBookings,
     OrderDiscounts,
     Reviews,
 
@@ -1013,6 +1020,36 @@ export default buildConfig({
       path: '/paymongo/webhook',
       method: 'post',
       handler: paymongoWebhook,
+    },
+
+    {
+      path: '/delivery/quote',
+      method: 'post',
+      handler: deliveryQuoteHandler,
+    },
+
+    {
+      path: '/delivery/book',
+      method: 'post',
+      handler: deliveryBookHandler,
+    },
+
+    {
+      path: '/delivery/cancel',
+      method: 'post',
+      handler: deliveryCancelHandler,
+    },
+
+    {
+      path: '/delivery/track',
+      method: 'get',
+      handler: deliveryTrackHandler,
+    },
+
+    {
+      path: '/lalamove/webhook',
+      method: 'post',
+      handler: lalamoveWebhookHandler,
     },
 
     {

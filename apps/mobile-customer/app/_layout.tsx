@@ -5,10 +5,12 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { CartProvider } from '../src/contexts/CartContext';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
+import { NotificationsProvider } from '../src/contexts/NotificationsContext';
 import { QueryProvider } from '../src/providers/QueryProvider';
 import ErrorBoundary from '../src/components/ErrorBoundary';
 import ProductionErrorHandler from '../src/components/ProductionErrorHandler';
@@ -61,21 +63,25 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <ProductionErrorHandler>
-        <QueryProvider>
-          <ThemeProvider>
-            <AuthProvider>
-              <CartProvider>
-                <ErrorBoundary>
-                  <StatusBar style="auto" />
-                  <RootNavigation />
-                </ErrorBoundary>
-              </CartProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </QueryProvider>
-      </ProductionErrorHandler>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ProductionErrorHandler>
+            <QueryProvider>
+              <ThemeProvider>
+                <AuthProvider>
+                  <CartProvider>
+                    <NotificationsProvider>
+                      <ErrorBoundary>
+                        <StatusBar style="auto" />
+                        <RootNavigation />
+                      </ErrorBoundary>
+                    </NotificationsProvider>
+                  </CartProvider>
+                </AuthProvider>
+              </ThemeProvider>
+            </QueryProvider>
+        </ProductionErrorHandler>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

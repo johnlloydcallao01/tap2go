@@ -1,19 +1,29 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  Modal,
-  ActivityIndicator,
-  FlatList,
-  Alert,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { AddressService } from '@encreasl/client-services';
 import { Ionicons } from '@expo/vector-icons';
 import { AddressSearchInput } from './shared/AddressSearchInput';
+import { ActiveAddressCard } from './shared/ActiveAddressCard';
+import { MovableAddressPreviewMap } from './shared/MovableAddressPreviewMap';
+import { AddressEditView } from './shared/AddressEditView';
+import {
+  buildAddressUpdate,
+  ReverseGeocodeDetails,
+} from '../services/geocoding';
+import { invalidateAddressDependentQueries } from '../services/addressQueryInvalidation';
 
 interface AddressSelectionModalProps {
   isVisible: boolean;
@@ -28,9 +38,10 @@ export default function AddressSelectionModal({
   onAddressSelected,
 }: AddressSelectionModalProps) {
   const { user, token } = useAuth();
+  const queryClient = useQueryClient();
 
   // ── Step state ──────────────────────────────────────────────────────────────
-  const [currentStep, setCurrentStep] = useState<'search' | 'preview'>('search');
+  const [currentStep, setCurrentStep] = useState<'list' | 'search' | 'preview' | 'edit'>('list');
 
   // ── Address management state ────────────────────────────────────────────────
   const [userAddresses, setUserAddresses] = useState<any[]>([]);
@@ -40,11 +51,16 @@ export default function AddressSelectionModal({
   const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
   const [settingActiveId, setSettingActiveId] = useState<string | null>(null);
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
+  const [previewCoords, setPreviewCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [editingAddress, setEditingAddress] = useState<any>(null);
+  const [editCoords, setEditCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [editAddressDetails, setEditAddressDetails] = useState<ReverseGeocodeDetails | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  // ── Reset search state on modal open / close ────────────────────────────────
+  // ── Reset state each time the modal opens ──────────────────────────────────
   useEffect(() => {
     if (isVisible) {
-      setCurrentStep('search');
+      setCurrentStep('list');
 
       if (user?.id && token) {
         loadUserAddresses();
@@ -55,6 +71,12 @@ export default function AddressSelectionModal({
 
   const handleAddressSelect = (placeDetails: any) => {
     setSelectedAddress(placeDetails);
+    const placedLat = placeDetails?.geometry?.location?.lat;
+    const placedLng = placeDetails?.geometry?.location?.lng;
+    setPreviewCoords({
+      lat: typeof placedLat === 'number' ? placedLat : (placedLat?.() ?? null),
+      lng: typeof placedLng === 'number' ? placedLng : (placedLng?.() ?? null),
+    });
     setCurrentStep('preview');
   };
 
@@ -92,9 +114,22 @@ export default function AddressSelectionModal({
 
     setIsSaving(true);
     try {
+      const placeForSave = previewCoords
+        ? {
+            ...selectedAddress,
+            geometry: {
+              ...(selectedAddress?.geometry || {}),
+              location: {
+                lat: previewCoords.lat,
+                lng: previewCoords.lng,
+              },
+            },
+          }
+        : selectedAddress;
+
       const saveResponse = await AddressService.saveAddress(
         {
-          place: selectedAddress,
+          place: placeForSave,
           address_type: 'home',
           is_default: false,
           userId: user.id,
@@ -148,6 +183,49 @@ export default function AddressSelectionModal({
     }
   };
 
+  const handleStartEdit = (address: any) => {
+    setEditingAddress(address);
+    setEditAddressDetails(null);
+    setEditCoords({
+      lat: typeof address?.latitude === 'number' ? address.latitude : null,
+      lng: typeof address?.longitude === 'number' ? address.longitude : null,
+    });
+    setCurrentStep('edit');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingAddress || !editCoords || !user?.id || !token) return;
+
+    setIsUpdating(true);
+    try {
+      const updates = buildAddressUpdate(editCoords, editAddressDetails);
+
+      const response = await AddressService.updateAddress(editingAddress.id, updates, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update address');
+      }
+
+      AddressService.clearCache();
+      await loadUserAddresses();
+
+      // Refresh the header's active-address + location-based merchants/categories
+      // immediately, so the UI adapts in real time after editing.
+      await invalidateAddressDependentQueries(queryClient);
+
+      setEditingAddress(null);
+      setEditCoords(null);
+      setEditAddressDetails(null);
+      setCurrentStep('list');
+      Alert.alert('Success', 'Address updated successfully!');
+    } catch (error) {
+      console.error('Error updating address:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update address');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleDeleteAddress = (id: string) => {
     if (!token) return;
 
@@ -176,44 +254,64 @@ export default function AddressSelectionModal({
     ]);
   };
 
+  // Active address pinned to top, rest follow original order
+  const sortedAddresses = [...userAddresses].sort((a, b) => {
+    const aIsActive = String(a.id) === String(activeAddressId) ? 0 : 1;
+    const bIsActive = String(b.id) === String(activeAddressId) ? 0 : 1;
+    return aIsActive - bIsActive;
+  });
+
   // ── Main render ─────────────────────────────────────────────────────────────
   return (
     <Modal
-      animationType="slide"
-      transparent={false}
+      animationType="fade"
+      transparent
+      statusBarTranslucent
       visible={isVisible}
       onRequestClose={onClose}
     >
-      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: 'white' }}>
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          {currentStep === 'preview' ? (
-            <TouchableOpacity onPress={() => setCurrentStep('search')} style={styles.headerButton}>
+      <View style={styles.modalOverlay}>
+        {/* Tapping the dimmed area dismisses the modal; the sheet sits on top so
+            its own controls are never intercepted. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        {/* Only the list step is a compact bottom sheet (like FoodPanda); the
+            search/preview/edit steps take the full screen. */}
+        <SafeAreaView
+          edges={
+            currentStep === 'list'
+              ? ['bottom']
+              : currentStep === 'edit'
+                ? []
+                : ['top', 'bottom']
+          }
+          style={[styles.modalSheet, currentStep !== 'list' && styles.modalSheetFull]}
+        >
+          {currentStep === 'list' && <View style={styles.modalHandle} />}
+        {/* ── Header: only the full-screen sub-steps keep a back arrow; the list
+             step closes by tapping the dimmed area instead. ── */}
+        {(currentStep === 'search' || currentStep === 'preview') && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => setCurrentStep(currentStep === 'preview' ? 'search' : 'list')}
+              style={styles.headerButton}
+            >
               <Ionicons name="arrow-back" size={24} color="#000" />
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={onClose} style={styles.headerButton}>
-              <Ionicons name="close" size={24} color="#000" />
-            </TouchableOpacity>
-          )}
 
-          <Text style={styles.headerTitle}>
-            {currentStep === 'preview' ? 'Address Preview' : 'Addresses'}
-          </Text>
+            <Text style={styles.headerTitle}>
+              {currentStep === 'preview' ? 'Address Preview' : 'Add New Address'}
+            </Text>
 
-          <View style={{ width: 40 }} />
-        </View>
+            <View style={{ width: 40 }} />
+          </View>
+        )}
 
         {/* ── Content ── */}
-        {currentStep === 'search' ? (
+        {currentStep === 'list' ? (
           <View style={styles.container}>
-
-            {/* ── Search Input ── */}
-            <AddressSearchInput onAddressSelect={handleAddressSelect} />
-
             {/* ── Manage Addresses ── */}
             <View style={styles.manageSection}>
-              <Text style={styles.sectionTitle}>Manage Address</Text>
+              <Text style={styles.sectionTitle}>Saved Addresses</Text>
 
               {isLoadingAddresses ? (
                 <View style={{ marginTop: 8 }}>
@@ -226,17 +324,18 @@ export default function AddressSelectionModal({
                           <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#F3E8FF' }} />
                         </View>
                       </View>
-                      <View style={styles.addressActions}>
-                        <View style={{ flex: 1, height: 36, borderRadius: 6, backgroundColor: '#E5E7EB', marginRight: 8 }} />
-                        <View style={{ width: 80, height: 36, borderRadius: 6, backgroundColor: '#FEE2E2' }} />
+                      <View style={[styles.radioRow, { alignItems: 'center' }]}>
+                        <View style={{ flex: 1, height: 24, borderRadius: 6, backgroundColor: '#E5E7EB' }} />
+                        <View style={styles.radioPlaceholder} />
                       </View>
                     </View>
                   ))}
                 </View>
               ) : (
                 <FlatList
-                  data={userAddresses}
+                  data={sortedAddresses}
                   keyExtractor={item => String(item.id)}
+                  style={{ flex: 1 }}
                   contentContainerStyle={{ paddingBottom: 20 }}
                   keyboardShouldPersistTaps="handled"
                   ListEmptyComponent={
@@ -244,49 +343,75 @@ export default function AddressSelectionModal({
                   }
                   renderItem={({ item }) => {
                     const isActive = String(activeAddressId) === String(item.id);
+                    const isSettingActive = settingActiveId === item.id;
+                    const isDeleting = deletingAddressId === item.id;
+                    const isBusy = isSettingActive || isDeleting;
+                    if (isActive) {
+                      return (
+                        <ActiveAddressCard
+                          address={item}
+                          onDelete={() => handleDeleteAddress(item.id)}
+                          onEdit={handleStartEdit}
+                          isDeleting={isDeleting}
+                        />
+                      );
+                    }
                     return (
-                      <View style={styles.addressCard}>
-                        <View style={styles.addressInfo}>
-                          <Text style={styles.addressText}>{item.formatted_address}</Text>
-                          <View style={styles.badgesContainer}>
-                            {item.address_type && (
-                              <View style={styles.typeBadge}>
-                                <Text style={styles.typeBadgeText}>{item.address_type}</Text>
-                              </View>
-                            )}
-                            {isActive && (
-                              <View style={styles.activeBadge}>
-                                <Text style={styles.activeBadgeText}>Active</Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.addressActions}>
-                          {isActive ? (
-                            <TouchableOpacity style={styles.activeButton} disabled>
-                              <Text style={styles.activeButtonText}>Currently Active</Text>
-                            </TouchableOpacity>
+                      <View style={[styles.addressCard, isActive && styles.activeCard]}>
+                        <TouchableOpacity
+                          style={styles.radioRow}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            if (!isActive) handleSetActiveAddress(item);
+                          }}
+                          disabled={isBusy}
+                        >
+                          {isSettingActive ? (
+                            <ActivityIndicator size="small" color="#2563EB" style={styles.radioLeftBusy} />
                           ) : (
-                            <TouchableOpacity
-                              style={styles.setAsActiveButton}
-                              onPress={() => handleSetActiveAddress(item)}
-                              disabled={settingActiveId === item.id}
-                            >
-                              <Text style={styles.setAsActiveButtonText}>
-                                {settingActiveId === item.id ? 'Setting…' : 'Set as Active'}
-                              </Text>
-                            </TouchableOpacity>
+                            <View style={[styles.radio, isActive && styles.radioActive]}>
+                              {isActive && <View style={styles.radioDot} />}
+                            </View>
                           )}
 
+                          <View style={styles.addressInfo}>
+                            <Text style={styles.addressText}>{item.formatted_address}</Text>
+                            <View style={styles.badgesContainer}>
+                              {item.address_type && (
+                                <View style={styles.typeBadge}>
+                                  <Text style={styles.typeBadgeText}>{item.address_type}</Text>
+                                </View>
+                              )}
+                              {isActive && (
+                                <View style={styles.activeBadge}>
+                                  <Text style={styles.activeBadgeText}>Active</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+
+                        <View style={styles.cardActions}>
                           <TouchableOpacity
-                            style={styles.deleteButton}
-                            onPress={() => handleDeleteAddress(item.id)}
-                            disabled={deletingAddressId === item.id}
+                            style={styles.deleteIconButton}
+                            onPress={() => handleStartEdit(item)}
+                            disabled={isBusy}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Text style={styles.deleteText}>
-                              {deletingAddressId === item.id ? 'Deleting…' : 'Delete'}
-                            </Text>
+                            <Ionicons name="pencil-outline" size={20} color="#374151" />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.deleteIconButton}
+                            onPress={() => handleDeleteAddress(item.id)}
+                            disabled={isBusy}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            {isDeleting ? (
+                              <ActivityIndicator size="small" color="#DC2626" />
+                            ) : (
+                              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                            )}
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -295,17 +420,58 @@ export default function AddressSelectionModal({
                 />
               )}
             </View>
+
+            {/* ── Add New Address (bottom) ── */}
+            <TouchableOpacity
+              style={styles.addAddressButton}
+              activeOpacity={0.8}
+              onPress={() => setCurrentStep('search')}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
+              <Text style={styles.addAddressText}>Add New Address</Text>
+            </TouchableOpacity>
+          </View>
+        ) : currentStep === 'search' ? (
+          /* ── Search Step (shown when tapping Add New Address) ── */
+          <View style={styles.containerSearch}>
+            <AddressSearchInput onAddressSelect={handleAddressSelect} />
+          </View>
+        ) : currentStep === 'edit' ? (
+          /* ── Edit Step (shown when tapping pencil) ── */
+          <View style={styles.editContainer}>
+            <AddressEditView
+              address={editingAddress}
+              initialLat={editCoords?.lat ?? null}
+              initialLng={editCoords?.lng ?? null}
+              isSaving={isUpdating}
+              fullBleed
+              onChangeCoords={(lat, lng) => setEditCoords({ lat, lng })}
+              onAddressDetails={setEditAddressDetails}
+              onSave={handleSaveEdit}
+              onCancel={() => {
+                setEditingAddress(null);
+                setEditCoords(null);
+                setEditAddressDetails(null);
+                setCurrentStep('list');
+              }}
+            />
           </View>
         ) : (
           /* ── Preview Step ── */
           <View style={styles.previewContainer}>
-            <View style={styles.previewCard}>
-              <Ionicons name="location" size={32} color="#2563EB" style={{ marginBottom: 16 }} />
-              <Text style={styles.previewTitle}>Selected Address</Text>
-              <Text style={styles.previewAddress}>
-                {selectedAddress?.formatted_address || selectedAddress?.name}
-              </Text>
-            </View>
+            <MovableAddressPreviewMap
+              initialLat={previewCoords?.lat ?? null}
+              initialLng={previewCoords?.lng ?? null}
+              onChange={(lat, lng) => setPreviewCoords({ lat, lng })}
+            />
+
+            <Text style={styles.previewAddress}>
+              {selectedAddress?.formatted_address || selectedAddress?.name}
+            </Text>
+
+            <Text style={styles.previewHint}>
+              Drag the map to fine-tune the exact pin location.
+            </Text>
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSaveAddress} disabled={isSaving}>
               {isSaving ? (
@@ -317,12 +483,41 @@ export default function AddressSelectionModal({
           </View>
         )}
       </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    flex: 1,
+    maxHeight: '80%',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+  },
+  // Full-screen steps (search/preview/edit) fill the whole window.
+  modalSheetFull: {
+    maxHeight: '100%',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    marginTop: 8,
+    marginBottom: 8,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -347,8 +542,31 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     backgroundColor: 'white',
   },
+  containerSearch: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    backgroundColor: 'white',
+  },
+  addAddressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    marginTop: 8,
+    marginBottom: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FBFCFF',
+  },
+  addAddressText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
 
-  // ── Search ──
   // ── Manage addresses ──
   manageSection: {
     flex: 1,
@@ -369,6 +587,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   addressInfo: {
+    flex: 1,
+    minWidth: 0,
     marginBottom: 12,
   },
   addressText: {
@@ -405,51 +625,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  addressActions: {
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    gap: 12,
+  },
+  radio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  radioActive: {
+    borderColor: '#2563EB',
+  },
+  radioDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#2563EB',
+  },
+  radioLeftBusy: {
+    width: 24,
+    height: 24,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  radioPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+  },
+  activeCard: {
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FBFCFF',
+  },
+  cardActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 8,
+    gap: 12,
+    marginTop: 12,
   },
-  activeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#F3E8FF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    opacity: 0.8,
-  },
-  activeButtonText: {
-    color: '#9333EA',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  setAsActiveButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#EFF6FF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  setAsActiveButtonText: {
-    color: '#2563EB',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  deleteButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  deleteText: {
-    color: '#DC2626',
-    fontSize: 14,
-    fontWeight: '500',
+  deleteIconButton: {
+    padding: 4,
   },
   emptyText: {
     textAlign: 'center',
@@ -462,27 +687,24 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     justifyContent: 'center',
-  },
-  previewCard: {
-    backgroundColor: '#F9FAFB',
-    padding: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 32,
-  },
-  previewTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
+    gap: 16,
   },
   previewAddress: {
     fontSize: 16,
-    color: '#374151',
+    fontWeight: '600',
+    color: '#111827',
     textAlign: 'center',
     lineHeight: 24,
+    marginTop: 16,
+  },
+  previewHint: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  editContainer: {
+    flex: 1,
+    backgroundColor: 'white',
   },
   saveButton: {
     backgroundColor: '#000',

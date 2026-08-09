@@ -28,6 +28,7 @@
     "@payloadcms/plugin-cloud-storage": "3.49.0",
     "@payloadcms/richtext-lexical": "3.49.0",
     "@payloadcms/ui": "3.49.0",
+    "@supabase/supabase-js": "^2",
     "@types/node": "^22.5.4",
     "@types/react": "~19.0.10",
     "@types/react-dom": "19.1.0",

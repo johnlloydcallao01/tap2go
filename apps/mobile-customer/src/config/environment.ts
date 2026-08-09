@@ -1,7 +1,5 @@
 export const firebaseConfig = {};
 
-export const supabaseConfig = {};
-
 const getPublicEnvVar = (key: string): string => {
   try {
     const value = process.env?.[key];
@@ -9,6 +7,15 @@ const getPublicEnvVar = (key: string): string => {
   } catch {
     return '';
   }
+};
+
+export const supabaseConfig = {
+  url: getPublicEnvVar('EXPO_PUBLIC_SUPABASE_URL'),
+  anonKey: getPublicEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY'),
+};
+
+export const isSupabaseRealtimeEnabled = (): boolean => {
+  return Boolean(supabaseConfig.url && supabaseConfig.anonKey);
 };
 
 export const apiConfig = {

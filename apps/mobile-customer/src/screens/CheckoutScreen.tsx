@@ -122,6 +122,71 @@ export default function CheckoutScreen() {
   const totalSubtotal = merchantCart?.subtotal || 0;
   const isBelowPayMongoMinimum = totalSubtotal < PAYMONGO_MINIMUM_AMOUNT_PHP;
 
+  // ── Lalamove delivery fee ───────────────────────────────────────────────────
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [deliveryDistanceMeters, setDeliveryDistanceMeters] = useState<number | null>(null);
+  const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false);
+  const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
+  const deliveryQuoteCacheKeyRef = useRef<string | null>(null);
+
+  const orderTotal = totalSubtotal + deliveryFee;
+
+  const fetchDeliveryQuote = useCallback(async () => {
+    if (!merchantId || !activeAddressId || !customerId || deliveryFeeLoading) return;
+
+    const cacheKey = `${merchantId}:${activeAddressId}`;
+    if (deliveryQuoteCacheKeyRef.current === cacheKey) return;
+    deliveryQuoteCacheKeyRef.current = cacheKey;
+
+    setDeliveryFeeLoading(true);
+    setDeliveryFeeError(null);
+
+    try {
+      const cmsHeaders = {
+        'Content-Type': 'application/json',
+        Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+      };
+
+      // Server resolves pickup from merchant.active_address_id and dropoff
+      // from customer.active_address_id (source of truth in the DB)
+      const quoteRes = await fetch(`${apiConfig.baseUrl}/delivery/quote`, {
+        method: 'POST',
+        headers: cmsHeaders,
+        body: JSON.stringify({
+          merchantId,
+          customerId: Number(customerId),
+        }),
+      });
+
+      const quoteData = await quoteRes.json();
+      if (!quoteRes.ok) throw new Error(quoteData?.error || 'Could not get delivery quote');
+
+      setDeliveryFee(Number(quoteData?.data?.deliveryFee) || 0);
+
+      // Lalamove returns distance as { value, unit } (value in meters unless unit is km)
+      const distance = quoteData?.data?.distance as { value?: string | number; unit?: string } | null;
+      if (distance && distance.value != null) {
+        const rawValue = Number(distance.value);
+        if (Number.isFinite(rawValue)) {
+          const unit = String(distance.unit || 'm').toLowerCase();
+          setDeliveryDistanceMeters(unit === 'km' ? rawValue * 1000 : rawValue);
+        }
+      }
+    } catch (err: any) {
+      deliveryQuoteCacheKeyRef.current = null;
+      setDeliveryFee(0);
+      setDeliveryDistanceMeters(null);
+      setDeliveryFeeError(err?.message || 'Could not estimate delivery fee');
+    } finally {
+      setDeliveryFeeLoading(false);
+    }
+  }, [merchantId, activeAddressId, customerId, deliveryFeeLoading]);
+
+  useEffect(() => {
+    fetchDeliveryQuote();
+  }, [fetchDeliveryQuote]);
+
+
   // Filter out 'card' just like the web app
   const availablePaymentMethods = (Object.keys(methodLogos) as PaymentMethod[]).filter(
     (key) => key !== 'card'
@@ -153,7 +218,7 @@ export default function CheckoutScreen() {
     [router],
   );
 
-  const reconcileExistingPayment = useCallback(async (showLoader = false) => {
+  const reconcileExistingPayment = useCallback(async (showLoader = false, blockOnPending = false) => {
     if (!customerId || Number.isNaN(merchantId) || reconcileInFlightRef.current) {
       return;
     }
@@ -206,7 +271,7 @@ export default function CheckoutScreen() {
         return;
       }
 
-      setHasPendingRecovery(paymentStatus.status === 'pending');
+      setHasPendingRecovery(blockOnPending && paymentStatus.status === 'pending');
     } catch (error) {
       console.error('Checkout payment reconciliation failed:', error);
     } finally {
@@ -231,7 +296,7 @@ export default function CheckoutScreen() {
     }
 
     pollingIntervalRef.current = setInterval(() => {
-      reconcileExistingPayment(false).catch(() => undefined);
+      reconcileExistingPayment(false, true).catch(() => undefined);
     }, 2500);
 
     return () => {
@@ -245,7 +310,7 @@ export default function CheckoutScreen() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
-        reconcileExistingPayment(true).catch(() => undefined);
+        reconcileExistingPayment(true, true).catch(() => undefined);
       }
     });
 
@@ -294,8 +359,24 @@ export default function CheckoutScreen() {
     setQrIntentId(null);
     setQrOrderId(null);
     setHasPendingRecovery(true);
-    reconcileExistingPayment(true).catch(() => undefined);
+    reconcileExistingPayment(true, true).catch(() => undefined);
   }, [reconcileExistingPayment]);
+
+  const dismissPendingRecovery = useCallback(() => {
+    if (customerId && !Number.isNaN(merchantId)) {
+      clearPendingCheckoutSession(String(customerId), String(merchantId)).catch(() => undefined);
+    }
+    setHasPendingRecovery(false);
+    setIsCheckingPaymentState(false);
+    setQrImage(null);
+    setQrIntentId(null);
+    setQrOrderId(null);
+    hasNavigatedToReturnRef.current = false;
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, [customerId, merchantId]);
 
   const handlePayNow = async () => {
     if (!user || !customerId || !activeAddressId) {
@@ -305,6 +386,19 @@ export default function CheckoutScreen() {
 
     if (!paymentMethod) {
       Alert.alert('Error', 'Please select a payment method');
+      return;
+    }
+
+    if (deliveryFeeLoading) {
+      Alert.alert('Please wait', 'We are still calculating your delivery fee.');
+      return;
+    }
+
+    if (deliveryFee <= 0) {
+      Alert.alert(
+        'Delivery fee unavailable',
+        deliveryFeeError || 'We could not calculate your delivery fee. Please try again.',
+      );
       return;
     }
 
@@ -366,7 +460,7 @@ export default function CheckoutScreen() {
         method: 'POST',
         headers: cmsHeaders,
         body: JSON.stringify({
-          amount: Math.round(totalSubtotal * 100),
+          amount: Math.round(orderTotal * 100),
           currency: 'PHP',
           description: `Order from ${merchantName}`,
           metadata: {
@@ -396,9 +490,9 @@ export default function CheckoutScreen() {
         merchant: merchantId,
         status: 'pending',
         fulfillment_type: 'delivery',
-        total: totalSubtotal,
+        total: orderTotal,
         subtotal: totalSubtotal,
-        delivery_fee: 0,
+        delivery_fee: deliveryFee,
         platform_fee: 0,
         placed_at: new Date().toISOString(),
       };
@@ -416,7 +510,9 @@ export default function CheckoutScreen() {
       const addrRes = await fetch(`${apiConfig.baseUrl}/addresses/${activeAddressId}`, { headers: cmsHeaders });
       if (addrRes.ok) {
         const addrData = await addrRes.json();
-        const addressText = [addrData.addressLine1, addrData.addressLine2, addrData.city, addrData.state, addrData.postalCode]
+        const addressText =
+          addrData.formatted_address ||
+          [addrData.street_number, addrData.route, addrData.barangay, addrData.locality, addrData.country]
             .filter(Boolean).join(', ');
             
         await fetch(`${apiConfig.baseUrl}/delivery-locations`, {
@@ -430,7 +526,7 @@ export default function CheckoutScreen() {
               lng: addrData.longitude || 0,
             },
             contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
-            label: addrData.label || 'other',
+            label: addrData.address_type || 'other',
           }),
         });
       }
@@ -681,6 +777,33 @@ export default function CheckoutScreen() {
               <Text style={styles.subtotalLabel}>Subtotal</Text>
               <Text style={styles.subtotalValue}>{formatCurrency(totalSubtotal)}</Text>
             </View>
+            <View style={styles.deliveryFeeRow}>
+              <Text style={styles.subtotalLabel}>Delivery Fee</Text>
+              {deliveryFeeLoading ? (
+                <ActivityIndicator size="small" color="#f97316" />
+              ) : (
+                <Text style={styles.subtotalValue}>
+                  {deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Calculating…'}
+                </Text>
+              )}
+            </View>
+            {!deliveryFeeLoading && deliveryDistanceMeters != null && deliveryFee > 0 && (
+              <View style={styles.deliveryDistanceRow}>
+                <Text style={styles.deliveryDistanceLabel}>Delivery Distance</Text>
+                <Text style={styles.deliveryDistanceValue}>
+                  ~{(deliveryDistanceMeters / 1000).toFixed(1)} km
+                </Text>
+              </View>
+            )}
+            {deliveryFeeError ? (
+              <Text style={styles.deliveryFeeErrorText}>
+                Delivery fee unavailable — {deliveryFeeError}
+              </Text>
+            ) : null}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>{formatCurrency(orderTotal)}</Text>
+            </View>
           </View>
         </View>
 
@@ -716,8 +839,21 @@ export default function CheckoutScreen() {
                     : 'Please wait while we verify whether this checkout already has a completed payment.'}
                 </Text>
               </View>
-              <ActivityIndicator color="#F59E0B" />
+              {hasPendingRecovery ? (
+                <ActivityIndicator color="#F59E0B" />
+              ) : (
+                <Ionicons name="time-outline" size={20} color="#92400E" />
+              )}
             </View>
+            {hasPendingRecovery && (
+              <TouchableOpacity
+                style={styles.startOverButton}
+                onPress={dismissPendingRecovery}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.startOverButtonText}>Start a new payment</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -797,24 +933,26 @@ export default function CheckoutScreen() {
       <View style={styles.footer}>
         <View style={styles.footerTotalRow}>
           <Text style={styles.footerTotalLabel}>Total</Text>
-          <Text style={styles.footerTotalValue}>{formatCurrency(totalSubtotal)}</Text>
+          <Text style={styles.footerTotalValue}>{formatCurrency(orderTotal)}</Text>
         </View>
         <TouchableOpacity
           style={[
             styles.payButton,
-            (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum) &&
+            (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || deliveryFee <= 0) &&
               styles.payButtonDisabled
           ]}
           onPress={handlePayNow}
-          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum}
+          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || deliveryFee <= 0}
         >
           {isPaying || isCheckingPaymentState ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.payButtonText}>
-              {hasPendingRecovery
-                ? 'Confirming payment...'
-                : `Pay ${formatCurrency(totalSubtotal)}`}
+              {deliveryFeeLoading
+                ? 'Calculating delivery fee...'
+                : deliveryFee <= 0
+                  ? 'Delivery fee unavailable'
+                  : `Pay ${formatCurrency(orderTotal)}`}
             </Text>
           )}
         </TouchableOpacity>
@@ -823,7 +961,7 @@ export default function CheckoutScreen() {
   );
 }
 
-const PENDING_SESSION_MAX_AGE_MS = 1000 * 60 * 90;
+const PENDING_SESSION_MAX_AGE_MS = 1000 * 60 * 15;
 
 function isPendingSessionFresh(createdAt: string): boolean {
   const createdAtMs = Date.parse(createdAt);
@@ -980,6 +1118,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
+  },
+  deliveryFeeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+  },
+  deliveryDistanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 6,
+  },
+  deliveryDistanceLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  deliveryDistanceValue: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  deliveryFeeErrorText: {
+    fontSize: 12,
+    color: '#b45309',
+    marginTop: 6,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    marginTop: 8,
+    borderTopWidth: 2,
+    borderTopColor: '#F3F4F6',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#f97316',
   },
   processingCard: {
     flexDirection: 'row',
@@ -1145,6 +1328,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   qrCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  startOverButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  startOverButtonText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',

@@ -6,6 +6,23 @@ export const UserNotifications: CollectionConfig = {
     useAsTitle: 'notificationEvent',
     defaultColumns: ['user', 'notificationEvent', 'status', 'channel'],
   },
+  access: {
+    read: ({ req: { user } }) => {
+      if (!user) return false
+      if (user.role === 'service' || user.role === 'admin') return true
+      return { user: { equals: user.id } }
+    },
+    create: ({ req: { user } }) => {
+      return user?.role === 'service' || user?.role === 'admin' || false
+    },
+    update: ({ req: { user } }) => {
+      if (user?.role === 'service' || user?.role === 'admin') return true
+      return { user: { equals: user?.id || '' } }
+    },
+    delete: ({ req: { user } }) => {
+      return user?.role === 'service' || user?.role === 'admin' || false
+    },
+  },
   fields: [
     {
       name: 'user',
@@ -70,6 +87,13 @@ export const UserNotifications: CollectionConfig = {
     {
       name: 'deliveredAt',
       type: 'date',
+    },
+    {
+      name: 'seenAt',
+      type: 'date',
+      admin: {
+        description: 'When the user opened/visited their notifications (clears the bell badge, notifications stay unread)',
+      },
     },
     {
       name: 'readAt',

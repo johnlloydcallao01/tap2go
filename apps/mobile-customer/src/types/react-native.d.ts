@@ -56,21 +56,37 @@ declare module 'expo-linear-gradient' {
 // React Native Maps types
 declare module 'react-native-maps' {
   import { ComponentType } from 'react';
-  import { ViewProps } from 'react-native';
-  
-  interface MapViewProps extends ViewProps {
-    region?: {
-      latitude: number;
-      longitude: number;
-      latitudeDelta: number;
-      longitudeDelta: number;
-    };
-    onRegionChange?: (region: any) => void;
+
+  interface Region {
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  }
+
+  interface MapViewProps {
+    style?: any;
+    region?: Region;
+    initialRegion?: Region;
+    onRegionChange?: (region: Region) => void;
+    onRegionChangeComplete?: (region: Region) => void;
     showsUserLocation?: boolean;
     showsMyLocationButton?: boolean;
+    showsCompass?: boolean;
+    showsScale?: boolean;
+    loadingEnabled?: boolean;
+    loadingBackgroundColor?: string;
+    loadingIndicatorColor?: string;
+    toolbarEnabled?: boolean;
+    zoomEnabled?: boolean;
+    scrollEnabled?: boolean;
+    pitchEnabled?: boolean;
+    rotateEnabled?: boolean;
+    moveOnMarkerPress?: boolean;
+    mapType?: string;
     children?: React.ReactNode;
   }
-  
+
   interface MarkerProps {
     coordinate: {
       latitude: number;
@@ -79,11 +95,33 @@ declare module 'react-native-maps' {
     title?: string;
     description?: string;
     onPress?: () => void;
+    pinColor?: string;
+    identifier?: string;
+    anchor?: { x: number; y: number };
+    tracksViewChanges?: boolean;
+    style?: any;
     children?: React.ReactNode;
   }
-  
-  export const MapView: ComponentType<MapViewProps>;
+
+  interface PolylineProps {
+    coordinates: Array<{ latitude: number; longitude: number }>;
+    strokeWidth?: number;
+    strokeColor?: string;
+    lineCap?: 'round' | 'butt' | 'square' | (string & {});
+    lineJoin?: 'round' | 'bevel' | 'miter' | (string & {});
+    children?: React.ReactNode;
+  }
+
+  interface CalloutProps {
+    tooltip?: boolean;
+    children?: React.ReactNode;
+  }
+
+  const MapView: ComponentType<MapViewProps>;
   export const Marker: ComponentType<MarkerProps>;
+  export const Polyline: ComponentType<PolylineProps>;
+  export const Callout: ComponentType<CalloutProps>;
+  export const PROVIDER_GOOGLE: string;
   export default MapView;
 }
 

@@ -92,6 +92,7 @@ export interface Config {
     transactions: Transaction;
     'order-tracking': OrderTracking;
     'driver-assignments': DriverAssignment;
+    'delivery-bookings': DeliveryBooking;
     'order-discounts': OrderDiscount;
     reviews: Review;
     'prod-attributes': ProdAttribute;
@@ -147,6 +148,7 @@ export interface Config {
     transactions: TransactionsSelect<false> | TransactionsSelect<true>;
     'order-tracking': OrderTrackingSelect<false> | OrderTrackingSelect<true>;
     'driver-assignments': DriverAssignmentsSelect<false> | DriverAssignmentsSelect<true>;
+    'delivery-bookings': DeliveryBookingsSelect<false> | DeliveryBookingsSelect<true>;
     'order-discounts': OrderDiscountsSelect<false> | OrderDiscountsSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     'prod-attributes': ProdAttributesSelect<false> | ProdAttributesSelect<true>;
@@ -811,6 +813,10 @@ export interface UserNotification {
   channel: 'in_app' | 'email' | 'push' | 'sms';
   status: 'unread' | 'read' | 'dismissed' | 'hidden';
   deliveredAt?: string | null;
+  /**
+   * When the user opened/visited their notifications (clears the bell badge, notifications stay unread)
+   */
+  seenAt?: string | null;
   readAt?: string | null;
   archivedAt?: string | null;
   isPinned?: boolean | null;
@@ -1815,6 +1821,24 @@ export interface Order {
    * Timestamp when order was confirmed
    */
   placed_at: string;
+  /**
+   * Lalamove delivery order ID (denormalized for quick lookups)
+   */
+  lalamove_order_id?: string | null;
+  /**
+   * Lalamove vehicle type for this delivery
+   */
+  delivery_service_type?: string | null;
+  /**
+   * Denormalized delivery status from Lalamove
+   */
+  delivery_status?:
+    | ('none' | 'pending' | 'assigning_driver' | 'driver_assigned' | 'picked_up' | 'completed' | 'canceled' | 'expired')
+    | null;
+  /**
+   * Lalamove public share link for tracking
+   */
+  delivery_tracking_link?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2069,6 +2093,129 @@ export interface DriverAssignment {
    * When delivery finished
    */
   completed_at?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Lalamove delivery bookings — replaces internal driver-assignment
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-bookings".
+ */
+export interface DeliveryBooking {
+  id: number;
+  /**
+   * One-to-one relationship with the order
+   */
+  order: number | Order;
+  /**
+   * Lalamove Order ID (returned after placing delivery)
+   */
+  lalamove_order_id?: string | null;
+  /**
+   * Quotation ID used to place the delivery
+   */
+  lalamove_quotation_id?: string | null;
+  /**
+   * Lalamove public tracking link
+   */
+  share_link?: string | null;
+  /**
+   * Vehicle type: MOTORCYCLE, SEDAN, MPV, VAN, etc.
+   */
+  service_type?: string | null;
+  /**
+   * Scheduled pickup time (if not immediate)
+   */
+  scheduled_at?: string | null;
+  /**
+   * When the Lalamove quotation expires
+   */
+  expires_at?: string | null;
+  /**
+   * Mapped from Lalamove order status
+   */
+  status:
+    | 'pending'
+    | 'assigning_driver'
+    | 'driver_assigned'
+    | 'picked_up'
+    | 'completed'
+    | 'canceled'
+    | 'rejected'
+    | 'expired';
+  /**
+   * Raw status string from Lalamove webhook
+   */
+  lalamove_raw_status?: string | null;
+  /**
+   * Actual delivery cost from Lalamove
+   */
+  delivery_fee?: number | null;
+  /**
+   * Lalamove currency code
+   */
+  currency?: string | null;
+  /**
+   * Priority fee / tip added to the delivery
+   */
+  priority_fee?: number | null;
+  /**
+   * Lalamove rider name (populated when assigned)
+   */
+  driver_name?: string | null;
+  /**
+   * Lalamove rider phone (populated when assigned)
+   */
+  driver_phone?: string | null;
+  /**
+   * License plate of the rider's vehicle
+   */
+  driver_plate_number?: string | null;
+  /**
+   * Profile photo URL of the rider
+   */
+  driver_photo_url?: string | null;
+  /**
+   * Rider current latitude (live from Lalamove, updated every 10s)
+   */
+  driver_lat?: number | null;
+  /**
+   * Rider current longitude
+   */
+  driver_lng?: number | null;
+  /**
+   * Last time the rider location was refreshed
+   */
+  driver_location_updated_at?: string | null;
+  /**
+   * Merchant / pickup location address
+   */
+  pickup_address?: string | null;
+  /**
+   * Pickup latitude
+   */
+  pickup_lat?: number | null;
+  /**
+   * Pickup longitude
+   */
+  pickup_lng?: number | null;
+  /**
+   * Customer delivery address
+   */
+  dropoff_address?: string | null;
+  /**
+   * Dropoff latitude
+   */
+  dropoff_lat?: number | null;
+  /**
+   * Dropoff longitude
+   */
+  dropoff_lng?: number | null;
+  /**
+   * Distance from Lalamove (meters)
+   */
+  distance_meters?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2781,6 +2928,10 @@ export interface PayloadLockedDocument {
         value: number | DriverAssignment;
       } | null)
     | ({
+        relationTo: 'delivery-bookings';
+        value: number | DeliveryBooking;
+      } | null)
+    | ({
         relationTo: 'order-discounts';
         value: number | OrderDiscount;
       } | null)
@@ -3173,6 +3324,7 @@ export interface UserNotificationsSelect<T extends boolean = true> {
   channel?: T;
   status?: T;
   deliveredAt?: T;
+  seenAt?: T;
   readAt?: T;
   archivedAt?: T;
   isPinned?: T;
@@ -3451,6 +3603,10 @@ export interface OrdersSelect<T extends boolean = true> {
   platform_fee?: T;
   notes?: T;
   placed_at?: T;
+  lalamove_order_id?: T;
+  delivery_service_type?: T;
+  delivery_status?: T;
+  delivery_tracking_link?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3524,6 +3680,40 @@ export interface DriverAssignmentsSelect<T extends boolean = true> {
   assigned_at?: T;
   accepted_at?: T;
   completed_at?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-bookings_select".
+ */
+export interface DeliveryBookingsSelect<T extends boolean = true> {
+  order?: T;
+  lalamove_order_id?: T;
+  lalamove_quotation_id?: T;
+  share_link?: T;
+  service_type?: T;
+  scheduled_at?: T;
+  expires_at?: T;
+  status?: T;
+  lalamove_raw_status?: T;
+  delivery_fee?: T;
+  currency?: T;
+  priority_fee?: T;
+  driver_name?: T;
+  driver_phone?: T;
+  driver_plate_number?: T;
+  driver_photo_url?: T;
+  driver_lat?: T;
+  driver_lng?: T;
+  driver_location_updated_at?: T;
+  pickup_address?: T;
+  pickup_lat?: T;
+  pickup_lng?: T;
+  dropoff_address?: T;
+  dropoff_lat?: T;
+  dropoff_lng?: T;
+  distance_meters?: T;
   updatedAt?: T;
   createdAt?: T;
 }

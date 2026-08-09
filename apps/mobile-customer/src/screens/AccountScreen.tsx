@@ -1,221 +1,376 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   Image,
-  Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-// import DarkModeSettings from '../components/DarkModeSettings';
-// import SystemThemeValidator from '../components/SystemThemeValidator';
+import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+import { fetchAccountOverview, AccountOverview, asObject } from '../services/account';
+import { formatCurrency } from '../utils/format';
 
 export default function AccountScreen() {
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [locationEnabled, setLocationEnabled] = React.useState(true);
   const colors = useThemeColors();
-  const { logout } = useAuth();
+  const { user, customerId, logout } = useAuth();
+  const router = useRouter();
 
+  const [overview, setOverview] = useState<AccountOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const menuItems = [
-    {
-      section: 'Account',
-      items: [
-        { icon: 'person-outline', title: 'Edit Profile', subtitle: 'Update your personal information' },
-        { icon: 'location-outline', title: 'Addresses', subtitle: 'Manage delivery addresses' },
-        { icon: 'card-outline', title: 'Payment Methods', subtitle: 'Add or edit payment options' },
-      ]
-    },
-    {
-      section: 'Orders',
-      items: [
-        { icon: 'receipt-outline', title: 'Order History', subtitle: 'View your past orders' },
-        { icon: 'heart-outline', title: 'Favorites', subtitle: 'Your favorite restaurants and dishes' },
-        { icon: 'star-outline', title: 'Reviews', subtitle: 'Rate and review your orders' },
-      ]
-    },
-    {
-      section: 'Settings',
-      items: [
-        { icon: 'notifications-outline', title: 'Notifications', subtitle: 'Manage your notification preferences' },
-        { icon: 'location-outline', title: 'Location Services', subtitle: 'Control location access' },
-        { icon: 'shield-checkmark-outline', title: 'Privacy & Security', subtitle: 'Manage your privacy settings' },
-      ]
-    },
-    {
-      section: 'Support',
-      items: [
-        { icon: 'help-circle-outline', title: 'Help Center', subtitle: 'Get answers to common questions' },
-        { icon: 'chatbubble-outline', title: 'Contact Support', subtitle: 'Chat with our support team' },
-        { icon: 'document-text-outline', title: 'Terms & Privacy', subtitle: 'Read our policies' },
-      ]
+  const displayName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Guest';
+  const email = user?.email || '';
+  const profileImageUrl =
+    user?.profilePicture?.cloudinaryURL || user?.profilePicture?.url || null;
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        year: 'numeric',
+      })
+    : null;
+
+  const activeAddress = overview?.customer?.activeAddress
+    ? asObject(overview.customer.activeAddress)
+    : null;
+  const formattedAddress =
+    activeAddress?.formatted_address ||
+    activeAddress?.formattedAddress ||
+    null;
+
+  const loadData = useCallback(async () => {
+    const userId = user?.id ?? customerId;
+    if (!userId) {
+      setOverview(null);
+      setLoading(false);
+      return;
     }
+    try {
+      const data = await fetchAccountOverview(userId);
+      setOverview(data);
+    } catch (err) {
+      console.error('Failed to load account overview:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, customerId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <SafeAreaView style={{ backgroundColor: colors.primary }} edges={['top']} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  const stats = overview?.stats;
+
+  const quickActions: {
+    icon: string;
+    label: string;
+    badge?: number;
+    onPress: () => void;
+  }[] = [
+    {
+      icon: 'receipt-outline',
+      label: 'My Orders',
+      badge: stats?.orderCount,
+      onPress: () => router.push('/(tabs)/orders'),
+    },
+    {
+      icon: 'heart-outline',
+      label: 'Favorites',
+      badge: stats?.favoriteCount,
+      onPress: () => router.push('/(tabs)/wishlist'),
+    },
+    {
+      icon: 'notifications-outline',
+      label: 'Notifications',
+      badge: stats?.unreadNotificationCount,
+      onPress: () => router.push('/notifications'),
+    },
+    {
+      icon: 'location-outline',
+      label: 'Delivery Addresses',
+      badge: stats?.addressCount,
+      onPress: () => router.push('/addresses'),
+    },
+    {
+      icon: 'create-outline',
+      label: 'Edit Profile',
+      onPress: () => router.push('/edit-profile'),
+    },
   ];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Brand color status bar area only */}
       <SafeAreaView style={{ backgroundColor: colors.primary }} edges={['top']} />
 
-      {/* Content area with theme background */}
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         {/* Header */}
-        <View style={{
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          backgroundColor: colors.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            backgroundColor: colors.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+          }}
+        >
           <Text style={{ fontSize: 24, fontWeight: 'bold', color: colors.text }}>
             Account
           </Text>
-          <TouchableOpacity>
-            <Ionicons name="settings-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
         </View>
-      </View>
 
-      <ScrollView style={{ flex: 1 }}>
-        {/* Profile Section */}
-        <View style={{
-          backgroundColor: colors.surface,
-          margin: 16,
-          borderRadius: 16,
-          padding: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400' }}
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                marginRight: 16,
-              }}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text, marginBottom: 4 }}>
-                John Doe
-              </Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 14, marginBottom: 8 }}>
-                john.doe@example.com
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="star" size={16} color="#fbbf24" />
-                <Text style={{ marginLeft: 4, color: colors.textSecondary, fontSize: 14 }}>
-                  4.9 • 127 orders
+        <PullToRefreshLayout isRefreshing={refreshing} onRefresh={handleRefresh}>
+          {/* Profile Card */}
+          <View
+            style={{
+              backgroundColor: colors.surface,
+              margin: 16,
+              borderRadius: 16,
+              padding: 20,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {profileImageUrl ? (
+                <Image
+                  source={{ uri: profileImageUrl }}
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 36,
+                    marginRight: 16,
+                  }}
+                />
+              ) : (
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 36,
+                    marginRight: 16,
+                    backgroundColor: colors.primaryLight,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 'bold',
+                      color: colors.primary,
+                    }}
+                  >
+                    {displayName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 'bold',
+                    color: colors.text,
+                    marginBottom: 2,
+                  }}
+                  numberOfLines={1}
+                >
+                  {displayName}
                 </Text>
+                <Text
+                  style={{
+                    color: colors.textSecondary,
+                    fontSize: 14,
+                    marginBottom: 2,
+                  }}
+                  numberOfLines={1}
+                >
+                  {email}
+                </Text>
+                {memberSince && (
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                      marginTop: 2,
+                    }}
+                  >
+                    Member since {memberSince}
+                  </Text>
+                )}
               </View>
             </View>
-            <TouchableOpacity style={{
-              backgroundColor: colors.primary,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 20,
-            }}>
-              <Text style={{ color: colors.surface, fontWeight: '600', fontSize: 14 }}>
-                Gold
+
+            {/* Active Delivery Address */}
+            <View
+              style={{
+                marginTop: 16,
+                paddingTop: 16,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+              }}
+            >
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'flex-start' }}
+                activeOpacity={0.7}
+                onPress={() => router.push('/addresses')}
+              >
+                <Ionicons
+                  name="location-outline"
+                  size={18}
+                  color={formattedAddress ? colors.primary : colors.textSecondary}
+                  style={{ marginTop: 1, marginRight: 10 }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '600',
+                      color: colors.textSecondary,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                      marginBottom: 2,
+                    }}
+                  >
+                    Delivery Address
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: formattedAddress ? colors.text : colors.textSecondary,
+                      lineHeight: 20,
+                    }}
+                    numberOfLines={2}
+                  >
+                    {formattedAddress || 'No delivery address set yet'}
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.textSecondary}
+                  style={{ marginLeft: 8, marginTop: 4 }}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Stats Row */}
+          {stats && (
+            <View
+              style={{
+                backgroundColor: colors.surface,
+                marginHorizontal: 16,
+                marginBottom: 16,
+                borderRadius: 16,
+                padding: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: colors.text,
+                  marginBottom: 16,
+                }}
+              >
+                Your Stats
               </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Quick Stats */}
-        <View style={{
-          backgroundColor: colors.surface,
-          marginHorizontal: 16,
-          marginBottom: 16,
-          borderRadius: 16,
-          padding: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-        }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 16 }}>
-            Your Stats
-          </Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: colors.primary }}>127</Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Orders</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 'bold',
+                      color: colors.primary,
+                    }}
+                  >
+                    {stats.orderCount}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    Orders
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 'bold',
+                      color: '#10b981',
+                    }}
+                    numberOfLines={1}
+                  >
+                    {stats.totalSpent > 0 ? formatCurrency(stats.totalSpent) : '—'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    Total Spent
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 'bold',
+                      color: '#8b5cf6',
+                    }}
+                  >
+                    {stats.reviewCount}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    Reviews
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 'bold',
+                      color: '#f97316',
+                    }}
+                  >
+                    {stats.favoriteCount}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    Favorites
+                  </Text>
+                </View>
+              </View>
             </View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10b981' }}>$2,340</Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Saved</Text>
-            </View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#8b5cf6' }}>23</Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Reviews</Text>
-            </View>
-          </View>
-        </View>
+          )}
 
-
-        {/* Settings */}
-        <View style={{
-          backgroundColor: colors.surface,
-          marginHorizontal: 16,
-          marginBottom: 16,
-          borderRadius: 16,
-          padding: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-        }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 16 }}>
-            Preferences
-          </Text>
-          
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
-              <Text style={{ marginLeft: 12, fontSize: 16, color: colors.text }}>
-                Push Notifications
-              </Text>
-            </View>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={notificationsEnabled ? colors.surface : colors.textSecondary}
-            />
-          </View>
-
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="location-outline" size={20} color={colors.textSecondary} />
-              <Text style={{ marginLeft: 12, fontSize: 16, color: colors.text }}>
-                Location Services
-              </Text>
-            </View>
-            <Switch
-              value={locationEnabled}
-              onValueChange={setLocationEnabled}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={locationEnabled ? colors.surface : colors.textSecondary}
-            />
-          </View>
-        </View>
-
-        {/* Menu Items */}
-        {menuItems.map((section, sectionIndex) => (
+          {/* Menu Items */}
           <View
-            key={sectionIndex}
             style={{
               backgroundColor: colors.surface,
               marginHorizontal: 16,
@@ -228,69 +383,96 @@ export default function AccountScreen() {
               elevation: 3,
             }}
           >
-            <Text style={{
-              fontSize: 16,
-              fontWeight: 'bold',
-              color: colors.text,
-              padding: 20,
-              paddingBottom: 12,
-            }}>
-              {section.section}
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: colors.text,
+                padding: 20,
+                paddingBottom: 12,
+              }}
+            >
+              My Account
             </Text>
-            
-            {section.items.map((item, itemIndex) => (
+
+            {quickActions.map((item, idx) => (
               <TouchableOpacity
-                key={itemIndex}
+                key={item.label}
+                onPress={item.onPress}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   paddingHorizontal: 20,
                   paddingVertical: 16,
-                  borderTopWidth: itemIndex > 0 ? 1 : 0,
+                  borderTopWidth: idx > 0 ? 1 : 0,
                   borderTopColor: colors.border,
                 }}
               >
-                <Ionicons name={item.icon as any} size={20} color={colors.textSecondary} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={{ fontSize: 16, color: colors.text, marginBottom: 2 }}>
-                    {item.title}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-                    {item.subtitle}
-                  </Text>
-                </View>
+                <Ionicons name={item.icon} size={22} color={colors.textSecondary} />
+                <Text
+                  style={{
+                    flex: 1,
+                    marginLeft: 14,
+                    fontSize: 16,
+                    color: colors.text,
+                  }}
+                >
+                  {item.label}
+                </Text>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <View
+                    style={{
+                      backgroundColor: colors.primary,
+                      minWidth: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingHorizontal: 6,
+                      marginRight: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.surface,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </Text>
+                  </View>
+                )}
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             ))}
           </View>
-        ))}
 
-        {/* Sign Out */}
-        <TouchableOpacity
-          onPress={logout}
-          style={{
-            backgroundColor: colors.surface,
-            marginHorizontal: 16,
-            marginBottom: 32,
-            borderRadius: 16,
-            padding: 20,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-            alignItems: 'center',
-          }}>
-          <Text style={{ fontSize: 16, color: '#ef4444', fontWeight: '600' }}>
-            Sign Out
-          </Text>
-        </TouchableOpacity>
+          {/* Sign Out */}
+          <TouchableOpacity
+            onPress={logout}
+            style={{
+              backgroundColor: colors.surface,
+              marginHorizontal: 16,
+              marginBottom: 32,
+              borderRadius: 16,
+              padding: 20,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 16, color: '#ef4444', fontWeight: '600' }}>
+              Sign Out
+            </Text>
+          </TouchableOpacity>
 
-        <View style={{ height: 100 }} />
-        </ScrollView>
+          <View style={{ height: 100 }} />
+        </PullToRefreshLayout>
       </View>
-
-
     </View>
   );
 }
