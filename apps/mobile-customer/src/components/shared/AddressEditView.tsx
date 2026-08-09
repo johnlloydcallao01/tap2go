@@ -1,13 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Animated,
-  PanResponder,
   Dimensions,
+  PanResponder,
   ScrollView,
 } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
@@ -29,23 +30,23 @@ interface AddressEditViewProps {
   onAddressDetails?: (details: ReverseGeocodeDetails | null) => void;
   onSave: () => void;
   onCancel: () => void;
+  onExtraFieldsChange?: (fields: {
+    street?: string;
+    floorUnitRoom?: string;
+    deliveryInstructions?: string;
+    label?: string;
+  }) => void;
 }
 
 const DEFAULTS = { latitude: 14.5995, longitude: 120.9842 };
 const PIN_SIZE = 48;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SHEET_MIN = 200;
-const SHEET_MAX = Math.min(SCREEN_HEIGHT * 0.75, 620);
-const SHEET_INITIAL = Math.min(SCREEN_HEIGHT * 0.34, 300);
-const MIN_MAP_HEIGHT = 380;
+const SHEET_COLLAPSED = Math.min(SCREEN_HEIGHT * 0.34, 300);
+const SHEET_EXPANDED = SCREEN_HEIGHT * 0.80;
 
-// Longer settle window: absorbs chained drags so we only geocode once the user
-// has actually stopped moving the pin.
 const GEOCODE_DEBOUNCE_MS = 800;
-// Drags shorter than this are treated as a no-op — the address can't change.
 const GEOCODE_MIN_CHANGE_M = 12;
 
-/** Approximate geodesic distance between two coordinates, in meters (haversine). */
 function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const earthRadius = 6371000;
@@ -67,6 +68,7 @@ export function AddressEditView({
   onAddressDetails,
   onSave,
   onCancel,
+  onExtraFieldsChange,
 }: AddressEditViewProps) {
   const lat = typeof initialLat === 'number' && !Number.isNaN(initialLat)
     ? initialLat
@@ -90,7 +92,6 @@ export function AddressEditView({
     resolveAddress(region.latitude, region.longitude);
   };
 
-  // ── Reverse geocode the new pin position ─────────────────────────────────────
   const [resolvedAddress, setResolvedAddress] =
     useState<string>(address?.formatted_address || address?.formattedAddress || '');
   const [mapLayer, setMapLayer] = useState<MapLayer>('standard');
@@ -98,21 +99,14 @@ export function AddressEditView({
   const reverseGeocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
-  // The pin position we've already geocoded (or already know from the address
-  // prop). Lets us skip right past "settles" that haven't actually changed.
   const lastGeocodedRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const hasKnownAddress = Boolean(address?.formatted_address || address?.formattedAddress);
 
   useEffect(() => {
-    // We already know this pin's address. Seeding here means the very first
-    // settle on open (same coords as initialRegion) is a no-change, so we don't
-    // spend a paid geocode telling the user the address they already had.
     if (hasKnownAddress && Number.isFinite(lat) && Number.isFinite(lng)) {
       lastGeocodedRef.current = { lat, lng };
     }
-
-    // Cleanup when the editor unmounts: never geocode after the user leaves.
     return () => {
       if (reverseGeocodeTimer.current) {
         clearTimeout(reverseGeocodeTimer.current);
@@ -124,22 +118,17 @@ export function AddressEditView({
   }, []);
 
   const resolveAddress = (lat: number, lng: number) => {
-    // Skip when we've already resolved this exact spot. Covers the initial
-    // settle and micro-drags that land within a few meters of the last pin.
     const last = lastGeocodedRef.current;
     if (last && distanceMeters(last.lat, last.lng, lat, lng) < GEOCODE_MIN_CHANGE_M) {
       return;
     }
     lastGeocodedRef.current = { lat, lng };
 
-    // Cancel any stale in-flight geocode so a slow response can't overwrite a
-    // newer pin, and tag our own request so it can't win a race either.
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
     const myRequestId = ++requestIdRef.current;
 
-    // Debounce so we don't hit Google for every frame of a drag; resolve on settle.
     if (reverseGeocodeTimer.current) {
       clearTimeout(reverseGeocodeTimer.current);
     }
@@ -156,8 +145,6 @@ export function AddressEditView({
   };
 
   const handleCancel = () => {
-    // Drop any pending work the moment the user leaves, so we never fire a
-    // request we no longer care about.
     if (reverseGeocodeTimer.current) {
       clearTimeout(reverseGeocodeTimer.current);
       reverseGeocodeTimer.current = null;
@@ -166,31 +153,61 @@ export function AddressEditView({
     onCancel();
   };
 
-  // ── Draggable bottom sheet height ───────────────────────────────────────────
-  const sheetHeight = useRef(new Animated.Value(SHEET_INITIAL)).current;
-  const currentHeight = useRef(SHEET_INITIAL);
-  const startY = useRef(0);
-  const startHeight = useRef(SHEET_INITIAL);
+  // ── Draggable handle via PanResponder ──────────────────────────────────────
+  const sheetHeight = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
+  const [isExpanded, setIsExpanded] = useState(false);
+  const currentHeight = useRef(SHEET_COLLAPSED);
+  const startDragHeight = useRef(SHEET_COLLAPSED);
+
+  const snapToTarget = useCallback((target: number) => {
+    Animated.spring(sheetHeight, {
+      toValue: target,
+      useNativeDriver: false,
+      damping: 20,
+      stiffness: 200,
+      mass: 1,
+    }).start();
+  }, [sheetHeight]);
+
+  const toggleExpand = () => {
+    const target = isExpanded ? SHEET_COLLAPSED : SHEET_EXPANDED;
+    setIsExpanded(!isExpanded);
+    snapToTarget(target);
+  };
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => {
-          startY.current = g.dy;
-          startHeight.current = currentHeight.current;
-          return Math.abs(g.dy) > 4;
-        },
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
         onPanResponderMove: (_, g) => {
-          const delta = g.dy - startY.current;
-          const next = Math.max(SHEET_MIN, Math.min(SHEET_MAX, startHeight.current - delta));
+          const next = Math.max(
+            SHEET_COLLAPSED,
+            Math.min(SHEET_EXPANDED, startDragHeight.current - g.dy)
+          );
           currentHeight.current = next;
           sheetHeight.setValue(next);
         },
-        onPanResponderRelease: () => {},
-        onPanResponderTerminate: () => {},
+        onPanResponderRelease: () => {
+          const threshold = (SHEET_COLLAPSED + SHEET_EXPANDED) / 2;
+          const target = currentHeight.current > threshold ? SHEET_EXPANDED : SHEET_COLLAPSED;
+          setIsExpanded(target === SHEET_EXPANDED);
+          snapToTarget(target);
+        },
+        onPanResponderGrant: () => {
+          startDragHeight.current = currentHeight.current;
+        },
       }),
-    [sheetHeight],
+    [snapToTarget, sheetHeight],
   );
+  const [street, setStreet] = useState('');
+  const [floorUnitRoom, setFloorUnitRoom] = useState('');
+  const [deliveryInstructions, setDeliveryInstructions] = useState('');
+  const [label, setLabel] = useState('');
+
+  const emitExtraFields = (s: string, f: string, d: string, l: string) => {
+    onExtraFieldsChange?.({ street: s, floorUnitRoom: f, deliveryInstructions: d, label: l });
+  };
 
   const addressText =
     resolvedAddress || address?.formatted_address || address?.formattedAddress || 'Address';
@@ -199,7 +216,7 @@ export function AddressEditView({
 
   return (
     <View style={styles.container}>
-      {/* ── Map fills the visible area above the sheet ── */}
+      {/* ── Map ── */}
       <Animated.View style={[styles.mapWrap, { bottom: sheetHeight }]}>
         <MapView
           style={StyleSheet.absoluteFill}
@@ -214,14 +231,11 @@ export function AddressEditView({
           loadingBackgroundColor="#F9FAFB"
           onRegionChangeComplete={handleRegionChangeComplete}
         />
-
-        {/* Center marker */}
         <View style={styles.markerWrap} pointerEvents="none">
           <View style={styles.pinBox}>
             <Ionicons name="location" size={PIN_SIZE} color="#EF4444" />
           </View>
         </View>
-
         <MapTypeControl value={mapLayer} onChange={setMapLayer} />
       </Animated.View>
 
@@ -231,12 +245,8 @@ export function AddressEditView({
         <Ionicons name="location" size={13} color="#fff" />
       </View>
 
-{/* Floating back button (top-left, over the map) */}
       <TouchableOpacity
-        style={[
-          styles.backButton,
-          fullBleed && { top: insets.top + 12 },
-        ]}
+        style={[styles.backButton, fullBleed && { top: insets.top + 12 }]}
         onPress={handleCancel}
         disabled={isSaving}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -244,8 +254,9 @@ export function AddressEditView({
         <Ionicons name="arrow-back" size={22} color="#111827" />
       </TouchableOpacity>
 
-      {/* ── Draggable bottom sheet ── */}
+      {/* ── Bottom section ── */}
       <Animated.View style={[styles.sheet, { height: sheetHeight }]}>
+        {/* Drag handle */}
         <View style={styles.sheetHandle} {...panResponder.panHandlers}>
           <View style={styles.handleBar} />
         </View>
@@ -256,7 +267,12 @@ export function AddressEditView({
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          <Text style={styles.editLabel}>Edit your address</Text>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.editLabel}>Edit your address</Text>
+            <TouchableOpacity onPress={toggleExpand} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name={isExpanded ? 'chevron-down' : 'chevron-up'} size={22} color="#2563EB" />
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.addressText} numberOfLines={3}>
             {addressText}
@@ -264,20 +280,76 @@ export function AddressEditView({
 
           <Text style={styles.hint}>Drag the map to fine-tune the exact pin location.</Text>
 
+          {/* ── Extra fields (visible when expanded) ── */}
+          {isExpanded && (
+            <View style={styles.extraFields}>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Street</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="e.g. Rizal Avenue"
+                  placeholderTextColor="#9CA3AF"
+                  value={street}
+                  onChangeText={(t) => { setStreet(t); emitExtraFields(t, floorUnitRoom, deliveryInstructions, label); }}
+                  returnKeyType="next"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Floor / Unit / Room</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="e.g. Unit 3A, 2nd Floor"
+                  placeholderTextColor="#9CA3AF"
+                  value={floorUnitRoom}
+                  onChangeText={(t) => { setFloorUnitRoom(t); emitExtraFields(street, t, deliveryInstructions, label); }}
+                  returnKeyType="next"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Delivery Instructions</Text>
+                <TextInput
+                  style={[styles.fieldInput, styles.fieldTextarea]}
+                  placeholder="e.g. Ring doorbell twice, leave at the front desk…"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={3}
+                  value={deliveryInstructions}
+                  onChangeText={(t) => { setDeliveryInstructions(t); emitExtraFields(street, floorUnitRoom, t, label); }}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Add a label</Text>
+                <View style={styles.labelRow}>
+                  {['Home', 'Work', 'Other'].map((lbl) => (
+                    <TouchableOpacity
+                      key={lbl}
+                      style={[styles.labelChip, label === lbl && styles.labelChipActive]}
+                      onPress={() => {
+                        const next = label === lbl ? '' : lbl;
+                        setLabel(next);
+                        emitExtraFields(street, floorUnitRoom, deliveryInstructions, next);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.labelChipText, label === lbl && styles.labelChipTextActive]}>
+                        {lbl}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
+
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={handleCancel}
-              disabled={isSaving}
-            >
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={isSaving}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={onSave}
-              disabled={isSaving}
-            >
+            <TouchableOpacity style={styles.saveButton} onPress={onSave} disabled={isSaving}>
               {isSaving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
@@ -294,7 +366,7 @@ export function AddressEditView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    minHeight: MIN_MAP_HEIGHT,
+    minHeight: 380,
     backgroundColor: '#F9FAFB',
     overflow: 'hidden',
   },
@@ -360,13 +432,13 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   sheetHandle: {
-    paddingTop: 10,
-    paddingBottom: 6,
+    paddingTop: 16,
+    paddingBottom: 12,
     alignItems: 'center',
   },
   handleBar: {
-    width: 40,
-    height: 5,
+    width: 48,
+    height: 6,
     borderRadius: 3,
     backgroundColor: '#D1D5DB',
   },
@@ -377,11 +449,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   editLabel: {
     fontSize: 14,
     fontWeight: '700',
     color: '#2563EB',
-    marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -395,6 +472,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     marginTop: 8,
+  },
+  extraFields: {
+    marginTop: 16,
+    gap: 14,
+  },
+  fieldGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  fieldInput: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+  },
+  fieldTextarea: {
+    minHeight: 80,
+    paddingTop: 12,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  labelChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F9FAFB',
+  },
+  labelChipActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  labelChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  labelChipTextActive: {
+    color: '#2563EB',
   },
   actions: {
     flexDirection: 'row',

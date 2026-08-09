@@ -107,6 +107,49 @@ export function getProfilePictureUrl(user: any): string | null {
   return resolveMediaUrl(user.profilePicture);
 }
 
+export interface PickedImage {
+  uri: string;
+  name?: string;
+  mimeType?: string;
+}
+
+/**
+ * Uploads a locally picked image to the CMS media collection
+ * and returns the created media document (with `id`, `url`, `cloudinaryURL`).
+ */
+export async function uploadProfileImage(image: PickedImage): Promise<any> {
+  const formData = new FormData();
+  const file: any = {
+    uri: image.uri,
+    name: image.name || `profile-${Date.now()}.jpg`,
+    type: image.mimeType || 'image/jpeg',
+  };
+  formData.append('file', file);
+  formData.append('alt', 'Profile picture');
+
+  const headers: Record<string, string> = {};
+  if (API_KEY) {
+    headers['Authorization'] = `users API-Key ${API_KEY}`;
+  }
+
+  const res = await fetch(`${API_BASE}/media`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      err?.errors?.[0]?.message ||
+        err?.message ||
+        `Failed to upload image (${res.status})`,
+    );
+  }
+  const result = await res.json();
+  return result.doc || result;
+}
+
 /**
  * Resolves a relationship into its object form (when depth is applied).
  */

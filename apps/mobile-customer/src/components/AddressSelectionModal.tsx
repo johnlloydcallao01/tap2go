@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Modal,
   Pressable,
   StyleSheet,
@@ -11,6 +10,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import BottomSheet, {
+  BottomSheetFlatList,
+  BottomSheetView,
+} from '@gorhom/bottom-sheet';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { AddressService } from '@encreasl/client-services';
@@ -31,6 +35,9 @@ interface AddressSelectionModalProps {
   onAddressSelected: (address: any) => void;
 }
 
+const LIST_SNAP_POINTS = ['80%'];
+const FULL_SNAP_POINTS = ['100%'];
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AddressSelectionModal({
   isVisible,
@@ -39,6 +46,7 @@ export default function AddressSelectionModal({
 }: AddressSelectionModalProps) {
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
+  const sheetRef = useRef<BottomSheet>(null);
 
   // ── Step state ──────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState<'list' | 'search' | 'preview' | 'edit'>('list');
@@ -55,12 +63,30 @@ export default function AddressSelectionModal({
   const [editingAddress, setEditingAddress] = useState<any>(null);
   const [editCoords, setEditCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [editAddressDetails, setEditAddressDetails] = useState<ReverseGeocodeDetails | null>(null);
+  const [editExtraFields, setEditExtraFields] = useState<{
+    street?: string;
+    floorUnitRoom?: string;
+    deliveryInstructions?: string;
+    label?: string;
+  }>({});
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // ── Reset state each time the modal opens ──────────────────────────────────
+  const snapPoints = useMemo(
+    () => (currentStep === 'list' ? LIST_SNAP_POINTS : FULL_SNAP_POINTS),
+    [currentStep],
+  );
+
+  const activeIndex = 0;
+
+  // ── Reset state whenever modal becomes visible ──────────────────────────────
   useEffect(() => {
     if (isVisible) {
       setCurrentStep('list');
+      setSelectedAddress(null);
+      setPreviewCoords(null);
+      setEditingAddress(null);
+      setEditCoords(null);
+      setEditAddressDetails(null);
 
       if (user?.id && token) {
         loadUserAddresses();
@@ -200,6 +226,13 @@ export default function AddressSelectionModal({
     try {
       const updates = buildAddressUpdate(editCoords, editAddressDetails);
 
+      if (editExtraFields.street) updates.street = editExtraFields.street;
+      if (editExtraFields.floorUnitRoom) updates.floor_unit_room = editExtraFields.floorUnitRoom;
+      if (editExtraFields.deliveryInstructions) {
+        updates.delivery_instructions = editExtraFields.deliveryInstructions;
+      }
+      if (editExtraFields.label) updates.label = editExtraFields.label;
+
       const response = await AddressService.updateAddress(editingAddress.id, updates, token);
 
       if (!response.success) {
@@ -209,13 +242,12 @@ export default function AddressSelectionModal({
       AddressService.clearCache();
       await loadUserAddresses();
 
-      // Refresh the header's active-address + location-based merchants/categories
-      // immediately, so the UI adapts in real time after editing.
       await invalidateAddressDependentQueries(queryClient);
 
       setEditingAddress(null);
       setEditCoords(null);
       setEditAddressDetails(null);
+      setEditExtraFields({});
       setCurrentStep('list');
       Alert.alert('Success', 'Address updated successfully!');
     } catch (error) {
@@ -254,7 +286,6 @@ export default function AddressSelectionModal({
     ]);
   };
 
-  // Active address pinned to top, rest follow original order
   const sortedAddresses = [...userAddresses].sort((a, b) => {
     const aIsActive = String(a.id) === String(activeAddressId) ? 0 : 1;
     const bIsActive = String(b.id) === String(activeAddressId) ? 0 : 1;
@@ -270,220 +301,232 @@ export default function AddressSelectionModal({
       visible={isVisible}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        {/* Tapping the dimmed area dismisses the modal; the sheet sits on top so
-            its own controls are never intercepted. */}
+      <GestureHandlerRootView style={styles.modalOverlay}>
+        {/* Dimmed backdrop area — tapping dismisses the modal */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        {/* Only the list step is a compact bottom sheet (like FoodPanda); the
-            search/preview/edit steps take the full screen. */}
-        <SafeAreaView
-          edges={
-            currentStep === 'list'
-              ? ['bottom']
-              : currentStep === 'edit'
-                ? []
-                : ['top', 'bottom']
-          }
-          style={[styles.modalSheet, currentStep !== 'list' && styles.modalSheetFull]}
+
+        <BottomSheet
+          ref={sheetRef}
+          index={activeIndex}
+          snapPoints={snapPoints}
+          enablePanDownToClose={currentStep === 'list'}
+          enableDynamicSizing={false}
+          enableOverDrag={false}
+          enableContentPanningGesture={currentStep !== 'edit'}
+          onClose={onClose}
+          backgroundStyle={[
+            styles.sheetBackground,
+            currentStep !== 'list' && styles.sheetBackgroundFull,
+          ]}
+          handleIndicatorStyle={currentStep === 'list' ? styles.modalHandleIndicator : { display: 'none' }}
+          keyboardBehavior="interactive"
+          android_keyboardInputMode="adjustResize"
         >
-          {currentStep === 'list' && <View style={styles.modalHandle} />}
-        {/* ── Header: only the full-screen sub-steps keep a back arrow; the list
-             step closes by tapping the dimmed area instead. ── */}
-        {(currentStep === 'search' || currentStep === 'preview') && (
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => setCurrentStep(currentStep === 'preview' ? 'search' : 'list')}
-              style={styles.headerButton}
+          <BottomSheetView style={styles.sheetContent}>
+            <SafeAreaView
+              edges={
+                currentStep === 'list'
+                  ? ['bottom']
+                  : currentStep === 'edit'
+                    ? []
+                    : ['top', 'bottom']
+              }
+              style={styles.safeArea}
             >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+              {/* ── Header: back arrow on full-screen sub-steps ── */}
+              {(currentStep === 'search' || currentStep === 'preview') && (
+                <View style={styles.header}>
+                  <TouchableOpacity
+                    onPress={() => setCurrentStep(currentStep === 'preview' ? 'search' : 'list')}
+                    style={styles.headerButton}
+                  >
+                    <Ionicons name="arrow-back" size={24} color="#000" />
+                  </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>
-              {currentStep === 'preview' ? 'Address Preview' : 'Add New Address'}
-            </Text>
+                  <Text style={styles.headerTitle}>
+                    {currentStep === 'preview' ? 'Address Preview' : 'Add New Address'}
+                  </Text>
 
-            <View style={{ width: 40 }} />
-          </View>
-        )}
-
-        {/* ── Content ── */}
-        {currentStep === 'list' ? (
-          <View style={styles.container}>
-            {/* ── Manage Addresses ── */}
-            <View style={styles.manageSection}>
-              <Text style={styles.sectionTitle}>Saved Addresses</Text>
-
-              {isLoadingAddresses ? (
-                <View style={{ marginTop: 8 }}>
-                  {[1, 2, 3].map(key => (
-                    <View key={key} style={styles.addressCard}>
-                      <View style={styles.addressInfo}>
-                        <View style={{ width: '80%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB', marginBottom: 8 }} />
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#E5E7EB', marginRight: 8 }} />
-                          <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#F3E8FF' }} />
-                        </View>
-                      </View>
-                      <View style={[styles.radioRow, { alignItems: 'center' }]}>
-                        <View style={{ flex: 1, height: 24, borderRadius: 6, backgroundColor: '#E5E7EB' }} />
-                        <View style={styles.radioPlaceholder} />
-                      </View>
-                    </View>
-                  ))}
+                  <View style={{ width: 40 }} />
                 </View>
-              ) : (
-                <FlatList
-                  data={sortedAddresses}
-                  keyExtractor={item => String(item.id)}
-                  style={{ flex: 1 }}
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                  keyboardShouldPersistTaps="handled"
-                  ListEmptyComponent={
-                    <Text style={styles.emptyText}>No saved addresses found.</Text>
-                  }
-                  renderItem={({ item }) => {
-                    const isActive = String(activeAddressId) === String(item.id);
-                    const isSettingActive = settingActiveId === item.id;
-                    const isDeleting = deletingAddressId === item.id;
-                    const isBusy = isSettingActive || isDeleting;
-                    if (isActive) {
-                      return (
-                        <ActiveAddressCard
-                          address={item}
-                          onDelete={() => handleDeleteAddress(item.id)}
-                          onEdit={handleStartEdit}
-                          isDeleting={isDeleting}
-                        />
-                      );
-                    }
-                    return (
-                      <View style={[styles.addressCard, isActive && styles.activeCard]}>
-                        <TouchableOpacity
-                          style={styles.radioRow}
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            if (!isActive) handleSetActiveAddress(item);
-                          }}
-                          disabled={isBusy}
-                        >
-                          {isSettingActive ? (
-                            <ActivityIndicator size="small" color="#2563EB" style={styles.radioLeftBusy} />
-                          ) : (
-                            <View style={[styles.radio, isActive && styles.radioActive]}>
-                              {isActive && <View style={styles.radioDot} />}
-                            </View>
-                          )}
+              )}
 
-                          <View style={styles.addressInfo}>
-                            <Text style={styles.addressText}>{item.formatted_address}</Text>
-                            <View style={styles.badgesContainer}>
-                              {item.address_type && (
-                                <View style={styles.typeBadge}>
-                                  <Text style={styles.typeBadgeText}>{item.address_type}</Text>
-                                </View>
-                              )}
-                              {isActive && (
-                                <View style={styles.activeBadge}>
-                                  <Text style={styles.activeBadgeText}>Active</Text>
-                                </View>
-                              )}
+              {/* ── Content ── */}
+              {currentStep === 'list' ? (
+                <View style={styles.container}>
+                  <View style={styles.manageSection}>
+                    <Text style={styles.sectionTitle}>Saved Addresses</Text>
+
+                    {isLoadingAddresses ? (
+                      <View style={{ marginTop: 8 }}>
+                        {[1, 2, 3].map(key => (
+                          <View key={key} style={styles.addressCard}>
+                            <View style={styles.addressInfo}>
+                              <View style={{ width: '80%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB', marginBottom: 8 }} />
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#E5E7EB', marginRight: 8 }} />
+                                <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#F3E8FF' }} />
+                              </View>
+                            </View>
+                            <View style={[styles.radioRow, { alignItems: 'center' }]}>
+                              <View style={{ flex: 1, height: 24, borderRadius: 6, backgroundColor: '#E5E7EB' }} />
+                              <View style={styles.radioPlaceholder} />
                             </View>
                           </View>
-                        </TouchableOpacity>
-
-                        <View style={styles.cardActions}>
-                          <TouchableOpacity
-                            style={styles.deleteIconButton}
-                            onPress={() => handleStartEdit(item)}
-                            disabled={isBusy}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Ionicons name="pencil-outline" size={20} color="#374151" />
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={styles.deleteIconButton}
-                            onPress={() => handleDeleteAddress(item.id)}
-                            disabled={isBusy}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            {isDeleting ? (
-                              <ActivityIndicator size="small" color="#DC2626" />
-                            ) : (
-                              <Ionicons name="trash-outline" size={20} color="#DC2626" />
-                            )}
-                          </TouchableOpacity>
-                        </View>
+                        ))}
                       </View>
-                    );
-                  }}
-                />
-              )}
-            </View>
+                    ) : (
+                      <BottomSheetFlatList
+                        data={sortedAddresses}
+                        keyExtractor={item => String(item.id)}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ paddingBottom: 20 }}
+                        keyboardShouldPersistTaps="handled"
+                        ListEmptyComponent={
+                          <Text style={styles.emptyText}>No saved addresses found.</Text>
+                        }
+                        renderItem={({ item }: { item: any }) => {
+                          const isActive = String(activeAddressId) === String(item.id);
+                          const isSettingActive = settingActiveId === item.id;
+                          const isDeleting = deletingAddressId === item.id;
+                          const isBusy = isSettingActive || isDeleting;
+                          if (isActive) {
+                            return (
+                              <ActiveAddressCard
+                                address={item}
+                                onDelete={() => handleDeleteAddress(item.id)}
+                                onEdit={handleStartEdit}
+                                isDeleting={isDeleting}
+                              />
+                            );
+                          }
+                          return (
+                            <View style={[styles.addressCard, isActive && styles.activeCard]}>
+                              <TouchableOpacity
+                                style={styles.radioRow}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  if (!isActive) handleSetActiveAddress(item);
+                                }}
+                                disabled={isBusy}
+                              >
+                                {isSettingActive ? (
+                                  <ActivityIndicator size="small" color="#2563EB" style={styles.radioLeftBusy} />
+                                ) : (
+                                  <View style={[styles.radio, isActive && styles.radioActive]}>
+                                    {isActive && <View style={styles.radioDot} />}
+                                  </View>
+                                )}
 
-            {/* ── Add New Address (bottom) ── */}
-            <TouchableOpacity
-              style={styles.addAddressButton}
-              activeOpacity={0.8}
-              onPress={() => setCurrentStep('search')}
-            >
-              <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
-              <Text style={styles.addAddressText}>Add New Address</Text>
-            </TouchableOpacity>
-          </View>
-        ) : currentStep === 'search' ? (
-          /* ── Search Step (shown when tapping Add New Address) ── */
-          <View style={styles.containerSearch}>
-            <AddressSearchInput onAddressSelect={handleAddressSelect} />
-          </View>
-        ) : currentStep === 'edit' ? (
-          /* ── Edit Step (shown when tapping pencil) ── */
-          <View style={styles.editContainer}>
-            <AddressEditView
-              address={editingAddress}
-              initialLat={editCoords?.lat ?? null}
-              initialLng={editCoords?.lng ?? null}
-              isSaving={isUpdating}
-              fullBleed
-              onChangeCoords={(lat, lng) => setEditCoords({ lat, lng })}
-              onAddressDetails={setEditAddressDetails}
-              onSave={handleSaveEdit}
-              onCancel={() => {
-                setEditingAddress(null);
-                setEditCoords(null);
-                setEditAddressDetails(null);
-                setCurrentStep('list');
-              }}
-            />
-          </View>
-        ) : (
-          /* ── Preview Step ── */
-          <View style={styles.previewContainer}>
-            <MovableAddressPreviewMap
-              initialLat={previewCoords?.lat ?? null}
-              initialLng={previewCoords?.lng ?? null}
-              onChange={(lat, lng) => setPreviewCoords({ lat, lng })}
-            />
+                                <View style={styles.addressInfo}>
+                                  <Text style={styles.addressText}>{item.formatted_address}</Text>
+                                  <View style={styles.badgesContainer}>
+                                    {item.address_type && (
+                                      <View style={styles.typeBadge}>
+                                        <Text style={styles.typeBadgeText}>{item.address_type}</Text>
+                                      </View>
+                                    )}
+                                    {isActive && (
+                                      <View style={styles.activeBadge}>
+                                        <Text style={styles.activeBadgeText}>Active</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
 
-            <Text style={styles.previewAddress}>
-              {selectedAddress?.formatted_address || selectedAddress?.name}
-            </Text>
+                              <View style={styles.cardActions}>
+                                <TouchableOpacity
+                                  style={styles.deleteIconButton}
+                                  onPress={() => handleStartEdit(item)}
+                                  disabled={isBusy}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  <Ionicons name="pencil-outline" size={20} color="#374151" />
+                                </TouchableOpacity>
 
-            <Text style={styles.previewHint}>
-              Drag the map to fine-tune the exact pin location.
-            </Text>
+                                <TouchableOpacity
+                                  style={styles.deleteIconButton}
+                                  onPress={() => handleDeleteAddress(item.id)}
+                                  disabled={isBusy}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  {isDeleting ? (
+                                    <ActivityIndicator size="small" color="#DC2626" />
+                                  ) : (
+                                    <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        }}
+                      />
+                    )}
+                  </View>
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveAddress} disabled={isSaving}>
-              {isSaving ? (
-                <ActivityIndicator color="#fff" />
+                  <TouchableOpacity
+                    style={styles.addAddressButton}
+                    activeOpacity={0.8}
+                    onPress={() => setCurrentStep('search')}
+                  >
+                    <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
+                    <Text style={styles.addAddressText}>Add New Address</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : currentStep === 'search' ? (
+                <View style={styles.containerSearch}>
+                  <AddressSearchInput onAddressSelect={handleAddressSelect} />
+                </View>
+              ) : currentStep === 'edit' ? (
+                <View style={styles.editContainer}>
+                  <AddressEditView
+                    address={editingAddress}
+                    initialLat={editCoords?.lat ?? null}
+                    initialLng={editCoords?.lng ?? null}
+                    isSaving={isUpdating}
+                    fullBleed
+                    onChangeCoords={(lat, lng) => setEditCoords({ lat, lng })}
+                    onAddressDetails={setEditAddressDetails}
+                    onSave={handleSaveEdit}
+                    onCancel={() => {
+setEditingAddress(null);
+      setEditCoords(null);
+      setEditAddressDetails(null);
+      setEditExtraFields({});
+                      setCurrentStep('list');
+                    }}
+                  />
+                </View>
               ) : (
-                <Text style={styles.saveButtonText}>Save and Activate</Text>
+                <View style={styles.previewContainer}>
+                  <MovableAddressPreviewMap
+                    initialLat={previewCoords?.lat ?? null}
+                    initialLng={previewCoords?.lng ?? null}
+                    onChange={(lat, lng) => setPreviewCoords({ lat, lng })}
+                  />
+
+                  <Text style={styles.previewAddress}>
+                    {selectedAddress?.formatted_address || selectedAddress?.name}
+                  </Text>
+
+                  <Text style={styles.previewHint}>
+                    Drag the map to fine-tune the exact pin location.
+                  </Text>
+
+                  <TouchableOpacity style={styles.saveButton} onPress={handleSaveAddress} disabled={isSaving}>
+                    {isSaving ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.saveButtonText}>Save and Activate</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </SafeAreaView>
-      </View>
+            </SafeAreaView>
+          </BottomSheetView>
+        </BottomSheet>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -495,28 +538,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(17, 24, 39, 0.5)',
     justifyContent: 'flex-end',
   },
-  modalSheet: {
-    flex: 1,
-    maxHeight: '80%',
+  sheetBackground: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    overflow: 'hidden',
   },
-  // Full-screen steps (search/preview/edit) fill the whole window.
-  modalSheetFull: {
-    maxHeight: '100%',
+  sheetBackgroundFull: {
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
   },
-  modalHandle: {
-    alignSelf: 'center',
+  sheetContent: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  modalHandleIndicator: {
     width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#E5E7EB',
-    marginTop: 8,
-    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',
@@ -566,8 +608,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2563EB',
   },
-
-  // ── Manage addresses ──
   manageSection: {
     flex: 1,
     zIndex: 1,
@@ -681,8 +721,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 20,
   },
-
-  // ── Preview ──
   previewContainer: {
     flex: 1,
     padding: 24,

@@ -91,7 +91,15 @@
       "./plugins/withAndroidDebugSymbols",
       "expo-asset",
       "expo-font",
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Tap2Go uses your photo library to let you choose a profile picture.",
+          "cameraPermission": "Tap2Go uses your camera to take a profile picture.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

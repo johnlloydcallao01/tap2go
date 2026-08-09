@@ -202,11 +202,14 @@ export const deliveryQuoteHandler = async (req: PayloadRequest) => {
       language: 'en_PH',
     })
 
+    const priorityFeeAmount = Number(process.env.LALAMOVE_PRIORITY_FEE || '20')
+
     return Response.json({
       data: {
         quotationId: quotation.quotationId,
         serviceType: quotation.serviceType,
         deliveryFee: Number(quotation.priceBreakdown.total),
+        priorityFee: priorityFeeAmount > 0 ? priorityFeeAmount : 0,
         currency: quotation.priceBreakdown.currency,
         distance: quotation.distance,
         expiresAt: quotation.expiresAt,

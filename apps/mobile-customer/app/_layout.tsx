@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { CartProvider } from '../src/contexts/CartContext';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
@@ -64,24 +65,26 @@ function RootNavigation() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ProductionErrorHandler>
-            <QueryProvider>
-              <ThemeProvider>
-                <AuthProvider>
-                  <CartProvider>
-                    <NotificationsProvider>
-                      <ErrorBoundary>
-                        <StatusBar style="auto" />
-                        <RootNavigation />
-                      </ErrorBoundary>
-                    </NotificationsProvider>
-                  </CartProvider>
-                </AuthProvider>
-              </ThemeProvider>
-            </QueryProvider>
-        </ProductionErrorHandler>
-      </SafeAreaProvider>
+      <BottomSheetModalProvider>
+        <SafeAreaProvider>
+          <ProductionErrorHandler>
+              <QueryProvider>
+                <ThemeProvider>
+                  <AuthProvider>
+                    <CartProvider>
+                      <NotificationsProvider>
+                        <ErrorBoundary>
+                          <StatusBar style="auto" />
+                          <RootNavigation />
+                        </ErrorBoundary>
+                      </NotificationsProvider>
+                    </CartProvider>
+                  </AuthProvider>
+                </ThemeProvider>
+              </QueryProvider>
+          </ProductionErrorHandler>
+        </SafeAreaProvider>
+      </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }

@@ -124,12 +124,13 @@ export default function CheckoutScreen() {
 
   // ── Lalamove delivery fee ───────────────────────────────────────────────────
   const [deliveryFee, setDeliveryFee] = useState(0);
+  const [priorityFee, setPriorityFee] = useState(0);
   const [deliveryDistanceMeters, setDeliveryDistanceMeters] = useState<number | null>(null);
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false);
   const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
   const deliveryQuoteCacheKeyRef = useRef<string | null>(null);
 
-  const orderTotal = totalSubtotal + deliveryFee;
+  const orderTotal = totalSubtotal + deliveryFee + priorityFee;
 
   const fetchDeliveryQuote = useCallback(async () => {
     if (!merchantId || !activeAddressId || !customerId || deliveryFeeLoading) return;
@@ -162,6 +163,7 @@ export default function CheckoutScreen() {
       if (!quoteRes.ok) throw new Error(quoteData?.error || 'Could not get delivery quote');
 
       setDeliveryFee(Number(quoteData?.data?.deliveryFee) || 0);
+      setPriorityFee(Number(quoteData?.data?.priorityFee) || 0);
 
       // Lalamove returns distance as { value, unit } (value in meters unless unit is km)
       const distance = quoteData?.data?.distance as { value?: string | number; unit?: string } | null;
@@ -778,7 +780,15 @@ export default function CheckoutScreen() {
               <Text style={styles.subtotalValue}>{formatCurrency(totalSubtotal)}</Text>
             </View>
             <View style={styles.deliveryFeeRow}>
-              <Text style={styles.subtotalLabel}>Delivery Fee</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.subtotalLabel}>Delivery Fee</Text>
+                {!deliveryFeeLoading && priorityFee > 0 && (
+                  <View style={styles.priorityPill}>
+                    <Ionicons name="flash" size={11} color="#fff" />
+                    <Text style={styles.priorityPillText}>Priority</Text>
+                  </View>
+                )}
+              </View>
               {deliveryFeeLoading ? (
                 <ActivityIndicator size="small" color="#f97316" />
               ) : (
@@ -787,6 +797,17 @@ export default function CheckoutScreen() {
                 </Text>
               )}
             </View>
+            {!deliveryFeeLoading && priorityFee > 0 && (
+              <View style={styles.deliveryDistanceRow}>
+                <Text style={styles.deliveryDistanceLabel}>
+                  Priority Delivery — with a {formatCurrency(priorityFee)} fee, rider
+                  matching is boosted for faster pickup.
+                </Text>
+                <Text style={styles.deliveryDistanceValue}>
+                  {formatCurrency(priorityFee)}
+                </Text>
+              </View>
+            )}
             {!deliveryFeeLoading && deliveryDistanceMeters != null && deliveryFee > 0 && (
               <View style={styles.deliveryDistanceRow}>
                 <Text style={styles.deliveryDistanceLabel}>Delivery Distance</Text>
@@ -1125,6 +1146,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
   },
+  priorityPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f97316',
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    gap: 3,
+  },
+  priorityPillText: { fontSize: 11, fontWeight: '700', color: '#fff' },
   deliveryDistanceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
