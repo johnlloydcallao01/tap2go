@@ -1,11 +1,6 @@
 import { PayloadRequest } from 'payload'
-import {
-  getQuotation,
-  placeOrder,
-  addPriorityFee,
-  type LalamoveStop,
-  type LalamoveServiceType,
-} from '../services/lalamoveClient'
+import { getDeliveryProvider, mapLalamoveStatus } from '../services/deliveryProviders'
+import type { LalamoveStop } from '../services/lalamoveClient'
 
 type AnyDoc = {
   id?: number | string
@@ -123,21 +118,30 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     const customer =
       typeof order.customer === 'object'
         ? order.customer
-        : await req.payload.findByID({ collection: 'customers', id: order.customer })
+        : await req.payload.findByID({ collection: 'customers', id: order.customer, depth: 1 })
 
-    let senderName = 'Tap2Go Customer'
-    let senderPhone = '+639000000000'
+    // Sender = merchant (pickup)
+    let senderName = merchant.outletName || 'Merchant'
+    let senderPhone = merchant.contactInfo?.phone || '+639000000000'
+
+    // Recipient = customer (dropoff)
+    let recipientName = 'Tap2Go Customer'
+    let recipientPhone = '+639000000000'
 
     if (customer) {
       if (customer.user && typeof customer.user === 'object') {
         const user = customer.user as any
-        senderName = [user.firstName, user.lastName].filter(Boolean).join(' ') || senderName
-        senderPhone = user.phone || senderPhone
+        recipientName = [user.firstName, user.lastName].filter(Boolean).join(' ') || recipientName
+        recipientPhone = user.phone || recipientPhone
       }
       if (customer.email) {
-        senderName = senderName || customer.email
+        recipientName = recipientName || customer.email
       }
     }
+
+    // Override with delivery-location snapshot if available
+    const finalRecipientName = deliveryLocation?.contact_name || recipientName
+    const finalRecipientPhone = deliveryLocation?.contact_phone || recipientPhone
 
     // Dropoff fallback = customer.active_address_id → addresses
     if (!dropoffLat || !dropoffLng) {
@@ -158,39 +162,51 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     }
 
     // 6. Build Lalamove stops and quotation
+    const pickupAddressParts = [
+      deliveryLocation?.merchant_street,
+      deliveryLocation?.merchant_floor_unit_room,
+      deliveryLocation?.merchant_formatted_address || String(merchantAddress),
+    ].filter(Boolean).join(', ');
+
+    const dropoffAddressParts = [
+      deliveryLocation?.street,
+      deliveryLocation?.floor_unit_room,
+      String(dropoffAddress),
+    ].filter(Boolean).join(', ');
+
     const stops: LalamoveStop[] = [
       {
         coordinates: { lat: String(merchantLat), lng: String(merchantLng) },
-        address: String(merchantAddress),
+        address: pickupAddressParts,
       },
       {
         coordinates: { lat: String(dropoffLat), lng: String(dropoffLng) },
-        address: String(dropoffAddress),
+        address: dropoffAddressParts,
       },
     ]
 
-    // Delivery is motorcycle-only: always book the MOTORCYCLE vehicle type so
-    // the distance and fee match what was quoted at checkout.
-    const serviceType: LalamoveServiceType = 'MOTORCYCLE'
+    const provider = await getDeliveryProvider(req.payload)
+    const serviceType = provider.getServiceTypeDefault()
 
-    // Get a fresh quotation (valid for 5 minutes)
-    const quotation = await getQuotation(stops, serviceType, {
+    const quotation = await provider.getQuotation(stops, serviceType, {
       language: 'en_PH',
     })
 
     // 7. Place Lalamove order with that quotation
-    const recipientName = deliveryLocation?.contact_name || senderName
-    const recipientPhone = deliveryLocation?.contact_phone || senderPhone
-    const notesForRider = deliveryLocation?.notes || ''
+    const notesForRider = [
+      deliveryLocation?.merchant_delivery_instructions,
+      deliveryLocation?.delivery_instructions,
+      deliveryLocation?.notes,
+    ].filter(Boolean).join(' | ') || ''
 
-    const lalamoveOrder = await placeOrder({
+    const lalamoveOrder = await provider.placeOrder({
       quotation,
       senderName,
       senderPhone,
       recipients: [
         {
-          name: recipientName,
-          phone: recipientPhone,
+          name: finalRecipientName,
+          phone: finalRecipientPhone,
           remarks: notesForRider || undefined,
         },
       ],
@@ -201,14 +217,12 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     // 7b. Always add a priority fee to speed up driver matching. Per Lalamove
     //      docs, priority fees can ONLY be added before the driver accepts, so we
     //      do it immediately after placing the order (status = ASSIGNING_DRIVER).
-    const priorityFeeAmount = Number(
-      process.env.LALAMOVE_PRIORITY_FEE || '20',
-    )
+    const priorityFeeAmount = Number(provider.getPriorityFeeEnv())
     let priorityFee = 0
     let rawPriorityFee = ''
     if (priorityFeeAmount > 0) {
       try {
-        const prioUpdate = await addPriorityFee(
+        const prioUpdate = await provider.addPriorityFee(
           lalamoveOrder.orderId,
           String(priorityFeeAmount),
         )
@@ -306,16 +320,4 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
       { status: 500 },
     )
   }
-}
-
-function mapLalamoveStatus(raw: string): string {
-  const s = raw.toUpperCase()
-  if (s === 'ASSIGNING_DRIVER') return 'assigning_driver'
-  if (s === 'ON_GOING') return 'driver_assigned'
-  if (s === 'PICKED_UP') return 'picked_up'
-  if (s === 'COMPLETED') return 'completed'
-  if (s === 'CANCELED') return 'canceled'
-  if (s === 'REJECTED') return 'rejected'
-  if (s === 'EXPIRED') return 'expired'
-  return 'pending'
 }

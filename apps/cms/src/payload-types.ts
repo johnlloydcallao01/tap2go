@@ -226,6 +226,10 @@ export interface User {
    */
   middleName?: string | null;
   /**
+   * Contact phone number
+   */
+  phone?: string | null;
+  /**
    * Name extension (e.g., Jr., Sr., III)
    */
   nameExtension?: string | null;
@@ -392,6 +396,22 @@ export interface Address {
    */
   subpremise?: string | null;
   /**
+   * Manually entered street name (e.g. Rizal Avenue)
+   */
+  street?: string | null;
+  /**
+   * Floor, unit, or room number (e.g. Unit 3A, 2nd Floor)
+   */
+  floor_unit_room?: string | null;
+  /**
+   * Special delivery instructions (e.g. Ring doorbell twice, leave at front desk)
+   */
+  delivery_instructions?: string | null;
+  /**
+   * Custom label for this address (e.g. Home, Work, Other)
+   */
+  label?: string | null;
+  /**
    * Barangay (from address_components: sublocality_level_1)
    */
   barangay?: string | null;
@@ -486,7 +506,7 @@ export interface Address {
   /**
    * Type of address for categorization
    */
-  address_type: 'home' | 'work' | 'billing' | 'shipping' | 'pickup' | 'delivery';
+  address_type: 'home' | 'work' | 'partner' | 'billing' | 'shipping' | 'pickup' | 'delivery';
   /**
    * Mark as default address for this user
    */
@@ -1979,6 +1999,18 @@ export interface DeliveryLocation {
     | boolean
     | null;
   /**
+   * SNAPSHOT: Street name at time of order
+   */
+  street?: string | null;
+  /**
+   * SNAPSHOT: Floor, unit, or room number at time of order
+   */
+  floor_unit_room?: string | null;
+  /**
+   * SNAPSHOT: Delivery instructions at time of order
+   */
+  delivery_instructions?: string | null;
+  /**
    * Delivery instructions (e.g., "Gate code 1234")
    */
   notes?: string | null;
@@ -1994,6 +2026,38 @@ export interface DeliveryLocation {
    * e.g., Home, Office
    */
   label?: ('home' | 'office' | 'other') | null;
+  /**
+   * SNAPSHOT: Merchant full-text address at time of order
+   */
+  merchant_formatted_address?: string | null;
+  /**
+   * SNAPSHOT: Merchant Lat/Lng at time of order
+   */
+  merchant_coordinates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * SNAPSHOT: Merchant street name at time of order
+   */
+  merchant_street?: string | null;
+  /**
+   * SNAPSHOT: Merchant floor, unit, or room number at time of order
+   */
+  merchant_floor_unit_room?: string | null;
+  /**
+   * SNAPSHOT: Merchant delivery instructions at time of order
+   */
+  merchant_delivery_instructions?: string | null;
+  /**
+   * SNAPSHOT: Merchant custom label at time of order
+   */
+  merchant_label?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3077,6 +3141,7 @@ export interface UsersSelect<T extends boolean = true> {
   firstName?: T;
   lastName?: T;
   middleName?: T;
+  phone?: T;
   nameExtension?: T;
   username?: T;
   gender?: T;
@@ -3201,6 +3266,10 @@ export interface AddressesSelect<T extends boolean = true> {
   street_number?: T;
   route?: T;
   subpremise?: T;
+  street?: T;
+  floor_unit_room?: T;
+  delivery_instructions?: T;
+  label?: T;
   barangay?: T;
   locality?: T;
   administrative_area_level_2?: T;
@@ -3634,10 +3703,19 @@ export interface DeliveryLocationsSelect<T extends boolean = true> {
   order?: T;
   formatted_address?: T;
   coordinates?: T;
+  street?: T;
+  floor_unit_room?: T;
+  delivery_instructions?: T;
   notes?: T;
   contact_name?: T;
   contact_phone?: T;
   label?: T;
+  merchant_formatted_address?: T;
+  merchant_coordinates?: T;
+  merchant_street?: T;
+  merchant_floor_unit_room?: T;
+  merchant_delivery_instructions?: T;
+  merchant_label?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4140,6 +4218,34 @@ export interface SystemSetting {
    * Toggle maintenance mode for the public website. When enabled, all non-admin users will be redirected to the maintenance page.
    */
   maintenanceMode?: boolean | null;
+  /**
+   * Select which delivery provider to use for order bookings.
+   */
+  deliveryProvider: 'lalamove' | 'native';
+  lalamove?: {
+    /**
+     * Lalamove API key (pk_test_xxx or pk_prod_xxx)
+     */
+    apiKey?: string | null;
+    /**
+     * Lalamove API secret (sk_test_xxx or sk_prod_xxx)
+     */
+    apiSecret?: string | null;
+    /**
+     * Lalamove market code (e.g. PH for Philippines)
+     */
+    market?: string | null;
+    /**
+     * Use Lalamove sandbox environment for testing.
+     */
+    sandbox?: boolean | null;
+  };
+  native?: {
+    /**
+     * Base URL for the native rider application.
+     */
+    riderAppUrl?: string | null;
+  };
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -4149,6 +4255,20 @@ export interface SystemSetting {
  */
 export interface SystemSettingsSelect<T extends boolean = true> {
   maintenanceMode?: T;
+  deliveryProvider?: T;
+  lalamove?:
+    | T
+    | {
+        apiKey?: T;
+        apiSecret?: T;
+        market?: T;
+        sandbox?: T;
+      };
+  native?:
+    | T
+    | {
+        riderAppUrl?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

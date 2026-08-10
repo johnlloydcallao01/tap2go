@@ -50,7 +50,7 @@ export function ActiveAddressCard({ address, onDelete, onEdit, isDeleting }: Act
             loadingBackgroundColor="#E5E7EB"
             pointerEvents="none"
           >
-            <Marker coordinate={{ latitude: lat, longitude: lng }} pinColor="#ef4444" />
+            <Marker coordinate={{ latitude: lat, longitude: lng }} pinColor="#f3a823" />
           </MapView>
         ) : (
           <View style={[styles.map, styles.mapFallback]}>
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2563EB',
+    borderColor: '#f3a823',
     overflow: 'hidden',
     marginBottom: 12,
   },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#f3a823',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 14,
@@ -174,13 +174,13 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   radioActive: {
-    borderColor: '#2563EB',
+    borderColor: '#f3a823',
   },
   radioDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#f3a823',
   },
   info: {
     flex: 1,
@@ -195,13 +195,13 @@ const styles = StyleSheet.create({
   },
   typeBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#fef7e6',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 16,
   },
   typeBadgeText: {
-    color: '#1E40AF',
+    color: '#9a5f0f',
     fontSize: 12,
     fontWeight: '500',
   },

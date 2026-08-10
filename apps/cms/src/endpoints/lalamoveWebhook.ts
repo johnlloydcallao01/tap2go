@@ -1,4 +1,5 @@
 import { PayloadRequest } from 'payload'
+import { mapLalamoveStatus, mapToOrderStatus, mapToOrderTrackingStatus } from '../services/deliveryProviders'
 
 /**
  * POST /api/lalamove/webhook
@@ -213,55 +214,5 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
   } catch (error: any) {
     console.error('[lalamove/webhook] Error:', error)
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
-  }
-}
-
-// ─── Status Mappers ──────────────────────────────────────────────────────────
-
-function mapLalamoveStatus(raw: string): string {
-  const s = (raw || '').toUpperCase().trim()
-  if (s === 'ASSIGNING_DRIVER') return 'assigning_driver'
-  if (s === 'ON_GOING') return 'driver_assigned'
-  if (s === 'PICKED_UP') return 'picked_up'
-  if (s === 'COMPLETED') return 'completed'
-  if (s === 'CANCELED') return 'canceled'
-  if (s === 'REJECTED') return 'rejected'
-  if (s === 'EXPIRED') return 'expired'
-  return 'pending'
-}
-
-function mapToOrderStatus(deliveryStatus: string): string | null {
-  switch (deliveryStatus) {
-    case 'assigning_driver':
-      return 'preparing'
-    case 'driver_assigned':
-      return 'ready_for_pickup'
-    case 'picked_up':
-      return 'on_delivery'
-    case 'completed':
-      return 'delivered'
-    case 'canceled':
-    case 'expired':
-      return 'cancelled'
-    default:
-      return null
-  }
-}
-
-function mapToOrderTrackingStatus(deliveryStatus: string): string {
-  switch (deliveryStatus) {
-    case 'assigning_driver':
-      return 'preparing'
-    case 'driver_assigned':
-      return 'ready_for_pickup'
-    case 'picked_up':
-      return 'on_delivery'
-    case 'completed':
-      return 'delivered'
-    case 'canceled':
-    case 'expired':
-      return 'cancelled'
-    default:
-      return 'accepted'
   }
 }

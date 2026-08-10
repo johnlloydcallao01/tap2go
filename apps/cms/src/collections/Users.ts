@@ -125,6 +125,13 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'phone',
+      type: 'text',
+      admin: {
+        description: 'Contact phone number',
+      },
+    },
+    {
       name: 'nameExtension',
       type: 'text',
       admin: {

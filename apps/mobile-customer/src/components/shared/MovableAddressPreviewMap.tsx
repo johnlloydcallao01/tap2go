@@ -60,7 +60,7 @@ export function MovableAddressPreviewMap({
 
       {/* Center pin marker — the tip sits on the map's center coordinate */}
       <View style={styles.pinWrap} pointerEvents="none">
-        <Ionicons name="location" size={PIN_SIZE} color="#EF4444" />
+        <Ionicons name="location" size={PIN_SIZE} color="#f3a823" />
       </View>
 
       <View style={styles.hintPill} pointerEvents="none">

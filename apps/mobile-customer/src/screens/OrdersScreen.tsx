@@ -15,6 +15,55 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiConfig } from '../config/environment';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
+const OrdersSkeleton = () => {
+  return (
+    <View style={{ paddingHorizontal: 16 }}>
+      {[1, 2, 3].map((key) => (
+        <View
+          key={key}
+          style={{
+            backgroundColor: '#fff',
+            borderRadius: 16,
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+        >
+          <View style={{ padding: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E5E7EB' }} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ width: '60%', height: 16, borderRadius: 4, backgroundColor: '#E5E7EB', marginBottom: 4 }} />
+                  <View style={{ width: '40%', height: 12, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+                </View>
+              </View>
+              <View style={{ width: 64, height: 24, borderRadius: 12, backgroundColor: '#E5E7EB' }} />
+            </View>
+            <View style={{ borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12, marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ width: 20, height: 14, borderRadius: 4, backgroundColor: '#F3F4F6', marginRight: 8 }} />
+                <View style={{ width: '70%', height: 14, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 20, height: 14, borderRadius: 4, backgroundColor: '#F3F4F6', marginRight: 8 }} />
+                <View style={{ width: '55%', height: 14, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12 }}>
+              <View style={{ width: 80, height: 16, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+              <View style={{ width: 64, height: 32, borderRadius: 8, backgroundColor: '#F3F4F6' }} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
+
 interface OrderItem {
   id: string | number;
   name: string;
@@ -50,7 +99,11 @@ export default function OrdersScreen() {
   const [showFilters, setShowFilters] = useState(true);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
 
+  const showSkeleton = loading || refreshing;
+
   const filters = ['All', 'pending', 'accepted', 'preparing', 'ready_for_pickup', 'on_delivery', 'delivered', 'cancelled'];
+
+  const getEffectiveStatus = (order: Order) => order.status;
 
   const fetchOrders = useCallback(async () => {
     if (!user?.id) {
@@ -151,7 +204,11 @@ export default function OrdersScreen() {
           restaurant: merchantName,
           merchantLogo: merchantLogo,
           fulfillmentType: order.fulfillment_type,
-          deliveryStatus: order.delivery_status,
+          deliveryStatus:
+            (order.deliveryBooking &&
+              typeof order.deliveryBooking === 'object' &&
+              order.deliveryBooking.status)
+            || order.delivery_status,
           priorityFee:
             order.deliveryBooking &&
             typeof order.deliveryBooking === 'object' &&
@@ -225,7 +282,7 @@ export default function OrdersScreen() {
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.restaurant.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === 'All' || order.status === selectedFilter;
+    const matchesFilter = selectedFilter === 'All' || getEffectiveStatus(order) === selectedFilter;
     return matchesSearch && matchesFilter;
   });
 
@@ -234,16 +291,22 @@ export default function OrdersScreen() {
       case 'pending': return '#f59e0b';
       case 'accepted': return '#3b82f6';
       case 'preparing': return '#8b5cf6';
-      case 'ready_for_pickup': return '#10b981';
-      case 'on_delivery': return '#06b6d4';
+      case 'ready_for_pickup': return '#06b6d4';
+      case 'on_delivery': return '#f97316';
       case 'delivered': return '#10b981';
       case 'cancelled': return '#ef4444';
       default: return '#6b7280';
     }
   };
 
-  const formatStatus = (status: string) => {
-    return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  const formatStatusLabel = (key: string) => {
+    switch (key) {
+      case 'ready_for_pickup': return 'Ready for Pickup';
+      case 'on_delivery': return 'On Delivery';
+      case 'cancelled': return 'Cancelled';
+      default:
+        return key.charAt(0).toUpperCase() + key.slice(1);
+    }
   };
 
   return (
@@ -326,7 +389,7 @@ export default function OrdersScreen() {
                       fontWeight: '600',
                       fontSize: 14,
                     }}>
-                      {filter === 'All' ? 'All' : formatStatus(filter)}
+                      {filter === 'All' ? 'All' : formatStatusLabel(filter)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -335,10 +398,8 @@ export default function OrdersScreen() {
           )}
 
           {/* Content */}
-          {loading && !refreshing ? (
-            <View style={{ padding: 32, alignItems: 'center' }}>
-              <ActivityIndicator size="large" color="#f97316" />
-            </View>
+          {showSkeleton ? (
+            <OrdersSkeleton />
           ) : !user ? (
             <View style={{ padding: 32, alignItems: 'center' }}>
               <Ionicons name="log-in-outline" size={48} color="#9ca3af" />
@@ -395,14 +456,14 @@ export default function OrdersScreen() {
                         </View>
                       </View>
                       <View style={{
-                        backgroundColor: getStatusColor(order.status) + '1A',
+                        backgroundColor: getStatusColor(getEffectiveStatus(order)) + '1A',
                         paddingHorizontal: 10,
                         paddingVertical: 4,
                         borderRadius: 12,
                         marginLeft: 8,
                       }}>
-                        <Text style={{ color: getStatusColor(order.status), fontSize: 12, fontWeight: '700' }}>
-                          {formatStatus(order.status)}
+                        <Text style={{ color: getStatusColor(getEffectiveStatus(order)), fontSize: 12, fontWeight: '700' }}>
+                          {formatStatusLabel(getEffectiveStatus(order))}
                         </Text>
                       </View>
                       {order.priorityFee > 0 && (
@@ -470,7 +531,7 @@ export default function OrdersScreen() {
                             )}
                           </TouchableOpacity>
                         )}
-                        {(order.status === 'delivered' || order.status === 'cancelled') && (
+                        {(order.status === 'delivered' || order.status === 'cancelled' || order.deliveryStatus === 'completed') && (
                           <TouchableOpacity style={{
                             backgroundColor: '#f3f4f6',
                             paddingHorizontal: 16,

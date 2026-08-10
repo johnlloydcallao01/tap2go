@@ -1,41 +1,8 @@
 import { PayloadRequest } from 'payload'
-import {
-  getOrderDetails,
-  getDriverDetails,
-  type LalamoveDriverDetails,
-} from '../services/lalamoveClient'
+import { getDeliveryProvider, mapLalamoveStatus, mapToOrderStatus } from '../services/deliveryProviders'
+import type { LalamoveDriverDetails } from '../services/lalamoveClient'
 
 type AnyDoc = Record<string, any>
-
-function mapLalamoveStatus(raw?: string | null): string {
-  const s = (raw || '').toUpperCase().trim()
-  if (s === 'ASSIGNING_DRIVER') return 'assigning_driver'
-  if (s === 'ON_GOING') return 'driver_assigned'
-  if (s === 'PICKED_UP') return 'picked_up'
-  if (s === 'COMPLETED') return 'completed'
-  if (s === 'CANCELED') return 'canceled'
-  if (s === 'REJECTED') return 'rejected'
-  if (s === 'EXPIRED') return 'expired'
-  return 'pending'
-}
-
-function mapToOrderStatus(deliveryStatus: string): string | null {
-  switch (deliveryStatus) {
-    case 'assigning_driver':
-      return 'preparing'
-    case 'driver_assigned':
-      return 'ready_for_pickup'
-    case 'picked_up':
-      return 'on_delivery'
-    case 'completed':
-      return 'delivered'
-    case 'canceled':
-    case 'expired':
-      return 'cancelled'
-    default:
-      return null
-  }
-}
 
 /**
  * GET /api/delivery/track?orderId=123
@@ -92,9 +59,11 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
     let driverId = ''
     let liveDriver: LalamoveDriverDetails | null = null
 
+    const provider = await getDeliveryProvider(req.payload)
+
     // 2. Pull live order state (status + matched driver id)
     try {
-      const orderData = (await getOrderDetails(lalamoveOrderId)) as any
+      const orderData = (await provider.getOrderDetails(lalamoveOrderId)) as any
       rawStatus = orderData?.status || rawStatus
       driverId = String(
         orderData?.driver?.driverId || orderData?.driverId || '',
@@ -105,10 +74,10 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
 
     const mappedStatus = mapLalamoveStatus(rawStatus)
 
-    // 3. Pull live driver location when a driver is matched
+    // 3. Pull live driver location (if we have a driverId)
     if (driverId) {
       try {
-        liveDriver = (await getDriverDetails(lalamoveOrderId, driverId)) as LalamoveDriverDetails
+        liveDriver = (await provider.getDriverDetails(lalamoveOrderId, driverId)) as LalamoveDriverDetails
       } catch (err: any) {
         console.error('[delivery/track] getDriverDetails failed (using cached driver data):', err?.message)
       }

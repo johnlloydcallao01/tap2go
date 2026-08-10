@@ -124,6 +124,35 @@ export const Addresses: CollectionConfig = {
         description: 'Unit/apartment number (from address_components: subpremise)',
       },
     },
+    {
+      name: 'street',
+      type: 'text',
+      admin: {
+        description: 'Manually entered street name (e.g. Rizal Avenue)',
+      },
+    },
+    {
+      name: 'floor_unit_room',
+      type: 'text',
+      admin: {
+        description: 'Floor, unit, or room number (e.g. Unit 3A, 2nd Floor)',
+      },
+    },
+    {
+      name: 'delivery_instructions',
+      type: 'textarea',
+      admin: {
+        description: 'Special delivery instructions (e.g. Ring doorbell twice, leave at front desk)',
+        rows: 3,
+      },
+    },
+    {
+      name: 'label',
+      type: 'text',
+      admin: {
+        description: 'Custom label for this address (e.g. Home, Work, Other)',
+      },
+    },
 
     // === LOCALITY COMPONENTS (PHILIPPINES-SPECIFIC) ===
     {
@@ -308,11 +337,15 @@ export const Addresses: CollectionConfig = {
           label: 'Home',
           value: 'home',
         },
-        {
-          label: 'Work',
-          value: 'work',
-        },
-        {
+          {
+            label: 'Work',
+            value: 'work',
+          },
+          {
+            label: 'Partner',
+            value: 'partner',
+          },
+          {
           label: 'Billing',
           value: 'billing',
         },

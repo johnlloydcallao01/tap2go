@@ -58,11 +58,19 @@ type DeliveryLocation = {
   id: number;
   order?: any;
   formatted_address?: string | null;
+  street?: string | null;
+  floor_unit_room?: string | null;
+  delivery_instructions?: string | null;
   coordinates?: { lat?: number; lng?: number } | null;
   notes?: string | null;
   contact_name?: string | null;
   contact_phone?: string | null;
   label?: string | null;
+  merchant_formatted_address?: string | null;
+  merchant_street?: string | null;
+  merchant_floor_unit_room?: string | null;
+  merchant_delivery_instructions?: string | null;
+  merchant_label?: string | null;
 };
 
 type OrderDetail = {
@@ -87,22 +95,30 @@ type OrderDetail = {
 
 const STATUS_STEPS = [
   { key: 'accepted', label: 'Order Confirmed', icon: 'checkmark-circle' as const },
-  { key: 'preparing', label: 'Finding Rider', icon: 'search' as const },
-  { key: 'ready_for_pickup', label: 'Rider Assigned', icon: 'bicycle' as const },
-  { key: 'on_delivery', label: 'On the Way', icon: 'navigate' as const },
-  { key: 'delivered', label: 'Delivered', icon: 'checkmark-done-circle' as const },
+  { key: 'assigning_driver', label: 'Assigning Driver', icon: 'search' as const },
+  { key: 'driver_assigned', label: 'On Going', icon: 'bicycle' as const },
+  { key: 'picked_up', label: 'Picked Up', icon: 'navigate' as const },
+  { key: 'completed', label: 'Completed', icon: 'checkmark-done-circle' as const },
 ];
+
+// Old status values map onto the new Lalamove-based steps
+const STATUS_ALIASES: Record<string, number> = {
+  preparing: 1, // → assigning_driver
+  ready_for_pickup: 2, // → driver_assigned
+  on_delivery: 3, // → picked_up
+  delivered: 4, // → completed
+};
 
 function getStatusColor(status: string): string {
   if (status === 'canceled' || status === 'cancelled') return '#ef4444';
-  if (status === 'expired') return '#ef4444';
+  if (status === 'expired' || status === 'rejected') return '#ef4444';
   switch (status) {
     case 'pending': return '#f59e0b';
     case 'accepted': return '#3b82f6';
-    case 'preparing': return '#8b5cf6';
-    case 'ready_for_pickup': return '#10b981';
-    case 'on_delivery': return '#06b6d4';
-    case 'delivered': return '#10b981';
+    case 'assigning_driver': return '#8b5cf6';
+    case 'driver_assigned': return '#10b981';
+    case 'picked_up': return '#06b6d4';
+    case 'completed': return '#10b981';
     default: return '#6b7280';
   }
 }
@@ -116,7 +132,8 @@ function formatStatus(status: string): string {
 
 function getActiveStepIndex(status: string): number {
   const idx = STATUS_STEPS.findIndex((s) => s.key === status);
-  return idx >= 0 ? idx : 0;
+  if (idx >= 0) return idx;
+  return STATUS_ALIASES[status] ?? 0;
 }
 
 function formatDate(iso?: string | null): string {
@@ -183,6 +200,41 @@ export default function OrderDetailScreen() {
       if (deliveryLocRes.ok) {
         const deliveryLocData = await deliveryLocRes.json();
         deliveryLocation = deliveryLocData.docs?.[0] || null;
+      }
+
+      // Pull LIVE status from the Lalamove API (server-side, via /delivery/track).
+      // The endpoint fetches the real order/driver state from Lalamove, persists
+      // it into delivery-bookings, and returns the fresh status back. Fall back
+      // to the cached booking on any failure so the order still renders.
+      if (deliveryBooking?.lalamove_order_id) {
+        try {
+          const trackRes = await fetch(
+            `${apiConfig.baseUrl}/delivery/track?orderId=${encodeURIComponent(id)}`,
+            { headers: CMS_HEADERS },
+          );
+          if (trackRes.ok) {
+            const trackData = await trackRes.json();
+            const ds = trackData?.data?.deliveryStatus;
+            const raw = trackData?.data?.lalamoveRawStatus;
+            if (ds) {
+              if (deliveryBooking) {
+                deliveryBooking = {
+                  ...deliveryBooking,
+                  status: ds,
+                  lalamove_raw_status: raw || deliveryBooking.lalamove_raw_status,
+                };
+              } else {
+                deliveryBooking = {
+                  id: trackData?.data?.orderId ?? 0,
+                  status: ds,
+                  lalamove_raw_status: raw ?? null,
+                } as DeliveryBooking;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[OrderDetail] live Lalamove status unavailable, using cached:', err);
+        }
       }
 
       setOrder({
@@ -299,6 +351,8 @@ export default function OrderDetailScreen() {
     order.merchant && typeof order.merchant === 'object'
       ? order.merchant
       : null;
+  const merchantPhone =
+    merchant?.contactInfo?.phone || '+639000000000';
   const merchantName =
     merchant?.outletName || merchant?.vendor?.businessName || 'Restaurant';
   const merchantLogo =
@@ -323,7 +377,9 @@ export default function OrderDetailScreen() {
       : delivery?.status === 'expired' || order.delivery_status === 'expired'
         ? 'No rider accepted this delivery in time. This delivery was not completed.'
         : 'This delivery could not be completed. Your order will not be delivered by a Tap2Go rider.';
-  const activeIdx = getActiveStepIndex(order.status || 'pending');
+  const activeIdx = getActiveStepIndex(
+    delivery?.status || order.delivery_status || order.status || 'pending',
+  );
   const deliveryFee = order.delivery_fee || delivery?.delivery_fee || 0;
   const priorityFee = delivery?.priority_fee || 0;
   const platformFee = order.platform_fee || 0;
@@ -333,23 +389,37 @@ export default function OrderDetailScreen() {
     order.customer?.user && typeof order.customer.user === 'object'
       ? order.customer.user
       : null;
-  const senderName =
+  // Sender = merchant (pickup)
+  const senderName = merchantName;
+  const senderPhone = merchantPhone;
+  const deliveryLocation = order.deliveryLocation;
+  // Recipient = customer (dropoff)
+  const recipientName = deliveryLocation?.contact_name ||
     [customerUser?.firstName, customerUser?.lastName].filter(Boolean).join(' ') ||
     (order.customer?.email ? order.customer.email : 'Tap2Go Customer');
-  const senderPhone = customerUser?.phone || '+639000000000';
-  const deliveryLocation = order.deliveryLocation;
-  const recipientName = deliveryLocation?.contact_name || senderName;
-  const recipientPhone = deliveryLocation?.contact_phone || senderPhone;
-  const notesForRider = deliveryLocation?.notes || '';
-  const pickupAddress = delivery?.pickup_address || 'Merchant Location';
+  const recipientPhone = deliveryLocation?.contact_phone || customerUser?.phone || '+639000000000';
+  const notesForRider = [
+    deliveryLocation?.merchant_delivery_instructions,
+    deliveryLocation?.delivery_instructions,
+    deliveryLocation?.notes,
+  ].filter(Boolean).join(' | ') || '';
+  const pickupAddress = [
+    deliveryLocation?.merchant_street,
+    deliveryLocation?.merchant_floor_unit_room,
+    deliveryLocation?.merchant_formatted_address ||
+    delivery?.pickup_address ||
+    'Merchant Location',
+  ].filter(Boolean).join(', ');
   const isPlaceholder = (v?: string | null) =>
     !v || /unknown address|delivery location/i.test(String(v).trim());
-  const dropoffAddress =
+  const dropoffAddress = [
+    deliveryLocation?.street,
+    deliveryLocation?.floor_unit_room,
     deliveryLocation?.formatted_address ||
     (delivery?.dropoff_address && !isPlaceholder(delivery.dropoff_address)
       ? delivery.dropoff_address
-      : undefined) ||
-    'Delivery Location';
+      : undefined),
+  ].filter(Boolean).join(', ') || 'Delivery Location';
 
   return (
     <View style={styles.container}>
@@ -681,7 +751,7 @@ export default function OrderDetailScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>
-              This is what is shared with the Lalamove rider when your delivery is
+              This is what is shared with the delivery rider when your delivery is
               booked.
             </Text>
 
@@ -704,6 +774,24 @@ export default function OrderDetailScreen() {
                   <Ionicons name="location-outline" size={16} color="#6b7280" />
                   <Text style={styles.infoValue}>{pickupAddress}</Text>
                 </View>
+                {deliveryLocation?.merchant_street ? (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="navigate-outline" size={16} color="#6b7280" />
+                    <Text style={styles.infoValue}>{deliveryLocation.merchant_street}</Text>
+                  </View>
+                ) : null}
+                {deliveryLocation?.merchant_floor_unit_room ? (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="business-outline" size={16} color="#6b7280" />
+                    <Text style={styles.infoValue}>{deliveryLocation.merchant_floor_unit_room}</Text>
+                  </View>
+                ) : null}
+                {deliveryLocation?.merchant_delivery_instructions ? (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="clipboard-outline" size={16} color="#6b7280" />
+                    <Text style={styles.infoValue}>{deliveryLocation.merchant_delivery_instructions}</Text>
+                  </View>
+                ) : null}
               </View>
 
               {/* Recipient */}
@@ -723,6 +811,33 @@ export default function OrderDetailScreen() {
                 </View>
               </View>
 
+              {/* Delivery Info */}
+              {(deliveryLocation?.street ||
+                deliveryLocation?.floor_unit_room ||
+                deliveryLocation?.delivery_instructions) ? (
+                <View style={styles.infoGroup}>
+                  <Text style={styles.infoGroupTitle}>Delivery Info</Text>
+                  {deliveryLocation?.street ? (
+                    <View style={styles.infoRow}>
+                      <Ionicons name="navigate-outline" size={16} color="#6b7280" />
+                      <Text style={styles.infoValue}>{deliveryLocation.street}</Text>
+                    </View>
+                  ) : null}
+                  {deliveryLocation?.floor_unit_room ? (
+                    <View style={styles.infoRow}>
+                      <Ionicons name="business-outline" size={16} color="#6b7280" />
+                      <Text style={styles.infoValue}>{deliveryLocation.floor_unit_room}</Text>
+                    </View>
+                  ) : null}
+                  {deliveryLocation?.delivery_instructions ? (
+                    <View style={styles.infoRow}>
+                      <Ionicons name="clipboard-outline" size={16} color="#6b7280" />
+                      <Text style={styles.infoValue}>{deliveryLocation.delivery_instructions}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
               {/* Notes */}
               <View style={styles.infoGroup}>
                 <Text style={styles.infoGroupTitle}>Delivery Notes</Text>
@@ -740,7 +855,7 @@ export default function OrderDetailScreen() {
                 <View style={styles.infoRow}>
                   <Ionicons name="bicycle-outline" size={16} color="#6b7280" />
                   <Text style={styles.infoValue}>
-                    Motorcycle ({delivery?.service_type || 'MOTORCYCLE'})
+                    {delivery?.service_type || ''}
                   </Text>
                 </View>
               </View>

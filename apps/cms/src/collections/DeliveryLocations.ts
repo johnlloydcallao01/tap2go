@@ -54,6 +54,28 @@ export const DeliveryLocations: CollectionConfig = {
       },
     },
     {
+      name: 'street',
+      type: 'text',
+      admin: {
+        description: 'SNAPSHOT: Street name at time of order',
+      },
+    },
+    {
+      name: 'floor_unit_room',
+      type: 'text',
+      admin: {
+        description: 'SNAPSHOT: Floor, unit, or room number at time of order',
+      },
+    },
+    {
+      name: 'delivery_instructions',
+      type: 'textarea',
+      admin: {
+        description: 'SNAPSHOT: Delivery instructions at time of order',
+        rows: 3,
+      },
+    },
+    {
       name: 'notes',
       type: 'text',
       admin: {
@@ -84,6 +106,51 @@ export const DeliveryLocations: CollectionConfig = {
       ],
       admin: {
         description: 'e.g., Home, Office',
+      },
+    },
+
+    // === MERCHANT SNAPSHOT ===
+    {
+      name: 'merchant_formatted_address',
+      type: 'textarea',
+      admin: {
+        description: 'SNAPSHOT: Merchant full-text address at time of order',
+      },
+    },
+    {
+      name: 'merchant_coordinates',
+      type: 'json',
+      admin: {
+        description: 'SNAPSHOT: Merchant Lat/Lng at time of order',
+      },
+    },
+    {
+      name: 'merchant_street',
+      type: 'text',
+      admin: {
+        description: 'SNAPSHOT: Merchant street name at time of order',
+      },
+    },
+    {
+      name: 'merchant_floor_unit_room',
+      type: 'text',
+      admin: {
+        description: 'SNAPSHOT: Merchant floor, unit, or room number at time of order',
+      },
+    },
+    {
+      name: 'merchant_delivery_instructions',
+      type: 'textarea',
+      admin: {
+        description: 'SNAPSHOT: Merchant delivery instructions at time of order',
+        rows: 3,
+      },
+    },
+    {
+      name: 'merchant_label',
+      type: 'text',
+      admin: {
+        description: 'SNAPSHOT: Merchant custom label at time of order',
       },
     },
   ],

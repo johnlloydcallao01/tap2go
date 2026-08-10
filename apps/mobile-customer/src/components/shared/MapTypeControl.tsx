@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   segmentActive: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#f3a823',
   },
   segmentText: {
     fontSize: 12,

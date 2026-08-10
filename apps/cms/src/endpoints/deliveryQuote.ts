@@ -1,9 +1,6 @@
 import { PayloadRequest } from 'payload'
-import {
-  getQuotation,
-  type LalamoveStop,
-  type LalamoveServiceType,
-} from '../services/lalamoveClient'
+import { getDeliveryProvider, type DeliveryProvider } from '../services/deliveryProviders'
+import type { LalamoveStop } from '../services/lalamoveClient'
 
 type AnyDoc = {
   id?: number | string
@@ -38,6 +35,11 @@ export const deliveryQuoteHandler = async (req: PayloadRequest) => {
   try {
     if (!req.user) {
       return Response.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const provider = await getDeliveryProvider(req.payload)
+    if (provider.name !== 'lalamove') {
+      return Response.json({ data: { available: false } })
     }
 
     const hasJson = typeof (req as any).json === 'function'
@@ -194,15 +196,13 @@ export const deliveryQuoteHandler = async (req: PayloadRequest) => {
       },
     ]
 
-    // Delivery is motorcycle-only: the quotation (and its distance + fee)
-    // must always be priced for the MOTORCYCLE vehicle type.
-    const effectiveServiceType: LalamoveServiceType = 'MOTORCYCLE'
+    const effectiveServiceType = provider.getServiceTypeDefault()
 
-    const quotation = await getQuotation(stops, effectiveServiceType, {
+    const quotation = await provider.getQuotation(stops, effectiveServiceType, {
       language: 'en_PH',
     })
 
-    const priorityFeeAmount = Number(process.env.LALAMOVE_PRIORITY_FEE || '20')
+    const priorityFeeAmount = Number(provider.getPriorityFeeEnv())
 
     return Response.json({
       data: {

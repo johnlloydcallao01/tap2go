@@ -23,6 +23,10 @@ export interface AddressData {
   google_place_id: string;
   street_number?: string;
   route?: string;
+  street?: string;
+  floor_unit_room?: string;
+  delivery_instructions?: string;
+  label?: string;
   barangay?: string;
   locality?: string;
   administrative_area_level_1?: string;
@@ -30,7 +34,7 @@ export interface AddressData {
   postal_code?: string;
   latitude?: number;
   longitude?: number;
-  address_type?: 'home' | 'work' | 'other';
+  address_type?: 'home' | 'work' | 'partner' | 'other';
   is_default?: boolean;
   notes?: string;
   user?: string | number;
@@ -38,10 +42,14 @@ export interface AddressData {
 
 export interface AddressCreateRequest {
   place: GooglePlaceLike;
-  address_type?: 'home' | 'work' | 'other';
+  address_type?: 'home' | 'work' | 'partner' | 'other';
   is_default?: boolean;
   notes?: string;
-  userId: string | number; // Required for direct CMS creation
+  userId: string | number;
+  street?: string;
+  floor_unit_room?: string;
+  delivery_instructions?: string;
+  label?: string;
 }
 
 export interface AddressResponse {
@@ -111,9 +119,9 @@ export class AddressService {
    */
   private static parsePlaceData(
     place: GooglePlaceLike, 
-    extras: { address_type?: 'home' | 'work' | 'other'; is_default?: boolean; notes?: string; userId: string | number }
+    extras: { address_type?: 'home' | 'work' | 'partner' | 'other'; is_default?: boolean; notes?: string; userId: string | number; street?: string; floor_unit_room?: string; delivery_instructions?: string; label?: string }
   ): AddressData {
-    const { address_type = 'other', is_default = false, notes, userId } = extras;
+    const { address_type = 'other', is_default = false, notes, userId, street, floor_unit_room, delivery_instructions, label } = extras;
 
     const addressData: AddressData = {
       formatted_address: place.formatted_address || '',
@@ -132,6 +140,10 @@ export class AddressService {
       notes,
       country: 'Philippines', // Default
       user: userId,
+      street,
+      floor_unit_room,
+      delivery_instructions,
+      label,
     };
 
     if (place.address_components) {
@@ -169,7 +181,11 @@ export class AddressService {
         address_type: request.address_type,
         is_default: request.is_default,
         notes: request.notes,
-        userId: request.userId
+        userId: request.userId,
+        street: request.street,
+        floor_unit_room: request.floor_unit_room,
+        delivery_instructions: request.delivery_instructions,
+        label: request.label,
       });
 
       // If default, we might need to unset other defaults. 

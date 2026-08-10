@@ -21,7 +21,6 @@ import { AddressService } from '@encreasl/client-services';
 import { Ionicons } from '@expo/vector-icons';
 import { AddressSearchInput } from './shared/AddressSearchInput';
 import { ActiveAddressCard } from './shared/ActiveAddressCard';
-import { MovableAddressPreviewMap } from './shared/MovableAddressPreviewMap';
 import { AddressEditView } from './shared/AddressEditView';
 import {
   buildAddressUpdate,
@@ -159,6 +158,10 @@ export default function AddressSelectionModal({
           address_type: 'home',
           is_default: false,
           userId: user.id,
+          street: editExtraFields.street,
+          floor_unit_room: editExtraFields.floorUnitRoom,
+          delivery_instructions: editExtraFields.deliveryInstructions,
+          label: editExtraFields.label,
         },
         token,
       );
@@ -215,6 +218,12 @@ export default function AddressSelectionModal({
     setEditCoords({
       lat: typeof address?.latitude === 'number' ? address.latitude : null,
       lng: typeof address?.longitude === 'number' ? address.longitude : null,
+    });
+    setEditExtraFields({
+      street: address?.street || '',
+      floorUnitRoom: address?.floor_unit_room || '',
+      deliveryInstructions: address?.delivery_instructions || '',
+      label: address?.label || '',
     });
     setCurrentStep('edit');
   };
@@ -301,6 +310,55 @@ export default function AddressSelectionModal({
       visible={isVisible}
       onRequestClose={onClose}
     >
+      {/* ── Edit / Preview : full-screen edge-to-edge (no gorhom) ── */}
+      {(currentStep === 'edit' || currentStep === 'preview') && (
+        <View style={StyleSheet.absoluteFill}>
+          {currentStep === 'edit' ? (
+            <AddressEditView
+              address={editingAddress}
+              initialLat={editCoords?.lat ?? null}
+              initialLng={editCoords?.lng ?? null}
+              isSaving={isUpdating}
+              fullBleed
+              initialExtraFields={editExtraFields}
+              onChangeCoords={(lat, lng) => setEditCoords({ lat, lng })}
+              onAddressDetails={setEditAddressDetails}
+              onExtraFieldsChange={setEditExtraFields}
+              onSave={handleSaveEdit}
+              onCancel={() => {
+                setEditingAddress(null);
+                setEditCoords(null);
+                setEditAddressDetails(null);
+                setEditExtraFields({});
+                setCurrentStep('list');
+              }}
+            />
+          ) : (
+            <AddressEditView
+              address={selectedAddress}
+              initialLat={previewCoords?.lat ?? null}
+              initialLng={previewCoords?.lng ?? null}
+              isSaving={isSaving}
+              fullBleed
+              initialExtraFields={editExtraFields}
+              headerLabel="Creating an address"
+              saveLabel="Save and Activate"
+              onChangeCoords={(lat, lng) => setPreviewCoords({ lat, lng })}
+              onExtraFieldsChange={setEditExtraFields}
+              onSave={handleSaveAddress}
+              onCancel={() => {
+                setSelectedAddress(null);
+                setPreviewCoords(null);
+                setEditExtraFields({});
+                setCurrentStep('list');
+              }}
+            />
+          )}
+        </View>
+      )}
+
+      {/* ── List / Search : bottom sheet with drag ── */}
+      {(currentStep === 'list' || currentStep === 'search') && (
       <GestureHandlerRootView style={styles.modalOverlay}>
         {/* Dimmed backdrop area — tapping dismisses the modal */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
@@ -312,7 +370,8 @@ export default function AddressSelectionModal({
           enablePanDownToClose={currentStep === 'list'}
           enableDynamicSizing={false}
           enableOverDrag={false}
-          enableContentPanningGesture={currentStep !== 'edit'}
+          enableContentPanningGesture={true}
+          topInset={0}
           onClose={onClose}
           backgroundStyle={[
             styles.sheetBackground,
@@ -327,25 +386,21 @@ export default function AddressSelectionModal({
               edges={
                 currentStep === 'list'
                   ? ['bottom']
-                  : currentStep === 'edit'
-                    ? []
-                    : ['top', 'bottom']
+                  : ['top', 'bottom']
               }
               style={styles.safeArea}
             >
-              {/* ── Header: back arrow on full-screen sub-steps ── */}
-              {(currentStep === 'search' || currentStep === 'preview') && (
+              {/* ── Header: back arrow on search step ── */}
+              {currentStep === 'search' && (
                 <View style={styles.header}>
                   <TouchableOpacity
-                    onPress={() => setCurrentStep(currentStep === 'preview' ? 'search' : 'list')}
+                    onPress={() => setCurrentStep('list')}
                     style={styles.headerButton}
                   >
                     <Ionicons name="arrow-back" size={24} color="#000" />
                   </TouchableOpacity>
 
-                  <Text style={styles.headerTitle}>
-                    {currentStep === 'preview' ? 'Address Preview' : 'Add New Address'}
-                  </Text>
+                  <Text style={styles.headerTitle}>Add New Address</Text>
 
                   <View style={{ width: 40 }} />
                 </View>
@@ -365,7 +420,7 @@ export default function AddressSelectionModal({
                               <View style={{ width: '80%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB', marginBottom: 8 }} />
                               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#E5E7EB', marginRight: 8 }} />
-                                <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#F3E8FF' }} />
+                                <View style={{ width: 64, height: 18, borderRadius: 9, backgroundColor: '#fef3e2' }} />
                               </View>
                             </View>
                             <View style={[styles.radioRow, { alignItems: 'center' }]}>
@@ -411,7 +466,7 @@ export default function AddressSelectionModal({
                                 disabled={isBusy}
                               >
                                 {isSettingActive ? (
-                                  <ActivityIndicator size="small" color="#2563EB" style={styles.radioLeftBusy} />
+                                  <ActivityIndicator size="small" color="#f3a823" style={styles.radioLeftBusy} />
                                 ) : (
                                   <View style={[styles.radio, isActive && styles.radioActive]}>
                                     {isActive && <View style={styles.radioDot} />}
@@ -470,63 +525,20 @@ export default function AddressSelectionModal({
                     activeOpacity={0.8}
                     onPress={() => setCurrentStep('search')}
                   >
-                    <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
+                    <Ionicons name="add-circle-outline" size={24} color="#f3a823" />
                     <Text style={styles.addAddressText}>Add New Address</Text>
                   </TouchableOpacity>
                 </View>
-              ) : currentStep === 'search' ? (
+              ) : (
                 <View style={styles.containerSearch}>
                   <AddressSearchInput onAddressSelect={handleAddressSelect} />
-                </View>
-              ) : currentStep === 'edit' ? (
-                <View style={styles.editContainer}>
-                  <AddressEditView
-                    address={editingAddress}
-                    initialLat={editCoords?.lat ?? null}
-                    initialLng={editCoords?.lng ?? null}
-                    isSaving={isUpdating}
-                    fullBleed
-                    onChangeCoords={(lat, lng) => setEditCoords({ lat, lng })}
-                    onAddressDetails={setEditAddressDetails}
-                    onSave={handleSaveEdit}
-                    onCancel={() => {
-setEditingAddress(null);
-      setEditCoords(null);
-      setEditAddressDetails(null);
-      setEditExtraFields({});
-                      setCurrentStep('list');
-                    }}
-                  />
-                </View>
-              ) : (
-                <View style={styles.previewContainer}>
-                  <MovableAddressPreviewMap
-                    initialLat={previewCoords?.lat ?? null}
-                    initialLng={previewCoords?.lng ?? null}
-                    onChange={(lat, lng) => setPreviewCoords({ lat, lng })}
-                  />
-
-                  <Text style={styles.previewAddress}>
-                    {selectedAddress?.formatted_address || selectedAddress?.name}
-                  </Text>
-
-                  <Text style={styles.previewHint}>
-                    Drag the map to fine-tune the exact pin location.
-                  </Text>
-
-                  <TouchableOpacity style={styles.saveButton} onPress={handleSaveAddress} disabled={isSaving}>
-                    {isSaving ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.saveButtonText}>Save and Activate</Text>
-                    )}
-                  </TouchableOpacity>
                 </View>
               )}
             </SafeAreaView>
           </BottomSheetView>
         </BottomSheet>
       </GestureHandlerRootView>
+      )}
     </Modal>
   );
 }
@@ -600,13 +612,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#FBFCFF',
+    borderColor: '#fdecc0',
+    backgroundColor: '#fffdf7',
   },
   addAddressText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2563EB',
+    color: '#f3a823',
   },
   manageSection: {
     flex: 1,
@@ -644,24 +656,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   typeBadge: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#fef7e6',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 16,
   },
   typeBadgeText: {
-    color: '#1E40AF',
+    color: '#9a5f0f',
     fontSize: 12,
     fontWeight: '500',
   },
   activeBadge: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#fef3e2',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 16,
   },
   activeBadgeText: {
-    color: '#6B21A8',
+    color: '#f3a823',
     fontSize: 12,
     fontWeight: '500',
   },
@@ -683,13 +695,13 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   radioActive: {
-    borderColor: '#2563EB',
+    borderColor: '#f3a823',
   },
   radioDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#f3a823',
   },
   radioLeftBusy: {
     width: 24,
@@ -704,8 +716,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   activeCard: {
-    borderColor: '#BFDBFE',
-    backgroundColor: '#FBFCFF',
+    borderColor: '#fdecc0',
+    backgroundColor: '#fffdf7',
   },
   cardActions: {
     flexDirection: 'row',
@@ -721,38 +733,4 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 20,
   },
-  previewContainer: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-    gap: 16,
-  },
-  previewAddress: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginTop: 16,
-  },
-  previewHint: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  editContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  saveButton: {
-    backgroundColor: '#000',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
+  });

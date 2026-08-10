@@ -13,6 +13,7 @@ export interface User {
   firstName: string;
   lastName: string;
   middleName?: string | null;
+  phone?: string | null;
   nameExtension?: string | null;
   username?: string | null;
   role: 'admin' | 'instructor' | 'customer';

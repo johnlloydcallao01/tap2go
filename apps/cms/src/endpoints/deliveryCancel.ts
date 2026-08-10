@@ -1,5 +1,5 @@
 import { PayloadRequest } from 'payload'
-import { cancelOrder } from '../services/lalamoveClient'
+import { getDeliveryProvider } from '../services/deliveryProviders'
 
 /**
  * POST /api/delivery/cancel
@@ -74,9 +74,10 @@ export const deliveryCancelHandler = async (req: PayloadRequest) => {
       )
     }
 
-    // 2. Ask Lalamove to cancel the delivery
+    // 2. Ask the active delivery provider to cancel the delivery
     try {
-      await cancelOrder(lalamoveOrderId)
+      const provider = await getDeliveryProvider(req.payload)
+      await provider.cancelOrder(lalamoveOrderId)
     } catch (cancelErr: any) {
       if (cancelErr?.isCancellationForbidden) {
         return Response.json(

@@ -1047,7 +1047,7 @@ export default buildConfig({
     },
 
     {
-      path: '/lalamove/webhook',
+      path: '/delivery/webhook',
       method: 'post',
       handler: lalamoveWebhookHandler,
     },

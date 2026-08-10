@@ -26,6 +26,15 @@ interface AddressEditViewProps {
   initialLng?: number | null;
   isSaving?: boolean;
   fullBleed?: boolean;
+  saveLabel?: string;
+  cancelLabel?: string;
+  headerLabel?: string;
+  initialExtraFields?: {
+    street?: string;
+    floorUnitRoom?: string;
+    deliveryInstructions?: string;
+    label?: string;
+  };
   onChangeCoords: (lat: number, lng: number) => void;
   onAddressDetails?: (details: ReverseGeocodeDetails | null) => void;
   onSave: () => void;
@@ -64,6 +73,10 @@ export function AddressEditView({
   initialLng,
   isSaving,
   fullBleed = false,
+  saveLabel = 'Save',
+  cancelLabel = 'Cancel',
+  headerLabel = 'Edit your address',
+  initialExtraFields,
   onChangeCoords,
   onAddressDetails,
   onSave,
@@ -200,10 +213,10 @@ export function AddressEditView({
       }),
     [snapToTarget, sheetHeight],
   );
-  const [street, setStreet] = useState('');
-  const [floorUnitRoom, setFloorUnitRoom] = useState('');
-  const [deliveryInstructions, setDeliveryInstructions] = useState('');
-  const [label, setLabel] = useState('');
+  const [street, setStreet] = useState(initialExtraFields?.street || '');
+  const [floorUnitRoom, setFloorUnitRoom] = useState(initialExtraFields?.floorUnitRoom || '');
+  const [deliveryInstructions, setDeliveryInstructions] = useState(initialExtraFields?.deliveryInstructions || '');
+  const [label, setLabel] = useState(initialExtraFields?.label || '');
 
   const emitExtraFields = (s: string, f: string, d: string, l: string) => {
     onExtraFieldsChange?.({ street: s, floorUnitRoom: f, deliveryInstructions: d, label: l });
@@ -233,7 +246,7 @@ export function AddressEditView({
         />
         <View style={styles.markerWrap} pointerEvents="none">
           <View style={styles.pinBox}>
-            <Ionicons name="location" size={PIN_SIZE} color="#EF4444" />
+            <Ionicons name="location" size={PIN_SIZE} color="#f3a823" />
           </View>
         </View>
         <MapTypeControl value={mapLayer} onChange={setMapLayer} />
@@ -254,10 +267,9 @@ export function AddressEditView({
         <Ionicons name="arrow-back" size={22} color="#111827" />
       </TouchableOpacity>
 
-      {/* ── Bottom section ── */}
-      <Animated.View style={[styles.sheet, { height: sheetHeight }]}>
-        {/* Drag handle */}
-        <View style={styles.sheetHandle} {...panResponder.panHandlers}>
+      {/* ── Bottom section (entirely draggable) ── */}
+      <Animated.View style={[styles.sheet, { height: sheetHeight }]} {...panResponder.panHandlers}>
+        <View style={styles.sheetHandle}>
           <View style={styles.handleBar} />
         </View>
 
@@ -268,9 +280,9 @@ export function AddressEditView({
           bounces={false}
         >
           <View style={styles.sheetHeader}>
-            <Text style={styles.editLabel}>Edit your address</Text>
+            <Text style={styles.editLabel}>{headerLabel}</Text>
             <TouchableOpacity onPress={toggleExpand} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name={isExpanded ? 'chevron-down' : 'chevron-up'} size={22} color="#2563EB" />
+              <Ionicons name={isExpanded ? 'chevron-down' : 'chevron-up'} size={22} color="#f3a823" />
             </TouchableOpacity>
           </View>
 
@@ -324,7 +336,7 @@ export function AddressEditView({
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>Add a label</Text>
                 <View style={styles.labelRow}>
-                  {['Home', 'Work', 'Other'].map((lbl) => (
+                  {['Home', 'Work', 'Partner', 'Other'].map((lbl) => (
                     <TouchableOpacity
                       key={lbl}
                       style={[styles.labelChip, label === lbl && styles.labelChipActive]}
@@ -347,13 +359,13 @@ export function AddressEditView({
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={isSaving}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{cancelLabel}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.saveButton} onPress={onSave} disabled={isSaving}>
               {isSaving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>{saveLabel}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -458,7 +470,7 @@ const styles = StyleSheet.create({
   editLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2563EB',
+    color: '#f3a823',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -512,8 +524,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   labelChipActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#EFF6FF',
+    borderColor: '#f3a823',
+    backgroundColor: '#fef7e6',
   },
   labelChipText: {
     fontSize: 14,
@@ -521,7 +533,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   labelChipTextActive: {
-    color: '#2563EB',
+    color: '#f3a823',
   },
   actions: {
     flexDirection: 'row',
@@ -543,7 +555,7 @@ const styles = StyleSheet.create({
   saveButton: {
     flex: 1,
     paddingVertical: 14,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#f3a823',
     borderRadius: 12,
     alignItems: 'center',
   },

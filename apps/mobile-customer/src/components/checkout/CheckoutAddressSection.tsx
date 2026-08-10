@@ -324,7 +324,7 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
                           disabled={isBusy}
                         >
                           {isSettingActive ? (
-                            <ActivityIndicator size="small" color="#2563EB" style={styles.radio} />
+                            <ActivityIndicator size="small" color="#f3a823" style={styles.radio} />
                           ) : (
                             <View style={[styles.radio, isActive && styles.radioActive]}>
                               {isActive && <View style={styles.radioDot} />}
@@ -384,7 +384,7 @@ export function CheckoutAddressSection({ onAddressChange, style }: CheckoutAddre
             activeOpacity={0.8}
             onPress={() => setCurrentStep('search')}
           >
-            <Ionicons name="add" size={20} color="#2563EB" />
+            <Ionicons name="add" size={20} color="#f3a823" />
             <Text style={styles.addAddressText}>Add New Address</Text>
           </TouchableOpacity>
         </>
@@ -506,13 +506,13 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#FBFCFF',
+    borderColor: '#fdecc0',
+    backgroundColor: '#fffdf7',
   },
   addAddressText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2563EB',
+    color: '#f3a823',
   },
   addressCard: {
     borderRadius: 12,
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   addressCardActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#fef3e2',
     borderColor: '#E9D5FF',
   },
   addressInfo: {
@@ -543,18 +543,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   typeBadge: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#fef7e6',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   typeBadgeText: {
-    color: '#1E40AF',
+    color: '#9a5f0f',
     fontSize: 10,
     fontWeight: '500',
   },
   activeBadge: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#fef3e2',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     borderColor: '#E9D5FF',
   },
   activeBadgeText: {
-    color: '#6B21A8',
+    color: '#f3a823',
     fontSize: 10,
     fontWeight: '500',
   },
@@ -584,13 +584,13 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   radioActive: {
-    borderColor: '#2563EB',
+    borderColor: '#f3a823',
   },
   radioDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#f3a823',
   },
   cardActions: {
     flexDirection: 'row',

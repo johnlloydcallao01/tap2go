@@ -19,8 +19,14 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../utils/format';
-import { CheckoutAddressSection } from '../components/checkout/CheckoutAddressSection';
 import { apiConfig } from '../config/environment';
+import AddressSelectionModal from '../components/AddressSelectionModal';
+import {
+  dataCache,
+  ADDRESS_KEYS,
+  useActiveAddress,
+} from '@encreasl/client-services';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   clearPendingCheckoutSession,
   findActiveCartLinkedOrder,
@@ -102,9 +108,17 @@ export default function CheckoutScreen() {
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
 
   const { getMerchantCart } = useCart();
-  const { user, customerId } = useAuth();
-  
-  const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
+  const { user, customerId, token } = useAuth();
+  const queryClient = useQueryClient();
+
+  const {
+    data: activeAddress = null,
+    isLoading: isLoadingAddress,
+  } = useActiveAddress(user?.id ? String(user.id) : undefined, token || undefined);
+
+  const activeAddressId = activeAddress?.id ? String(activeAddress.id) : null;
+
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [isCheckingPaymentState, setIsCheckingPaymentState] = useState(false);
@@ -122,7 +136,8 @@ export default function CheckoutScreen() {
   const totalSubtotal = merchantCart?.subtotal || 0;
   const isBelowPayMongoMinimum = totalSubtotal < PAYMONGO_MINIMUM_AMOUNT_PHP;
 
-  // ── Lalamove delivery fee ───────────────────────────────────────────────────
+  // ── Delivery fee (only shown when Lalamove is active) ──────────────────────
+  const [deliveryAvailable, setDeliveryAvailable] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [priorityFee, setPriorityFee] = useState(0);
   const [deliveryDistanceMeters, setDeliveryDistanceMeters] = useState<number | null>(null);
@@ -130,7 +145,7 @@ export default function CheckoutScreen() {
   const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
   const deliveryQuoteCacheKeyRef = useRef<string | null>(null);
 
-  const orderTotal = totalSubtotal + deliveryFee + priorityFee;
+  const orderTotal = totalSubtotal + (deliveryAvailable ? deliveryFee + priorityFee : 0);
 
   const fetchDeliveryQuote = useCallback(async () => {
     if (!merchantId || !activeAddressId || !customerId || deliveryFeeLoading) return;
@@ -162,6 +177,15 @@ export default function CheckoutScreen() {
       const quoteData = await quoteRes.json();
       if (!quoteRes.ok) throw new Error(quoteData?.error || 'Could not get delivery quote');
 
+      if (quoteData?.data?.available === false) {
+        setDeliveryAvailable(false);
+        setDeliveryFee(0);
+        setPriorityFee(0);
+        setDeliveryDistanceMeters(null);
+        return;
+      }
+      setDeliveryAvailable(true);
+
       setDeliveryFee(Number(quoteData?.data?.deliveryFee) || 0);
       setPriorityFee(Number(quoteData?.data?.priorityFee) || 0);
 
@@ -187,6 +211,13 @@ export default function CheckoutScreen() {
   useEffect(() => {
     fetchDeliveryQuote();
   }, [fetchDeliveryQuote]);
+
+  const handleAddressSelected = useCallback(async () => {
+    dataCache.clear();
+    await queryClient.resetQueries({ queryKey: ADDRESS_KEYS.all });
+    deliveryQuoteCacheKeyRef.current = null;
+    setIsAddressModalVisible(false);
+  }, [queryClient]);
 
 
   // Filter out 'card' just like the web app
@@ -396,7 +427,7 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (deliveryFee <= 0) {
+    if (deliveryAvailable && deliveryFee <= 0) {
       Alert.alert(
         'Delivery fee unavailable',
         deliveryFeeError || 'We could not calculate your delivery fee. Please try again.',
@@ -516,6 +547,31 @@ export default function CheckoutScreen() {
           addrData.formatted_address ||
           [addrData.street_number, addrData.route, addrData.barangay, addrData.locality, addrData.country]
             .filter(Boolean).join(', ');
+
+        // Fetch merchant address for snapshot
+        let merchantAddrData: any = {};
+        try {
+          const merchantRes = await fetch(
+            `${apiConfig.baseUrl}/merchants/${merchantId}?depth=1`,
+            { headers: cmsHeaders },
+          );
+          if (merchantRes.ok) {
+            const merchantData = await merchantRes.json();
+            const merchantAddrId =
+              typeof merchantData?.activeAddress === 'object'
+                ? merchantData.activeAddress?.id
+                : merchantData?.activeAddress;
+            if (merchantAddrId) {
+              const mAddrRes = await fetch(
+                `${apiConfig.baseUrl}/addresses/${merchantAddrId}`,
+                { headers: cmsHeaders },
+              );
+              if (mAddrRes.ok) {
+                merchantAddrData = await mAddrRes.json();
+              }
+            }
+          }
+        } catch { /* non-critical */ }
             
         await fetch(`${apiConfig.baseUrl}/delivery-locations`, {
           method: 'POST',
@@ -527,8 +583,21 @@ export default function CheckoutScreen() {
               lat: addrData.latitude || 0,
               lng: addrData.longitude || 0,
             },
+            street: addrData.street || null,
+            floor_unit_room: addrData.floor_unit_room || null,
+            delivery_instructions: addrData.delivery_instructions || null,
+            notes: addrData.notes || addrData.accessibility_notes || null,
             contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
-            label: addrData.address_type || 'other',
+            contact_phone: user.phone || null,
+            label: addrData.label || addrData.address_type || 'other',
+            merchant_formatted_address: merchantAddrData.formatted_address || null,
+            merchant_coordinates: (merchantAddrData.latitude && merchantAddrData.longitude)
+              ? { lat: merchantAddrData.latitude, lng: merchantAddrData.longitude }
+              : null,
+            merchant_street: merchantAddrData.street || null,
+            merchant_floor_unit_room: merchantAddrData.floor_unit_room || null,
+            merchant_delivery_instructions: merchantAddrData.delivery_instructions || null,
+            merchant_label: merchantAddrData.label || merchantAddrData.address_type || null,
           }),
         });
       }
@@ -748,10 +817,29 @@ export default function CheckoutScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <CheckoutAddressSection 
-          onAddressChange={setActiveAddressId}
-          style={styles.section}
-        />
+        <View style={[styles.section, styles.addressSection]}>
+          <Text style={styles.sectionTitle}>Delivery Address</Text>
+          <TouchableOpacity
+            style={styles.addressRow}
+            onPress={() => setIsAddressModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="location-outline" size={20} color="#6b7280" style={{ marginRight: 12 }} />
+            {isLoadingAddress ? (
+              <View style={{ flex: 1 }}>
+                <View style={{ width: '70%', height: 14, borderRadius: 4, backgroundColor: '#E5E7EB', marginBottom: 4 }} />
+                <View style={{ width: '40%', height: 12, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+              </View>
+            ) : (
+              <Text style={styles.addressText} numberOfLines={2}>
+                {activeAddress
+                  ? activeAddress.formatted_address || activeAddress.name
+                  : 'No address set — tap to add'}
+              </Text>
+            )}
+            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Summary</Text>
@@ -779,36 +867,35 @@ export default function CheckoutScreen() {
               <Text style={styles.subtotalLabel}>Subtotal</Text>
               <Text style={styles.subtotalValue}>{formatCurrency(totalSubtotal)}</Text>
             </View>
-            <View style={styles.deliveryFeeRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.subtotalLabel}>Delivery Fee</Text>
-                {!deliveryFeeLoading && priorityFee > 0 && (
-                  <View style={styles.priorityPill}>
-                    <Ionicons name="flash" size={11} color="#fff" />
-                    <Text style={styles.priorityPillText}>Priority</Text>
-                  </View>
+            {deliveryAvailable ? (
+              <View style={styles.deliveryFeeRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.subtotalLabel}>Delivery Fee</Text>
+                  {!deliveryFeeLoading && priorityFee > 0 && (
+                    <View style={styles.priorityPill}>
+                      <Ionicons name="flash" size={11} color="#fff" />
+                      <Text style={styles.priorityPillText}>Priority</Text>
+                    </View>
+                  )}
+                </View>
+                {deliveryFeeLoading ? (
+                  <ActivityIndicator size="small" color="#f97316" />
+                ) : (
+                  <Text style={styles.subtotalValue}>
+                    {deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Calculating…'}
+                  </Text>
                 )}
               </View>
-              {deliveryFeeLoading ? (
-                <ActivityIndicator size="small" color="#f97316" />
-              ) : (
-                <Text style={styles.subtotalValue}>
-                  {deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Calculating…'}
-                </Text>
-              )}
-            </View>
-            {!deliveryFeeLoading && priorityFee > 0 && (
-              <View style={styles.deliveryDistanceRow}>
-                <Text style={styles.deliveryDistanceLabel}>
-                  Priority Delivery — with a {formatCurrency(priorityFee)} fee, rider
-                  matching is boosted for faster pickup.
-                </Text>
-                <Text style={styles.deliveryDistanceValue}>
-                  {formatCurrency(priorityFee)}
+            ) : null}
+            {deliveryAvailable && !deliveryFeeLoading && priorityFee > 0 && (
+              <View style={styles.priorityNoticeRow}>
+                <Ionicons name="flash" size={14} color="#f97316" style={{ marginRight: 6, marginTop: 2 }} />
+                <Text style={styles.priorityNoticeText}>
+                  Priority Delivery — faster rider matching ({formatCurrency(priorityFee)} fee)
                 </Text>
               </View>
             )}
-            {!deliveryFeeLoading && deliveryDistanceMeters != null && deliveryFee > 0 && (
+            {deliveryAvailable && !deliveryFeeLoading && deliveryDistanceMeters != null && deliveryFee > 0 && (
               <View style={styles.deliveryDistanceRow}>
                 <Text style={styles.deliveryDistanceLabel}>Delivery Distance</Text>
                 <Text style={styles.deliveryDistanceValue}>
@@ -816,7 +903,7 @@ export default function CheckoutScreen() {
                 </Text>
               </View>
             )}
-            {deliveryFeeError ? (
+            {deliveryAvailable && deliveryFeeError ? (
               <Text style={styles.deliveryFeeErrorText}>
                 Delivery fee unavailable — {deliveryFeeError}
               </Text>
@@ -959,11 +1046,11 @@ export default function CheckoutScreen() {
         <TouchableOpacity
           style={[
             styles.payButton,
-            (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || deliveryFee <= 0) &&
+             (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
               styles.payButtonDisabled
           ]}
           onPress={handlePayNow}
-          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || deliveryFee <= 0}
+          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
         >
           {isPaying || isCheckingPaymentState ? (
             <ActivityIndicator color="#fff" />
@@ -971,13 +1058,19 @@ export default function CheckoutScreen() {
             <Text style={styles.payButtonText}>
               {deliveryFeeLoading
                 ? 'Calculating delivery fee...'
-                : deliveryFee <= 0
+                : deliveryAvailable && deliveryFee <= 0
                   ? 'Delivery fee unavailable'
                   : `Pay ${formatCurrency(orderTotal)}`}
             </Text>
           )}
         </TouchableOpacity>
       </View>
+
+      <AddressSelectionModal
+        isVisible={isAddressModalVisible}
+        onClose={() => setIsAddressModalVisible(false)}
+        onAddressSelected={handleAddressSelected}
+      />
     </View>
   );
 }
@@ -1059,6 +1152,23 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 8,
+  },
+  addressSection: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  addressText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#111827',
+    marginRight: 8,
   },
   sectionTitle: {
     fontSize: 16,
@@ -1156,6 +1266,17 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   priorityPillText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  priorityNoticeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingTop: 8,
+  },
+  priorityNoticeText: {
+    fontSize: 12,
+    color: '#f97316',
+    flex: 1,
+    lineHeight: 17,
+  },
   deliveryDistanceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

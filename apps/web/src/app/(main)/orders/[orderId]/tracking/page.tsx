@@ -63,9 +63,17 @@ interface DriverInfo {
 
 interface DeliveryLocation {
   formattedAddress: string;
+  street?: string;
+  floorUnitRoom?: string;
+  deliveryInstructions?: string;
   notes?: string;
   contactName?: string;
   contactPhone?: string;
+  merchantFormattedAddress?: string;
+  merchantStreet?: string;
+  merchantFloorUnitRoom?: string;
+  merchantDeliveryInstructions?: string;
+  merchantLabel?: string;
 }
 
 interface TrackingData {
@@ -181,9 +189,17 @@ export default function OrderTrackingPage({ params }: PageProps) {
         if (deliveryLocationDoc) {
           deliveryLocation = {
             formattedAddress: deliveryLocationDoc.formatted_address,
+            street: deliveryLocationDoc.street,
+            floorUnitRoom: deliveryLocationDoc.floor_unit_room,
+            deliveryInstructions: deliveryLocationDoc.delivery_instructions,
             notes: deliveryLocationDoc.notes,
             contactName: deliveryLocationDoc.contact_name,
             contactPhone: deliveryLocationDoc.contact_phone,
+            merchantFormattedAddress: deliveryLocationDoc.merchant_formatted_address,
+            merchantStreet: deliveryLocationDoc.merchant_street,
+            merchantFloorUnitRoom: deliveryLocationDoc.merchant_floor_unit_room,
+            merchantDeliveryInstructions: deliveryLocationDoc.merchant_delivery_instructions,
+            merchantLabel: deliveryLocationDoc.merchant_label,
           };
         }
 

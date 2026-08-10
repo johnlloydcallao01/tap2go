@@ -58,6 +58,12 @@ import * as migration_20260521_120000_variation_modifier_models from './20260521
 import * as migration_20260521_160000_variation_modifier_behavior_mode from './20260521_160000_variation_modifier_behavior_mode';
 import * as migration_20260521_200000_merchant_modifier_overrides from './20260521_200000_merchant_modifier_overrides';
 import * as migration_20260805_173628 from './20260805_173628';
+import * as migration_20260809_162303 from './20260809_162303';
+import * as migration_20260809_163543 from './20260809_163543';
+import * as migration_20260809_164531 from './20260809_164531';
+import * as migration_20260809_171401 from './20260809_171401';
+import * as migration_20260809_172255 from './20260809_172255';
+import * as migration_20260809_235411 from './20260809_235411';
 import * as migration_20260809_add_user_notifications_seen_at from './20260809_add_user_notifications_seen_at';
 
 export const migrations = [
@@ -359,11 +365,41 @@ export const migrations = [
   {
     up: migration_20260805_173628.up,
     down: migration_20260805_173628.down,
-    name: '20260805_173628'
+    name: '20260805_173628',
+  },
+  {
+    up: migration_20260809_162303.up,
+    down: migration_20260809_162303.down,
+    name: '20260809_162303',
+  },
+  {
+    up: migration_20260809_163543.up,
+    down: migration_20260809_163543.down,
+    name: '20260809_163543',
+  },
+  {
+    up: migration_20260809_164531.up,
+    down: migration_20260809_164531.down,
+    name: '20260809_164531',
+  },
+  {
+    up: migration_20260809_171401.up,
+    down: migration_20260809_171401.down,
+    name: '20260809_171401',
+  },
+  {
+    up: migration_20260809_172255.up,
+    down: migration_20260809_172255.down,
+    name: '20260809_172255',
+  },
+  {
+    up: migration_20260809_235411.up,
+    down: migration_20260809_235411.down,
+    name: '20260809_235411',
   },
   {
     up: migration_20260809_add_user_notifications_seen_at.up,
     down: migration_20260809_add_user_notifications_seen_at.down,
-    name: '20260809_add_user_notifications_seen_at',
+    name: '20260809_add_user_notifications_seen_at'
   },
 ];
