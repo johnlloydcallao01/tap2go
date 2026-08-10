@@ -145,6 +145,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
           collection: 'delivery-bookings',
           id: booking.id,
           data: {
+            status: 'driver_assigned' as any,
+            lalamove_raw_status: 'DRIVER_ASSIGNED',
             driver_name: driver.name || driver.driverName || undefined,
             driver_phone: driver.phone || driver.driverPhone || undefined,
             driver_plate_number: driver.plateNumber || driver.plate_number || undefined,
@@ -153,6 +155,13 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
             driver_lng: driver.coordinates?.lng ? Number(driver.coordinates.lng) : undefined,
             driver_location_updated_at: driver.coordinates?.updatedAt || undefined,
           },
+        })
+
+        // Keep orders.delivery_status in sync so the order-level status reflects driver assignment
+        await req.payload.update({
+          collection: 'orders',
+          id: orderId,
+          data: { delivery_status: 'driver_assigned' as any },
         })
 
         console.log(`[lalamove/webhook] Order ${orderId}: driver assigned — ${driver.name || 'unknown'}`)

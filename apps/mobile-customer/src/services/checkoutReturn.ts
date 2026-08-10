@@ -123,16 +123,29 @@ export async function finalizePaidOrder(orderId: string, paidAt?: string | null)
   );
 
   // Book the Lalamove delivery now that payment is confirmed.
-  await bookLalamoveDelivery(orderId).catch((err) => {
-    console.error(`[checkoutReturn] Failed to book Lalamove delivery for order ${orderId}:`, err);
-  });
+  try {
+    await bookLalamoveDelivery(orderId);
+  } catch (err) {
+    console.error(`[checkoutReturn] All Lalamove booking attempts failed for order ${orderId}:`, err);
+    // Roll back order status — admin must re-trigger delivery booking
+    await fetch(`${apiConfig.baseUrl}/orders/${orderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status: 'pending' }),
+    }).catch(() => undefined);
+  }
 }
 
 /**
  * Books a Lalamove delivery for a paid order via the CMS.
+ * Retries up to 3 times with backoff before throwing.
  * Safe to call multiple times — the CMS returns 409 if already booked.
  */
-export async function bookLalamoveDelivery(orderId: string): Promise<{
+export async function bookLalamoveDelivery(
+  orderId: string,
+  retries = 3,
+  delayMs = 1000,
+): Promise<{
   deliveryBookingId: number;
   lalamoveOrderId: string;
   shareLink: string;
@@ -140,21 +153,33 @@ export async function bookLalamoveDelivery(orderId: string): Promise<{
   status: string;
 }> {
   const headers = buildCmsHeaders();
-  const response = await fetch(`${apiConfig.baseUrl}/delivery/book`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ orderId: Number(orderId) }),
-  });
 
-  const data = await response.json().catch(() => ({}));
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const response = await fetch(`${apiConfig.baseUrl}/delivery/book`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ orderId: Number(orderId) }),
+    });
 
-  if (!response.ok) {
-    const message =
-      data?.error || `Failed to book delivery (${response.status})`;
+    const data = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      return data?.data;
+    }
+
+    const message = data?.error || `Failed to book delivery (${response.status})`;
+
+    if (attempt < retries) {
+      console.warn(`[checkoutReturn] Lalamove booking attempt ${attempt}/${retries} failed: ${message}. Retrying in ${delayMs}ms...`);
+      await sleep(delayMs);
+      delayMs *= 2;
+      continue;
+    }
+
     throw new Error(message);
   }
 
-  return data?.data;
+  throw new Error('Failed to book delivery after all retries');
 }
 
 export async function savePendingCheckoutSession(session: PendingCheckoutSession): Promise<void> {

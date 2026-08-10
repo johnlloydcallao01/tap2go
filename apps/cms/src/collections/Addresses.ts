@@ -434,7 +434,7 @@ export const Addresses: CollectionConfig = {
     beforeChange: [
       async ({ data, operation: _operation }) => {
         // Auto-geocode address if formatted_address is provided but coordinates are missing
-        if (data.formatted_address && (!data.latitude || !data.longitude)) {
+        if (data.formatted_address && (data.latitude == null || data.longitude == null)) {
           try {
             console.log('Auto-geocoding address:', data.formatted_address)
             const geocodingResult = await googleMapsService.geocodeAddress(data.formatted_address)
@@ -486,34 +486,34 @@ export const Addresses: CollectionConfig = {
       },
     ],
     afterChange: [
-      async ({ doc, req, operation }) => {
-        // Propagate coordinate changes to associated merchants
+      ({ doc, req, operation }) => {
+        // Propagate coordinate changes to associated merchants (non-blocking)
         if ((operation === 'update' || operation === 'create') && doc.latitude && doc.longitude) {
-          try {
-            // Find all merchants using this address as activeAddress
-            const merchants = await req.payload.find({
-              collection: 'merchants',
-              where: {
-                activeAddress: {
-                  equals: doc.id,
-                },
-              },
-            })
-
-            // Update each merchant's coordinates
-            for (const merchant of merchants.docs) {
-              await req.payload.update({
+          const payload = req.payload
+          const docId = doc.id
+          const lat = doc.latitude
+          const lng = doc.longitude
+          // Fire-and-forget: do not block the address save
+          ;(async () => {
+            try {
+              const merchants = await payload.find({
                 collection: 'merchants',
-                id: merchant.id,
-                data: {
-                  merchant_latitude: doc.latitude,
-                  merchant_longitude: doc.longitude,
-                },
+                where: { activeAddress: { equals: docId } },
               })
+              for (const merchant of merchants.docs) {
+                await payload.update({
+                  collection: 'merchants',
+                  id: merchant.id,
+                  data: {
+                    merchant_latitude: lat,
+                    merchant_longitude: lng,
+                  },
+                })
+              }
+            } catch (error) {
+              console.error('Error propagating address coordinates to merchants:', error)
             }
-          } catch (error) {
-            console.error('Error propagating address coordinates to merchants:', error)
-          }
+          })()
         }
       },
     ],

@@ -14,7 +14,9 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
         return Response.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const secret = process.env.PAYMONGO_WEBHOOK_SECRET;
+    const secret = process.env.PAYMONGO_SANDBOX === 'true'
+      ? process.env.PAYMONGO_SANDBOX_WEBHOOK_SECRET
+      : process.env.PAYMONGO_WEBHOOK_SECRET;
 
     // 1. Verify Signature
     if (secret) {

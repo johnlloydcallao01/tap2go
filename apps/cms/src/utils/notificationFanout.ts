@@ -33,7 +33,24 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
 }
 
-export function getOrderStatusLabel(status?: string | null): string {
+const LALAMOVE_STATUS_LABELS: Record<string, string> = {
+  assigning_driver: 'Assigning Driver',
+  driver_assigned: 'On Going',
+  picked_up: 'Picked Up',
+  completed: 'Completed',
+  canceled: 'Cancelled',
+  rejected: 'Rejected',
+  expired: 'Expired',
+}
+
+export function getOrderStatusLabel(
+  status?: string | null,
+  deliveryStatus?: string | null,
+): string {
+  // Prefer Lalamove delivery status label when available
+  if (deliveryStatus && LALAMOVE_STATUS_LABELS[deliveryStatus]) {
+    return LALAMOVE_STATUS_LABELS[deliveryStatus]
+  }
   if (!status) return 'updated'
   return ORDER_STATUS_LABELS[status] || status
 }

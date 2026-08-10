@@ -85,6 +85,7 @@ interface Order {
   fulfillmentType?: string;
   deliveryStatus?: string;
   priorityFee?: number;
+  isPaid?: boolean;
 }
 
 export default function OrdersScreen() {
@@ -101,9 +102,16 @@ export default function OrdersScreen() {
 
   const showSkeleton = loading || refreshing;
 
-  const filters = ['All', 'pending', 'accepted', 'preparing', 'ready_for_pickup', 'on_delivery', 'delivered', 'cancelled'];
+  const filters = ['All', 'pending', 'accepted', 'assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
 
-  const getEffectiveStatus = (order: Order) => order.status;
+  const LALAMOVE_STATUSES = ['assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
+
+  const getEffectiveStatus = (order: Order) =>
+    order.fulfillmentType === 'delivery' &&
+    order.deliveryStatus &&
+    LALAMOVE_STATUSES.includes(order.deliveryStatus)
+      ? order.deliveryStatus
+      : order.status;
 
   const fetchOrders = useCallback(async () => {
     if (!user?.id) {
@@ -137,6 +145,20 @@ export default function OrdersScreen() {
       );
       const itemsData = await itemsRes.json();
       const allItems = itemsData.docs || [];
+
+      // Fetch transactions for payment verification (paid = green badge)
+      const paidOrderIds = new Set<number>();
+      const txRes = await fetch(
+        `${apiConfig.baseUrl}/transactions?where[order][in]=${orderIds.join(',')}&where[status][equals]=paid&limit=300`,
+        { headers },
+      );
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        for (const tx of txData.docs || []) {
+          const oid = typeof tx.order === 'object' ? tx.order.id : tx.order;
+          if (oid) paidOrderIds.add(Number(oid));
+        }
+      }
 
       const mappedOrders = fetchedOrders.map((order: any) => {
         const orderItems = allItems.filter((item: any) => 
@@ -215,6 +237,7 @@ export default function OrdersScreen() {
             Number(order.deliveryBooking.priority_fee) > 0
               ? Number(order.deliveryBooking.priority_fee)
               : 0,
+          isPaid: paidOrderIds.has(order.id),
         };
       });
 
@@ -290,20 +313,26 @@ export default function OrdersScreen() {
     switch(status) {
       case 'pending': return '#f59e0b';
       case 'accepted': return '#3b82f6';
-      case 'preparing': return '#8b5cf6';
-      case 'ready_for_pickup': return '#06b6d4';
-      case 'on_delivery': return '#f97316';
-      case 'delivered': return '#10b981';
-      case 'cancelled': return '#ef4444';
+      case 'assigning_driver': return '#8b5cf6';
+      case 'driver_assigned': return '#10b981';
+      case 'picked_up': return '#06b6d4';
+      case 'completed': return '#10b981';
+      case 'canceled': case 'cancelled': return '#ef4444';
+      case 'rejected': return '#dc2626';
+      case 'expired': return '#9ca3af';
       default: return '#6b7280';
     }
   };
 
   const formatStatusLabel = (key: string) => {
     switch (key) {
-      case 'ready_for_pickup': return 'Ready for Pickup';
-      case 'on_delivery': return 'On Delivery';
-      case 'cancelled': return 'Cancelled';
+      case 'assigning_driver': return 'Assigning Driver';
+      case 'driver_assigned': return 'On Going';
+      case 'picked_up': return 'Picked Up';
+      case 'completed': return 'Completed';
+      case 'canceled': return 'Canceled';
+      case 'rejected': return 'Rejected';
+      case 'expired': return 'Expired';
       default:
         return key.charAt(0).toUpperCase() + key.slice(1);
     }
@@ -466,6 +495,19 @@ export default function OrdersScreen() {
                           {formatStatusLabel(getEffectiveStatus(order))}
                         </Text>
                       </View>
+                      {order.isPaid && (
+                        <View style={{
+                          backgroundColor: '#10b9811A',
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                          marginLeft: 6,
+                        }}>
+                          <Text style={{ color: '#10b981', fontSize: 12, fontWeight: '700' }}>
+                            Paid
+                          </Text>
+                        </View>
+                      )}
                       {order.priorityFee > 0 && (
                         <View style={{
                           flexDirection: 'row',

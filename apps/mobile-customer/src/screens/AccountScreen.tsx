@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +13,102 @@ import { useAuth } from '../contexts/AuthContext';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { fetchAccountOverview, AccountOverview, asObject } from '../services/account';
 import { formatCurrency } from '../utils/format';
+
+const AccountSkeleton = () => {
+  return (
+    <View style={{ padding: 16 }}>
+      {/* Profile Card */}
+      <View style={{
+        backgroundColor: '#fff',
+        marginBottom: 16,
+        borderRadius: 16,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{
+            width: 72,
+            height: 72,
+            borderRadius: 36,
+            marginRight: 16,
+            backgroundColor: '#E5E7EB',
+          }} />
+          <View style={{ flex: 1 }}>
+            <View style={{ width: '60%', height: 20, backgroundColor: '#F3F4F6', borderRadius: 4, marginBottom: 8 }} />
+            <View style={{ width: '80%', height: 14, backgroundColor: '#F3F4F6', borderRadius: 4, marginBottom: 8 }} />
+            <View style={{ width: '45%', height: 12, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+          </View>
+        </View>
+
+        <View style={{
+          marginTop: 16,
+          paddingTop: 16,
+          borderTopWidth: 1,
+          borderTopColor: '#F3F4F6',
+        }}>
+          <View style={{ width: '30%', height: 12, backgroundColor: '#F3F4F6', borderRadius: 4, marginBottom: 8 }} />
+          <View style={{ width: '70%', height: 14, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+        </View>
+      </View>
+
+      {/* Stats Card */}
+      <View style={{
+        backgroundColor: '#fff',
+        marginBottom: 16,
+        borderRadius: 16,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+      }}>
+        <View style={{ width: '35%', height: 16, backgroundColor: '#F3F4F6', borderRadius: 4, marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+          {[1, 2, 3, 4].map(i => (
+            <View key={i} style={{ alignItems: 'center', flex: 1 }}>
+              <View style={{ width: 48, height: 24, backgroundColor: '#E5E7EB', borderRadius: 4, marginBottom: 8 }} />
+              <View style={{ width: 40, height: 12, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Menu Items */}
+      <View style={{
+        backgroundColor: '#fff',
+        marginBottom: 16,
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+      }}>
+        <View style={{ padding: 20, paddingBottom: 12 }}>
+          <View style={{ width: '35%', height: 16, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+        </View>
+        {[1, 2, 3, 4, 5].map(i => (
+          <View key={i} style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 20,
+            paddingVertical: 16,
+            borderTopWidth: i > 1 ? 1 : 0,
+            borderTopColor: '#F3F4F6',
+          }}>
+            <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#E5E7EB', marginRight: 14 }} />
+            <View style={{ width: '40%', height: 16, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
 
 export default function AccountScreen() {
   const colors = useThemeColors();
@@ -71,12 +166,29 @@ export default function AccountScreen() {
     setRefreshing(false);
   };
 
-  if (loading) {
+  const showSkeleton = loading || refreshing;
+
+  if (showSkeleton) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <SafeAreaView style={{ backgroundColor: colors.primary }} edges={['top']} />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              backgroundColor: colors.surface,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}
+          >
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: colors.text }}>
+              Account
+            </Text>
+          </View>
+          <PullToRefreshLayout isRefreshing={refreshing} onRefresh={handleRefresh}>
+            <AccountSkeleton />
+          </PullToRefreshLayout>
         </View>
       </View>
     );

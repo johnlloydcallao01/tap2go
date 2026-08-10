@@ -58,14 +58,14 @@ export const Orders: CollectionConfig = {
           } else if (operation === 'update') {
             const previousStatus = previousDoc?.status ?? null
             if (previousStatus && status && previousStatus !== status) {
-              const label = getOrderStatusLabel(status)
+              const label = getOrderStatusLabel(status, doc?.delivery_status)
               await createNotificationFanout({
                 payload: req.payload,
                 userId,
                 typeKey: 'order.status_changed',
                 domain: 'order',
                 priority: status === 'cancelled' ? 'warning' : 'info',
-                title: `Order ${getOrderStatusLabel(status)}`,
+                title: `Order ${getOrderStatusLabel(status, doc?.delivery_status)}`,
                 body: `Your order #${orderId} is now ${label.toLowerCase()}.`,
                 sourceEntityType: 'order',
                 sourceEntityId: orderId,

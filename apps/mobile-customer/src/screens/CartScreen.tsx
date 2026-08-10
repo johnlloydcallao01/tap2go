@@ -63,7 +63,9 @@ export default function CartScreen() {
     }
   }, [reload]);
 
-  const showSkeleton = isLoading && merchantCarts.length === 0;
+  // Consistent with the Home/Wishlist pattern: show the skeleton on initial load
+  // AND during pull-to-refresh, so the refetch is visible (pull-to-refresh.md Pattern B)
+  const showSkeleton = isLoading || refreshing;
 
   const handleMerchantPress = (merchantId: string) => {
     navigation.navigate('MerchantCart', { merchantId });

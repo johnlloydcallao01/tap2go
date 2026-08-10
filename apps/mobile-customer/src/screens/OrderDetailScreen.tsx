@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { apiConfig } from '../../src/config/environment';
 import { formatCurrency } from '../../src/utils/format';
+import { PullToRefreshLayout } from '../../src/components/PullToRefreshLayout';
 
 const CMS_HEADERS = {
   'Content-Type': 'application/json',
@@ -91,6 +92,7 @@ type OrderDetail = {
   deliveryBooking?: DeliveryBooking | null;
   deliveryLocation?: DeliveryLocation | null;
   items?: OrderItem[];
+  isPaid?: boolean;
 };
 
 const STATUS_STEPS = [
@@ -124,10 +126,20 @@ function getStatusColor(status: string): string {
 }
 
 function formatStatus(status: string): string {
-  return status
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  switch (status) {
+    case 'assigning_driver': return 'Assigning Driver';
+    case 'driver_assigned':  return 'On Going';
+    case 'picked_up':        return 'Picked Up';
+    case 'completed':        return 'Completed';
+    case 'canceled':         return 'Cancelled';
+    case 'rejected':         return 'Rejected';
+    case 'expired':          return 'Expired';
+    default:
+      return status
+        .split('_')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+  }
 }
 
 function getActiveStepIndex(status: string): number {
@@ -150,6 +162,98 @@ function formatDate(iso?: string | null): string {
   }
 }
 
+const OrderDetailSkeleton = () => {
+  return (
+    <View style={{ padding: 16, gap: 16 }}>
+      {/* Status Banner */}
+      <View style={{
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 16,
+        gap: 12,
+      }}>
+        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#F3F4F6' }} />
+        <View style={{ flex: 1 }}>
+          <View style={{ width: '40%', height: 16, borderRadius: 4, backgroundColor: '#E5E7EB', marginBottom: 8 }} />
+          <View style={{ width: '55%', height: 12, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+        </View>
+      </View>
+
+      {/* Status Timeline */}
+      <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 12 }}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <View key={i} style={{ flexDirection: 'row' as const, alignItems: 'center' as const }}>
+            <View style={{
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              backgroundColor: '#F3F4F6',
+              marginRight: 8,
+            }} />
+            <View style={{ flex: 1 }}>
+              <View
+                style={{
+                  width: i === 3 ? '50%' : '65%',
+                  height: 14,
+                  borderRadius: 4,
+                  backgroundColor: i < 4 ? '#F3F4F6' : '#E5E7EB',
+                }}
+              />
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* Rider Section */}
+      <View>
+        <View style={{ width: '30%', height: 16, borderRadius: 4, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+        <View style={{
+          flexDirection: 'row' as const,
+          alignItems: 'center' as const,
+          backgroundColor: '#fff',
+          borderRadius: 12,
+          padding: 16,
+          gap: 12,
+        }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#F3F4F6' }} />
+          <View style={{ flex: 1 }}>
+            <View style={{ width: '45%', height: 16, borderRadius: 4, backgroundColor: '#E5E7EB', marginBottom: 8 }} />
+            <View style={{ width: '30%', height: 12, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+          </View>
+        </View>
+      </View>
+
+      {/* Items Section */}
+      <View>
+        <View style={{ width: '30%', height: 16, borderRadius: 4, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+        <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 12 }}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={{ flexDirection: 'row' as const, alignItems: 'center' as const }}>
+              <View style={{ width: 32, height: 14, borderRadius: 4, backgroundColor: '#F3F4F6', marginRight: 8 }} />
+              <View style={{ flex: 1, height: 14, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Price Breakdown */}
+      <View>
+        <View style={{ width: '25%', height: 16, borderRadius: 4, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+        <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 8 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={{ flexDirection: 'row' as const, justifyContent: 'space-between' as const }}>
+              <View style={{ width: 64, height: 14, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+              <View style={{ width: 48, height: 14, borderRadius: 4, backgroundColor: '#F3F4F6' }} />
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+};
+
 export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -157,6 +261,7 @@ export default function OrderDetailScreen() {
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [showRiderInfo, setShowRiderInfo] = useState(false);
@@ -237,11 +342,23 @@ export default function OrderDetailScreen() {
         }
       }
 
+      // Payment verification — green Paid badge
+      let isPaid = false;
+      const txRes = await fetch(
+        `${apiConfig.baseUrl}/transactions?where[order][equals]=${id}&where[status][equals]=paid&limit=1`,
+        { headers: CMS_HEADERS },
+      );
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        isPaid = (txData.docs?.length || 0) > 0;
+      }
+
       setOrder({
         ...orderData,
         deliveryBooking,
         deliveryLocation,
         items: itemsData.docs || [],
+        isPaid,
       });
       setError(null);
     } catch (err: any) {
@@ -253,6 +370,15 @@ export default function OrderDetailScreen() {
 
   useEffect(() => {
     fetchOrder();
+  }, [fetchOrder]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchOrder();
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchOrder]);
 
   // Poll for updates on active deliveries
@@ -311,13 +437,23 @@ export default function OrderDetailScreen() {
     );
   }, [handleCancelOrder]);
 
-  if (loading) {
+  const showSkeleton = loading || refreshing;
+
+  if (showSkeleton) {
     return (
       <View style={styles.container}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }} />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#f97316" />
-        </View>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={20} color="#374151" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Order Details</Text>
+            <View style={{ width: 32 }} />
+          </View>
+        </SafeAreaView>
+        <PullToRefreshLayout onRefresh={handleRefresh} isRefreshing={refreshing}>
+          <OrderDetailSkeleton />
+        </PullToRefreshLayout>
       </View>
     );
   }
@@ -449,31 +585,56 @@ export default function OrderDetailScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView
+      <PullToRefreshLayout
+        onRefresh={handleRefresh}
+        isRefreshing={refreshing}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
       >
         {/* Status Banner */}
         <View
           style={[
             styles.statusBanner,
-            { borderLeftColor: getStatusColor(isDeliveryCancelled ? 'canceled' : order.status || 'pending') },
+            { borderLeftColor: getStatusColor(isDeliveryCancelled
+              ? 'canceled'
+              : (order.status === 'pending' || order.status === 'accepted')
+                ? (order.isPaid ? 'accepted' : 'pending')
+                : (delivery?.status || order.delivery_status || order.status || 'pending')) },
           ]}
         >
           <View
             style={[
               styles.statusDot,
-              { backgroundColor: getStatusColor(isDeliveryCancelled ? 'canceled' : order.status || 'pending') },
+              { backgroundColor: getStatusColor(isDeliveryCancelled
+                ? 'canceled'
+                : (order.status === 'pending' || order.status === 'accepted')
+                  ? (order.isPaid ? 'accepted' : 'pending')
+                  : (delivery?.status || order.delivery_status || order.status || 'pending')) },
             ]}
           />
           <View style={{ flex: 1 }}>
             <Text style={styles.statusText}>
               {isDeliveryCancelled
                 ? deliveryCancelledTitle
-                : formatStatus(order.status || 'pending')}
+                : (order.status === 'pending' || order.status === 'accepted')
+                  ? (order.isPaid ? 'Accepted' : 'Pending')
+                  : formatStatus(delivery?.status || order.delivery_status || order.status || 'pending')}
             </Text>
             {order.placed_at && (
               <Text style={styles.dateText}>{formatDate(order.placed_at)}</Text>
+            )}
+            {order.isPaid && (
+              <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                <View style={{
+                  backgroundColor: '#10b9811A',
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}>
+                  <Text style={{ color: '#10b981', fontSize: 12, fontWeight: '700' }}>
+                    Paid
+                  </Text>
+                </View>
+              </View>
             )}
           </View>
         </View>
@@ -536,7 +697,7 @@ export default function OrderDetailScreen() {
                     isActive && { color: '#111827', fontWeight: isCurrent ? '700' : '500' },
                   ]}
                 >
-                  {step.label}
+                  {idx === 0 ? (order.isPaid ? 'Accepted' : 'Pending') : step.label}
                 </Text>
               </View>
             );
@@ -729,7 +890,7 @@ export default function OrderDetailScreen() {
           )}
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </PullToRefreshLayout>
 
       {/* Rider View Modal */}
       <Modal

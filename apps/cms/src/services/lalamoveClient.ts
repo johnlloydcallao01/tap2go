@@ -1,16 +1,24 @@
 import crypto from 'crypto'
 
-const LALAMOVE_BASE_URL = 'https://rest.lalamove.com'
+const isSandbox = process.env.LALAMOVE_SANDBOX === 'true'
+
+const LALAMOVE_BASE_URL = isSandbox
+  ? 'https://rest.sandbox.lalamove.com'
+  : 'https://rest.lalamove.com'
 
 function getApiKey(): string {
-  const key = process.env.LALAMOVE_API_KEY
-  if (!key) throw new Error('LALAMOVE_API_KEY is not configured')
+  const key = isSandbox
+    ? process.env.LALAMOVE_SANDBOX_API_KEY
+    : process.env.LALAMOVE_API_KEY
+  if (!key) throw new Error(`LALAMOVE${isSandbox ? '_SANDBOX' : ''}_API_KEY is not configured`)
   return key
 }
 
 function getApiSecret(): string {
-  const secret = process.env.LALAMOVE_API_SECRET
-  if (!secret) throw new Error('LALAMOVE_API_SECRET is not configured')
+  const secret = isSandbox
+    ? process.env.LALAMOVE_SANDBOX_API_SECRET
+    : process.env.LALAMOVE_API_SECRET
+  if (!secret) throw new Error(`LALAMOVE${isSandbox ? '_SANDBOX' : ''}_API_SECRET is not configured`)
   return secret
 }
 
@@ -328,6 +336,23 @@ function parseJsonSafe(
     return JSON.parse(raw) as any
   } catch {
     return null
+  }
+}
+
+export async function registerWebhook(url: string): Promise<void> {
+  const path = '/v3/webhook'
+  const body = JSON.stringify({ data: { url } })
+  const headers = buildHeaders('PATCH', path, body)
+
+  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
+    method: 'PATCH',
+    headers,
+    body,
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Lalamove webhook registration failed (${response.status}): ${error}`)
   }
 }
 

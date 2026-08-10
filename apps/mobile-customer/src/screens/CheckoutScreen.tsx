@@ -29,6 +29,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   clearPendingCheckoutSession,
+  finalizePaidOrder,
   findActiveCartLinkedOrder,
   getCheckoutPaymentStatus,
   getPendingCheckoutSession,
@@ -46,6 +47,12 @@ type PaymentMethod =
   | 'qrph';
 
 const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
+
+// Map address_type (Addresses) → label (DeliveryLocations enum: home | office | other)
+function normalizeLabel(val: string): string {
+  const map: Record<string, string> = { home: 'home', work: 'office', partner: 'other', office: 'office' };
+  return map[val] || 'other';
+}
 
 const methodLogos: Record<PaymentMethod, { srcs: any[]; label: string; icon: any }> = {
   card: {
@@ -107,7 +114,7 @@ export default function CheckoutScreen() {
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
 
-  const { getMerchantCart } = useCart();
+  const { getMerchantCart, reload } = useCart();
   const { user, customerId, token } = useAuth();
   const queryClient = useQueryClient();
 
@@ -226,9 +233,8 @@ export default function CheckoutScreen() {
   );
 
   const isFormValid = useMemo(() => {
-    if (!paymentMethod) return false;
+    if (!apiConfig.isPaymongoSandbox && !paymentMethod) return false;
     if (!activeAddressId) return false;
-    // Don't validate card details right now since we are deferring to PayMongo redirect logic natively
     return true;
   }, [paymentMethod, activeAddressId]);
 
@@ -411,6 +417,174 @@ export default function CheckoutScreen() {
     }
   }, [customerId, merchantId]);
 
+  const handleSandboxPay = async () => {
+    if (!user || !customerId || !activeAddressId) {
+      Alert.alert('Error', 'Please select a delivery address');
+      return;
+    }
+
+    if (deliveryFeeLoading) {
+      Alert.alert('Please wait', 'We are still calculating your delivery fee.');
+      return;
+    }
+
+    if (deliveryAvailable && deliveryFee <= 0) {
+      Alert.alert(
+        'Delivery fee unavailable',
+        deliveryFeeError || 'We could not calculate your delivery fee. Please try again.',
+      );
+      return;
+    }
+
+    setIsPaying(true);
+    try {
+      const cmsHeaders = {
+        'Content-Type': 'application/json',
+        Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+      };
+
+      // 1. Create Order
+      const orderPayload = {
+        customer: Number(customerId),
+        merchant: merchantId,
+        status: 'pending',
+        fulfillment_type: 'delivery',
+        total: orderTotal,
+        subtotal: totalSubtotal,
+        delivery_fee: deliveryFee,
+        platform_fee: 0,
+        placed_at: new Date().toISOString(),
+      };
+      const orderRes = await fetch(`${apiConfig.baseUrl}/orders`, {
+        method: 'POST',
+        headers: cmsHeaders,
+        body: JSON.stringify(orderPayload),
+      });
+      const orderDataRes = await orderRes.json();
+      if (!orderRes.ok) throw new Error(orderDataRes?.error || 'Failed to create order');
+      const createdOrderId = orderDataRes.doc.id;
+
+      // 2. Create Delivery Location
+      const addrRes = await fetch(`${apiConfig.baseUrl}/addresses/${activeAddressId}`, { headers: cmsHeaders });
+      if (!addrRes.ok) {
+        console.warn('[sandbox] address fetch failed:', addrRes.status);
+        throw new Error(`Failed to fetch delivery address (${addrRes.status})`);
+      }
+      const addrData = await addrRes.json();
+      const addressText =
+        addrData.formatted_address ||
+        [addrData.street_number, addrData.route, addrData.barangay, addrData.locality, addrData.country]
+          .filter(Boolean).join(', ');
+
+      let merchantAddrData: any = {};
+      try {
+        const merchantRes = await fetch(`${apiConfig.baseUrl}/merchants/${merchantId}?depth=1`, { headers: cmsHeaders });
+        if (merchantRes.ok) {
+          const merchantData = await merchantRes.json();
+          const merchantAddrId =
+            typeof merchantData?.activeAddress === 'object'
+              ? merchantData.activeAddress?.id
+              : merchantData?.activeAddress;
+          if (merchantAddrId) {
+            const mAddrRes = await fetch(`${apiConfig.baseUrl}/addresses/${merchantAddrId}`, { headers: cmsHeaders });
+            if (mAddrRes.ok) merchantAddrData = await mAddrRes.json();
+          }
+        }
+      } catch { /* non-critical */ }
+
+      const dlRes = await fetch(`${apiConfig.baseUrl}/delivery-locations`, {
+        method: 'POST',
+        headers: cmsHeaders,
+        body: JSON.stringify({
+          order: createdOrderId,
+          formatted_address: addressText || 'Unknown Address',
+          coordinates: { lat: addrData.latitude || 0, lng: addrData.longitude || 0 },
+          street: addrData.street || null,
+          floor_unit_room: addrData.floor_unit_room || null,
+          delivery_instructions: addrData.delivery_instructions || null,
+          notes: addrData.notes || addrData.accessibility_notes || null,
+          contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
+          contact_phone: user.phone || null,
+          label: normalizeLabel(addrData.label || addrData.address_type || ''),
+          merchant_formatted_address: merchantAddrData.formatted_address || null,
+          merchant_coordinates: (merchantAddrData.latitude && merchantAddrData.longitude)
+            ? { lat: merchantAddrData.latitude, lng: merchantAddrData.longitude } : null,
+          merchant_street: merchantAddrData.street || null,
+          merchant_floor_unit_room: merchantAddrData.floor_unit_room || null,
+          merchant_delivery_instructions: merchantAddrData.delivery_instructions || null,
+          merchant_label: normalizeLabel(merchantAddrData.label || merchantAddrData.address_type || ''),
+        }),
+      });
+      if (!dlRes.ok) {
+        const dlErr = await dlRes.json().catch(() => ({}));
+        console.error('[sandbox] delivery-location failed:', dlRes.status, dlErr);
+        throw new Error(`Failed to create delivery location: ${dlErr?.error || dlRes.status}`);
+      }
+
+      // 3. Create Order Items + link cart items
+      for (const item of merchantCart.items) {
+        const optionsSnapshot = [
+          ...(item.selectedVariation
+            ? [{ entryType: 'variation', name: item.selectedVariationName || `Variation #${item.selectedVariation}`, selectedVariationId: item.selectedVariation, selectedVariationName: item.selectedVariationName || undefined, price: 0 }]
+            : []),
+          ...((item.selectedModifiers || []).map((modifier: any) => ({
+            entryType: 'modifier', sourceType: modifier?.source, groupId: modifier?.groupId,
+            groupName: modifier?.groupName, optionId: modifier?.optionId,
+            optionName: modifier?.name, selectedVariationId: item.selectedVariation || undefined,
+            selectedVariationName: item.selectedVariationName || undefined,
+            name: modifier?.name || 'Modifier', price: typeof modifier?.price === 'number' ? modifier.price : 0,
+          }))),
+        ];
+
+        await fetch(`${apiConfig.baseUrl}/order-items`, {
+          method: 'POST',
+          headers: cmsHeaders,
+          body: JSON.stringify({
+            order: createdOrderId, product: item.product, merchant_product: item.merchantProduct || null,
+            product_name_snapshot: item.productName, price_at_purchase: item.priceAtAdd,
+            quantity: item.quantity, options_snapshot: optionsSnapshot, total_price: item.subtotal,
+          }),
+        });
+
+        await fetch(`${apiConfig.baseUrl}/cart-items/${item.id}`, {
+          method: 'PATCH',
+          headers: cmsHeaders,
+          body: JSON.stringify({ order_id: createdOrderId }),
+        });
+      }
+
+      // 4. Create Transaction (paid immediately — sandbox)
+      await fetch(`${apiConfig.baseUrl}/transactions`, {
+        method: 'POST',
+        headers: cmsHeaders,
+        body: JSON.stringify({
+          order: createdOrderId,
+          payment_intent_id: `sandbox_${Date.now()}`,
+          payment_method: 'gcash',
+          amount: totalSubtotal,
+          currency: 'PHP',
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+        }),
+      });
+
+      // 5. Finalize + book Lalamove
+      await finalizePaidOrder(String(createdOrderId), new Date().toISOString());
+      await reload();
+
+      hasNavigatedToReturnRef.current = true;
+      router.replace({
+        pathname: '/order-success',
+        params: { orderId: String(createdOrderId), merchantId: String(merchantId) },
+      });
+    } catch (error) {
+      console.error('Sandbox payment error:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to process sandbox order');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
   const handlePayNow = async () => {
     if (!user || !customerId || !activeAddressId) {
       Alert.alert('Error', 'Please select a delivery address');
@@ -589,7 +763,7 @@ export default function CheckoutScreen() {
             notes: addrData.notes || addrData.accessibility_notes || null,
             contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
             contact_phone: user.phone || null,
-            label: addrData.label || addrData.address_type || 'other',
+            label: normalizeLabel(addrData.label || addrData.address_type || ''),
             merchant_formatted_address: merchantAddrData.formatted_address || null,
             merchant_coordinates: (merchantAddrData.latitude && merchantAddrData.longitude)
               ? { lat: merchantAddrData.latitude, lng: merchantAddrData.longitude }
@@ -597,7 +771,7 @@ export default function CheckoutScreen() {
             merchant_street: merchantAddrData.street || null,
             merchant_floor_unit_room: merchantAddrData.floor_unit_room || null,
             merchant_delivery_instructions: merchantAddrData.delivery_instructions || null,
-            merchant_label: merchantAddrData.label || merchantAddrData.address_type || null,
+            merchant_label: normalizeLabel(merchantAddrData.label || merchantAddrData.address_type || ''),
           }),
         });
       }
@@ -656,7 +830,7 @@ export default function CheckoutScreen() {
       }
 
       // 5. Create Pending Transaction
-      await fetch(`${apiConfig.baseUrl}/transactions`, {
+      const txResponse = await fetch(`${apiConfig.baseUrl}/transactions`, {
         method: 'POST',
         headers: cmsHeaders,
         body: JSON.stringify({
@@ -668,6 +842,8 @@ export default function CheckoutScreen() {
           status: 'pending',
         }),
       });
+      const txData = await txResponse.json();
+      const transactionId = txData?.doc?.id;
 
       await savePendingCheckoutSession({
         customerId: String(customerId),
@@ -676,6 +852,34 @@ export default function CheckoutScreen() {
         paymentIntentId: intentId,
         createdAt: new Date().toISOString(),
       });
+
+      // Sandbox: skip PayMongo entirely — mark paid and book Lalamove directly
+      if (apiConfig.isPaymongoSandbox) {
+        // PATCH the pending transaction to paid
+        if (transactionId) {
+          await fetch(`${apiConfig.baseUrl}/transactions/${transactionId}`, {
+            method: 'PATCH',
+            headers: cmsHeaders,
+            body: JSON.stringify({
+              status: 'paid',
+              paid_at: new Date().toISOString(),
+            }),
+          });
+        }
+
+        await finalizePaidOrder(String(createdOrderId), new Date().toISOString());
+        await clearPendingCheckoutSession(String(customerId), String(merchantId));
+        await reload();
+        hasNavigatedToReturnRef.current = true;
+        router.replace({
+          pathname: '/order-success',
+          params: {
+            orderId: String(createdOrderId),
+            merchantId: String(merchantId),
+          },
+        });
+        return;
+      }
 
       // 6. Attach Payment Method to Payment Intent
       // PayMongo requires an absolute http/https return_url, so we send the user to our web bridge.
@@ -812,6 +1016,18 @@ export default function CheckoutScreen() {
           <View style={{ width: 32 }} />
         </View>
       </SafeAreaView>
+
+      {(apiConfig.isPaymongoSandbox || apiConfig.isLalamoveSandbox) && (
+        <View style={styles.sandboxBanner}>
+          <Ionicons name="flask-outline" size={14} color="#fff" />
+          <Text style={styles.sandboxBannerText}>
+            Sandbox Mode
+            {apiConfig.isPaymongoSandbox && ' · PayMongo Test'}
+            {apiConfig.isLalamoveSandbox && ' · Lalamove Test'}
+            {' — No real money is used'}
+          </Text>
+        </View>
+      )}
 
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
@@ -965,6 +1181,7 @@ export default function CheckoutScreen() {
           </View>
         )}
 
+        {!apiConfig.isPaymongoSandbox && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
           <View style={styles.paymentMethodsGrid}>
@@ -1009,6 +1226,7 @@ export default function CheckoutScreen() {
             })}
           </View>
         </View>
+        )}
 
         {qrImage && (
           <View style={styles.section}>
@@ -1043,27 +1261,52 @@ export default function CheckoutScreen() {
           <Text style={styles.footerTotalLabel}>Total</Text>
           <Text style={styles.footerTotalValue}>{formatCurrency(orderTotal)}</Text>
         </View>
-        <TouchableOpacity
-          style={[
-            styles.payButton,
-             (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
-              styles.payButtonDisabled
-          ]}
-          onPress={handlePayNow}
-          disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
-        >
-          {isPaying || isCheckingPaymentState ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.payButtonText}>
-              {deliveryFeeLoading
-                ? 'Calculating delivery fee...'
-                : deliveryAvailable && deliveryFee <= 0
-                  ? 'Delivery fee unavailable'
-                  : `Pay ${formatCurrency(orderTotal)}`}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {apiConfig.isPaymongoSandbox ? (
+          <TouchableOpacity
+            style={[
+              styles.payButton,
+              { backgroundColor: '#8b5cf6' },
+              (!isFormValid || isPaying || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
+                styles.payButtonDisabled,
+            ]}
+            onPress={handleSandboxPay}
+            disabled={!isFormValid || isPaying || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
+          >
+            {isPaying ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.payButtonText}>
+                {deliveryFeeLoading
+                  ? 'Calculating delivery fee...'
+                  : deliveryAvailable && deliveryFee <= 0
+                    ? 'Delivery fee unavailable'
+                    : `Simulate Payment (Sandbox)`}
+              </Text>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.payButton,
+              (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
+                styles.payButtonDisabled,
+            ]}
+            onPress={handlePayNow}
+            disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
+          >
+            {isPaying || isCheckingPaymentState ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.payButtonText}>
+                {deliveryFeeLoading
+                  ? 'Calculating delivery fee...'
+                  : deliveryAvailable && deliveryFee <= 0
+                    ? 'Delivery fee unavailable'
+                    : `Pay ${formatCurrency(orderTotal)}`}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       <AddressSelectionModal
@@ -1090,6 +1333,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  sandboxBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    gap: 6,
+  },
+  sandboxBannerText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   safeArea: {
     backgroundColor: '#fff',

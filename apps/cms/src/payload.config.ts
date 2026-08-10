@@ -1086,10 +1086,14 @@ export default buildConfig({
           }
 
           // 3. Create Payment Intent via PayMongo
-          const secretKey = process.env.PAYMONGO_SECRET_KEY_LIVE;
+          const paymongoSandbox = process.env.PAYMONGO_SANDBOX === 'true'
+          const secretKey = paymongoSandbox
+            ? process.env.PAYMONGO_SANDBOX_API_KEY
+            : process.env.PAYMONGO_SECRET_KEY_LIVE
           if (!secretKey) {
-             console.error('PAYMONGO_SECRET_KEY_LIVE is missing in env');
-             return Response.json({ error: 'Server configuration error: Missing PayMongo Secret Key' }, { status: 500 });
+            const keyName = paymongoSandbox ? 'PAYMONGO_SANDBOX_API_KEY' : 'PAYMONGO_SECRET_KEY_LIVE'
+            console.error(`${keyName} is missing in env`)
+            return Response.json({ error: `Server configuration error: Missing PayMongo Secret Key` }, { status: 500 })
           }
 
           const response = await fetch('https://api.paymongo.com/v1/payment_intents', {
