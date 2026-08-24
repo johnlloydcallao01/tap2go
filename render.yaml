@@ -1,22 +1,58 @@
 services:
   - type: web
     name: tap2go-cms
-    runtime: docker
-    rootDir: apps/cms
-    dockerfilePath: ./Dockerfile
-    dockerContext: ../..
+    runtime: node
     plan: starter
-    region: oregon
+    region: singapore
     branch: main
-    buildCommand: ""
-    startCommand: ""
+    autoDeploy: true
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @encreasl/cms build
+    startCommand: pnpm --filter @encreasl/cms start
+    healthCheckPath: /admin
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PAYLOAD_SECRET
-        sync: false
       - key: DATABASE_URI
         sync: false
-      - key: NEXT_PUBLIC_SERVER_URL
-        value: https://cms.tap2goph.com
-    autoDeploy: true
+      - key: PAYLOAD_SECRET
+        generateValue: true
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: ADMIN_PROD_URL
+        sync: false
+      - key: WEB_PROD_URL
+        sync: false
+      - key: CMS_PROD_URL
+        sync: false
+      - key: COOKIE_DOMAIN
+        sync: false
+      - key: PAYMONGO_PUBLIC_KEY_LIVE
+        sync: false
+      - key: PAYMONGO_SECRET_KEY_LIVE
+        sync: false
+      - key: PAYMONGO_WEBHOOK_SECRET
+        sync: false
+      - key: LALAMOVE_API_KEY
+        sync: false
+      - key: LALAMOVE_API_SECRET
+        sync: false
+      - key: LALAMOVE_MARKET
+        value: PH
+      - key: LALAMOVE_PRIORITY_FEE
+        value: "20"
+      - key: VERCEL_API_TOKEN
+        sync: false
+      - key: VERCEL_EDGE_CONFIG_ID
+        sync: false
