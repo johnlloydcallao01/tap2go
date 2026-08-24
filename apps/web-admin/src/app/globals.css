@@ -62,7 +62,7 @@ main {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #201a7c 0%, #ab3b43 50%, #201a7c 100%);
+  background: linear-gradient(135deg, #c88a20 0%, #eba336 50%, #c88a20 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -99,7 +99,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 40px rgba(171, 59, 67, 0.3), 0 4px 16px rgba(32, 26, 124, 0.2);
+  box-shadow: 0 12px 40px rgba(235, 163, 54, 0.3), 0 4px 16px rgba(200, 138, 32, 0.2);
   animation: logoFloat 3s ease-in-out infinite;
   z-index: 3;
   position: relative;
@@ -128,7 +128,7 @@ main {
 
 .facebook-pulse-ring-delay {
   animation-delay: 1s;
-  border-color: rgba(171, 59, 67, 0.3);
+  border-color: rgba(235, 163, 54, 0.3);
 }
 
 /* Loading Text */
@@ -173,12 +173,12 @@ main {
 
 .facebook-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #ffffff 0%, rgba(171, 59, 67, 0.8) 50%, #ffffff 100%);
+  background: linear-gradient(90deg, #ffffff 0%, rgba(235, 163, 54, 0.8) 50%, #ffffff 100%);
   border-radius: 2px;
   transition: width 0.3s ease;
   position: relative;
   animation: progressShimmer 2s ease-in-out infinite;
-  box-shadow: 0 0 8px rgba(171, 59, 67, 0.4);
+  box-shadow: 0 0 8px rgba(235, 163, 54, 0.4);
 }
 
 /* Progress Dots */
@@ -239,7 +239,7 @@ main {
   height: 150px;
   top: 60%;
   right: 15%;
-  background: rgba(171, 59, 67, 0.08);
+  background: rgba(235, 163, 54, 0.08);
   animation-delay: -7s;
 }
 
@@ -248,7 +248,7 @@ main {
   height: 100px;
   bottom: 20%;
   left: 20%;
-  background: rgba(32, 26, 124, 0.06);
+  background: rgba(200, 138, 32, 0.06);
   animation-delay: -14s;
 }
 

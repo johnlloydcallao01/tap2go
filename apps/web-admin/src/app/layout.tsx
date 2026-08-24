@@ -60,7 +60,7 @@ export default async function RootLayout({ children }: LayoutProps) {
                 <div className="facebook-logo">
                   {/* @ts-ignore -- Next.js Image component type issue with React 19 */}
                   <Image
-                    src="/calsiter-inc-logo.png"
+                    src="/logo.png"
                     alt="Tap2Go Admin Logo"
                     width={48}
                     height={48}

@@ -9,7 +9,7 @@ interface FacebookLoadingScreenProps {
 }
 
 /**
- * Meta-style Full Page Loading Screen with Calsiter Inc Branding
+ * Meta-style Full Page Loading Screen with Tap2Go Branding
  *
  * Features:
  * - Full-screen overlay that covers entire viewport
@@ -17,7 +17,7 @@ interface FacebookLoadingScreenProps {
  * - Smooth progress indicator
  * - Only shows on full page reloads, not SPA navigation
  * - Integrates with authentication flow
- * - Uses brand colors: #ab3b43 (accent) and #201a7c (primary)
+ * - Uses brand colors: #eba336 (accent) and #c88a20 (primary)
  */
 export function FacebookLoadingScreen({ isVisible, progress = 0 }: FacebookLoadingScreenProps): JSX.Element | null {
   if (!isVisible) return null;
@@ -33,8 +33,8 @@ export function FacebookLoadingScreen({ isVisible, progress = 0 }: FacebookLoadi
             <div className="facebook-logo">
               {/* @ts-ignore -- Next.js Image component type issue with React 19 */}
               <Image
-                src="/calsiter-inc-logo.png"
-                alt="Calsiter Inc Logo"
+                src="/logo.png"
+                alt="Tap2Go Logo"
                 width={48}
                 height={48}
                 className="facebook-logo-image"
@@ -50,7 +50,7 @@ export function FacebookLoadingScreen({ isVisible, progress = 0 }: FacebookLoadi
 
           {/* Loading Text */}
           <div className="facebook-loading-text">
-            <h2>Grandline Maritime</h2>
+            <h2>Tap2Go</h2>
             <p>Loading your experience...</p>
           </div>
 
