@@ -8,7 +8,7 @@ services:
     autoDeploy: true
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @encreasl/cms build
     startCommand: pnpm --filter @encreasl/cms start
-    healthCheckPath: /admin
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
