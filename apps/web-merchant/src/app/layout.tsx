@@ -18,14 +18,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Encreasl Merchant Portal",
-  description: "Merchant portal for managing your Encreasl business operations",
-  keywords: "merchant portal, business management, orders, inventory",
-  authors: [{ name: "Encreasl Merchant Team" }],
-  robots: "noindex, nofollow", // Prevent search engine indexing
+  title: "Tap2Go Merchant Portal",
+  description: "Merchant portal for managing your Tap2Go restaurant operations",
+  keywords: "merchant portal, restaurant management, orders, analytics, Tap2Go",
+  authors: [{ name: "Tap2Go Merchant Team" }],
+  robots: "noindex, nofollow",
   openGraph: {
-    title: "Encreasl Merchant Portal",
-    description: "Merchant portal for managing your Encreasl business operations.",
+    title: "Tap2Go Merchant Portal",
+    description: "Merchant portal for managing your Tap2Go restaurant operations.",
     type: "website",
   },
 };
@@ -61,7 +61,7 @@ export default async function RootLayout({ children }: LayoutProps) {
                   {/* @ts-ignore -- Next.js Image component type issue with React 19 */}
                   <Image
                     src="/calsiter-inc-logo.png"
-                    alt="Encreasl Merchant Logo"
+                    alt="Tap2Go Merchant Logo"
                     width={48}
                     height={48}
                     className="facebook-logo-image"
@@ -77,7 +77,7 @@ export default async function RootLayout({ children }: LayoutProps) {
 
               {/* Loading Text */}
               <div className="facebook-loading-text">
-                <h2>Encreasl Merchant Portal</h2>
+                <h2>Tap2Go Merchant Portal</h2>
                 <p>Loading your portal...</p>
               </div>
 

@@ -91,6 +91,7 @@ export const ListOrdered = createIconWrapper(LucideIcons.ListOrdered);
 export const DollarSign = createIconWrapper(LucideIcons.DollarSign);
 export const Bell = createIconWrapper(LucideIcons.Bell);
 export const Palette = createIconWrapper(LucideIcons.Palette);
+export const Store = createIconWrapper(LucideIcons.Store);
 
 // Type for icon components
 export type LucideIcon = React.ComponentType<IconProps>;

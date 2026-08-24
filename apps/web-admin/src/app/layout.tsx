@@ -18,14 +18,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Grandline Maritime Admin Dashboard",
-  description: "Admin dashboard for Grandline Maritime Training and Development Center Inc",
-  keywords: "admin dashboard, maritime training, course management, student management",
-  authors: [{ name: "Grandline Maritime Team" }],
-  robots: "noindex, nofollow", // Prevent search engine indexing
+  title: "Tap2Go Admin Dashboard",
+  description: "Admin dashboard for managing the Tap2Go platform",
+  keywords: "admin dashboard, platform management, user management, Tap2Go",
+  authors: [{ name: "Tap2Go Admin Team" }],
+  robots: "noindex, nofollow",
   openGraph: {
-    title: "Grandline Maritime Admin Dashboard",
-    description: "Admin dashboard for maritime training management.",
+    title: "Tap2Go Admin Dashboard",
+    description: "Admin dashboard for managing the Tap2Go platform.",
     type: "website",
   },
 };
@@ -61,7 +61,7 @@ export default async function RootLayout({ children }: LayoutProps) {
                   {/* @ts-ignore -- Next.js Image component type issue with React 19 */}
                   <Image
                     src="/calsiter-inc-logo.png"
-                    alt="Grandline Maritime Logo"
+                    alt="Tap2Go Admin Logo"
                     width={48}
                     height={48}
                     className="facebook-logo-image"
@@ -77,7 +77,7 @@ export default async function RootLayout({ children }: LayoutProps) {
 
               {/* Loading Text */}
               <div className="facebook-loading-text">
-                <h2>Grandline Maritime Admin</h2>
+                <h2>Tap2Go Admin</h2>
                 <p>Loading your dashboard...</p>
               </div>
 
