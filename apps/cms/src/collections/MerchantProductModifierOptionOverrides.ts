@@ -4,6 +4,7 @@ import {
   resolveMerchantProductProductId,
   resolveProductModifierGroupIds,
 } from '../services/merchantModifierOverrideUtils'
+import { modifierConfigurationAccess } from '../access/modifierAccess'
 
 export const MerchantProductModifierOptionOverrides: CollectionConfig = {
   slug: 'merchant-product-modifier-option-overrides',
@@ -19,10 +20,10 @@ export const MerchantProductModifierOptionOverrides: CollectionConfig = {
       'Merchant-level overrides for inherited product modifier options. Use these when one merchant needs different option names, pricing, or availability.',
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: modifierConfigurationAccess,
+    create: modifierConfigurationAccess,
+    update: modifierConfigurationAccess,
+    delete: modifierConfigurationAccess,
   },
   fields: [
     {
@@ -136,6 +137,7 @@ export const MerchantProductModifierOptionOverrides: CollectionConfig = {
   indexes: [
     {
       fields: ['merchant_product_id', 'base_modifier_option_id'],
+      unique: true,
     },
   ],
   hooks: {

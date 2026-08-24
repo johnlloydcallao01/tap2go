@@ -1,4 +1,5 @@
 import { CollectionConfig } from 'payload'
+import { modifierConfigurationAccess } from '../access/modifierAccess'
 
 export const ModifierGroups: CollectionConfig = {
   slug: 'modifier-groups',
@@ -12,10 +13,10 @@ export const ModifierGroups: CollectionConfig = {
     group: 'Product Management',
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: modifierConfigurationAccess,
+    create: modifierConfigurationAccess,
+    update: modifierConfigurationAccess,
+    delete: modifierConfigurationAccess,
   },
   fields: [
     {

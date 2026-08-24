@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import { LoadingScreenWrapper, InstantLoadingController } from "@/components/loading";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { getServerToken, getServerUser } from "@/app/actions/auth";
 import { AuthErrorBoundary } from "@/components/auth";
 import "./globals.css";
 
@@ -34,7 +35,8 @@ type LayoutProps = {
   children: React.ReactNode;
 };
 
-export default function RootLayout({ children }: LayoutProps) {
+export default async function RootLayout({ children }: LayoutProps) {
+  const [initialUser, initialToken] = await Promise.all([getServerUser(), getServerToken()]);
   return (
     <html lang="en">
       <head>
@@ -105,7 +107,7 @@ export default function RootLayout({ children }: LayoutProps) {
         <InstantLoadingController />
 
         <AuthErrorBoundary>
-          <AuthProvider>
+          <AuthProvider initialUser={initialUser} initialToken={initialToken}>
             <LoadingScreenWrapper>
               {children}
             </LoadingScreenWrapper>

@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { extractRelationshipId } from '../services/modifierUtils'
 import { resolveMerchantProductProductId } from '../services/merchantModifierOverrideUtils'
+import { modifierConfigurationAccess } from '../access/modifierAccess'
 
 export const MerchantProductModifierGroupOverrides: CollectionConfig = {
   slug: 'merchant-product-modifier-group-overrides',
@@ -16,10 +17,10 @@ export const MerchantProductModifierGroupOverrides: CollectionConfig = {
       'Merchant-level overrides for inherited product modifier groups. Use these when one merchant needs different modifier rules for the same catalog product.',
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: modifierConfigurationAccess,
+    create: modifierConfigurationAccess,
+    update: modifierConfigurationAccess,
+    delete: modifierConfigurationAccess,
   },
   fields: [
     {
@@ -122,6 +123,7 @@ export const MerchantProductModifierGroupOverrides: CollectionConfig = {
   indexes: [
     {
       fields: ['merchant_product_id', 'base_modifier_group_id'],
+      unique: true,
     },
   ],
   hooks: {

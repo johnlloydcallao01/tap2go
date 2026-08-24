@@ -12,7 +12,9 @@ const nextConfig: NextConfig = {
     "@encreasl/env",
     "@payloadcms/ui",
     "@payloadcms/richtext-lexical",
-    "payload"
+    "payload",
+    "echarts",
+    "zrender"
   ],
 
   // Next.js automatically exposes NEXT_PUBLIC_ environment variables to the client

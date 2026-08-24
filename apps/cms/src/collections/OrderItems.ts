@@ -1,5 +1,7 @@
 import type { CollectionConfig, Where } from 'payload'
+import { extractRelationshipId } from '../services/modifierUtils'
 import { normalizeOrderItemOptionsSnapshot } from '../services/orderItemSnapshot'
+import { validateOrderItemSnapshot } from '../services/orderItemValidation'
 
 export const OrderItems: CollectionConfig = {
   slug: 'order-items',
@@ -139,13 +141,35 @@ export const OrderItems: CollectionConfig = {
   ],
   hooks: {
     beforeValidate: [
-      ({ data }) => {
+      ({ data, operation, originalDoc, req }) => {
         if (!data) {
           return data
         }
 
-        if (data.options_snapshot !== undefined) {
-          data.options_snapshot = normalizeOrderItemOptionsSnapshot(data.options_snapshot)
+        const optionsSnapshot = data.options_snapshot ?? originalDoc?.options_snapshot
+        if (optionsSnapshot !== undefined) {
+          const productId = extractRelationshipId(
+            (data.product ?? originalDoc?.product) as never,
+          )
+          const merchantProductId = extractRelationshipId(
+            (data.merchant_product ?? originalDoc?.merchant_product) as never,
+          )
+
+          if (!req?.payload) {
+            data.options_snapshot = normalizeOrderItemOptionsSnapshot(optionsSnapshot)
+            return data
+          }
+
+          return validateOrderItemSnapshot({
+            payload: req.payload,
+            productId,
+            merchantProductId,
+            optionsSnapshot,
+            requireStructuredEntries: operation === 'create',
+          }).then(() => {
+            data.options_snapshot = normalizeOrderItemOptionsSnapshot(optionsSnapshot)
+            return data
+          })
         }
 
         return data

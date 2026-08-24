@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { modifierConfigurationAccess } from '../access/modifierAccess'
 
 export const VariationModifierOptions: CollectionConfig = {
   slug: 'variation-modifier-options',
@@ -19,10 +20,10 @@ export const VariationModifierOptions: CollectionConfig = {
     description: 'Variation-owned modifier options. These options belong only to a specific variation modifier group.',
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: modifierConfigurationAccess,
+    create: modifierConfigurationAccess,
+    update: modifierConfigurationAccess,
+    delete: modifierConfigurationAccess,
   },
   fields: [
     {

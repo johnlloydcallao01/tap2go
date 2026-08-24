@@ -1,5 +1,6 @@
 import type { PayloadRequest } from 'payload'
 import { ModifierResolverService } from '../services/ModifierResolverService'
+import { ModifierContextError, validateModifierContext } from '../services/modifierContext'
 
 function parseId(value: string | undefined): number | null {
   if (!value) {
@@ -62,12 +63,20 @@ export const effectiveModifiersHandler = async (req: PayloadRequest) => {
       )
     }
 
-    const resolver = new ModifierResolverService(req.payload)
-    const groups = await resolver.resolveEffectiveGroups({
+    const context = await validateModifierContext(req.payload, {
       productId,
       variationId,
       merchantId,
       merchantProductId,
+    })
+
+    const resolver = new ModifierResolverService(req.payload)
+    const groups = await resolver.resolveEffectiveGroups({
+      productId: context.productId,
+      variationId: context.variationId,
+      variationDoc: context.variation,
+      merchantId: context.merchantId,
+      merchantProductId: context.merchantProductId,
     })
 
     return Response.json({
@@ -75,12 +84,19 @@ export const effectiveModifiersHandler = async (req: PayloadRequest) => {
       data: {
         productId,
         variationId,
-        merchantId,
-        merchantProductId,
+        merchantId: context.merchantId,
+        merchantProductId: context.merchantProductId,
         groups,
       },
     })
   } catch (error) {
+    if (error instanceof ModifierContextError) {
+      return Response.json(
+        { success: false, error: error.message, code: error.code },
+        { status: error.status },
+      )
+    }
+
     const message = error instanceof Error ? error.message : 'Unknown error'
 
     return Response.json(

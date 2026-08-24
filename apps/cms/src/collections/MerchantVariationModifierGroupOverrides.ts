@@ -5,6 +5,7 @@ import {
   resolveVariationDoc,
   resolveVariationModifierGroupIds,
 } from '../services/merchantModifierOverrideUtils'
+import { modifierConfigurationAccess } from '../access/modifierAccess'
 
 export const MerchantVariationModifierGroupOverrides: CollectionConfig = {
   slug: 'merchant-variation-modifier-group-overrides',
@@ -20,10 +21,10 @@ export const MerchantVariationModifierGroupOverrides: CollectionConfig = {
       'Merchant-level overrides for one selected variation. Target inherited product groups or variation-owned groups after the variation behavior mode is resolved.',
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: modifierConfigurationAccess,
+    create: modifierConfigurationAccess,
+    update: modifierConfigurationAccess,
+    delete: modifierConfigurationAccess,
   },
   fields: [
     {
@@ -194,9 +195,11 @@ export const MerchantVariationModifierGroupOverrides: CollectionConfig = {
   indexes: [
     {
       fields: ['merchant_product_id', 'variation_id', 'base_modifier_group_id'],
+      unique: true,
     },
     {
       fields: ['merchant_product_id', 'variation_id', 'variation_modifier_group_id'],
+      unique: true,
     },
   ],
   hooks: {

@@ -15,6 +15,7 @@ import {
   AuthErrorType,
   AuthErrorDetails
 } from '@/types/auth';
+import { serverLogin, serverLogout, getServerUser, serverRefresh } from '@/app/actions/auth';
 
 // ========================================
 // CONFIGURATION
@@ -223,27 +224,9 @@ export function validateAdminAccess(user: User): void {
 
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   try {
-    const data: PayloadAuthResponse = await makeAuthRequest('/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-    });
-    
-    // Check if user has admin role
-    if (data.user.role !== 'admin') {
-      throw new AuthenticationError('ACCESS_DENIED', 'Access denied. Only admins can access this application.');
-    }
-
-    // Persist token for robust session across reloads (mirrors apps/web)
-    if (data.token) {
-      storeAuthData(data.token, data.user);
-    }
-
-    return {
-      message: data.message,
-      user: data.user,
-      token: data.token,
-      exp: data.exp,
-    };
+    const response = await serverLogin(credentials);
+    if (response.token) storeAuthData(response.token, response.user);
+    return response;
   } catch (error) {
     if (error instanceof AuthenticationError) {
       throw error;
@@ -256,9 +239,7 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
 
 export async function logout(): Promise<void> {
   try {
-    await makeAuthRequest('/logout', {
-      method: 'POST',
-    });
+    await serverLogout();
   } catch (error) {
     console.error('Logout error:', error);
     // Continue with logout even if API call fails
@@ -267,22 +248,14 @@ export async function logout(): Promise<void> {
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  // Skip server call if no valid stored token (mirrors apps/web)
-  if (!hasValidStoredToken()) {
-    return null;
-  }
-
   try {
-    const response = await makeAuthRequest<PayloadMeResponse>('/me');
-    
-    if (response.user?.role !== 'admin') {
+    const user = await getServerUser();
+    if (!user) {
       clearAuthState();
       return null;
     }
-
-    // Refresh cached user data
-    localStorage.setItem(USER_KEY, JSON.stringify(response.user));
-    return response.user;
+    if (typeof window !== 'undefined') localStorage.setItem(USER_KEY, JSON.stringify(user));
+    return user;
   } catch (error) {
     if (error instanceof AuthenticationError) {
       // Clear session state on auth failures
@@ -297,28 +270,10 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 export async function refreshSession(): Promise<User | null> {
-  if (!hasValidStoredToken()) {
-    return null;
-  }
-
   try {
-    const data: PayloadAuthResponse = await makeAuthRequest('/refresh-token', {
-      method: 'POST',
-    });
-
-    if (!data.user) {
-      throw new AuthenticationError('SESSION_EXPIRED', 'Session refresh failed.');
-    }
-
-    // Validate that the user is still an admin
-    validateAdminAccess(data.user);
-
-    // Rotate stored token
-    if (data.token) {
-      storeAuthData(data.token, data.user);
-    }
-
-    return data.user;
+    const response = await serverRefresh();
+    if (response.token) storeAuthData(response.token, response.user);
+    return response.user;
   } catch (error) {
     if (error instanceof AuthenticationError) {
       if (error.type === 'SESSION_EXPIRED') {
@@ -419,8 +374,16 @@ export function startSessionMonitoring(): () => void {
     }
   };
   
-  // Check every 5 minutes
-  intervalId = setInterval(checkSession, 5 * 60 * 1000);
+  intervalId = setInterval(async () => {
+    try {
+      if (await checkAuthStatus()) {
+        await refreshSession();
+        emitAuthEvent('session_refreshed_auto');
+      }
+    } catch {
+      emitAuthEvent('session_refresh_failed');
+    }
+  }, 25 * 60 * 1000);
   
   return () => {
     if (intervalId) {

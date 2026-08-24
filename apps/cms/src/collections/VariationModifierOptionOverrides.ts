@@ -1,5 +1,6 @@
 import type { CollectionConfig, Where } from 'payload'
 import { extractRelationshipId } from '../services/modifierUtils'
+import { modifierConfigurationAccess } from '../access/modifierAccess'
 
 async function resolveVariationProductId(req: any, variationValue: unknown): Promise<number | null> {
   const variationId = extractRelationshipId(variationValue as never)
@@ -29,10 +30,10 @@ export const VariationModifierOptionOverrides: CollectionConfig = {
     description: 'Hybrid rules for inherited product-level modifier options. Use these to hide or override base options for one variation.',
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: modifierConfigurationAccess,
+    create: modifierConfigurationAccess,
+    update: modifierConfigurationAccess,
+    delete: modifierConfigurationAccess,
   },
   fields: [
     {
@@ -157,6 +158,7 @@ export const VariationModifierOptionOverrides: CollectionConfig = {
   indexes: [
     {
       fields: ['variation_id', 'base_modifier_option_id'],
+      unique: true,
     },
   ],
   hooks: {

@@ -25,6 +25,7 @@
     "type-check:web": "turbo run type-check --filter=web",
     "type-check:web-driver": "turbo run type-check --filter=web-driver",
     "type-check:web-admin": "turbo run type-check --filter=web-admin",
+    "type-check:web-merchant": "turbo run type-check --filter=@encreasl/web-merchant",
     "type-check:mobile-customer": "turbo run type-check --filter=mobile-customer",
     "web:dev": "turbo run dev --filter=web",
     "web:build": "turbo run build --filter=web",
@@ -38,6 +39,10 @@
     "web-admin:build": "turbo run build --filter=web-admin",
     "web-admin:start": "cd apps/web-admin && pnpm start",
     "web-admin:deploy": "cd apps/web-admin && pnpm run build",
+    "web-merchant:dev": "turbo run dev --filter=@encreasl/web-merchant",
+    "web-merchant:build": "turbo run build --filter=@encreasl/web-merchant",
+    "web-merchant:start": "cd apps/web-merchant && pnpm start",
+    "web-merchant:deploy": "cd apps/web-merchant && pnpm run build",
     "web-vendor:dev": "turbo run dev --filter=web-vendor",
     "web-vendor:build": "turbo run build --filter=web-vendor",
     "web-vendor:start": "cd apps/web-vendor && pnpm start",
@@ -81,7 +86,7 @@
       "@react-native-async-storage/async-storage": "2.2.0",
       "@types/react": "~19.1.17",
       "babel-preset-expo": "~54.0.10",
-      "baseline-browser-mapping": "^2.10.0",
+      "baseline-browser-mapping": "2.11.18",
       "tailwindcss@<4": "3.3.2",
       "nativewind>tailwindcss": "3.3.2",
       "react-native-worklets": "0.5.1"
@@ -98,10 +103,7 @@
       "sharp",
       "esbuild",
       "unrs-resolver"
-    ],
-    "patchedDependencies": {
-      "baseline-browser-mapping": "patches/baseline-browser-mapping.patch"
-    }
+    ]
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
