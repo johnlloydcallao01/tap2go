@@ -270,47 +270,58 @@ export default function OrderDetailScreen() {
   const fetchOrder = useCallback(async () => {
     if (!id || !user?.id) return;
     try {
-      // Fetch order with merchant populated
-      const orderRes = await fetch(
-        `${apiConfig.baseUrl}/orders/${id}?depth=3`,
-        { headers: CMS_HEADERS },
+      const res = await fetch(
+        `${apiConfig.baseUrl}/orders/aggregate?userId=${user.id}&orderId=${id}`,
+        { headers: { 'Content-Type': 'application/json' } },
       );
-      if (!orderRes.ok) throw new Error('Order not found');
-      const orderData = await orderRes.json();
+      if (!res.ok) throw new Error('Order not found');
+      const agg = await res.json();
+      if (!agg) throw new Error('Order not found');
 
-      // Fetch delivery booking (if exists)
+      // Map aggregation response to existing types
       let deliveryBooking: DeliveryBooking | null = null;
-      const bookingRes = await fetch(
-        `${apiConfig.baseUrl}/delivery-bookings?where[order][equals]=${id}&limit=1`,
-        { headers: CMS_HEADERS },
-      );
-      if (bookingRes.ok) {
-        const bookingData = await bookingRes.json();
-        deliveryBooking = bookingData.docs?.[0] || null;
+      if (agg.delivery) {
+        const d = agg.delivery;
+        deliveryBooking = {
+          id: d.id,
+          lalamove_order_id: d.lalamoveOrderId,
+          share_link: d.shareLink,
+          status: d.status,
+          lalamove_raw_status: d.rawStatus,
+          delivery_fee: d.deliveryFee,
+          priority_fee: d.priorityFee,
+          distance_meters: d.distanceMeters,
+          driver_name: d.driver?.name,
+          driver_phone: d.driver?.phone,
+          driver_plate_number: d.driver?.plateNumber,
+          driver_photo_url: d.driver?.photoUrl,
+          driver_lat: d.driver?.lat,
+          driver_lng: d.driver?.lng,
+          driver_location_updated_at: d.driver?.locationUpdatedAt,
+        };
       }
 
-      // Fetch order items
-      const itemsRes = await fetch(
-        `${apiConfig.baseUrl}/order-items?where[order][equals]=${id}&depth=2&limit=100`,
-        { headers: CMS_HEADERS },
-      );
-      const itemsData = itemsRes.ok ? await itemsRes.json() : { docs: [] };
-
-      // Fetch delivery location (dropoff snapshot with rider notes/contact)
       let deliveryLocation: DeliveryLocation | null = null;
-      const deliveryLocRes = await fetch(
-        `${apiConfig.baseUrl}/delivery-locations?where[order][equals]=${id}&limit=1`,
-        { headers: CMS_HEADERS },
-      );
-      if (deliveryLocRes.ok) {
-        const deliveryLocData = await deliveryLocRes.json();
-        deliveryLocation = deliveryLocData.docs?.[0] || null;
+      if (agg.deliveryLocation) {
+        const dl = agg.deliveryLocation;
+        deliveryLocation = {
+          id: dl.id,
+          formatted_address: dl.formattedAddress,
+          street: dl.street,
+          floor_unit_room: dl.floorUnitRoom,
+          delivery_instructions: dl.deliveryInstructions,
+          notes: dl.notes,
+          contact_name: dl.contactName,
+          contact_phone: dl.contactPhone,
+          label: dl.label,
+          merchant_formatted_address: dl.merchantFormattedAddress,
+          merchant_street: dl.merchantStreet,
+          merchant_floor_unit_room: dl.merchantFloorUnitRoom,
+          merchant_delivery_instructions: dl.merchantDeliveryInstructions,
+        };
       }
 
-      // Pull LIVE status from the Lalamove API (server-side, via /delivery/track).
-      // The endpoint fetches the real order/driver state from Lalamove, persists
-      // it into delivery-bookings, and returns the fresh status back. Fall back
-      // to the cached booking on any failure so the order still renders.
+      // Pull LIVE status from Lalamove (keeps the real-time tracking working)
       if (deliveryBooking?.lalamove_order_id) {
         try {
           const trackRes = await fetch(
@@ -321,44 +332,42 @@ export default function OrderDetailScreen() {
             const trackData = await trackRes.json();
             const ds = trackData?.data?.deliveryStatus;
             const raw = trackData?.data?.lalamoveRawStatus;
-            if (ds) {
-              if (deliveryBooking) {
-                deliveryBooking = {
-                  ...deliveryBooking,
-                  status: ds,
-                  lalamove_raw_status: raw || deliveryBooking.lalamove_raw_status,
-                };
-              } else {
-                deliveryBooking = {
-                  id: trackData?.data?.orderId ?? 0,
-                  status: ds,
-                  lalamove_raw_status: raw ?? null,
-                } as DeliveryBooking;
-              }
+            if (ds && deliveryBooking) {
+              deliveryBooking = {
+                ...deliveryBooking,
+                status: ds,
+                lalamove_raw_status: raw || deliveryBooking.lalamove_raw_status,
+              };
             }
           }
         } catch (err) {
-          console.warn('[OrderDetail] live Lalamove status unavailable, using cached:', err);
+          console.warn('[OrderDetail] live Lalamove status unavailable:', err);
         }
       }
 
-      // Payment verification — green Paid badge
-      let isPaid = false;
-      const txRes = await fetch(
-        `${apiConfig.baseUrl}/transactions?where[order][equals]=${id}&where[status][equals]=paid&limit=1`,
-        { headers: CMS_HEADERS },
-      );
-      if (txRes.ok) {
-        const txData = await txRes.json();
-        isPaid = (txData.docs?.length || 0) > 0;
-      }
-
       setOrder({
-        ...orderData,
+        id: agg.id,
+        status: agg.status,
+        fulfillment_type: agg.fulfillmentType,
+        total: agg.total,
+        subtotal: agg.subtotal,
+        delivery_fee: agg.deliveryFee,
+        platform_fee: agg.platformFee,
+        placed_at: agg.placedAt,
+        delivery_status: deliveryBooking?.status || null,
+        lalamove_order_id: agg.delivery?.lalamoveOrderId || null,
+        merchant: agg.merchant,
+        customer: agg.customer,
         deliveryBooking,
         deliveryLocation,
-        items: itemsData.docs || [],
-        isPaid,
+        items: (agg.items || []).map((item: any) => ({
+          id: item.id,
+          product_name_snapshot: item.name,
+          price_at_purchase: item.price,
+          quantity: item.quantity,
+          total_price: item.total,
+        })),
+        isPaid: agg.isPaid || false,
       });
       setError(null);
     } catch (err: any) {
@@ -385,7 +394,7 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     if (
       order?.status &&
-      !['delivered', 'cancelled'].includes(order.status)
+      !['delivered', 'completed', 'canceled', 'cancelled', 'expired', 'rejected'].includes(order.status)
     ) {
       pollingRef.current = setInterval(() => {
         fetchOrder();
@@ -502,7 +511,8 @@ export default function OrderDetailScreen() {
     CANCELLED_DELIVERY_STATUSES.includes(delivery?.status || '') ||
     order.delivery_status === 'canceled' ||
     order.delivery_status === 'expired' ||
-    order.status === 'cancelled';
+    order.status === 'cancelled' ||
+    order.status === 'canceled';
   const deliveryCancelledTitle =
     delivery?.status === 'expired' || order.delivery_status === 'expired'
       ? 'Delivery Expired — No Rider Found'
@@ -866,6 +876,7 @@ export default function OrderDetailScreen() {
         {/* Cancel delivery */}
         {order.fulfillment_type === 'delivery' &&
           order.status !== 'cancelled' &&
+          order.status !== 'canceled' &&
           (order.delivery_status === 'assigning_driver' ||
             order.delivery_status === 'pending' ||
             order.delivery_status === 'none') && (

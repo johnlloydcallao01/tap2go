@@ -198,10 +198,14 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   const markAsRead = useCallback(
     async (id: string) => {
+      const target = notifications.find((n) => n.id === id);
+      const wasUnread = target?.status !== 'read';
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, status: 'read' } : n)),
       );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      if (wasUnread) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
       try {
         await markNotificationAsRead(id);
       } catch (err) {
@@ -209,7 +213,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       }
       syncUnreadOnly();
     },
-    [syncUnreadOnly],
+    [notifications, syncUnreadOnly],
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -222,17 +226,21 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, [notifications]);
 
   const markAsUnread = useCallback(async (id: string) => {
+    const target = notifications.find((n) => n.id === id);
+    const wasRead = target?.status === 'read';
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, status: 'unread' } : n)),
     );
-    setUnreadCount((prev) => prev + 1);
+    if (wasRead) {
+      setUnreadCount((prev) => prev + 1);
+    }
     try {
       await markNotificationAsUnread(id);
     } catch (err) {
       console.error('[NotificationsContext] markAsUnread failed:', err);
     }
     syncUnreadOnly();
-  }, [syncUnreadOnly]);
+  }, [notifications, syncUnreadOnly]);
 
   // Clears the bell badge but keeps notifications unread - Facebook-style.
   const markAllAsSeen = useCallback(async () => {

@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useForm, Controller, SubmitHandler } from 'react-hook-form';
 import { Save, Eye, X } from '@/components/ui/IconWrapper';
 import { PostFormData, validatePostForm, generateSlug } from '@encreasl/cms-types'
+import { useAuth } from '@/hooks/useAuth';
+import { getStoredToken } from '@/lib/auth';
 
 // Type for PayloadCMS user object
 interface PayloadUser {
@@ -98,8 +100,15 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
     setError(null);
 
     try {
+      const storedToken = getStoredToken();
+      const headers: Record<string, string> = {};
+      if (storedToken) {
+        headers['Authorization'] = `JWT ${storedToken}`;
+      }
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/posts/${id}`, {
         credentials: 'include',
+        headers,
       });
 
       if (!response.ok) {
@@ -156,113 +165,19 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
   }, [reset]);
 
   // Get current user for author field
+  const { user: authUser } = useAuth();
+
   useEffect(() => {
-    const getCurrentUser = async () => {
-      try {
-        console.log('🔍 Fetching current user from PayloadCMS...');
+    // Use the authenticated admin user from AuthContext
+    if (authUser && authUser.id) {
+      const user = authUser as unknown as Record<string, unknown>;
+      _setCurrentUser(user);
 
-        // Get the payload-token cookie value
-        const getPayloadToken = () => {
-          const cookies = document.cookie.split(';');
-          for (let cookie of cookies) {
-            const [name, value] = cookie.trim().split('=');
-            if (name === 'payload-token') {
-              return value;
-            }
-          }
-          return null;
-        };
-
-        const payloadToken = getPayloadToken();
-        console.log('🍪 PayloadCMS token for user fetch:', !!payloadToken);
-
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-
-        // Add Authorization header if we have a token
-        if (payloadToken) {
-          headers['Authorization'] = `JWT ${payloadToken}`;
-          console.log('🔐 Added Authorization header for user fetch');
-        }
-
-        // Try the correct PayloadCMS me endpoint
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me`, {
-          method: 'GET',
-          credentials: 'include',
-          headers,
-        });
-
-        console.log('📡 User response status:', response.status);
-        console.log('📡 User response headers:', Object.fromEntries(response.headers.entries()));
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log('✅ Current user response:', result);
-
-          // PayloadCMS returns the user directly, not wrapped in a user property
-          const user = result.user || result; // Handle both formats
-
-          if (user && user.id) {
-            console.log('👤 User data:', user);
-            console.log('👤 User fields available:', Object.keys(user));
-            _setCurrentUser(user as unknown as Record<string, unknown>);
-
-            // Ensure user.id is a number
-            const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
-            console.log('👤 Setting author ID:', userId, typeof userId);
-            setValue('author', userId);
-          } else {
-            console.warn('⚠️ No user data in response:', result);
-            console.log('🔧 Using fallback: Setting default author ID');
-
-            // Create a mock user for display purposes
-            _setCurrentUser({
-              id: 1,
-              email: 'admin@example.com',
-              firstName: 'Admin',
-              lastName: 'User',
-              role: 'admin'
-            } as unknown as Record<string, unknown>);
-
-            // Set a default author ID (admin user)
-            setValue('author', 1);
-            console.log('✅ Fallback author set: ID 1');
-          }
-        } else {
-          console.warn('⚠️ Failed to fetch user:', response.status);
-          const errorText = await response.text();
-          console.warn('⚠️ User fetch error:', errorText);
-
-          // Set fallback user and author
-          _setCurrentUser({
-            id: 1,
-            email: 'admin@example.com',
-            firstName: 'Admin',
-            lastName: 'User',
-            role: 'admin'
-          } as unknown as Record<string, unknown>);
-          setValue('author', 1);
-          console.log('✅ Fallback author set due to fetch error: ID 1');
-        }
-      } catch (error) {
-        console.warn('⚠️ Failed to get current user:', error);
-
-        // Set fallback user and author
-        _setCurrentUser({
-          id: 1,
-          email: 'admin@example.com',
-          firstName: 'Admin',
-          lastName: 'User',
-          role: 'admin'
-        } as unknown as Record<string, unknown>);
-        setValue('author', 1);
-        console.log('✅ Fallback author set due to network error: ID 1');
-      }
-    };
-
-    getCurrentUser();
-  }, [setValue]);
+      // Ensure user.id is a number
+      const userId = typeof authUser.id === 'string' ? parseInt(authUser.id, 10) : authUser.id;
+      setValue('author', userId);
+    }
+  }, [authUser, setValue]);
 
   // Load existing post if editing
   useEffect(() => {
@@ -310,28 +225,17 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
 
       console.log('📤 Sending data to PayloadCMS:', payloadData);
 
-      // Get the payload-token cookie value
-      const getPayloadToken = () => {
-        const cookies = document.cookie.split(';');
-        for (let cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'payload-token') {
-            return value;
-          }
-        }
-        return null;
-      };
-
-      const payloadToken = getPayloadToken();
-      console.log('🍪 PayloadCMS token found:', !!payloadToken);
+      // Use the JWT token persisted in localStorage (the payload-token cookie is HttpOnly
+      // and is therefore NOT readable via document.cookie)
+      const storedToken = getStoredToken();
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
       // Add Authorization header if we have a token
-      if (payloadToken) {
-        headers['Authorization'] = `JWT ${payloadToken}`;
+      if (storedToken) {
+        headers['Authorization'] = `JWT ${storedToken}`;
         console.log('🔐 Added Authorization header with JWT token');
       }
 
@@ -600,9 +504,6 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
                               <>
                                 {firstName} {lastName}
                                 {email && <span className="text-gray-400 ml-1">({email})</span>}
-                                {user.id === 1 && email === 'admin@example.com' && (
-                                  <span className="text-orange-500 text-xs ml-2">(Fallback)</span>
-                                )}
                               </>
                             );
                           }
@@ -612,9 +513,6 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
                             return (
                               <span>
                                 {email}
-                                {user.id === 1 && email === 'admin@example.com' && (
-                                  <span className="text-orange-500 text-xs ml-2">(Fallback)</span>
-                                )}
                               </span>
                             );
                           }

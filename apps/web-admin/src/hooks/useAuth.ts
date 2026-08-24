@@ -222,7 +222,7 @@ export function getUserInitials(user: User | null): string {
 // ========================================
 
 /**
- * Hook for user permissions (placeholder for future implementation)
+ * Hook for user permissions (admin-only access)
  */
 export function usePermissions() {
   const { user, isAuthenticated } = useAuthContext();
@@ -230,8 +230,13 @@ export function usePermissions() {
   return {
     user,
     isAuthenticated,
-    // Add permission checks here as needed
-    canAccess: (_resource: string) => isAuthenticated,
-    hasRole: (_role: string) => isAuthenticated,
+    isAdmin: isAuthenticated && user?.role === 'admin',
+    // Admin panel access is restricted to admin role only (see src/lib/auth.ts)
+    canAccess: (resource: string) => isAuthenticated && user?.role === 'admin',
+    hasRole: (role: string) => isAuthenticated && user?.role === role,
+    canManageUsers: isAuthenticated && user?.role === 'admin',
+    canManageContent: isAuthenticated && user?.role === 'admin',
+    canViewAnalytics: isAuthenticated && user?.role === 'admin',
+    canManageSettings: isAuthenticated && user?.role === 'admin',
   };
 }

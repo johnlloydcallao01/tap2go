@@ -4,7 +4,10 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Upload, X, File } from '@/components/ui/IconWrapper';
 // Note: useUploadMediaMutation available but using direct fetch for now
 import { getCMSImageUrl } from '@/lib/cms';
-// Authentication is now handled by middleware
+import { useAuth } from '@/hooks/useAuth';
+import { getStoredToken } from '@/lib/auth';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
 
 interface MediaUploaderProps {
   value?: string | number; // Media ID
@@ -48,16 +51,23 @@ export function MediaUploader({
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Authentication is now handled by middleware
-  const isAuthenticated = true;
+  // Use real authentication state from AuthContext
+  const { isAuthenticated } = useAuth();
 
   const loadMediaInfo = useCallback(async (mediaId: string | number) => {
     if (!isAuthenticated) return;
 
     try {
+      const storedToken = getStoredToken();
+      const headers: Record<string, string> = {};
+      if (storedToken) {
+        headers['Authorization'] = `JWT ${storedToken}`;
+      }
+
       // Use direct fetch for now - could be replaced with RTK Query
-      const response = await fetch(`/api/media/${mediaId}`, {
+      const response = await fetch(`${API_BASE_URL}/media/${mediaId}`, {
         credentials: 'include',
+        headers,
       });
 
       if (response.ok) {
@@ -127,8 +137,11 @@ export function MediaUploader({
 
         xhr.onerror = () => reject(new Error('Upload failed'));
 
-        xhr.open('POST', `/api/media`);
-        // Credentials are handled by the browser with credentials: 'include'
+        const storedToken = getStoredToken();
+        xhr.open('POST', `${API_BASE_URL}/media`);
+        if (storedToken) {
+          xhr.setRequestHeader('Authorization', `JWT ${storedToken}`);
+        }
         xhr.send(formData);
       });
 

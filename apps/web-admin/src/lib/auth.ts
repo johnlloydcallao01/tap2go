@@ -20,8 +20,14 @@ import {
 // CONFIGURATION
 // ========================================
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.grandlinemaritime.com/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
 const COLLECTION_SLUG = 'users';
+
+// localStorage keys for persistent admin session (mirrors apps/web pattern)
+const TOKEN_KEY = 'admin_auth_token';
+const EXPIRES_KEY = 'admin_auth_expires';
+const USER_KEY = 'admin_auth_user';
+const TOKEN_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Request configuration for cookie-based authentication
 const REQUEST_CONFIG: RequestInit = {
@@ -134,7 +140,62 @@ async function makeAuthRequest<T>(endpoint: string, options: RequestInit = {}): 
   }
 }
 
+// ========================================
+// STORED SESSION HELPERS
+// ========================================
 
+/**
+ * Check if a valid (non-expired) admin token is stored
+ * Mirrors apps/web hasValidStoredToken
+ */
+export function hasValidStoredToken(): boolean {
+  if (typeof window === 'undefined') return false;
+  const token = localStorage.getItem(TOKEN_KEY);
+  const expires = localStorage.getItem(EXPIRES_KEY);
+  if (!token || !expires) return false;
+  return Date.now() < parseInt(expires, 10);
+}
+
+/**
+ * Get the stored admin JWT token (for Authorization headers on CMS API calls)
+ */
+export function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+/**
+ * Persist the admin session in localStorage
+ */
+function storeAuthData(token: string, user: User): void {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(EXPIRES_KEY, (Date.now() + TOKEN_LIFETIME_MS).toString());
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+/**
+ * Get cached user from localStorage (fast session restore)
+ */
+export function getStoredUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    const user = JSON.parse(raw) as User;
+    return user && typeof user === 'object' ? user : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if stored token is expired
+ */
+function isTokenExpired(): boolean {
+  const expires = localStorage.getItem(EXPIRES_KEY);
+  if (!expires) return true;
+  return Date.now() >= parseInt(expires, 10);
+}
 
 // ========================================
 // ROLE VALIDATION
@@ -172,6 +233,11 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       throw new AuthenticationError('ACCESS_DENIED', 'Access denied. Only admins can access this application.');
     }
 
+    // Persist token for robust session across reloads (mirrors apps/web)
+    if (data.token) {
+      storeAuthData(data.token, data.user);
+    }
+
     return {
       message: data.message,
       user: data.user,
@@ -197,20 +263,33 @@ export async function logout(): Promise<void> {
     console.error('Logout error:', error);
     // Continue with logout even if API call fails
   }
+  clearAuthState();
 }
 
 export async function getCurrentUser(): Promise<User | null> {
+  // Skip server call if no valid stored token (mirrors apps/web)
+  if (!hasValidStoredToken()) {
+    return null;
+  }
+
   try {
     const response = await makeAuthRequest<PayloadMeResponse>('/me');
     
     if (response.user?.role !== 'admin') {
-      throw new AuthenticationError('ACCESS_DENIED', 'Access denied. Only admins can access this application.');
+      clearAuthState();
+      return null;
     }
-    
+
+    // Refresh cached user data
+    localStorage.setItem(USER_KEY, JSON.stringify(response.user));
     return response.user;
   } catch (error) {
     if (error instanceof AuthenticationError) {
-      throw error;
+      // Clear session state on auth failures
+      if (error.type === 'INVALID_CREDENTIALS' || error.type === 'ACCESS_DENIED') {
+        clearAuthState();
+      }
+      return null;
     }
     
     return null;
@@ -218,8 +297,12 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 export async function refreshSession(): Promise<User | null> {
+  if (!hasValidStoredToken()) {
+    return null;
+  }
+
   try {
-    const data: PayloadMeResponse = await makeAuthRequest('/refresh-token', {
+    const data: PayloadAuthResponse = await makeAuthRequest('/refresh-token', {
       method: 'POST',
     });
 
@@ -230,9 +313,17 @@ export async function refreshSession(): Promise<User | null> {
     // Validate that the user is still an admin
     validateAdminAccess(data.user);
 
+    // Rotate stored token
+    if (data.token) {
+      storeAuthData(data.token, data.user);
+    }
+
     return data.user;
   } catch (error) {
     if (error instanceof AuthenticationError) {
+      if (error.type === 'SESSION_EXPIRED') {
+        clearAuthState();
+      }
       throw error;
     }
     throw new AuthenticationError('SESSION_EXPIRED', 'Session refresh failed.');
@@ -248,11 +339,14 @@ export async function checkAuthStatus(): Promise<boolean> {
   }
 }
 
-export function getSessionInfo(): SessionInfo {
-  // For cookie-based auth, we can't easily check expiration client-side
-  // Return basic info and let server validation determine actual status
+export async function getSessionInfo(): Promise<SessionInfo> {
+  const user = await getCurrentUser();
+  const expires = localStorage.getItem(EXPIRES_KEY);
+  
   return {
-    isValid: true, // Will be validated by server calls
+    isValid: user !== null,
+    user: user || undefined,
+    expiresAt: expires ? new Date(parseInt(expires, 10)) : undefined,
   };
 }
 
@@ -276,6 +370,16 @@ export function formatAuthError(error: AuthErrorDetails): string {
     default:
       return error.message || 'An unexpected error occurred. Please try again.';
   }
+}
+
+/**
+ * Get display name for a user (full name or email)
+ */
+export function getUserDisplayName(user: User): string {
+  if (user.firstName && user.lastName) {
+    return `${user.firstName} ${user.lastName}`;
+  }
+  return user.email;
 }
 
 // ========================================
@@ -326,6 +430,10 @@ export function startSessionMonitoring(): () => void {
 }
 
 export function clearAuthState(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(EXPIRES_KEY);
+  localStorage.removeItem(USER_KEY);
   emitAuthEvent('logout');
 }
 

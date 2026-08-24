@@ -10,8 +10,8 @@ import { env } from './env';
 // ========================================
 
 export const cmsConfig = {
-  apiUrl: env.NEXT_PUBLIC_API_URL || 'https://cms.grandlinemaritime.com/api',
-  serverUrl: env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://cms.grandlinemaritime.com',
+  apiUrl: env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api',
+  serverUrl: env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://cms.tap2goph.com',
   collections: {
     posts: 'posts',
     media: 'media',

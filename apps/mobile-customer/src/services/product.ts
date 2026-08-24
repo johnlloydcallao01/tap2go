@@ -222,7 +222,9 @@ export async function fetchProductWithMerchantContext(productId: string, merchan
 
         const defaultVariation = variations.find((variation) => String(variation.id) === String(defaultVariationId));
         if (defaultVariation) {
-          finalProduct.basePrice = defaultVariation.base_price || merchantPriceOverride || finalProduct.basePrice || 0;
+          // Merchant price override takes precedence, matching the simple-product
+          // path above so variable products honor the same override.
+          finalProduct.basePrice = merchantPriceOverride ?? defaultVariation.base_price ?? finalProduct.basePrice ?? 0;
           finalProduct.compareAtPrice = defaultVariation.compare_at_price ?? finalProduct.compareAtPrice;
           finalProduct.shortDescription = defaultVariation.short_description || finalProduct.shortDescription;
           if (defaultVariation.image) {

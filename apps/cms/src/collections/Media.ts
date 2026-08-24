@@ -9,11 +9,23 @@ export const Media: CollectionConfig = {
     update: authenticatedUsers, // Only authenticated users can update media
     delete: adminOnly, // Only admins can delete media
   },
+  admin: {
+    defaultColumns: ['filename', 'alt', 'cloudinaryPublicId', 'cloudinaryURL', 'image'],
+  },
   fields: [
     {
       name: 'alt',
       type: 'text',
       required: false,
+    },
+    {
+      name: 'image',
+      type: 'ui',
+      admin: {
+        components: {
+          Cell: '/components/admin/MediaImageCell',
+        },
+      },
     },
   ],
   upload: {

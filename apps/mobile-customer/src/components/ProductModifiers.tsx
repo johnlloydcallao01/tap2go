@@ -37,10 +37,9 @@ export default function ProductModifiers({ modifierGroups, selected, onChange }:
     let nextGroup: string[] = current;
 
     if (group.selection_type === 'single') {
-      nextGroup = isChecked ? [] : [optionId]; // Toggle off if already selected? Usually radio buttons don't toggle off, but let's allow re-selection. Actually web implementation: `nextGroup = checked ? [optionId] : []`.
-      // For single select, clicking usually selects it. If already selected, maybe do nothing or allow deselect? Web allows deselect if "checked" is false passed from input.
-      // Here we just toggle. If it's single, we replace.
-      nextGroup = [optionId];
+      // Radio toggle: selecting an already-chosen option deselects it (matches
+      // the web implementation), so optional single-select groups can be cleared.
+      nextGroup = isChecked ? [] : [optionId];
     } else {
       if (!isChecked) {
         // Add

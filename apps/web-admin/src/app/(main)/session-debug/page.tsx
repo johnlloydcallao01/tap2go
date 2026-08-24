@@ -2,15 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { getFullName } from '@/hooks/useAuth';
 
 /**
  * Admin Session Debug Page
  * 
  * Debug interface for testing admin functionality.
- * Shows session state and provides testing utilities.
+ * Shows real session state and provides testing utilities.
  */
 export default function AdminSessionDebugPage() {
   const router = useRouter();
+  const { user, isAuthenticated, isInitialized, isLoading, error } = useAuth();
   const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
   const [testResults, setTestResults] = useState<string[]>([]);
 
@@ -20,59 +23,67 @@ export default function AdminSessionDebugPage() {
       timestamp: new Date().toISOString(),
       cookies: typeof document !== 'undefined' ? document.cookie : 'N/A',
       localStorage: typeof localStorage !== 'undefined' ? {
-        mockData: 'No authentication data stored'
+        admin_auth_token: localStorage.getItem('admin_auth_token') ? 'present' : null,
+        admin_auth_expires: localStorage.getItem('admin_auth_expires') || null,
+        admin_auth_user: localStorage.getItem('admin_auth_user') || null,
       } : 'N/A',
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A',
       protocol: typeof window !== 'undefined' ? window.location.protocol : 'N/A',
-      sessionInfo: { status: 'Mock session - no authentication' }
     };
-    
+
     setDebugInfo(info);
   }, []);
 
-  // Test mock session
-  const testMockSession = () => {
+  // Test session
+  const testSession = () => {
     const results: string[] = [];
-    
+
     try {
-      results.push('🔄 Testing mock session...');
-      results.push('✅ Mock session active');
-      results.push('✅ No authentication required');
-      
+      results.push('🔄 Testing session...');
+      results.push(`✅ Authenticated: ${isAuthenticated}`);
+      results.push(`✅ Initialized: ${isInitialized}`);
+      results.push(`✅ Loading: ${isLoading}`);
+      if (user) {
+        results.push(`✅ User: ${getFullName(user)} (${user.email})`);
+        results.push(`✅ Role: ${user.role}`);
+      } else {
+        results.push('⚠️ No authenticated user');
+      }
+
       updateDebugInfo();
-      
     } catch (error) {
-      results.push(`❌ Mock session test failed: ${error}`);
+      results.push(`❌ Session test failed: ${error}`);
     }
-    
+
     setTestResults(results);
   };
 
-  // Test mock logout
-  const testMockLogout = () => {
+  // Test logout
+  const testLogout = () => {
     const results: string[] = [];
-    
+
     try {
-      results.push('🔄 Testing mock logout...');
-      results.push('✅ Mock logout successful');
-      results.push('✅ No session data to clear');
-      
+      results.push('🔄 Testing logout...');
+      results.push(`✅ Authenticated: ${isAuthenticated}`);
+      results.push(`✅ Session data: ${localStorage.getItem('admin_auth_token') ? 'present' : 'none'}`);
+
       updateDebugInfo();
-      
     } catch (error) {
-      results.push(`❌ Mock logout test failed: ${error}`);
+      results.push(`❌ Logout test failed: ${error}`);
     }
-    
+
     setTestResults(results);
   };
 
-  // Clear mock data
-  const clearMockData = () => {
+  // Clear stored auth data
+  const clearAuthData = () => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.clear();
+      localStorage.removeItem('admin_auth_token');
+      localStorage.removeItem('admin_auth_expires');
+      localStorage.removeItem('admin_auth_user');
     }
     updateDebugInfo();
-    setTestResults(['✅ Mock data cleared']);
+    setTestResults(['✅ Auth data cleared from localStorage']);
   };
 
   useEffect(() => {
@@ -85,44 +96,70 @@ export default function AdminSessionDebugPage() {
         <div className="bg-white shadow-xl rounded-lg">
           <div className="px-6 py-4 border-b border-gray-200">
             <h1 className="text-2xl font-bold text-gray-900">Admin Session Debug</h1>
-            <p className="text-gray-600 mt-1">Debug interface for testing admin functionality</p>
+            <p className="text-gray-600 mt-1">Debug interface for testing admin authentication</p>
           </div>
 
           <div className="p-6 space-y-8">
             {/* Session Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h2 className="text-lg font-semibold text-blue-900 mb-3">Mock Session Information</h2>
+            <div className={`border rounded-lg p-4 ${isAuthenticated ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+              <h2 className={`text-lg font-semibold mb-3 ${isAuthenticated ? 'text-green-900' : 'text-yellow-900'}`}>
+                Session Information
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <span className="text-sm font-medium text-blue-700">Status:</span>
-                  <span className="ml-2 text-sm text-blue-600">Mock Mode Active</span>
+                  <span className="text-sm font-medium text-gray-700">Status:</span>
+                  <span className={`ml-2 text-sm ${isAuthenticated ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-sm font-medium text-blue-700">Authentication:</span>
-                  <span className="ml-2 text-sm text-blue-600">Disabled</span>
+                  <span className="text-sm font-medium text-gray-700">Initialized:</span>
+                  <span className="ml-2 text-sm text-gray-600">{isInitialized ? 'Yes' : 'No'}</span>
                 </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Loading:</span>
+                  <span className="ml-2 text-sm text-gray-600">{isLoading ? 'Yes' : 'No'}</span>
+                </div>
+                {user && (
+                  <>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">User:</span>
+                      <span className="ml-2 text-sm text-gray-600">{getFullName(user)}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Role:</span>
+                      <span className="ml-2 text-sm text-gray-600">{user.role}</span>
+                    </div>
+                  </>
+                )}
+                {error && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Error:</span>
+                    <span className="ml-2 text-sm text-red-600">{error}</span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Action Buttons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
-                onClick={testMockSession}
+                onClick={testSession}
                 className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
-                Test Mock Session
+                Test Session
               </button>
               <button
-                onClick={testMockLogout}
+                onClick={testLogout}
                 className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
-                Test Mock Logout
+                Test Logout
               </button>
               <button
-                onClick={clearMockData}
+                onClick={clearAuthData}
                 className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
-                Clear Mock Data
+                Clear Auth Data
               </button>
             </div>
 

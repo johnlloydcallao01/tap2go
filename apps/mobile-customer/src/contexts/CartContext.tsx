@@ -109,8 +109,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(url, { headers, cache: 'no-store' });
       
       if (!res.ok) {
-        setItems([]);
         setIsLoading(false);
+        hasLoadedRef.current = true;
         return;
       }
       
@@ -171,9 +171,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       hasLoadedRef.current = true;
     } catch (e: any) {
       setError(e?.message || 'Failed to load cart');
-      // Don't clear items on error if we had some, but maybe safer to clear?
-      // Web clears it.
-      setItems([]);
+      // Don't clear items on error — keep the last good snapshot so a
+      // transient network failure doesn't wipe the cart from the UI.
       setIsLoading(false);
       hasLoadedRef.current = true;
     }
@@ -271,45 +270,58 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [customerId, loadCart, API_BASE]
   );
 
+  const removeItemServer = useCallback(
+    async (id: number) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const apiKey = apiConfig.payloadApiKey;
+      if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
+
+      const res = await fetch(`${API_BASE}/cart-items/${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          status: 'removed',
+          deleted_at: new Date().toISOString(),
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Remove from cart failed (${res.status})`);
+      }
+    },
+    [API_BASE],
+  );
+
   const removeFromCart = useCallback(
     async (id: number) => {
       try {
         setError(null);
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        const apiKey = apiConfig.payloadApiKey;
-        if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
-
-        const res = await fetch(`${API_BASE}/cart-items/${id}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({
-              status: 'removed',
-              deleted_at: new Date().toISOString()
-          })
-        });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          throw new Error(text || `Remove from cart failed (${res.status})`);
-        }
-
+        await removeItemServer(id);
         await loadCart();
       } catch (e: any) {
         setError(e?.message || 'Failed to remove from cart');
       }
     },
-    [loadCart, API_BASE]
+    [removeItemServer, loadCart]
   );
 
   const updateQuantity = useCallback(
     async (id: number, quantity: number) => {
       try {
         setError(null);
+
+        // Decrementing below 1 removes the item from the cart instead of
+        // leaving a stale zero-quantity line item.
+        if (quantity < 1) {
+          await removeFromCart(id);
+          return;
+        }
+
         // Optimistic update
         setItems((prev) =>
           prev.map((item) => {
             if (item.id !== id) return item;
-            if (quantity < 1) return item;
             const unit =
               item.quantity > 0 ? item.subtotal / item.quantity : item.priceAtAdd;
             return {
@@ -340,47 +352,41 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setError(e?.message || 'Failed to update quantity');
       }
     },
-    [loadCart, API_BASE]
+    [removeFromCart, loadCart, API_BASE]
   );
 
   const clearCart = useCallback(async () => {
-    // Implement by removing all items locally then reloading, 
-    // or deleting one by one since we don't have bulk delete endpoint confirmed.
-    // Ideally backend should have clear cart endpoint.
-    // For now, iterate and delete.
     try {
-        // Parallel delete
-        await Promise.all(items.map(item => removeFromCart(item.id)));
+      await Promise.allSettled(items.map((item) => removeItemServer(item.id)));
+      await loadCart();
     } catch (e) {
-        console.error('Failed to clear cart', e);
+      console.error('Failed to clear cart', e);
     }
-  }, [items, removeFromCart]);
+  }, [items, removeItemServer, loadCart]);
 
   const clearMerchantCart = useCallback(async (merchantId: string | number) => {
     try {
       const mIdStr = String(merchantId);
       const itemsToDelete = items.filter(item => String(item.merchant) === mIdStr);
-      await Promise.all(itemsToDelete.map(item => removeFromCart(item.id)));
+      await Promise.allSettled(itemsToDelete.map(item => removeItemServer(item.id)));
+      await loadCart();
     } catch (e) {
       console.error('Failed to clear merchant cart', e);
     }
-  }, [items, removeFromCart]);
+  }, [items, removeItemServer, loadCart]);
 
   useEffect(() => {
     loadCart();
   }, [loadCart]);
 
   const totalQuantity = useMemo(() => {
-    const merchantIds = new Set<number>();
+    let count = 0;
     for (const item of items) {
-      const id =
-        typeof item.merchant === 'number' ? item.merchant : Number(item.merchant);
-      if (!Number.isNaN(id)) merchantIds.add(id);
+      count += Number(item.quantity) || 0;
     }
-    pendingMerchantIds.forEach((id) => {
-      if (!Number.isNaN(id)) merchantIds.add(id);
-    });
-    return merchantIds.size;
+    // Rough in-flight feedback for adds that haven't loaded yet.
+    count += pendingMerchantIds.size;
+    return count;
   }, [items, pendingMerchantIds]);
 
   const getCartTotal = () => {

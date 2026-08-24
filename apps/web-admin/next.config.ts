@@ -24,6 +24,16 @@ const nextConfig: NextConfig = {
     },
   },
 
+  // Proxy API requests to CMS to avoid CORS issues (consistent with apps/web)
+  async rewrites() {
+    return [
+      {
+        source: '/api/cms/:path*',
+        destination: 'https://cms.tap2goph.com/api/:path*',
+      },
+    ];
+  },
+
   // Admin-specific security headers
   async headers() {
     return [

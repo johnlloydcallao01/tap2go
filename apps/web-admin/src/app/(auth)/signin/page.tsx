@@ -6,6 +6,7 @@ import { Shield, Eye, EyeOff, AlertCircle, Loader2 } from '@/components/ui/IconW
 import { useAuth } from '@/hooks/useAuth';
 import { PublicRoute } from '@/components/auth';
 import { AuthenticationError } from '@/lib/auth';
+import Link from 'next/link';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -213,6 +214,15 @@ function LoginForm() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+                <div className="flex items-center justify-end">
+                <Link
+                  href="/signin/forgot-password"
+                  className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                >
+                  Forgot password?
+                </Link>
               </div>
 
               <button

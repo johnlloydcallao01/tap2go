@@ -17,6 +17,8 @@ import {
   login as authLogin,
   logout as authLogout,
   getCurrentUser,
+  getStoredUser,
+  hasValidStoredToken,
   refreshSession as authRefreshSession,
   checkAuthStatus,
   clearAuthState,
@@ -173,7 +175,16 @@ export const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
 
   const initializeAuth = useCallback(async () => {
     try {
-      // For cookie-based auth, check with server directly
+      // Fast path: restore cached admin session from localStorage before validating with server
+      if (hasValidStoredToken()) {
+        const cachedUser = getStoredUser();
+        if (cachedUser && cachedUser.role === 'admin') {
+          dispatch({ type: 'AUTH_FAST_SUCCESS', payload: { user: cachedUser } });
+          emitAuthEvent('session_restored', { user: cachedUser });
+        }
+      }
+
+      // Validate with server
       const user = await getCurrentUser();
       dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user } });
 

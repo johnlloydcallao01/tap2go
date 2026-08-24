@@ -72,10 +72,11 @@ export async function getCurrentAdminUser(): Promise<PayloadUser | null> {
 
 /**
  * Check if user has admin privileges
+ * Consistent with client-side admin-only access (see src/lib/auth.ts)
  */
 export function isAdminUser(user: PayloadUser | null): boolean {
   if (!user) return false;
-  return ['admin', 'super-admin', 'editor'].includes(user.role);
+  return user.role === 'admin';
 }
 
 /**

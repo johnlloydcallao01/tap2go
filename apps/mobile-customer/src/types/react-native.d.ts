@@ -104,7 +104,7 @@ declare module 'react-native-maps' {
   }
 
   interface PolylineProps {
-    coordinates: Array<{ latitude: number; longitude: number }>;
+    coordinates: { latitude: number; longitude: number }[];
     strokeWidth?: number;
     strokeColor?: string;
     lineCap?: 'round' | 'butt' | 'square' | (string & {});

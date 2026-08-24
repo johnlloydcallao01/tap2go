@@ -120,124 +120,44 @@ export default function OrdersScreen() {
     }
 
     try {
-      const headers = {
-        'Authorization': `users API-Key ${apiConfig.payloadApiKey}`,
-        'Content-Type': 'application/json',
-      };
-
-      const ordersRes = await fetch(
-        `${apiConfig.baseUrl}/orders?where[customer.user][equals]=${user.id}&depth=3&sort=-placed_at`,
-        { headers }
+      const res = await fetch(
+        `${apiConfig.baseUrl}/orders/aggregate?userId=${user.id}`,
+        { headers: { 'Content-Type': 'application/json' } },
       );
-      const ordersData = await ordersRes.json();
-      
-      if (!ordersData.docs || ordersData.docs.length === 0) {
+      if (!res.ok) throw new Error('Failed to load orders');
+      const data = await res.json();
+
+      if (!data.docs || data.docs.length === 0) {
         setOrders([]);
         return;
       }
 
-      const fetchedOrders = ordersData.docs;
-      const orderIds = fetchedOrders.map((o: any) => o.id);
-
-      const itemsRes = await fetch(
-        `${apiConfig.baseUrl}/order-items?where[order][in]=${orderIds.join(',')}&depth=2&limit=300`,
-         { headers }
-      );
-      const itemsData = await itemsRes.json();
-      const allItems = itemsData.docs || [];
-
-      // Fetch transactions for payment verification (paid = green badge)
-      const paidOrderIds = new Set<number>();
-      const txRes = await fetch(
-        `${apiConfig.baseUrl}/transactions?where[order][in]=${orderIds.join(',')}&where[status][equals]=paid&limit=300`,
-        { headers },
-      );
-      if (txRes.ok) {
-        const txData = await txRes.json();
-        for (const tx of txData.docs || []) {
-          const oid = typeof tx.order === 'object' ? tx.order.id : tx.order;
-          if (oid) paidOrderIds.add(Number(oid));
-        }
-      }
-
-      const mappedOrders = fetchedOrders.map((order: any) => {
-        const orderItems = allItems.filter((item: any) => 
-          (typeof item.order === 'object' ? item.order.id : item.order) === order.id
-        );
-
-        let merchantLogo: string | null = null;
-        let merchantName = 'Restaurant';
-
-        const merchant = order.merchant;
-        if (merchant && typeof merchant === 'object') {
-          merchantName = merchant.outletName || merchant.name || (merchant.vendor?.businessName) || 'Restaurant';
-          if (merchant.vendor && typeof merchant.vendor === 'object' && merchant.vendor.logo) {
-            const logo = merchant.vendor.logo;
-            if (typeof logo === 'object') {
-              merchantLogo = logo.cloudinaryURL || logo.url || null;
-            }
-          }
-        }
-
-        const mappedItems: OrderItem[] = orderItems.map((item: any) => {
-           const product = item.product;
-           let finalImage = 'https://placehold.co/400';
-           
-           if (product && typeof product === 'object') {
-              const primaryImage = product.media?.primaryImage;
-              if (primaryImage && typeof primaryImage === 'object') {
-                  finalImage = primaryImage.cloudinaryURL || primaryImage.url || primaryImage.thumbnailURL || finalImage;
-              } else if (product.image) {
-                  if (typeof product.image === 'object') {
-                       finalImage = product.image.cloudinaryURL || product.image.url || finalImage;
-                  } else if (typeof product.image === 'string') {
-                       finalImage = product.image;
-                  }
-              }
-           }
-
-           let productName = item.product_name_snapshot;
-           if (!productName && product && typeof product === 'object' && product.name) {
-               productName = product.name;
-           }
-
-           return {
-             id: item.id,
-             name: productName || 'Item',
-             quantity: item.quantity,
-             price: item.price_at_purchase,
-             image: finalImage,
-           };
-        });
-
-        const placedAtDate = new Date(order.placed_at);
-        const formattedDate = !isNaN(placedAtDate.getTime()) 
+      const mappedOrders = data.docs.map((o: any) => {
+        const placedAtDate = new Date(o.placedAt);
+        const formattedDate = !isNaN(placedAtDate.getTime())
           ? placedAtDate.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
           : 'Unknown Date';
 
         return {
-          id: `ORD-${order.id}`,
-          orderId: String(order.id),
-          orderNumber: `#${order.id.toString().padStart(5, '0')}`,
+          id: `ORD-${o.id}`,
+          orderId: String(o.id),
+          orderNumber: o.orderNumber,
           date: formattedDate,
-          status: order.status || 'pending',
-          total: order.total || 0,
-          items: mappedItems,
-          restaurant: merchantName,
-          merchantLogo: merchantLogo,
-          fulfillmentType: order.fulfillment_type,
-          deliveryStatus:
-            (order.deliveryBooking &&
-              typeof order.deliveryBooking === 'object' &&
-              order.deliveryBooking.status)
-            || order.delivery_status,
-          priorityFee:
-            order.deliveryBooking &&
-            typeof order.deliveryBooking === 'object' &&
-            Number(order.deliveryBooking.priority_fee) > 0
-              ? Number(order.deliveryBooking.priority_fee)
-              : 0,
-          isPaid: paidOrderIds.has(order.id),
+          status: o.status || 'pending',
+          total: o.total || 0,
+          items: (o.items || []).map((item: any) => ({
+            id: item.id,
+            name: item.name || 'Item',
+            quantity: item.quantity,
+            price: item.price,
+            image: item.image || 'https://placehold.co/400',
+          })),
+          restaurant: o.merchant?.name || 'Restaurant',
+          merchantLogo: o.merchant?.logo || null,
+          fulfillmentType: o.fulfillmentType,
+          deliveryStatus: o.delivery?.status || null,
+          priorityFee: o.delivery?.priorityFee || 0,
+          isPaid: o.isPaid || false,
         };
       });
 
@@ -300,6 +220,7 @@ export default function OrdersScreen() {
   const canCancelOrder = (order: Order) =>
     order.fulfillmentType === 'delivery' &&
     order.status !== 'cancelled' &&
+    order.status !== 'canceled' &&
     ['assigning_driver', 'pending', 'none'].includes(order.deliveryStatus || '');
 
   const filteredOrders = orders.filter(order => {
@@ -463,33 +384,32 @@ export default function OrdersScreen() {
                   }}
                 >
                   <View style={{ padding: 16 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                        {order.merchantLogo ? (
-                          <Image
-                            source={{ uri: order.merchantLogo }}
-                            style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#f3f4f6' }}
-                          />
-                        ) : (
-                          <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
-                            <Ionicons name="restaurant-outline" size={20} color="#9ca3af" />
-                          </View>
-                        )}
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#111827' }} numberOfLines={1}>
-                            {order.restaurant}
-                          </Text>
-                          <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                            {order.date} • {order.orderNumber}
-                          </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
+                      {order.merchantLogo ? (
+                        <Image
+                          source={{ uri: order.merchantLogo }}
+                          style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#f3f4f6' }}
+                        />
+                      ) : (
+                        <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="restaurant-outline" size={20} color="#9ca3af" />
                         </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#111827' }} numberOfLines={1}>
+                          {order.restaurant}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                          {order.date} • {order.orderNumber}
+                        </Text>
                       </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                       <View style={{
                         backgroundColor: getStatusColor(getEffectiveStatus(order)) + '1A',
                         paddingHorizontal: 10,
                         paddingVertical: 4,
                         borderRadius: 12,
-                        marginLeft: 8,
                       }}>
                         <Text style={{ color: getStatusColor(getEffectiveStatus(order)), fontSize: 12, fontWeight: '700' }}>
                           {formatStatusLabel(getEffectiveStatus(order))}
@@ -501,7 +421,6 @@ export default function OrdersScreen() {
                           paddingHorizontal: 10,
                           paddingVertical: 4,
                           borderRadius: 12,
-                          marginLeft: 6,
                         }}>
                           <Text style={{ color: '#10b981', fontSize: 12, fontWeight: '700' }}>
                             Paid
@@ -516,7 +435,6 @@ export default function OrdersScreen() {
                           paddingHorizontal: 8,
                           paddingVertical: 4,
                           borderRadius: 12,
-                          marginLeft: 6,
                           gap: 3,
                         }}>
                           <Ionicons name="flash" size={11} color="#fff" />
