@@ -20,6 +20,7 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@types/node": "^20",
     "payload": "3.49.0",
     "zod": "^4.0.10"
   },
@@ -27,7 +28,6 @@
     "@encreasl/eslint-config": "workspace:*",
     "@encreasl/typescript-config": "workspace:*",
     "@types/minimatch": "^6.0.0",
-    "@types/node": "^20",
     "eslint": "^9",
     "typescript": "^5"
   }
