@@ -32,8 +32,13 @@
         "DATABASE_URI",
         "PAYLOAD_SECRET",
         "PAYLOAD_API_KEY",
-        "EDGE_CONFIG"
+        "EDGE_CONFIG",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN"
       ]
+    },
+    "@encreasl/cms-types#build": {
+      "outputs": []
     },
     "dev": {
       "cache": false,
