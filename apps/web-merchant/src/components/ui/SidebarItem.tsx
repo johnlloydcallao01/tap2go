@@ -24,8 +24,8 @@ export function SidebarItem({
 }: SidebarItemProps) {
   const baseClasses = "w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors";
   const activeClasses = active
-    ? 'bg-gray-100 text-gray-900'
-    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900';
+    ? 'bg-gray-100 dark:bg-[#262626] text-gray-900 dark:text-white'
+    : 'text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-100 dark:hover:bg-[#262626] hover:text-gray-900 dark:hover:text-white';
 
   const content = (
     <>

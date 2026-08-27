@@ -12,8 +12,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [settings, setSettings] = useState({
     general: {
-      siteName: 'Encreasl Admin',
-      siteDescription: 'Professional admin dashboard for content management',
+      siteName: 'tap2go Merchant Portal',
+      siteDescription: 'Merchant dashboard for managing outlets, products, and orders',
       timezone: 'UTC',
       dateFormat: 'MM/DD/YYYY',
       language: 'en',

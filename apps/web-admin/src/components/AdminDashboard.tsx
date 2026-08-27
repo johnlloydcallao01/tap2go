@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Header, Sidebar } from "@/components/layout";
 
 interface AdminDashboardProps {
@@ -11,6 +12,9 @@ interface AdminDashboardProps {
 interface DashboardContextType {
   sidebarOpen: boolean;
   toggleSidebar: () => void;
+  mobileSidebarOpen: boolean;
+  toggleMobileSidebar: () => void;
+  closeMobileSidebar: () => void;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -26,38 +30,68 @@ export function useDashboard() {
 /**
  * Admin Dashboard component - Main admin layout
  *
+ * Responsive behavior (mirrors grandline):
+ * - Desktop (lg+): sidebar collapsible w-60/w-20, always visible
+ * - Mobile (<lg): sidebar as slide-in drawer with backdrop, hamburger in header left (lg:hidden)
+ *
  * This component orchestrates the main admin layout with header, sidebar, and content areas.
  * It maintains layout state and provides a proper SPA experience.
  */
 export function AdminDashboard({ children }: AdminDashboardProps) {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Close the mobile drawer whenever the route changes
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname]);
+
+  // Prevent body scroll when the mobile drawer is open
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileSidebarOpen]);
 
   const toggleSidebar = () => {
     setSidebarOpen(prev => !prev);
   };
 
-  const handleSearch = (_query: string) => {
-    // TODO: Implement admin search functionality
+  const toggleMobileSidebar = () => {
+    setMobileSidebarOpen(prev => !prev);
+  };
+
+  const closeMobileSidebar = () => {
+    setMobileSidebarOpen(false);
   };
 
   const dashboardValue: DashboardContextType = {
     sidebarOpen,
     toggleSidebar,
+    mobileSidebarOpen,
+    toggleMobileSidebar,
+    closeMobileSidebar,
   };
 
   return (
     <DashboardContext.Provider value={dashboardValue}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a]">
         <Header
           sidebarOpen={sidebarOpen}
           onToggleSidebar={toggleSidebar}
-          onSearch={handleSearch}
+          onToggleMobileSidebar={toggleMobileSidebar}
         />
         <Sidebar
           isOpen={sidebarOpen}
           onToggle={toggleSidebar}
+          mobileOpen={mobileSidebarOpen}
+          onCloseMobile={closeMobileSidebar}
         />
-        <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-60' : 'ml-20'}`}>
+        <main className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-60' : 'lg:ml-20'} bg-gray-50 dark:bg-[#0a0a0a]`}>
           {children || <DefaultDashboardContent />}
         </main>
       </div>
@@ -103,7 +137,5 @@ function DefaultDashboardContent() {
     </div>
   );
 }
-
-
 
 

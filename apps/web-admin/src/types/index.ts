@@ -14,12 +14,16 @@ export interface SidebarItemProps {
 export interface HeaderProps {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  onToggleMobileSidebar?: () => void;
   onSearch?: (query: string) => void;
 }
 
 export interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+  onScroll?: (e: React.UIEvent<HTMLElement>) => void;
 }
 
 export interface LayoutProps {
@@ -64,4 +68,9 @@ export type IconName =
   | 'help'
   | 'support'
   | 'billing'
-  | 'profile';
+  | 'profile'
+  | 'vendors'
+  | 'merchants'
+  | 'modifiers'
+  | 'reviews'
+  | 'activity';

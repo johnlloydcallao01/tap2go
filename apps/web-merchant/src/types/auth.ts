@@ -89,6 +89,7 @@ export interface AuthContextType extends AuthState {
   refreshSession: () => Promise<void>;
   clearError: () => void;
   checkAuthStatus: () => Promise<boolean>;
+  updateUser: (user: User) => void;
 }
 
 // ========================================

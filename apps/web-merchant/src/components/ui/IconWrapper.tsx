@@ -92,6 +92,35 @@ export const DollarSign = createIconWrapper(LucideIcons.DollarSign);
 export const Bell = createIconWrapper(LucideIcons.Bell);
 export const Palette = createIconWrapper(LucideIcons.Palette);
 export const Store = createIconWrapper(LucideIcons.Store);
+export const Package = createIconWrapper(LucideIcons.Package);
+export const ShoppingBag = createIconWrapper(LucideIcons.ShoppingBag);
+export const Truck = createIconWrapper(LucideIcons.Truck);
+export const XCircle = createIconWrapper(LucideIcons.XCircle);
+export const TrendingDown = createIconWrapper(LucideIcons.TrendingDown);
+export const ShoppingCart = createIconWrapper(LucideIcons.ShoppingCart);
+export const Star = createIconWrapper(LucideIcons.Star);
+
+// Profile & extended icons (aligned with web-admin)
+export const Camera = createIconWrapper(LucideIcons.Camera);
+export const ShieldCheck = createIconWrapper(LucideIcons.ShieldCheck);
+export const KeyRound = createIconWrapper(LucideIcons.KeyRound);
+export const BadgeCheck = createIconWrapper(LucideIcons.BadgeCheck);
+export const Sparkles = createIconWrapper(LucideIcons.Sparkles);
+export const Activity = createIconWrapper(LucideIcons.Activity);
+export const Crown = createIconWrapper(LucideIcons.Crown);
+export const Fingerprint = createIconWrapper(LucideIcons.Fingerprint);
+export const Info = createIconWrapper(LucideIcons.Info);
+export const RefreshCw = createIconWrapper(LucideIcons.RefreshCw);
+export const History = createIconWrapper(LucideIcons.History);
+export const LogIn = createIconWrapper(LucideIcons.LogIn);
+export const Building = createIconWrapper(LucideIcons.Building);
+export const MapPin = createIconWrapper(LucideIcons.MapPin);
+export const AtSign = createIconWrapper(LucideIcons.AtSign);
+export const Phone = createIconWrapper(LucideIcons.Phone);
+export const Briefcase = createIconWrapper(LucideIcons.Briefcase);
+export const Award = createIconWrapper(LucideIcons.Award);
+export const Building2 = createIconWrapper(LucideIcons.Building2);
+export const LayoutDashboard = createIconWrapper(LucideIcons.LayoutDashboard);
 
 // Type for icon components
 export type LucideIcon = React.ComponentType<IconProps>;

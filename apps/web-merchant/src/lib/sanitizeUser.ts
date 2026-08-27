@@ -6,6 +6,21 @@ function optionalString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function sanitizeProfilePicture(value: unknown): User['profilePicture'] {
+  if (!value || typeof value !== 'object') return null;
+  const src = value as Record<string, unknown>;
+  const id = Number(src.id);
+  const url = optionalString(src.cloudinaryURL);
+  if (!url) return null;
+  const alt = optionalString(src.alt);
+  return {
+    id,
+    filename: optionalString(src.filename) || '',
+    url,
+    ...(alt !== null ? { alt } : {}),
+  };
+}
+
 export function sanitizeUser(value: unknown): User | null {
   if (!value || typeof value !== 'object') return null;
 
@@ -32,7 +47,7 @@ export function sanitizeUser(value: unknown): User | null {
     completeAddress: optionalString(source.completeAddress),
     phone: optionalString(source.phone),
     lastLogin: optionalString(source.lastLogin),
-    profilePicture: null,
+    profilePicture: sanitizeProfilePicture(source.profilePicture),
     createdAt: optionalString(source.createdAt) || '',
     updatedAt: optionalString(source.updatedAt) || '',
   };

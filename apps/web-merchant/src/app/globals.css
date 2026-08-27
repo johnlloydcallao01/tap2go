@@ -1,32 +1,79 @@
 @import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --card-background: #ffffff;
+  --card-border: #e5e7eb;
+  --muted-text: #6b7280;
+  --accent: #111111;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --card-background: #171717;
+  --card-border: #262626;
+  --muted-text: #a1a1aa;
+  --accent: #eba236;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card-background);
+  --color-card-border: var(--card-border);
+  --color-muted: var(--muted-text);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  scrollbar-width: thin;
 }
+body::-webkit-scrollbar { width: 6px; }
+body::-webkit-scrollbar-track { background: transparent; }
+body::-webkit-scrollbar-thumb { background: rgba(156,163,175,0.4); border-radius: 999px; }
+.dark body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 
 main {
   will-change: transform, opacity;
+}
+
+/* Thin scrollbar for sidebar (matches grandline) */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+.sidebar-scroll:hover {
+  scrollbar-color: rgba(156,163,175,0.5) transparent;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(156,163,175,0.5);
+}
+.dark .sidebar-scroll:hover {
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.dark .sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
 }
 
 /* Accessibility - Respect reduced motion preferences */

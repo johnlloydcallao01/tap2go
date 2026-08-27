@@ -42,6 +42,7 @@ type AuthAction =
   | { type: 'LOGOUT_START' }
   | { type: 'LOGOUT_SUCCESS' }
   | { type: 'REFRESH_SUCCESS'; payload: { user: User; token: string } }
+  | { type: 'SET_USER'; payload: { user: User } }
   | { type: 'CLEAR_ERROR' }
   | { type: 'SESSION_EXPIRED' };
 
@@ -146,6 +147,14 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
+        isAuthenticated: true,
+        error: null,
+      };
+
+    case 'SET_USER':
+      return {
+        ...state,
+        user: action.payload.user,
         isAuthenticated: true,
         error: null,
       };
@@ -289,6 +298,24 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
     dispatch({ type: 'CLEAR_ERROR' });
   }, []);
 
+  const updateUser = useCallback((user: User) => {
+    try {
+      localStorage.setItem('admin_auth_user', JSON.stringify(user));
+    } catch {}
+    dispatch({ type: 'SET_USER', payload: { user } });
+    emitAuthEvent('profile_updated', { user });
+  }, []);
+
+  const refetchUser = useCallback(async () => {
+    const user = await getCurrentUser();
+    if (user) {
+      try {
+        localStorage.setItem('admin_auth_user', JSON.stringify(user));
+      } catch {}
+      dispatch({ type: 'SET_USER', payload: { user } });
+    }
+  }, []);
+
   // ========================================
   // SESSION MONITORING
   // ========================================
@@ -343,6 +370,8 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
     refreshSession,
     clearError,
     checkAuthStatus,
+    updateUser,
+    refetchUser,
   };
 
   return React.createElement(

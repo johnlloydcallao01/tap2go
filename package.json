@@ -52,7 +52,8 @@
     "mobile:ios": "turbo run ios --filter=mobile-customer",
     "mobile:android": "turbo run android --filter=mobile-customer",
     "vercel-build": "cd apps/web && pnpm run build",
-    "start": "cd apps/web && pnpm start"
+    "start": "cd apps/web && pnpm start",
+    "tsc-errors": "node tools/ts-error-checker/index.js"
   },
   "devDependencies": {
     "@turbo/gen": "^2.0.0",

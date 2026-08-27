@@ -21,6 +21,31 @@ function createIconWrapper(IconComponent: React.ComponentType<IconProps>) {
   return WrappedIcon;
 }
 
+// Profile & extended icons
+export const Camera = createIconWrapper(LucideIcons.Camera);
+export const ShieldCheck = createIconWrapper(LucideIcons.ShieldCheck);
+export const KeyRound = createIconWrapper(LucideIcons.KeyRound);
+export const Key = createIconWrapper(LucideIcons.Key);
+export const UserCircle = createIconWrapper(LucideIcons.UserCircle);
+export const BadgeCheck = createIconWrapper(LucideIcons.BadgeCheck);
+export const Sparkles = createIconWrapper(LucideIcons.Sparkles);
+export const Activity = createIconWrapper(LucideIcons.Activity);
+export const ShieldAlert = createIconWrapper(LucideIcons.ShieldAlert);
+export const Crown = createIconWrapper(LucideIcons.Crown);
+export const Fingerprint = createIconWrapper(LucideIcons.Fingerprint);
+export const Info = createIconWrapper(LucideIcons.Info);
+export const Pencil = createIconWrapper(LucideIcons.Pencil);
+export const RefreshCw = createIconWrapper(LucideIcons.RefreshCw);
+export const History = createIconWrapper(LucideIcons.History);
+export const LogIn = createIconWrapper(LucideIcons.LogIn);
+export const UserCheck = createIconWrapper(LucideIcons.UserCheck);
+export const AtSign = createIconWrapper(LucideIcons.AtSign);
+export const Phone = createIconWrapper(LucideIcons.Phone);
+export const Building = createIconWrapper(LucideIcons.Building);
+export const CalendarDays = createIconWrapper(LucideIcons.CalendarDays);
+export const Languages = createIconWrapper(LucideIcons.Languages);
+export const EyeIcon = createIconWrapper(LucideIcons.Eye);
+
 // Export wrapped icons directly
 export const Shield = createIconWrapper(LucideIcons.Shield);
 export const Eye = createIconWrapper(LucideIcons.Eye);
@@ -30,6 +55,7 @@ export const Loader2 = createIconWrapper(LucideIcons.Loader2);
 export const Users = createIconWrapper(LucideIcons.Users);
 export const FileText = createIconWrapper(LucideIcons.FileText);
 export const TrendingUp = createIconWrapper(LucideIcons.TrendingUp);
+export const TrendingDown = createIconWrapper(LucideIcons.TrendingDown);
 export const MessageSquare = createIconWrapper(LucideIcons.MessageSquare);
 export const BarChart3 = createIconWrapper(LucideIcons.BarChart3);
 export const Heart = createIconWrapper(LucideIcons.Heart);
@@ -48,6 +74,13 @@ export const Check = createIconWrapper(LucideIcons.Check);
 export const ArrowLeft = createIconWrapper(LucideIcons.ArrowLeft);
 export const X = createIconWrapper(LucideIcons.X);
 export const ChevronDown = createIconWrapper(LucideIcons.ChevronDown);
+export const Truck = createIconWrapper(LucideIcons.Truck);
+export const ShoppingBag = createIconWrapper(LucideIcons.ShoppingBag);
+export const ShoppingCart = createIconWrapper(LucideIcons.ShoppingCart);
+export const Package = createIconWrapper(LucideIcons.Package);
+export const Star = createIconWrapper(LucideIcons.Star);
+export const MapPin = createIconWrapper(LucideIcons.MapPin);
+export const XCircle = createIconWrapper(LucideIcons.XCircle);
 export const Settings = createIconWrapper(LucideIcons.Settings);
 export const LogOut = createIconWrapper(LucideIcons.LogOut);
 export const Upload = createIconWrapper(LucideIcons.Upload);

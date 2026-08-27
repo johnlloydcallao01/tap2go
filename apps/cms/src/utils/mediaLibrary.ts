@@ -92,6 +92,48 @@ export async function authenticateAdmin(
 }
 
 /**
+ * Authenticate a vendor user from the incoming request.
+ * Returns the vendor user document or null when unauthenticated / not vendor.
+ * Mirrors authenticateAdmin but checks role === 'vendor'.
+ */
+export async function authenticateVendor(
+  payload: Payload,
+  request: NextRequest
+): Promise<Record<string, any> | null> {
+  const token = extractToken(request)
+  if (!token) return null
+
+  const secretKey = new TextEncoder().encode(payload.secret)
+  let decoded: { id?: unknown; collection?: unknown }
+  try {
+    const result = await jwtVerify(token, secretKey)
+    decoded = result.payload as { id?: unknown; collection?: unknown }
+  } catch {
+    return null
+  }
+
+  if (decoded.collection !== 'users' || decoded.id == null) {
+    return null
+  }
+
+  try {
+    const user = await payload.findByID({
+      collection: 'users',
+      id: decoded.id as number,
+      depth: 0,
+      overrideAccess: true,
+    })
+    if (!user || user.role !== 'vendor') {
+      return null
+    }
+    if (user.isActive === false) return null
+    return user as Record<string, any>
+  } catch {
+    return null
+  }
+}
+
+/**
  * Traverse a document by a dotted field path and collect referenced media ids.
  * Handles single relationships, groups (media.thumbnail) and arrays (images.image).
  */
