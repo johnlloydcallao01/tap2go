@@ -345,7 +345,7 @@ export default function SearchModal({ isOpen, onClose, initialQuery = '' }: Prop
           <div className="p-4 border-t border-gray-100 dark:border-[#262626]">
             <button
               onClick={handleSubmit}
-              className="w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium py-2"
+              className="w-full text-center text-sm text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white font-medium py-2"
             >
               View all results for &ldquo;{query}&rdquo; &rarr;
             </button>

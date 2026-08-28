@@ -38,14 +38,14 @@ function DashboardError({ message, onRetry }: { message: string; onRetry: () => 
 function DashboardSkeleton() {
   return (
     <div className="space-y-6 py-5 px-2.5 animate-pulse">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <div className="h-7 bg-gray-100 dark:bg-gray-800 rounded w-56" />
-          <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-72" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-2 min-w-0">
+          <div className="h-7 bg-gray-100 dark:bg-gray-800 rounded w-56 max-w-[70vw]" />
+          <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-72 max-w-[80vw] sm:w-72" />
         </div>
-        <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-32" />
+        <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-32 hidden sm:block flex-shrink-0" />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 [&>:last-child:nth-child(odd)]:col-span-full lg:[&>:last-child:nth-child(odd)]:col-span-1">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] p-5 shadow-sm">
             <div className="space-y-3">
@@ -56,33 +56,33 @@ function DashboardSkeleton() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-80">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-64 sm:h-80">
           <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-36 mb-4" />
-          <div className="flex items-end gap-3 h-64">
+          <div className="flex items-end gap-2 sm:gap-3 h-48 sm:h-64">
             {[55, 70, 40, 85, 50, 65, 45, 75].map((h, i) => (
               <div key={i} className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-t" style={{ height: `${h}%` }} />
             ))}
           </div>
         </div>
-        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-80">
+        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-64 sm:h-80">
           <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-36 mb-4" />
-          <div className="flex items-center justify-center h-64">
-            <div className="relative h-40 w-40">
+          <div className="flex items-center justify-center h-48 sm:h-64">
+            <div className="relative h-32 w-32 sm:h-40 sm:w-40">
               <div className="h-full w-full rounded-full bg-gray-100 dark:bg-gray-800" />
-              <div className="absolute inset-5 rounded-full bg-white dark:bg-[var(--card-background)]" />
+              <div className="absolute inset-4 sm:inset-5 rounded-full bg-white dark:bg-[var(--card-background)]" />
             </div>
           </div>
         </div>
       </div>
-      <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-44">
+      <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-auto sm:h-44">
         <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-36 mb-4" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="border border-gray-200 dark:border-[var(--card-border)] rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="h-4 w-28 bg-gray-100 dark:bg-gray-800 rounded" />
-                <div className="h-2 w-2 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                <div className="h-2 w-2 bg-gray-100 dark:bg-gray-800 rounded-full flex-shrink-0" />
               </div>
               <div className="flex gap-4">
                 <div className="h-3 w-20 bg-gray-100 dark:bg-gray-800 rounded" />
@@ -92,10 +92,10 @@ function DashboardSkeleton() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-80">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-64 sm:h-80">
           <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-32 mb-4" />
-          <div className="flex items-end gap-3 h-64">
+          <div className="flex items-end gap-2 sm:gap-3 h-48 sm:h-64">
             {[40, 60, 35, 75, 50].map((h, i) => (
               <div key={i} className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-t" style={{ height: `${h}%` }} />
             ))}
@@ -108,8 +108,8 @@ function DashboardSkeleton() {
           <div className="divide-y divide-gray-50 dark:divide-gray-800">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
-                <div className="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-800" />
-                <div className="flex-1 space-y-1.5">
+                <div className="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-800 flex-shrink-0" />
+                <div className="flex-1 space-y-1.5 min-w-0">
                   <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-3/4" />
                   <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2" />
                 </div>
@@ -118,7 +118,7 @@ function DashboardSkeleton() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-[var(--card-border)]">
             <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-32" />
@@ -199,13 +199,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 py-5 px-2.5">
       {/* Page Header */}
-      <div>
-        <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">My Business Overview</h1>
-        <p className="mt-0.5 sm:mt-1 text-sm sm:text-base text-gray-500 dark:text-gray-400">Performance across all your outlets</p>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">My Business Overview</h1>
+        <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Performance across all your outlets</p>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 [&>:last-child:nth-child(odd)]:col-span-full lg:[&>:last-child:nth-child(odd)]:col-span-1">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard
           title="Today's Revenue"
           value={`₱${metrics.todayRevenue.toLocaleString()}`}
@@ -237,7 +237,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <RevenueChart data={revenueChart} />
         <OrderStatusChart data={orderStatusChart} />
       </div>
@@ -246,13 +246,13 @@ export default function DashboardPage() {
       <OutletStatusGrid outlets={outlets} />
 
       {/* Top Products & Active Deliveries */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <TopProductsChart data={topProducts} />
         <ActiveDeliveriesList deliveries={activeDeliveries} />
       </div>
 
       {/* Pending Orders & Recent Orders */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <PendingOrdersTable orders={pendingOrders} />
         <RecentOrdersTable orders={recentOrders} />
       </div>

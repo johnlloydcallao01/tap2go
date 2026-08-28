@@ -36,14 +36,14 @@ function DashboardError({ message, onRetry }: { message: string; onRetry: () => 
 function DashboardSkeleton() {
   return (
     <div className="space-y-6 py-5 px-2.5 animate-pulse">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-2 min-w-0">
           <div className="h-7 bg-gray-100 dark:bg-gray-800 rounded w-36" />
-          <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-56" />
+          <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-56 max-w-[65vw] sm:w-56" />
         </div>
-        <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-32" />
+        <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-32 hidden sm:block flex-shrink-0" />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 [&>:last-child:nth-child(odd)]:col-span-full lg:[&>:last-child:nth-child(odd)]:col-span-1">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 [&>:last-child:nth-child(odd)]:col-span-full md:[&>:last-child:nth-child(odd)]:col-span-1">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] p-5 shadow-sm">
             <div className="space-y-3">
@@ -54,34 +54,34 @@ function DashboardSkeleton() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-80">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-64 sm:h-80">
           <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-36 mb-4" />
-          <div className="flex items-end gap-3 h-64">
+          <div className="flex items-end gap-2 sm:gap-3 h-48 sm:h-64">
             {[55, 70, 40, 85, 50, 65, 45, 75].map((h, i) => (
               <div key={i} className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-t" style={{ height: `${h}%` }} />
             ))}
           </div>
         </div>
-        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-80">
+        <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-64 sm:h-80">
           <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-36 mb-4" />
-          <div className="flex items-center justify-center h-64">
-            <div className="relative h-40 w-40">
+          <div className="flex items-center justify-center h-48 sm:h-64">
+            <div className="relative h-32 w-32 sm:h-40 sm:w-40">
               <div className="h-full w-full rounded-full bg-gray-100 dark:bg-gray-800" />
-              <div className="absolute inset-5 rounded-full bg-white dark:bg-[var(--card-background)]" />
+              <div className="absolute inset-4 sm:inset-5 rounded-full bg-white dark:bg-[var(--card-background)]" />
             </div>
           </div>
         </div>
       </div>
-      <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-80">
+      <div className="bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm p-4 h-64 sm:h-80">
         <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-36 mb-4" />
-        <div className="flex items-end gap-3 h-64">
+        <div className="flex items-end gap-2 sm:gap-3 h-48 sm:h-64">
           {[40, 60, 45, 75, 55].map((h, i) => (
             <div key={i} className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-t" style={{ height: `${h}%` }} />
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 bg-white dark:bg-[var(--card-background)] rounded-xl border border-gray-200 dark:border-[var(--card-border)] shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-[var(--card-border)]">
             <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-32" />
@@ -162,13 +162,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 py-5 px-2.5">
       {/* Page Header */}
-      <div>
-        <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Dashboard</h1>
-        <p className="mt-0.5 sm:mt-1 text-sm sm:text-base text-gray-500 dark:text-gray-400">Overview of your platform performance</p>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Dashboard</h1>
+        <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Overview of your platform performance</p>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 [&>:last-child:nth-child(odd)]:col-span-full lg:[&>:last-child:nth-child(odd)]:col-span-1">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 [&>:last-child:nth-child(odd)]:col-span-full md:[&>:last-child:nth-child(odd)]:col-span-1">
         <MetricCard
           title="Total Revenue"
           value={`₱${metrics.totalRevenue.toLocaleString()}`}
@@ -193,7 +193,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <RevenueChart data={revenueChart} />
         <OrderStatusChart data={orderStatusChart} />
       </div>
@@ -202,7 +202,7 @@ export default function DashboardPage() {
       <TopMerchantsChart data={topMerchants} />
 
       {/* Tables Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2">
           <RecentOrdersTable orders={recentOrders} />
         </div>

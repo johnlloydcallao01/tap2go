@@ -53,8 +53,8 @@ export function Header({
 
   return (
     <>
-      <header className="sticky top-0 bg-white dark:bg-[#171717] border-b border-gray-200 dark:border-[#262626] z-50">
-        <div className="flex items-center justify-between px-4 py-2">
+      <header className="sticky top-0 h-[57px] sm:h-[65px] bg-white dark:bg-[#171717] border-b border-gray-200 dark:border-[#262626] z-50">
+        <div className="flex items-center justify-between h-full px-3 sm:px-4 gap-2">
           {/* Left section */}
           <div className="flex items-center space-x-4">
             {/* Mobile hamburger — visible <lg, controls drawer */}
@@ -82,12 +82,12 @@ export function Header({
 
             {/* tap2go Logo */}
             <div className="flex items-center space-x-2">
-              <div className="w-9 h-9 relative flex-shrink-0">
+              <div className="w-10 h-10 relative flex-shrink-0">
                 <Image
                   src="/logo.png"
                   alt="tap2go"
-                  width={36}
-                  height={36}
+                  width={40}
+                  height={40}
                   className="rounded-lg object-contain"
                   priority
                 />

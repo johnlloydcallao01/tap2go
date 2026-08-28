@@ -157,7 +157,7 @@ export function SearchResults({
           {results.length > 5 && (
             <button
               onClick={handleViewAll}
-              className="mt-2 w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium py-2"
+              className="mt-2 w-full text-center text-sm text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white font-medium py-2"
             >
               View all {results.length} results &rarr;
             </button>

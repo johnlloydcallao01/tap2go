@@ -81,15 +81,15 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
       {/* Mobile backdrop overlay - only visible on small screens when drawer is open */}
       {mobileOpen && (
         <div
-          className="fixed inset-x-0 top-[49px] sm:top-[57px] bottom-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-x-0 top-[57px] sm:top-[65px] bottom-0 bg-black/50 z-40 lg:hidden"
           onClick={onCloseMobile}
           aria-hidden="true"
         />
       )}
       <aside
         data-sidebar="merchant"
-        className={`fixed left-0 top-[49px] sm:top-[57px] bg-white dark:bg-[#171717] border-r border-gray-200 dark:border-[#262626] transition-all duration-300 overflow-y-auto sidebar-scroll z-50 lg:z-40
-          w-64 h-[calc(100vh-49px)] sm:h-[calc(100vh-57px)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        className={`fixed left-0 top-[57px] sm:top-[65px] bg-white dark:bg-[#171717] border-r border-gray-200 dark:border-[#262626] transition-all duration-300 overflow-y-auto sidebar-scroll z-50 lg:z-40
+          w-64 h-[calc(100vh-57px)] sm:h-[calc(100vh-65px)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 ${isOpen ? 'lg:w-60' : 'lg:w-20'}`}
         onScroll={onScroll}
       >
@@ -99,9 +99,9 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
           {/* Dashboard & Analytics */}
           <div className="space-y-1">
             <SidebarSectionLabel isOpen={expanded}>Dashboard & Analytics</SidebarSectionLabel>
-            <SidebarItem icon="dashboard" label="Overview" active={exactActive(pathname, '/dashboard') || exactActive(pathname, '/')} collapsed={!expanded} href="/dashboard" />
-            <SidebarItem icon="analytics" label="Analytics" active={dropdownActive(pathname, '/analytics')} collapsed={!expanded} href="/analytics" />
-            <SidebarItem icon="reports" label="Reports" active={dropdownActive(pathname, '/reports')} collapsed={!expanded} href="/reports" />
+ <SidebarItem icon="dashboard" label="Overview" active={exactActive(pathname, '/dashboard/overview') || exactActive(pathname, '/')} collapsed={!expanded} href="/dashboard/overview" />
+ <SidebarItem icon="analytics" label="Analytics" active={dropdownActive(pathname, '/dashboard/analytics')} collapsed={!expanded} href="/dashboard/analytics" />
+ <SidebarItem icon="reports" label="Reports" active={dropdownActive(pathname, '/dashboard/reports')} collapsed={!expanded} href="/dashboard/reports" />
           </div>
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}

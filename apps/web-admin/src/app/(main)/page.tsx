@@ -1,4 +1,12 @@
 'use client';
 
-// Re-export the dashboard page content to ensure consistency
-export { default } from './dashboard/page';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function MainRootPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/dashboard/overview');
+  }, [router]);
+  return null;
+}

@@ -125,6 +125,11 @@ export const DollarSign = createIconWrapper(LucideIcons.DollarSign);
 export const Bell = createIconWrapper(LucideIcons.Bell);
 export const Palette = createIconWrapper(LucideIcons.Palette);
 export const Store = createIconWrapper(LucideIcons.Store);
+export const CreditCard = createIconWrapper(LucideIcons.CreditCard);
+export const Layers = createIconWrapper(LucideIcons.Layers);
+export const Award = createIconWrapper(LucideIcons.Award);
+export const SlidersHorizontal = createIconWrapper(LucideIcons.SlidersHorizontal);
+export const FileSpreadsheet = createIconWrapper(LucideIcons.FileSpreadsheet);
 
 // Type for icon components
 export type LucideIcon = React.ComponentType<IconProps>;

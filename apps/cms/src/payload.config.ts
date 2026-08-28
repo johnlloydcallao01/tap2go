@@ -375,8 +375,29 @@ export default buildConfig({
       handler: (async (req: PayloadRequest) => {
         const startTime = Date.now();
         const requestId = crypto.randomUUID();
-        const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'Unknown';
+        const ipAddress = (req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'Unknown');
         const userAgent = req.headers.get('user-agent') || 'Unknown';
+        // --- Rate limiting (in-memory, per-instance) ---
+        const nowMs = Date.now();
+        // @ts-ignore - global rate limit maps
+        const g = globalThis as unknown as { __forgotIpMap?: Map<string, { count: number; resetAt: number }>; __forgotEmailMap?: Map<string, { count: number; resetAt: number }> };
+        if (!g.__forgotIpMap) g.__forgotIpMap = new Map();
+        if (!g.__forgotEmailMap) g.__forgotEmailMap = new Map();
+        const ipMap = g.__forgotIpMap!;
+        const emailMap = g.__forgotEmailMap!;
+        const checkRate = (map: Map<string, { count: number; resetAt: number }>, key: string, limit: number, windowMs: number): boolean => {
+          const entry = map.get(key);
+          if (!entry || nowMs > entry.resetAt) {
+            map.set(key, { count: 1, resetAt: nowMs + windowMs });
+            return true;
+          }
+          if (entry.count >= limit) return false;
+          entry.count++;
+          return true;
+        };
+        if (!checkRate(ipMap, `ip:${ipAddress}`, 20, 15 * 60 * 1000)) {
+          return Response.json({ success: false, error: 'Too many requests. Please try again later.', errorCode: 'RATE_LIMITED', requestId }, { status: 429 });
+        }
 
         try {
           type MaybeJson = { json?: () => Promise<unknown> };
@@ -385,15 +406,22 @@ export default buildConfig({
           const parsed = (await (hasJson
             ? (req as unknown as Required<MaybeJson>).json()
             : Promise.resolve((req as unknown as MaybeBody).body))) ?? {};
-          const { email: emailRaw } = parsed as { email?: string };
+          const { email: emailRaw, app: appRaw, origin: originRaw } = parsed as { email?: string; app?: string; origin?: string };
           const email = typeof emailRaw === 'string' ? emailRaw.trim().toLowerCase() : '';
+          const appHint = typeof appRaw === 'string' ? appRaw.trim().toLowerCase() : '';
+          const originHint = typeof originRaw === 'string' ? originRaw.trim() : '';
 
-          if (!email) {
+          // Email format validation (production-grade, but still enumeration-safe)
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!email || !emailRegex.test(email)) {
             return Response.json({
               success: true,
               message: 'If an account exists, an email has been sent',
               requestId,
             }, { status: 200 });
+          }
+          if (!checkRate(emailMap, `email:${email}`, 5, 60 * 60 * 1000)) {
+            return Response.json({ success: false, error: 'Too many requests for this email. Please try again later.', errorCode: 'RATE_LIMITED', requestId }, { status: 429 });
           }
 
           const users = await req.payload.find({
@@ -410,7 +438,11 @@ export default buildConfig({
             const ttlMinutes = Number(process.env.RESET_PASSWORD_TTL_MINUTES || 20);
             const expires = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
 
-            const prevTokens = ((user as PayloadUser)?.resetPasswordTokens) || [];
+            // Prune expired tokens and cap to last 5 to prevent unbounded growth
+            const prevTokens = (((user as PayloadUser)?.resetPasswordTokens) || []).filter((t: { expiresAt: string }) => {
+              const exp = new Date(t.expiresAt).getTime();
+              return !Number.isNaN(exp) && exp > nowMs;
+            }).slice(-5);
             await req.payload.update({
               collection: 'users',
               id: user.id,
@@ -427,10 +459,35 @@ export default buildConfig({
             const fromName = process.env.EMAIL_FROM_NAME || 'Tap2Go';
             const apiKey = process.env.RESEND_API_KEY || '';
             const to = user.email;
-            const resetUrl = `https://app.tap2goph.com/signin/reset-password?token=${encodeURIComponent(rawToken)}`;
+            // Resolve reset URL per app / origin (production-complete)
+            const headerOrigin = req.headers.get('origin') || req.headers.get('referer') || '';
+            const allowedOrigins = [
+              process.env.ADMIN_PROD_URL,
+              process.env.ADMIN_LOCAL_URL,
+              process.env.MERCHANT_PROD_URL,
+              process.env.MERCHANT_LOCAL_URL,
+              process.env.WEB_PROD_URL,
+              process.env.WEB_LOCAL_URL,
+              'https://admin.tap2goph.com',
+              'https://merchant.tap2goph.com',
+              'https://app.tap2goph.com',
+              'http://localhost:3000',
+              'http://localhost:3001',
+              'http://localhost:3002',
+              'http://localhost:3003',
+            ].filter(Boolean) as string[];
+            const isAllowed = (u: string) => allowedOrigins.some(a => u.startsWith(a));
+            let baseUrl = process.env.RESET_PASSWORD_BASE_URL || 'https://app.tap2goph.com';
+            const candidate = originHint || headerOrigin || '';
+            if (candidate && isAllowed(candidate)) {
+              try { baseUrl = new URL(candidate).origin; } catch {}
+            } else if (appHint === 'admin' && process.env.ADMIN_PROD_URL) baseUrl = new URL(process.env.ADMIN_PROD_URL).origin;
+            else if (appHint === 'merchant' && process.env.MERCHANT_PROD_URL) baseUrl = new URL(process.env.MERCHANT_PROD_URL).origin;
+            else if (appHint === 'vendor' && process.env.MERCHANT_PROD_URL) baseUrl = new URL(process.env.MERCHANT_PROD_URL).origin;
+            const resetUrl = `${baseUrl.replace(/\/+$/, '')}/signin/reset-password?token=${encodeURIComponent(rawToken)}`;
 
             if (apiKey && process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true') {
-              await fetch('https://api.resend.com/emails', {
+              const resendRes = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
                 headers: {
                   Authorization: `Bearer ${apiKey}`,
@@ -441,10 +498,16 @@ export default buildConfig({
                   from: `${fromName} <${fromEmail}>`,
                   to,
                   subject: 'Reset your Tap2Go password',
+                  html: `<p>We received a request to reset your password.</p><p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#000;color:#fff;border-radius:999px;text-decoration:none;font-weight:600">Reset Password</a></p><p>Or copy this link: <a href="${resetUrl}">${resetUrl}</a></p><p>This link will expire in ${ttlMinutes} minutes. If you did not request this, you can ignore this email.</p>`,
                   text: `We received a request to reset your password.\n\nUse this link to set a new password: ${resetUrl}\n\nThis link will expire in ${ttlMinutes} minutes. If you did not request this, you can ignore this email.`,
                   reply_to: replyTo,
                 }),
               });
+              if (!resendRes.ok) {
+                console.warn(`[forgot-password:${requestId}] Resend failed ${resendRes.status}`, await resendRes.text().catch(()=> ''));
+              }
+            } else {
+              console.log(`[forgot-password:${requestId}] Email not sent (ENABLE_EMAIL_NOTIFICATIONS!=true or missing API key). Reset URL for ${email}: ${resetUrl}`);
             }
           }
 
@@ -474,6 +537,17 @@ export default buildConfig({
       handler: (async (req: PayloadRequest) => {
         const startTime = Date.now();
         const requestId = crypto.randomUUID();
+        const ipAddress = (req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'Unknown');
+        // Rate limit: max 10 reset attempts per 15min per IP
+        const g2 = globalThis as unknown as { __resetIpMap?: Map<string, { count: number; resetAt: number }> };
+        if (!g2.__resetIpMap) g2.__resetIpMap = new Map();
+        const nowMs2 = Date.now();
+        const entry2 = g2.__resetIpMap.get(`ip:${ipAddress}`);
+        if (entry2 && nowMs2 <= entry2.resetAt && entry2.count >= 10) {
+          return Response.json({ success: false, error: 'Too many requests. Please try again later.', errorCode: 'RATE_LIMITED', requestId }, { status: 429 });
+        }
+        if (!entry2 || nowMs2 > entry2.resetAt) g2.__resetIpMap.set(`ip:${ipAddress}`, { count: 1, resetAt: nowMs2 + 15*60*1000 });
+        else entry2.count++;
 
         try {
           type MaybeJson = { json?: () => Promise<unknown> };

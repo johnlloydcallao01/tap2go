@@ -55,6 +55,28 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // Redirect legacy dashboard/analytics/reports URLs to their new semantic
+  // locations under /dashboard/* (Dashboard & Analytics group)
+  async redirects() {
+    return [
+      {
+        source: '/dashboard',
+        destination: '/dashboard/overview',
+        permanent: true,
+      },
+      {
+        source: '/analytics',
+        destination: '/dashboard/analytics',
+        permanent: true,
+      },
+      {
+        source: '/reports',
+        destination: '/dashboard/reports',
+        permanent: true,
+      },
+    ];
+  },
+
   // Merchant-specific security headers
   async headers() {
     return [
