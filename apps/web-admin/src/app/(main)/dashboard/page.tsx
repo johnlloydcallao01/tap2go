@@ -35,7 +35,7 @@ function DashboardError({ message, onRetry }: { message: string; onRetry: () => 
 
 function DashboardSkeleton() {
   return (
-    <div className="py-4 sm:py-6 space-y-6 animate-pulse">
+    <div className="space-y-6 py-5 px-2.5 animate-pulse">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <div className="h-7 bg-gray-100 dark:bg-gray-800 rounded w-36" />
@@ -160,7 +160,7 @@ export default function DashboardPage() {
   const { metrics, revenueChart, orderStatusChart, topMerchants, topVendors, recentOrders } = data;
 
   return (
-    <div className="py-4 sm:py-6 space-y-6">
+    <div className="space-y-6 py-5 px-2.5">
       {/* Page Header */}
       <div>
         <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Dashboard</h1>
