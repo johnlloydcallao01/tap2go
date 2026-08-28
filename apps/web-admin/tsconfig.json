@@ -1,5 +1,5 @@
 {
-  "extends": "@encreasl/typescript-config/nextjs",
+  "extends": "../../packages/typescript-config/nextjs.json",
   "compilerOptions": {
     "target": "es2015",
     "skipLibCheck": true,

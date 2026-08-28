@@ -1,61 +1,85 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "ui": "stream",
+  "ui": "tui",
+  "globalDependencies": [".env.local", ".env"],
   "globalEnv": [
     "NODE_ENV",
-    "NODE_VERSION",
-    "JWT_SECRET",
-    "NEXT_TELEMETRY_DISABLED"
+    "VERCEL_ENV",
+    "CI"
+  ],
+  "globalPassThroughEnv": [
+    "NEXT_PUBLIC_*",
+    "PAYLOAD_*",
+    "DATABASE_URL",
+    "DATABASE_URI",
+    "POSTGRES_URL",
+    "SUPABASE_SERVICE_ROLE_KEY"
   ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**", "lib/**", "*.tsbuildinfo"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "lib/**", "src/**/*.js", "src/**/*.d.ts"],
+      "inputs": ["$TURBO_DEFAULT$", ".env.local", ".env"],
       "env": [
-        "NODE_VERSION",
-        "NEXT_TELEMETRY_DISABLED",
-        "NODE_ENV",
-        "CI",
-        "VERCEL",
-        "VERCEL_URL",
-        "VERCEL_ENV",
+        "NEXT_PUBLIC_*",
+        "PAYLOAD_*",
+        "DATABASE_URL",
         "DATABASE_URI",
-        "PAYLOAD_SECRET",
-        "PAYLOAD_API_KEY",
-        "EDGE_CONFIG",
-        "VERCEL_API_TOKEN",
-        "VERCEL_EDGE_CONFIG_ID"
-      ],
-      "passThroughEnv": [
-        "NODE_VERSION",
-        "NEXT_TELEMETRY_DISABLED",
-        "DATABASE_URI",
-        "PAYLOAD_SECRET",
-        "PAYLOAD_API_KEY",
-        "EDGE_CONFIG",
-        "UPSTASH_REDIS_REST_URL",
-        "UPSTASH_REDIS_REST_TOKEN"
+        "POSTGRES_URL",
+        "SUPABASE_SERVICE_ROLE_KEY"
       ]
     },
     "@encreasl/cms-types#build": {
       "outputs": []
     },
+    "@encreasl/redux#build": {
+      "outputs": ["dist/**"]
+    },
     "dev": {
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["*"]
+      "env": [
+        "NEXT_PUBLIC_*",
+        "PAYLOAD_*",
+        "DATABASE_URL",
+        "DATABASE_URI",
+        "POSTGRES_URL",
+        "SUPABASE_SERVICE_ROLE_KEY"
+      ]
+    },
+    "dev:turbo": {
+      "cache": false,
+      "persistent": true,
+      "env": [
+        "NEXT_PUBLIC_*",
+        "PAYLOAD_*",
+        "DATABASE_URL",
+        "DATABASE_URI",
+        "POSTGRES_URL",
+        "SUPABASE_SERVICE_ROLE_KEY"
+      ]
     },
     "lint": {
-      "dependsOn": ["^build"],
-      "outputs": ["eslint-report.json"],
-      "env": ["NODE_VERSION", "NEXT_TELEMETRY_DISABLED", "NODE_ENV"]
+      "dependsOn": ["^lint"]
+    },
+    "lint:functions": {
+      "outputs": [],
+      "inputs": ["src/**", ".eslintrc.*"],
+      "env": []
     },
     "type-check": {
-      "dependsOn": ["^build"],
-      "outputs": ["*.tsbuildinfo"],
-      "env": ["NODE_VERSION", "NEXT_TELEMETRY_DISABLED", "NODE_ENV"]
+      "dependsOn": ["^type-check"]
     },
-
+    "type-check:functions": {
+      "outputs": [],
+      "inputs": ["src/**", "tsconfig.json"],
+      "env": []
+    },
+    "test:functions": {
+      "outputs": ["coverage/**"],
+      "inputs": ["src/**", "**/*.test.ts", "**/*.spec.ts", "jest.config.*"],
+      "env": ["NODE_ENV"]
+    },
     "clean": {
       "cache": false
     },
