@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
-import { authenticateAdmin, aggregateMediaUsage, mapMediaDoc } from '@/utils/mediaLibrary'
+import { authenticateAdmin, aggregateMediaUsage, mapMediaDoc, generateUniqueFilename } from '@/utils/mediaLibrary'
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50 MB
 const MAX_FILE_SIZE_DB = 1024 * 1024 * 1024 // Payload default cap, defensive
@@ -105,21 +105,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File too large' }, { status: 413 })
     }
 
+    // Generate a URL-safe unique filename to prevent uniqueness collisions in Payload/DB
+    const sanitizedName = generateUniqueFilename(file.name)
     const created = await payload.create({
       collection: 'media',
       data: { alt },
       file: {
         data: buffer,
-        mimetype: file.type,
-        name: file.name,
+        mimetype: file.type || 'application/octet-stream',
+        name: sanitizedName,
+        // provide both name and filename for adapter compatibility (grandline proven pattern uses `name`)
+        filename: sanitizedName,
         size: file.size,
-      },
+      } as any,
       overrideAccess: true,
     })
 
     return NextResponse.json({ doc: mapMediaDoc(created) }, { status: 201 })
   } catch (err: any) {
     console.error('[media/library] POST error:', err)
-    return NextResponse.json({ error: err?.message || 'Upload failed' }, { status: 500 })
+    console.error('[media/library] POST error data:', err?.data)
+    console.error('[media/library] POST error errors:', err?.errors)
+    const details = err?.data?.errors?.[0]?.message || err?.errors?.[0]?.message || err?.data?.message || ''
+    const message = err?.message || 'Upload failed'
+    return NextResponse.json({ error: details ? `${message}: ${details}` : message, details: err?.data || err?.errors }, { status: 500 })
   }
 }

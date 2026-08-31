@@ -224,6 +224,25 @@ export async function aggregateMediaUsage(
 }
 
 /**
+ * Generate a URL-safe, unique filename to prevent uniqueness collisions in Payload/DB.
+ */
+export function generateUniqueFilename(originalName?: string | null): string {
+  const rawName = originalName || `upload-${Date.now()}`
+  const lastDot = rawName.lastIndexOf('.')
+  let stem = rawName
+  let ext = ''
+  if (lastDot > 0) {
+    stem = rawName.substring(0, lastDot)
+    ext = rawName.substring(lastDot).toLowerCase()
+  }
+  const sanitizedStem = stem.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-_]/g, '') || 'upload'
+  const sanitizedExt = ext.replace(/[^a-zA-Z0-9.]/g, '')
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substring(2, 7)
+  return `${sanitizedStem}-${timestamp}-${random}${sanitizedExt}`
+}
+
+/**
  * Map a raw Media document to a frontend-ready shape.
  */
 export function mapMediaDoc(doc: Record<string, any>, usage: MediaUsageEntry[] = []): Record<string, any> {

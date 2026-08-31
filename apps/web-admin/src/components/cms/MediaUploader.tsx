@@ -64,8 +64,8 @@ export function MediaUploader({
         headers['Authorization'] = `JWT ${storedToken}`;
       }
 
-      // Use direct fetch for now - could be replaced with RTK Query
-      const response = await fetch(`${API_BASE_URL}/media/${mediaId}`, {
+      // BFF pattern: use admin media library aggregation endpoint (apps/cms/src/app/api/media/library/[id]/route.ts)
+      const response = await fetch(`${API_BASE_URL}/media/library/${mediaId}`, {
         credentials: 'include',
         headers,
       });
@@ -131,14 +131,17 @@ export function MediaUploader({
               reject(new Error('Invalid response format'));
             }
           } else {
-            reject(new Error(`Upload failed: ${xhr.statusText}`));
+            let details = xhr.responseText
+            try { const j = JSON.parse(xhr.responseText); details = j.error || j.message || details } catch {}
+            reject(new Error(`Upload failed (${xhr.status}): ${details || xhr.statusText}`));
           }
         };
 
-        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.onerror = () => reject(new Error('Upload failed — network error'));
 
         const storedToken = getStoredToken();
-        xhr.open('POST', `${API_BASE_URL}/media`);
+        // BFF pattern: POST to /media/library (admin aggregation, overrideAccess) — see apps/cms/src/app/api/media/library/route.ts
+        xhr.open('POST', `${API_BASE_URL}/media/library`);
         if (storedToken) {
           xhr.setRequestHeader('Authorization', `JWT ${storedToken}`);
         }
@@ -229,7 +232,7 @@ export function MediaUploader({
     <div className={`space-y-3 ${className}`}>
       {selectedMedia ? (
         // Show selected media
-        <div className="relative border border-gray-200 rounded-lg p-3">
+        <div className="relative border border-gray-200 dark:border-[#262626] rounded-lg p-3">
           <div className="flex items-start space-x-3">
             <div className="flex-shrink-0">
               {isImage ? (
@@ -240,21 +243,21 @@ export function MediaUploader({
                   className="w-16 h-16 object-cover rounded"
                 />
               ) : (
-                <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-[#262626] rounded flex items-center justify-center">
                   <File className="w-8 h-8 text-gray-400" />
                 </div>
               )}
             </div>
             
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {selectedMedia.filename}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-[#a1a1aa]">
                 {formatFileSize(selectedMedia.filesize)}
               </p>
               {selectedMedia.alt && (
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-gray-600 dark:text-[#a1a1aa] mt-1">
                   Alt: {selectedMedia.alt}
                 </p>
               )}
@@ -263,7 +266,7 @@ export function MediaUploader({
             <button
               type="button"
               onClick={handleRemove}
-              className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600"
+              className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -274,33 +277,33 @@ export function MediaUploader({
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors"
+          className="border-2 border-dashed border-gray-300 dark:border-[#333] rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-[#444] transition-colors"
         >
           {isUploading ? (
             <div className="space-y-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-sm text-gray-600">Uploading... {uploadProgress}%</p>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#eba236] mx-auto"></div>
+              <p className="text-sm text-gray-600 dark:text-[#a1a1aa]">Uploading... {uploadProgress}%</p>
+              <div className="w-full bg-gray-200 dark:bg-[#262626] rounded-full h-2">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-[#eba236] h-2 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
             </div>
           ) : (
             <div className="space-y-2">
-              <Upload className="w-8 h-8 text-gray-900 mx-auto" />
+              <Upload className="w-8 h-8 text-gray-900 dark:text-white mx-auto" />
               <div>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
+                  className="text-[#eba236] hover:text-[#c88a20] font-medium"
                 >
                   Click to upload
                 </button>
-                <span className="text-gray-900"> or drag and drop</span>
+                <span className="text-gray-900 dark:text-white"> or drag and drop</span>
               </div>
-              <p className="text-xs text-gray-900">
+              <p className="text-xs text-gray-900 dark:text-white">
                 {accept.includes('image') ? 'Images' : 'Files'} up to {maxSize}MB
               </p>
             </div>
@@ -330,7 +333,7 @@ export function MediaUploader({
         onClick={() => {
           // TODO: Implement media library functionality
         }}
-        className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium py-2"
+        className="w-full text-sm text-[#eba236] hover:text-[#c88a20] font-medium py-2"
       >
         Choose from Media Library
       </button>

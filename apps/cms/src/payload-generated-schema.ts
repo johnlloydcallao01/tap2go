@@ -104,6 +104,7 @@ export const enum_addresses_verification_method = pgEnum('enum_addresses_verific
 export const enum_addresses_address_type = pgEnum('enum_addresses_address_type', [
   'home',
   'work',
+  'partner',
   'billing',
   'shipping',
   'pickup',
@@ -222,11 +223,81 @@ export const enum_products_catalog_visibility = pgEnum('enum_products_catalog_vi
   'search',
   'hidden',
 ])
+export const enum_cart_items_status = pgEnum('enum_cart_items_status', [
+  'active',
+  'checked_out',
+  'ordered',
+  'abandoned',
+  'removed',
+])
 export const enum_cart_items_product_size = pgEnum('enum_cart_items_product_size', [
   'small',
   'medium',
   'large',
   'extra_large',
+])
+export const enum_orders_status = pgEnum('enum_orders_status', [
+  'pending',
+  'accepted',
+  'preparing',
+  'ready_for_pickup',
+  'on_delivery',
+  'delivered',
+  'cancelled',
+])
+export const enum_orders_fulfillment_type = pgEnum('enum_orders_fulfillment_type', [
+  'delivery',
+  'pickup',
+])
+export const enum_orders_delivery_status = pgEnum('enum_orders_delivery_status', [
+  'none',
+  'pending',
+  'assigning_driver',
+  'driver_assigned',
+  'picked_up',
+  'completed',
+  'canceled',
+  'expired',
+])
+export const enum_delivery_locations_label = pgEnum('enum_delivery_locations_label', [
+  'home',
+  'office',
+  'other',
+])
+export const enum_transactions_status = pgEnum('enum_transactions_status', [
+  'pending',
+  'paid',
+  'failed',
+  'refunded',
+])
+export const enum_order_tracking_status = pgEnum('enum_order_tracking_status', [
+  'pending',
+  'accepted',
+  'preparing',
+  'ready_for_pickup',
+  'on_delivery',
+  'delivered',
+  'cancelled',
+])
+export const enum_driver_assignments_status = pgEnum('enum_driver_assignments_status', [
+  'offered',
+  'accepted',
+  'rejected',
+  'completed',
+])
+export const enum_delivery_bookings_status = pgEnum('enum_delivery_bookings_status', [
+  'pending',
+  'assigning_driver',
+  'driver_assigned',
+  'picked_up',
+  'completed',
+  'canceled',
+  'rejected',
+  'expired',
+])
+export const enum_order_discounts_type = pgEnum('enum_order_discounts_type', [
+  'percentage',
+  'fixed',
 ])
 export const enum_prod_attributes_type = pgEnum('enum_prod_attributes_type', [
   'select',
@@ -254,6 +325,10 @@ export const enum_variation_modifier_group_overrides_mode = pgEnum(
   'enum_variation_modifier_group_overrides_mode',
   ['inherit', 'hide', 'override'],
 )
+export const enum_variation_modifier_group_overrides_selection_type_override = pgEnum(
+  'enum_variation_modifier_group_overrides_selection_type_override',
+  ['single', 'multiple'],
+)
 export const enum_variation_modifier_group_overrides_required_behavior = pgEnum(
   'enum_variation_modifier_group_overrides_required_behavior',
   ['inherit', 'required', 'optional'],
@@ -270,13 +345,13 @@ export const enum_variation_modifier_option_overrides_availability_behavior = pg
   'enum_variation_modifier_option_overrides_availability_behavior',
   ['inherit', 'available', 'unavailable'],
 )
-export const enum_merchant_modifier_selection_type = pgEnum(
-  'enum_merchant_modifier_selection_type',
-  ['single', 'multiple'],
-)
 export const enum_merchant_modifier_group_override_mode = pgEnum(
   'enum_merchant_modifier_group_override_mode',
   ['inherit', 'hide', 'override'],
+)
+export const enum_merchant_modifier_selection_type = pgEnum(
+  'enum_merchant_modifier_selection_type',
+  ['single', 'multiple'],
 )
 export const enum_merchant_modifier_group_required_behavior = pgEnum(
   'enum_merchant_modifier_group_required_behavior',
@@ -316,6 +391,23 @@ export const enum_prod_tags_tag_type = pgEnum('enum_prod_tags_tag_type', [
 export const enum_prod_tags_junction_added_by_type = pgEnum(
   'enum_prod_tags_junction_added_by_type',
   ['vendor', 'merchant', 'system'],
+)
+export const enum_recent_views_item_type = pgEnum('enum_recent_views_item_type', [
+  'merchant',
+  'merchant_product',
+])
+export const enum_recent_views_source = pgEnum('enum_recent_views_source', [
+  'web',
+  'mobile',
+  'unknown',
+])
+export const enum_wishlists_item_type = pgEnum('enum_wishlists_item_type', [
+  'merchant',
+  'merchantProduct',
+])
+export const enum_system_settings_delivery_provider = pgEnum(
+  'enum_system_settings_delivery_provider',
+  ['lalamove', 'native'],
 )
 
 export const users_reset_password_tokens = pgTable(
@@ -373,6 +465,7 @@ export const users = pgTable(
     firstName: varchar('first_name').notNull(),
     lastName: varchar('last_name').notNull(),
     middleName: varchar('middle_name'),
+    phone: varchar('phone'),
     nameExtension: varchar('name_extension'),
     username: varchar('username'),
     gender: enum_users_gender('gender'),
@@ -426,6 +519,7 @@ export const customers = pgTable(
       .references(() => users.id, {
         onDelete: 'set null',
       }),
+    email: varchar('email'),
     srn: varchar('srn'),
     couponCode: varchar('coupon_code'),
     enrollmentDate: timestamp('enrollment_date', {
@@ -592,6 +686,10 @@ export const addresses = pgTable(
     street_number: varchar('street_number'),
     route: varchar('route'),
     subpremise: varchar('subpremise'),
+    street: varchar('street'),
+    floor_unit_room: varchar('floor_unit_room'),
+    delivery_instructions: varchar('delivery_instructions'),
+    label: varchar('label'),
     barangay: varchar('barangay'),
     locality: varchar('locality'),
     administrative_area_level_2: varchar('administrative_area_level_2'),
@@ -946,6 +1044,7 @@ export const user_notifications = pgTable(
     channel: enum_user_notifications_channel('channel').notNull().default('in_app'),
     status: enum_user_notifications_status('status').notNull().default('unread'),
     deliveredAt: timestamp('delivered_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    seenAt: timestamp('seen_at', { mode: 'string', withTimezone: true, precision: 3 }),
     readAt: timestamp('read_at', { mode: 'string', withTimezone: true, precision: 3 }),
     archivedAt: timestamp('archived_at', { mode: 'string', withTimezone: true, precision: 3 }),
     isPinned: boolean('is_pinned').default(false),
@@ -967,6 +1066,35 @@ export const user_notifications = pgTable(
     user_notifications_created_at_idx: index('user_notifications_created_at_idx').on(
       columns.createdAt,
     ),
+  }),
+)
+
+export const business_zones = pgTable(
+  'business_zones',
+  {
+    id: serial('id').primaryKey(),
+    name: varchar('name').notNull(),
+    slug: varchar('slug').notNull(),
+    description: varchar('description'),
+    boundary: jsonb('boundary'),
+    boundary_geometry: jsonb('boundary_geometry'),
+    isActive: boolean('is_active').default(true),
+    disabledReason: varchar('disabled_reason'),
+    displayOrder: numeric('display_order').default('0'),
+    timezone: varchar('timezone').default('Asia/Manila'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    business_zones_slug_idx: uniqueIndex('business_zones_slug_idx').on(columns.slug),
+    business_zones_updated_at_idx: index('business_zones_updated_at_idx').on(columns.updatedAt),
+    business_zones_created_at_idx: index('business_zones_created_at_idx').on(columns.createdAt),
+    isActive_idx: index('isActive_idx').on(columns.isActive),
+    displayOrder_idx: index('displayOrder_idx').on(columns.displayOrder),
   }),
 )
 
@@ -1084,6 +1212,9 @@ export const merchants = pgTable(
     activeAddress: integer('active_address_id').references(() => addresses.id, {
       onDelete: 'set null',
     }),
+    businessZone: integer('business_zone_id').references(() => business_zones.id, {
+      onDelete: 'set null',
+    }),
     merchant_latitude: numeric('merchant_latitude'),
     merchant_longitude: numeric('merchant_longitude'),
     location_accuracy_radius: numeric('location_accuracy_radius'),
@@ -1112,6 +1243,7 @@ export const merchants = pgTable(
       withTimezone: true,
       precision: 3,
     }),
+    timezone: varchar('timezone').notNull().default('Asia/Manila'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1129,6 +1261,7 @@ export const merchants = pgTable(
       'merchants_media_media_store_front_image_idx',
     ).on(columns.media_storeFrontImage),
     merchants_active_address_idx: index('merchants_active_address_idx').on(columns.activeAddress),
+    merchants_business_zone_idx: index('merchants_business_zone_idx').on(columns.businessZone),
     merchants_updated_at_idx: index('merchants_updated_at_idx').on(columns.updatedAt),
     merchants_created_at_idx: index('merchants_created_at_idx').on(columns.createdAt),
     vendor_idx: index('vendor_idx').on(columns.vendor),
@@ -1249,7 +1382,7 @@ export const drivers = pgTable(
     drivers_created_at_idx: index('drivers_created_at_idx').on(columns.createdAt),
     user_1_idx: index('user_1_idx').on(columns.user),
     status_idx: index('status_idx').on(columns.status),
-    isActive_idx: index('isActive_idx').on(columns.isActive),
+    isActive_1_idx: index('isActive_1_idx').on(columns.isActive),
     current_latitude_current_longitude_idx: index('current_latitude_current_longitude_idx').on(
       columns.current_latitude,
       columns.current_longitude,
@@ -1292,7 +1425,7 @@ export const merchant_categories = pgTable(
       columns.isActive,
       columns.isFeatured,
     ),
-    displayOrder_idx: index('displayOrder_idx').on(columns.displayOrder),
+    displayOrder_1_idx: index('displayOrder_1_idx').on(columns.displayOrder),
   }),
 )
 
@@ -1413,7 +1546,7 @@ export const products = pgTable(
     catalogVisibility: enum_products_catalog_visibility('catalog_visibility')
       .notNull()
       .default('visible'),
-    assign_to_all_vendor_merchants: boolean('assign_to_all_vendor_merchants').default(false),
+    assign_to_all_vendor_merchants: boolean('assign_to_all_vendor_merchants').default(true),
     createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1489,6 +1622,12 @@ export const cart_items = pgTable(
       .references(() => merchant_products.id, {
         onDelete: 'set null',
       }),
+    status: enum_cart_items_status('status').notNull().default('active'),
+    order_id: integer('order_id_id').references(() => orders.id, {
+      onDelete: 'set null',
+    }),
+    ordered_at: timestamp('ordered_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    deleted_at: timestamp('deleted_at', { mode: 'string', withTimezone: true, precision: 3 }),
     quantity: numeric('quantity').notNull().default('1'),
     priceAtAdd: numeric('price_at_add').notNull(),
     compareAtPrice: numeric('compare_at_price'),
@@ -1520,6 +1659,7 @@ export const cart_items = pgTable(
     cart_items_merchant_product_idx: index('cart_items_merchant_product_idx').on(
       columns.merchantProduct,
     ),
+    cart_items_order_id_idx: index('cart_items_order_id_idx').on(columns.order_id),
     cart_items_selected_variation_idx: index('cart_items_selected_variation_idx').on(
       columns.selectedVariation,
     ),
@@ -1530,6 +1670,360 @@ export const cart_items = pgTable(
     itemHash_idx: index('itemHash_idx').on(columns.itemHash),
     updatedAt_idx: index('updatedAt_idx').on(columns.updatedAt),
     expiresAt_idx: index('expiresAt_idx').on(columns.expiresAt),
+  }),
+)
+
+export const orders = pgTable(
+  'orders',
+  {
+    id: serial('id').primaryKey(),
+    customer: integer('customer_id')
+      .notNull()
+      .references(() => customers.id, {
+        onDelete: 'set null',
+      }),
+    merchant: integer('merchant_id')
+      .notNull()
+      .references(() => merchants.id, {
+        onDelete: 'set null',
+      }),
+    status: enum_orders_status('status').notNull().default('pending'),
+    fulfillment_type: enum_orders_fulfillment_type('fulfillment_type').notNull(),
+    total: numeric('total').notNull(),
+    subtotal: numeric('subtotal').notNull(),
+    delivery_fee: numeric('delivery_fee').notNull().default('0'),
+    platform_fee: numeric('platform_fee').notNull().default('0'),
+    notes: varchar('notes'),
+    placed_at: timestamp('placed_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    lalamove_order_id: varchar('lalamove_order_id'),
+    delivery_service_type: varchar('delivery_service_type').default('MOTORCYCLE'),
+    delivery_status: enum_orders_delivery_status('delivery_status').default('none'),
+    delivery_tracking_link: varchar('delivery_tracking_link'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    orders_customer_idx: index('orders_customer_idx').on(columns.customer),
+    orders_merchant_idx: index('orders_merchant_idx').on(columns.merchant),
+    orders_updated_at_idx: index('orders_updated_at_idx').on(columns.updatedAt),
+    orders_created_at_idx: index('orders_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const order_items = pgTable(
+  'order_items',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    product: integer('product_id').references(() => products.id, {
+      onDelete: 'set null',
+    }),
+    merchant_product: integer('merchant_product_id').references(() => merchant_products.id, {
+      onDelete: 'set null',
+    }),
+    product_name_snapshot: varchar('product_name_snapshot').notNull(),
+    price_at_purchase: numeric('price_at_purchase').notNull(),
+    quantity: numeric('quantity').notNull(),
+    options_snapshot: jsonb('options_snapshot'),
+    total_price: numeric('total_price').notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    order_items_order_idx: index('order_items_order_idx').on(columns.order),
+    order_items_product_idx: index('order_items_product_idx').on(columns.product),
+    order_items_merchant_product_idx: index('order_items_merchant_product_idx').on(
+      columns.merchant_product,
+    ),
+    order_items_updated_at_idx: index('order_items_updated_at_idx').on(columns.updatedAt),
+    order_items_created_at_idx: index('order_items_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const delivery_locations = pgTable(
+  'delivery_locations',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    formatted_address: varchar('formatted_address').notNull(),
+    coordinates: jsonb('coordinates'),
+    street: varchar('street'),
+    floor_unit_room: varchar('floor_unit_room'),
+    delivery_instructions: varchar('delivery_instructions'),
+    notes: varchar('notes'),
+    contact_name: varchar('contact_name'),
+    contact_phone: varchar('contact_phone'),
+    label: enum_delivery_locations_label('label'),
+    merchant_formatted_address: varchar('merchant_formatted_address'),
+    merchant_coordinates: jsonb('merchant_coordinates'),
+    merchant_street: varchar('merchant_street'),
+    merchant_floor_unit_room: varchar('merchant_floor_unit_room'),
+    merchant_delivery_instructions: varchar('merchant_delivery_instructions'),
+    merchant_label: varchar('merchant_label'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    delivery_locations_order_idx: uniqueIndex('delivery_locations_order_idx').on(columns.order),
+    delivery_locations_updated_at_idx: index('delivery_locations_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    delivery_locations_created_at_idx: index('delivery_locations_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const transactions = pgTable(
+  'transactions',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    payment_intent_id: varchar('payment_intent_id'),
+    payment_method: varchar('payment_method'),
+    amount: numeric('amount').notNull(),
+    currency: varchar('currency').default('PHP'),
+    status: enum_transactions_status('status').notNull().default('pending'),
+    paid_at: timestamp('paid_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    transactions_order_idx: index('transactions_order_idx').on(columns.order),
+    transactions_updated_at_idx: index('transactions_updated_at_idx').on(columns.updatedAt),
+    transactions_created_at_idx: index('transactions_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const order_tracking = pgTable(
+  'order_tracking',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    status: enum_order_tracking_status('status').notNull(),
+    timestamp: timestamp('timestamp', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    actor: integer('actor_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    description: varchar('description'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    order_tracking_order_idx: index('order_tracking_order_idx').on(columns.order),
+    order_tracking_actor_idx: index('order_tracking_actor_idx').on(columns.actor),
+    order_tracking_updated_at_idx: index('order_tracking_updated_at_idx').on(columns.updatedAt),
+    order_tracking_created_at_idx: index('order_tracking_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const driver_assignments = pgTable(
+  'driver_assignments',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    driver: integer('driver_id')
+      .notNull()
+      .references(() => drivers.id, {
+        onDelete: 'set null',
+      }),
+    status: enum_driver_assignments_status('status').notNull().default('offered'),
+    assigned_at: timestamp('assigned_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    accepted_at: timestamp('accepted_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    completed_at: timestamp('completed_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    driver_assignments_order_idx: index('driver_assignments_order_idx').on(columns.order),
+    driver_assignments_driver_idx: index('driver_assignments_driver_idx').on(columns.driver),
+    driver_assignments_updated_at_idx: index('driver_assignments_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    driver_assignments_created_at_idx: index('driver_assignments_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const delivery_bookings = pgTable(
+  'delivery_bookings',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    lalamove_order_id: varchar('lalamove_order_id'),
+    lalamove_quotation_id: varchar('lalamove_quotation_id'),
+    share_link: varchar('share_link'),
+    service_type: varchar('service_type').default('MOTORCYCLE'),
+    scheduled_at: timestamp('scheduled_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    expires_at: timestamp('expires_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    status: enum_delivery_bookings_status('status').notNull().default('pending'),
+    lalamove_raw_status: varchar('lalamove_raw_status'),
+    delivery_fee: numeric('delivery_fee'),
+    currency: varchar('currency').default('PHP'),
+    priority_fee: numeric('priority_fee').default('0'),
+    driver_name: varchar('driver_name'),
+    driver_phone: varchar('driver_phone'),
+    driver_plate_number: varchar('driver_plate_number'),
+    driver_photo_url: varchar('driver_photo_url'),
+    driver_lat: numeric('driver_lat'),
+    driver_lng: numeric('driver_lng'),
+    driver_location_updated_at: timestamp('driver_location_updated_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    pickup_address: varchar('pickup_address'),
+    pickup_lat: numeric('pickup_lat'),
+    pickup_lng: numeric('pickup_lng'),
+    dropoff_address: varchar('dropoff_address'),
+    dropoff_lat: numeric('dropoff_lat'),
+    dropoff_lng: numeric('dropoff_lng'),
+    distance_meters: numeric('distance_meters'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    delivery_bookings_order_idx: uniqueIndex('delivery_bookings_order_idx').on(columns.order),
+    delivery_bookings_updated_at_idx: index('delivery_bookings_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    delivery_bookings_created_at_idx: index('delivery_bookings_created_at_idx').on(
+      columns.createdAt,
+    ),
+  }),
+)
+
+export const order_discounts = pgTable(
+  'order_discounts',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    code: varchar('code').notNull(),
+    amount_off: numeric('amount_off').notNull(),
+    type: enum_order_discounts_type('type').notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    order_discounts_order_idx: index('order_discounts_order_idx').on(columns.order),
+    order_discounts_updated_at_idx: index('order_discounts_updated_at_idx').on(columns.updatedAt),
+    order_discounts_created_at_idx: index('order_discounts_created_at_idx').on(columns.createdAt),
+  }),
+)
+
+export const reviews = pgTable(
+  'reviews',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    customer: integer('customer_id')
+      .notNull()
+      .references(() => customers.id, {
+        onDelete: 'set null',
+      }),
+    merchant: integer('merchant_id')
+      .notNull()
+      .references(() => merchants.id, {
+        onDelete: 'set null',
+      }),
+    driver: integer('driver_id').references(() => drivers.id, {
+      onDelete: 'set null',
+    }),
+    merchant_rating: numeric('merchant_rating').notNull(),
+    driver_rating: numeric('driver_rating'),
+    comment: varchar('comment'),
+    is_public: boolean('is_public').default(false),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    reviews_order_idx: index('reviews_order_idx').on(columns.order),
+    reviews_customer_idx: index('reviews_customer_idx').on(columns.customer),
+    reviews_merchant_idx: index('reviews_merchant_idx').on(columns.merchant),
+    reviews_driver_idx: index('reviews_driver_idx').on(columns.driver),
+    reviews_updated_at_idx: index('reviews_updated_at_idx').on(columns.updatedAt),
+    reviews_created_at_idx: index('reviews_created_at_idx').on(columns.createdAt),
   }),
 )
 
@@ -1598,6 +2092,9 @@ export const prod_variations = pgTable(
       .references(() => products.id, {
         onDelete: 'set null',
       }),
+    modifier_behavior_mode: enum_prod_variations_modifier_behavior_mode('modifier_behavior_mode')
+      .notNull()
+      .default('inherit_product'),
     name: varchar('name'),
     short_description: varchar('short_description'),
     image: integer('image_id').references(() => media.id, {
@@ -1607,9 +2104,6 @@ export const prod_variations = pgTable(
     base_price: numeric('base_price'),
     compare_at_price: numeric('compare_at_price'),
     stock_quantity: numeric('stock_quantity').default('0'),
-    modifier_behavior_mode: enum_prod_variations_modifier_behavior_mode('modifier_behavior_mode')
-      .default('inherit_product')
-      .notNull(),
     is_used_for_variations: boolean('is_used_for_variations').default(true),
     is_visible: boolean('is_visible').default(true),
     sort_order: numeric('sort_order').default('0'),
@@ -1720,6 +2214,7 @@ export const merchant_products = pgTable(
   'merchant_products',
   {
     id: serial('id').primaryKey(),
+    display_title: varchar('display_title'),
     merchant_id: integer('merchant_id_id')
       .notNull()
       .references(() => merchants.id, {
@@ -1735,6 +2230,10 @@ export const merchant_products = pgTable(
     stock_quantity: numeric('stock_quantity').default('0'),
     is_active: boolean('is_active').default(true),
     is_available: boolean('is_available').default(true),
+    merchant_modifier_configuration_hint: varchar('merchant_modifier_configuration_hint').default(
+      'Use Merchant Product Modifier Overrides for merchant-wide base rules. Use Merchant Variation Modifier Overrides for variation-specific merchant customization.',
+    ),
+    effective_modifier_preview: jsonb('effective_modifier_preview'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1821,15 +2320,15 @@ export const variation_modifier_groups = pgTable(
   'variation_modifier_groups',
   {
     id: serial('id').primaryKey(),
-    variation_id: integer('variation_id')
+    variation_id: integer('variation_id_id')
       .notNull()
       .references(() => prod_variations.id, {
         onDelete: 'set null',
       }),
     name: varchar('name').notNull(),
     selection_type: enum_variation_modifier_groups_selection_type('selection_type')
-      .default('single')
-      .notNull(),
+      .notNull()
+      .default('single'),
     is_required: boolean('is_required').default(false),
     min_selections: numeric('min_selections').default('0'),
     max_selections: numeric('max_selections'),
@@ -1843,15 +2342,19 @@ export const variation_modifier_groups = pgTable(
       .notNull(),
   },
   (columns) => ({
-    variation_modifier_groups_variation_sort_idx: index(
-      'variation_modifier_groups_variation_sort_idx',
-    ).on(columns.variation_id, columns.sort_order),
-    variation_modifier_groups_updated_at_idx: index(
-      'variation_modifier_groups_updated_at_idx',
-    ).on(columns.updatedAt),
-    variation_modifier_groups_created_at_idx: index(
-      'variation_modifier_groups_created_at_idx',
-    ).on(columns.createdAt),
+    variation_modifier_groups_variation_id_idx: index(
+      'variation_modifier_groups_variation_id_idx',
+    ).on(columns.variation_id),
+    variation_modifier_groups_updated_at_idx: index('variation_modifier_groups_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    variation_modifier_groups_created_at_idx: index('variation_modifier_groups_created_at_idx').on(
+      columns.createdAt,
+    ),
+    variation_id_sort_order_idx: index('variation_id_sort_order_idx').on(
+      columns.variation_id,
+      columns.sort_order,
+    ),
   }),
 )
 
@@ -1859,7 +2362,7 @@ export const variation_modifier_options = pgTable(
   'variation_modifier_options',
   {
     id: serial('id').primaryKey(),
-    variation_modifier_group_id: integer('variation_modifier_group_id')
+    variation_modifier_group_id: integer('variation_modifier_group_id_id')
       .notNull()
       .references(() => variation_modifier_groups.id, {
         onDelete: 'set null',
@@ -1877,15 +2380,18 @@ export const variation_modifier_options = pgTable(
       .notNull(),
   },
   (columns) => ({
-    variation_modifier_options_group_sort_idx: index(
-      'variation_modifier_options_group_sort_idx',
-    ).on(columns.variation_modifier_group_id, columns.sort_order),
+    variation_modifier_options_variation_modifier_group_id_idx: index(
+      'variation_modifier_options_variation_modifier_group_id_idx',
+    ).on(columns.variation_modifier_group_id),
     variation_modifier_options_updated_at_idx: index(
       'variation_modifier_options_updated_at_idx',
     ).on(columns.updatedAt),
     variation_modifier_options_created_at_idx: index(
       'variation_modifier_options_created_at_idx',
     ).on(columns.createdAt),
+    variation_modifier_group_id_sort_order_idx: index(
+      'variation_modifier_group_id_sort_order_idx',
+    ).on(columns.variation_modifier_group_id, columns.sort_order),
   }),
 )
 
@@ -1893,22 +2399,24 @@ export const variation_modifier_group_overrides = pgTable(
   'variation_modifier_group_overrides',
   {
     id: serial('id').primaryKey(),
-    variation_id: integer('variation_id')
+    variation_id: integer('variation_id_id')
       .notNull()
       .references(() => prod_variations.id, {
         onDelete: 'set null',
       }),
-    base_modifier_group_id: integer('base_modifier_group_id')
+    base_modifier_group_id: integer('base_modifier_group_id_id')
       .notNull()
       .references(() => modifier_groups.id, {
         onDelete: 'set null',
       }),
-    mode: enum_variation_modifier_group_overrides_mode('mode').default('inherit').notNull(),
+    mode: enum_variation_modifier_group_overrides_mode('mode').notNull().default('inherit'),
     name_override: varchar('name_override'),
-    selection_type_override: enum_variation_modifier_groups_selection_type('selection_type_override'),
-    required_behavior: enum_variation_modifier_group_overrides_required_behavior(
-      'required_behavior',
-    ).default('inherit'),
+    selection_type_override:
+      enum_variation_modifier_group_overrides_selection_type_override('selection_type_override'),
+    required_behavior:
+      enum_variation_modifier_group_overrides_required_behavior('required_behavior').default(
+        'inherit',
+      ),
     min_selections_override: numeric('min_selections_override'),
     max_selections_override: numeric('max_selections_override'),
     sort_order_override: numeric('sort_order_override'),
@@ -1921,15 +2429,21 @@ export const variation_modifier_group_overrides = pgTable(
       .notNull(),
   },
   (columns) => ({
-    variation_modifier_group_overrides_variation_group_idx: index(
-      'variation_modifier_group_overrides_variation_group_idx',
-    ).on(columns.variation_id, columns.base_modifier_group_id),
+    variation_modifier_group_overrides_variation_id_idx: index(
+      'variation_modifier_group_overrides_variation_id_idx',
+    ).on(columns.variation_id),
+    variation_modifier_group_overrides_base_modifier_group_id_idx: index(
+      'variation_modifier_group_overrides_base_modifier_group_id_idx',
+    ).on(columns.base_modifier_group_id),
     variation_modifier_group_overrides_updated_at_idx: index(
       'variation_modifier_group_overrides_updated_at_idx',
     ).on(columns.updatedAt),
     variation_modifier_group_overrides_created_at_idx: index(
       'variation_modifier_group_overrides_created_at_idx',
     ).on(columns.createdAt),
+    variation_id_base_modifier_group_id_idx: uniqueIndex(
+      'variation_id_base_modifier_group_id_idx',
+    ).on(columns.variation_id, columns.base_modifier_group_id),
   }),
 )
 
@@ -1937,25 +2451,27 @@ export const variation_modifier_option_overrides = pgTable(
   'variation_modifier_option_overrides',
   {
     id: serial('id').primaryKey(),
-    variation_id: integer('variation_id')
+    variation_id: integer('variation_id_id')
       .notNull()
       .references(() => prod_variations.id, {
         onDelete: 'set null',
       }),
-    base_modifier_option_id: integer('base_modifier_option_id')
+    base_modifier_option_id: integer('base_modifier_option_id_id')
       .notNull()
       .references(() => modifier_options.id, {
         onDelete: 'set null',
       }),
-    mode: enum_variation_modifier_option_overrides_mode('mode').default('inherit').notNull(),
+    mode: enum_variation_modifier_option_overrides_mode('mode').notNull().default('inherit'),
     name_override: varchar('name_override'),
     price_adjustment_override: numeric('price_adjustment_override'),
-    default_behavior: enum_variation_modifier_option_overrides_default_behavior(
-      'default_behavior',
-    ).default('inherit'),
-    availability_behavior: enum_variation_modifier_option_overrides_availability_behavior(
-      'availability_behavior',
-    ).default('inherit'),
+    default_behavior:
+      enum_variation_modifier_option_overrides_default_behavior('default_behavior').default(
+        'inherit',
+      ),
+    availability_behavior:
+      enum_variation_modifier_option_overrides_availability_behavior(
+        'availability_behavior',
+      ).default('inherit'),
     sort_order_override: numeric('sort_order_override'),
     is_active: boolean('is_active').default(true),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
@@ -1966,15 +2482,21 @@ export const variation_modifier_option_overrides = pgTable(
       .notNull(),
   },
   (columns) => ({
-    variation_modifier_option_overrides_variation_option_idx: index(
-      'variation_modifier_option_overrides_variation_option_idx',
-    ).on(columns.variation_id, columns.base_modifier_option_id),
+    variation_modifier_option_overrides_variation_id_idx: index(
+      'variation_modifier_option_overrides_variation_id_idx',
+    ).on(columns.variation_id),
+    variation_modifier_option_overrides_base_modifier_option_id_idx: index(
+      'variation_modifier_option_overrides_base_modifier_option_id_idx',
+    ).on(columns.base_modifier_option_id),
     variation_modifier_option_overrides_updated_at_idx: index(
       'variation_modifier_option_overrides_updated_at_idx',
     ).on(columns.updatedAt),
     variation_modifier_option_overrides_created_at_idx: index(
       'variation_modifier_option_overrides_created_at_idx',
     ).on(columns.createdAt),
+    variation_id_base_modifier_option_id_idx: uniqueIndex(
+      'variation_id_base_modifier_option_id_idx',
+    ).on(columns.variation_id, columns.base_modifier_option_id),
   }),
 )
 
@@ -1982,22 +2504,21 @@ export const merchant_product_modifier_group_overrides = pgTable(
   'merchant_product_modifier_group_overrides',
   {
     id: serial('id').primaryKey(),
-    merchant_product_id: integer('merchant_product_id')
+    merchant_product_id: integer('merchant_product_id_id')
       .notNull()
       .references(() => merchant_products.id, {
         onDelete: 'set null',
       }),
-    base_modifier_group_id: integer('base_modifier_group_id')
+    base_modifier_group_id: integer('base_modifier_group_id_id')
       .notNull()
       .references(() => modifier_groups.id, {
         onDelete: 'set null',
       }),
-    mode: enum_merchant_modifier_group_override_mode('mode').default('inherit').notNull(),
+    mode: enum_merchant_modifier_group_override_mode('mode').notNull().default('inherit'),
     name_override: varchar('name_override'),
     selection_type_override: enum_merchant_modifier_selection_type('selection_type_override'),
-    required_behavior: enum_merchant_modifier_group_required_behavior('required_behavior').default(
-      'inherit',
-    ),
+    required_behavior:
+      enum_merchant_modifier_group_required_behavior('required_behavior').default('inherit'),
     min_selections_override: numeric('min_selections_override'),
     max_selections_override: numeric('max_selections_override'),
     sort_order_override: numeric('sort_order_override'),
@@ -2010,15 +2531,21 @@ export const merchant_product_modifier_group_overrides = pgTable(
       .notNull(),
   },
   (columns) => ({
-    merchant_product_modifier_group_overrides_lookup_idx: index(
-      'merchant_product_modifier_group_overrides_lookup_idx',
-    ).on(columns.merchant_product_id, columns.base_modifier_group_id),
+    merchant_product_modifier_group_overrides_merchant_product_id_idx: index(
+      'merchant_product_modifier_group_overrides_merchant_product_id_idx',
+    ).on(columns.merchant_product_id),
+    merchant_product_modifier_group_overrides_base_modifier_group_id_idx: index(
+      'merchant_product_modifier_group_overrides_base_modifier_group_id_idx',
+    ).on(columns.base_modifier_group_id),
     merchant_product_modifier_group_overrides_updated_at_idx: index(
       'merchant_product_modifier_group_overrides_updated_at_idx',
     ).on(columns.updatedAt),
     merchant_product_modifier_group_overrides_created_at_idx: index(
       'merchant_product_modifier_group_overrides_created_at_idx',
     ).on(columns.createdAt),
+    merchant_product_id_base_modifier_group_id_idx: uniqueIndex(
+      'merchant_product_id_base_modifier_group_id_idx',
+    ).on(columns.merchant_product_id, columns.base_modifier_group_id),
   }),
 )
 
@@ -2026,25 +2553,25 @@ export const merchant_product_modifier_option_overrides = pgTable(
   'merchant_product_modifier_option_overrides',
   {
     id: serial('id').primaryKey(),
-    merchant_product_id: integer('merchant_product_id')
+    merchant_product_id: integer('merchant_product_id_id')
       .notNull()
       .references(() => merchant_products.id, {
         onDelete: 'set null',
       }),
-    base_modifier_option_id: integer('base_modifier_option_id')
+    base_modifier_option_id: integer('base_modifier_option_id_id')
       .notNull()
       .references(() => modifier_options.id, {
         onDelete: 'set null',
       }),
-    mode: enum_merchant_modifier_option_override_mode('mode').default('inherit').notNull(),
+    mode: enum_merchant_modifier_option_override_mode('mode').notNull().default('inherit'),
     name_override: varchar('name_override'),
     price_adjustment_override: numeric('price_adjustment_override'),
-    default_behavior: enum_merchant_modifier_option_default_behavior('default_behavior').default(
-      'inherit',
-    ),
-    availability_behavior: enum_merchant_modifier_option_availability_behavior(
-      'availability_behavior',
-    ).default('inherit'),
+    default_behavior:
+      enum_merchant_modifier_option_default_behavior('default_behavior').default('inherit'),
+    availability_behavior:
+      enum_merchant_modifier_option_availability_behavior('availability_behavior').default(
+        'inherit',
+      ),
     sort_order_override: numeric('sort_order_override'),
     is_active: boolean('is_active').default(true),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
@@ -2055,15 +2582,21 @@ export const merchant_product_modifier_option_overrides = pgTable(
       .notNull(),
   },
   (columns) => ({
-    merchant_product_modifier_option_overrides_lookup_idx: index(
-      'merchant_product_modifier_option_overrides_lookup_idx',
-    ).on(columns.merchant_product_id, columns.base_modifier_option_id),
+    merchant_product_modifier_option_overrides_merchant_product_id_idx: index(
+      'merchant_product_modifier_option_overrides_merchant_product_id_idx',
+    ).on(columns.merchant_product_id),
+    merchant_product_modifier_option_overrides_base_modifier_option_id_idx: index(
+      'merchant_product_modifier_option_overrides_base_modifier_option_id_idx',
+    ).on(columns.base_modifier_option_id),
     merchant_product_modifier_option_overrides_updated_at_idx: index(
       'merchant_product_modifier_option_overrides_updated_at_idx',
     ).on(columns.updatedAt),
     merchant_product_modifier_option_overrides_created_at_idx: index(
       'merchant_product_modifier_option_overrides_created_at_idx',
     ).on(columns.createdAt),
+    merchant_product_id_base_modifier_option_id_idx: uniqueIndex(
+      'merchant_product_id_base_modifier_option_id_idx',
+    ).on(columns.merchant_product_id, columns.base_modifier_option_id),
   }),
 )
 
@@ -2071,36 +2604,36 @@ export const merchant_variation_modifier_group_overrides = pgTable(
   'merchant_variation_modifier_group_overrides',
   {
     id: serial('id').primaryKey(),
-    merchant_product_id: integer('merchant_product_id')
+    merchant_product_id: integer('merchant_product_id_id')
       .notNull()
       .references(() => merchant_products.id, {
         onDelete: 'set null',
       }),
-    variation_id: integer('variation_id')
+    variation_id: integer('variation_id_id')
       .notNull()
       .references(() => prod_variations.id, {
         onDelete: 'set null',
       }),
-    target_group_source: enum_merchant_variation_modifier_group_target_source(
-      'target_group_source',
-    )
-      .default('product_base')
-      .notNull(),
-    base_modifier_group_id: integer('base_modifier_group_id').references(() => modifier_groups.id, {
-      onDelete: 'set null',
-    }),
-    variation_modifier_group_id: integer('variation_modifier_group_id').references(
+    target_group_source: enum_merchant_variation_modifier_group_target_source('target_group_source')
+      .notNull()
+      .default('product_base'),
+    base_modifier_group_id: integer('base_modifier_group_id_id').references(
+      () => modifier_groups.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+    variation_modifier_group_id: integer('variation_modifier_group_id_id').references(
       () => variation_modifier_groups.id,
       {
         onDelete: 'set null',
       },
     ),
-    mode: enum_merchant_modifier_group_override_mode('mode').default('inherit').notNull(),
+    mode: enum_merchant_modifier_group_override_mode('mode').notNull().default('inherit'),
     name_override: varchar('name_override'),
     selection_type_override: enum_merchant_modifier_selection_type('selection_type_override'),
-    required_behavior: enum_merchant_modifier_group_required_behavior('required_behavior').default(
-      'inherit',
-    ),
+    required_behavior:
+      enum_merchant_modifier_group_required_behavior('required_behavior').default('inherit'),
     min_selections_override: numeric('min_selections_override'),
     max_selections_override: numeric('max_selections_override'),
     sort_order_override: numeric('sort_order_override'),
@@ -2113,18 +2646,30 @@ export const merchant_variation_modifier_group_overrides = pgTable(
       .notNull(),
   },
   (columns) => ({
-    merchant_variation_modifier_group_overrides_base_idx: index(
-      'merchant_variation_modifier_group_overrides_base_idx',
-    ).on(columns.merchant_product_id, columns.variation_id, columns.base_modifier_group_id),
-    merchant_variation_modifier_group_overrides_variation_added_idx: index(
-      'merchant_variation_modifier_group_overrides_variation_added_idx',
-    ).on(columns.merchant_product_id, columns.variation_id, columns.variation_modifier_group_id),
+    merchant_variation_modifier_group_overrides_merchant_product_id_idx: index(
+      'merchant_variation_modifier_group_overrides_merchant_product_id_idx',
+    ).on(columns.merchant_product_id),
+    merchant_variation_modifier_group_overrides_variation_id_idx: index(
+      'merchant_variation_modifier_group_overrides_variation_id_idx',
+    ).on(columns.variation_id),
+    merchant_variation_modifier_group_overrides_base_modifier_group_id_idx: index(
+      'merchant_variation_modifier_group_overrides_base_modifier_group_id_idx',
+    ).on(columns.base_modifier_group_id),
+    merchant_variation_modifier_group_overrides_variation_modifier_group_id_idx: index(
+      'merchant_variation_modifier_group_overrides_variation_modifier_group_id_idx',
+    ).on(columns.variation_modifier_group_id),
     merchant_variation_modifier_group_overrides_updated_at_idx: index(
       'merchant_variation_modifier_group_overrides_updated_at_idx',
     ).on(columns.updatedAt),
     merchant_variation_modifier_group_overrides_created_at_idx: index(
       'merchant_variation_modifier_group_overrides_created_at_idx',
     ).on(columns.createdAt),
+    merchant_product_id_variation_id_base_modifier_group_id_idx: uniqueIndex(
+      'merchant_product_id_variation_id_base_modifier_group_id_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.base_modifier_group_id),
+    merchant_product_id_variation_id_variation_modifier_group_id_idx: uniqueIndex(
+      'merchant_product_id_variation_id_variation_modifier_group_id_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.variation_modifier_group_id),
   }),
 )
 
@@ -2132,12 +2677,12 @@ export const merchant_variation_modifier_option_overrides = pgTable(
   'merchant_variation_modifier_option_overrides',
   {
     id: serial('id').primaryKey(),
-    merchant_product_id: integer('merchant_product_id')
+    merchant_product_id: integer('merchant_product_id_id')
       .notNull()
       .references(() => merchant_products.id, {
         onDelete: 'set null',
       }),
-    variation_id: integer('variation_id')
+    variation_id: integer('variation_id_id')
       .notNull()
       .references(() => prod_variations.id, {
         onDelete: 'set null',
@@ -2145,29 +2690,29 @@ export const merchant_variation_modifier_option_overrides = pgTable(
     target_option_source: enum_merchant_variation_modifier_option_target_source(
       'target_option_source',
     )
-      .default('product_base')
-      .notNull(),
-    base_modifier_option_id: integer('base_modifier_option_id').references(
+      .notNull()
+      .default('product_base'),
+    base_modifier_option_id: integer('base_modifier_option_id_id').references(
       () => modifier_options.id,
       {
         onDelete: 'set null',
       },
     ),
-    variation_modifier_option_id: integer('variation_modifier_option_id').references(
+    variation_modifier_option_id: integer('variation_modifier_option_id_id').references(
       () => variation_modifier_options.id,
       {
         onDelete: 'set null',
       },
     ),
-    mode: enum_merchant_modifier_option_override_mode('mode').default('inherit').notNull(),
+    mode: enum_merchant_modifier_option_override_mode('mode').notNull().default('inherit'),
     name_override: varchar('name_override'),
     price_adjustment_override: numeric('price_adjustment_override'),
-    default_behavior: enum_merchant_modifier_option_default_behavior('default_behavior').default(
-      'inherit',
-    ),
-    availability_behavior: enum_merchant_modifier_option_availability_behavior(
-      'availability_behavior',
-    ).default('inherit'),
+    default_behavior:
+      enum_merchant_modifier_option_default_behavior('default_behavior').default('inherit'),
+    availability_behavior:
+      enum_merchant_modifier_option_availability_behavior('availability_behavior').default(
+        'inherit',
+      ),
     sort_order_override: numeric('sort_order_override'),
     is_active: boolean('is_active').default(true),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
@@ -2178,18 +2723,30 @@ export const merchant_variation_modifier_option_overrides = pgTable(
       .notNull(),
   },
   (columns) => ({
-    merchant_variation_modifier_option_overrides_base_idx: index(
-      'merchant_variation_modifier_option_overrides_base_idx',
-    ).on(columns.merchant_product_id, columns.variation_id, columns.base_modifier_option_id),
-    merchant_variation_modifier_option_overrides_variation_added_idx: index(
-      'merchant_variation_modifier_option_overrides_variation_added_idx',
-    ).on(columns.merchant_product_id, columns.variation_id, columns.variation_modifier_option_id),
+    merchant_variation_modifier_option_overrides_merchant_product_id_idx: index(
+      'merchant_variation_modifier_option_overrides_merchant_product_id_idx',
+    ).on(columns.merchant_product_id),
+    merchant_variation_modifier_option_overrides_variation_id_idx: index(
+      'merchant_variation_modifier_option_overrides_variation_id_idx',
+    ).on(columns.variation_id),
+    merchant_variation_modifier_option_overrides_base_modifier_option_id_idx: index(
+      'merchant_variation_modifier_option_overrides_base_modifier_option_id_idx',
+    ).on(columns.base_modifier_option_id),
+    merchant_variation_modifier_option_overrides_variation_modifier_option_id_idx: index(
+      'merchant_variation_modifier_option_overrides_variation_modifier_option_id_idx',
+    ).on(columns.variation_modifier_option_id),
     merchant_variation_modifier_option_overrides_updated_at_idx: index(
       'merchant_variation_modifier_option_overrides_updated_at_idx',
     ).on(columns.updatedAt),
     merchant_variation_modifier_option_overrides_created_at_idx: index(
       'merchant_variation_modifier_option_overrides_created_at_idx',
     ).on(columns.createdAt),
+    merchant_product_id_variation_id_base_modifier_option_id_idx: uniqueIndex(
+      'merchant_product_id_variation_id_base_modifier_option_id_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.base_modifier_option_id),
+    merchant_product_id_variation_id_variation_modifier_option_id_idx: uniqueIndex(
+      'merchant_product_id_variation_id_variation_modifier_option_id_idx',
+    ).on(columns.merchant_product_id, columns.variation_id, columns.variation_modifier_option_id),
   }),
 )
 
@@ -2336,6 +2893,104 @@ export const tag_group_memberships = pgTable(
   }),
 )
 
+export const recent_views = pgTable(
+  'recent_views',
+  {
+    id: serial('id').primaryKey(),
+    user: integer('user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    deviceId: varchar('device_id'),
+    itemType: enum_recent_views_item_type('item_type'),
+    merchant: integer('merchant_id').references(() => merchants.id, {
+      onDelete: 'set null',
+    }),
+    merchantProduct: integer('merchant_product_id').references(() => merchant_products.id, {
+      onDelete: 'set null',
+    }),
+    product: integer('product_id').references(() => products.id, {
+      onDelete: 'set null',
+    }),
+    viewCount: numeric('view_count').notNull().default('1'),
+    firstViewedAt: timestamp('first_viewed_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    lastViewedAt: timestamp('last_viewed_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    source: enum_recent_views_source('source').default('unknown'),
+    addressText: varchar('address_text'),
+    referrer: varchar('referrer'),
+    meta: jsonb('meta'),
+    compositeKey: varchar('composite_key'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    recent_views_user_idx: index('recent_views_user_idx').on(columns.user),
+    recent_views_merchant_idx: index('recent_views_merchant_idx').on(columns.merchant),
+    recent_views_merchant_product_idx: index('recent_views_merchant_product_idx').on(
+      columns.merchantProduct,
+    ),
+    recent_views_product_idx: index('recent_views_product_idx').on(columns.product),
+    recent_views_composite_key_idx: uniqueIndex('recent_views_composite_key_idx').on(
+      columns.compositeKey,
+    ),
+    recent_views_updated_at_idx: index('recent_views_updated_at_idx').on(columns.updatedAt),
+    recent_views_created_at_idx: index('recent_views_created_at_idx').on(columns.createdAt),
+    user_lastViewedAt_idx: index('user_lastViewedAt_idx').on(columns.user, columns.lastViewedAt),
+    user_itemType_lastViewedAt_idx: index('user_itemType_lastViewedAt_idx').on(
+      columns.user,
+      columns.itemType,
+      columns.lastViewedAt,
+    ),
+  }),
+)
+
+export const wishlists = pgTable(
+  'wishlists',
+  {
+    id: serial('id').primaryKey(),
+    user: integer('user_id')
+      .notNull()
+      .references(() => users.id, {
+        onDelete: 'set null',
+      }),
+    itemType: enum_wishlists_item_type('item_type').notNull().default('merchant'),
+    merchant: integer('merchant_id').references(() => merchants.id, {
+      onDelete: 'set null',
+    }),
+    merchantProduct: integer('merchant_product_id').references(() => merchant_products.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    wishlists_user_idx: index('wishlists_user_idx').on(columns.user),
+    wishlists_merchant_idx: index('wishlists_merchant_idx').on(columns.merchant),
+    wishlists_merchant_product_idx: index('wishlists_merchant_product_idx').on(
+      columns.merchantProduct,
+    ),
+    wishlists_updated_at_idx: index('wishlists_updated_at_idx').on(columns.updatedAt),
+    wishlists_created_at_idx: index('wishlists_created_at_idx').on(columns.createdAt),
+    user_merchant_idx: uniqueIndex('user_merchant_idx').on(columns.user, columns.merchant),
+    user_merchantProduct_idx: uniqueIndex('user_merchantProduct_idx').on(
+      columns.user,
+      columns.merchantProduct,
+    ),
+    user_createdAt_idx: index('user_createdAt_idx').on(columns.user, columns.createdAt),
+  }),
+)
+
 export const payload_locked_documents = pgTable(
   'payload_locked_documents',
   {
@@ -2380,6 +3035,7 @@ export const payload_locked_documents_rels = pgTable(
     'notification-templatesID': integer('notification_templates_id'),
     'notification-eventsID': integer('notification_events_id'),
     'user-notificationsID': integer('user_notifications_id'),
+    'business-zonesID': integer('business_zones_id'),
     vendorsID: integer('vendors_id'),
     merchantsID: integer('merchants_id'),
     driversID: integer('drivers_id'),
@@ -2387,6 +3043,15 @@ export const payload_locked_documents_rels = pgTable(
     'product-categoriesID': integer('prod_categories_id'),
     productsID: integer('products_id'),
     'cart-itemsID': integer('cart_items_id'),
+    ordersID: integer('orders_id'),
+    'order-itemsID': integer('order_items_id'),
+    'delivery-locationsID': integer('delivery_locations_id'),
+    transactionsID: integer('transactions_id'),
+    'order-trackingID': integer('order_tracking_id'),
+    'driver-assignmentsID': integer('driver_assignments_id'),
+    'delivery-bookingsID': integer('delivery_bookings_id'),
+    'order-discountsID': integer('order_discounts_id'),
+    reviewsID: integer('reviews_id'),
     'prod-attributesID': integer('prod_attributes_id'),
     'prod-attribute-termsID': integer('prod_attribute_terms_id'),
     'prod-variationsID': integer('prod_variations_id'),
@@ -2415,6 +3080,8 @@ export const payload_locked_documents_rels = pgTable(
     'prod-tags-junctionID': integer('prod_tags_junction_id'),
     'tag-groupsID': integer('tag_groups_id'),
     'tag-group-membershipsID': integer('tag_group_memberships_id'),
+    'recent-viewsID': integer('recent_views_id'),
+    wishlistsID: integer('wishlists_id'),
   },
   (columns) => ({
     order: index('payload_locked_documents_rels_order_idx').on(columns.order),
@@ -2456,6 +3123,9 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_user_notifications_id_idx: index(
       'payload_locked_documents_rels_user_notifications_id_idx',
     ).on(columns['user-notificationsID']),
+    payload_locked_documents_rels_business_zones_id_idx: index(
+      'payload_locked_documents_rels_business_zones_id_idx',
+    ).on(columns['business-zonesID']),
     payload_locked_documents_rels_vendors_id_idx: index(
       'payload_locked_documents_rels_vendors_id_idx',
     ).on(columns.vendorsID),
@@ -2477,6 +3147,33 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_cart_items_id_idx: index(
       'payload_locked_documents_rels_cart_items_id_idx',
     ).on(columns['cart-itemsID']),
+    payload_locked_documents_rels_orders_id_idx: index(
+      'payload_locked_documents_rels_orders_id_idx',
+    ).on(columns.ordersID),
+    payload_locked_documents_rels_order_items_id_idx: index(
+      'payload_locked_documents_rels_order_items_id_idx',
+    ).on(columns['order-itemsID']),
+    payload_locked_documents_rels_delivery_locations_id_idx: index(
+      'payload_locked_documents_rels_delivery_locations_id_idx',
+    ).on(columns['delivery-locationsID']),
+    payload_locked_documents_rels_transactions_id_idx: index(
+      'payload_locked_documents_rels_transactions_id_idx',
+    ).on(columns.transactionsID),
+    payload_locked_documents_rels_order_tracking_id_idx: index(
+      'payload_locked_documents_rels_order_tracking_id_idx',
+    ).on(columns['order-trackingID']),
+    payload_locked_documents_rels_driver_assignments_id_idx: index(
+      'payload_locked_documents_rels_driver_assignments_id_idx',
+    ).on(columns['driver-assignmentsID']),
+    payload_locked_documents_rels_delivery_bookings_id_idx: index(
+      'payload_locked_documents_rels_delivery_bookings_id_idx',
+    ).on(columns['delivery-bookingsID']),
+    payload_locked_documents_rels_order_discounts_id_idx: index(
+      'payload_locked_documents_rels_order_discounts_id_idx',
+    ).on(columns['order-discountsID']),
+    payload_locked_documents_rels_reviews_id_idx: index(
+      'payload_locked_documents_rels_reviews_id_idx',
+    ).on(columns.reviewsID),
     payload_locked_documents_rels_prod_attributes_id_idx: index(
       'payload_locked_documents_rels_prod_attributes_id_idx',
     ).on(columns['prod-attributesID']),
@@ -2537,6 +3234,12 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_tag_group_memberships_id_idx: index(
       'payload_locked_documents_rels_tag_group_memberships_id_idx',
     ).on(columns['tag-group-membershipsID']),
+    payload_locked_documents_rels_recent_views_id_idx: index(
+      'payload_locked_documents_rels_recent_views_id_idx',
+    ).on(columns['recent-viewsID']),
+    payload_locked_documents_rels_wishlists_id_idx: index(
+      'payload_locked_documents_rels_wishlists_id_idx',
+    ).on(columns.wishlistsID),
     parentFk: foreignKey({
       columns: [columns['parent']],
       foreignColumns: [payload_locked_documents.id],
@@ -2602,6 +3305,11 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [user_notifications.id],
       name: 'payload_locked_documents_rels_user_notifications_fk',
     }).onDelete('cascade'),
+    'business-zonesIdFk': foreignKey({
+      columns: [columns['business-zonesID']],
+      foreignColumns: [business_zones.id],
+      name: 'payload_locked_documents_rels_business_zones_fk',
+    }).onDelete('cascade'),
     vendorsIdFk: foreignKey({
       columns: [columns['vendorsID']],
       foreignColumns: [vendors.id],
@@ -2636,6 +3344,51 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns['cart-itemsID']],
       foreignColumns: [cart_items.id],
       name: 'payload_locked_documents_rels_cart_items_fk',
+    }).onDelete('cascade'),
+    ordersIdFk: foreignKey({
+      columns: [columns['ordersID']],
+      foreignColumns: [orders.id],
+      name: 'payload_locked_documents_rels_orders_fk',
+    }).onDelete('cascade'),
+    'order-itemsIdFk': foreignKey({
+      columns: [columns['order-itemsID']],
+      foreignColumns: [order_items.id],
+      name: 'payload_locked_documents_rels_order_items_fk',
+    }).onDelete('cascade'),
+    'delivery-locationsIdFk': foreignKey({
+      columns: [columns['delivery-locationsID']],
+      foreignColumns: [delivery_locations.id],
+      name: 'payload_locked_documents_rels_delivery_locations_fk',
+    }).onDelete('cascade'),
+    transactionsIdFk: foreignKey({
+      columns: [columns['transactionsID']],
+      foreignColumns: [transactions.id],
+      name: 'payload_locked_documents_rels_transactions_fk',
+    }).onDelete('cascade'),
+    'order-trackingIdFk': foreignKey({
+      columns: [columns['order-trackingID']],
+      foreignColumns: [order_tracking.id],
+      name: 'payload_locked_documents_rels_order_tracking_fk',
+    }).onDelete('cascade'),
+    'driver-assignmentsIdFk': foreignKey({
+      columns: [columns['driver-assignmentsID']],
+      foreignColumns: [driver_assignments.id],
+      name: 'payload_locked_documents_rels_driver_assignments_fk',
+    }).onDelete('cascade'),
+    'delivery-bookingsIdFk': foreignKey({
+      columns: [columns['delivery-bookingsID']],
+      foreignColumns: [delivery_bookings.id],
+      name: 'payload_locked_documents_rels_delivery_bookings_fk',
+    }).onDelete('cascade'),
+    'order-discountsIdFk': foreignKey({
+      columns: [columns['order-discountsID']],
+      foreignColumns: [order_discounts.id],
+      name: 'payload_locked_documents_rels_order_discounts_fk',
+    }).onDelete('cascade'),
+    reviewsIdFk: foreignKey({
+      columns: [columns['reviewsID']],
+      foreignColumns: [reviews.id],
+      name: 'payload_locked_documents_rels_reviews_fk',
     }).onDelete('cascade'),
     'prod-attributesIdFk': foreignKey({
       columns: [columns['prod-attributesID']],
@@ -2677,6 +3430,46 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [modifier_options.id],
       name: 'payload_locked_documents_rels_modifier_options_fk',
     }).onDelete('cascade'),
+    'variation-modifier-groupsIdFk': foreignKey({
+      columns: [columns['variation-modifier-groupsID']],
+      foreignColumns: [variation_modifier_groups.id],
+      name: 'payload_locked_documents_rels_variation_modifier_groups_fk',
+    }).onDelete('cascade'),
+    'variation-modifier-optionsIdFk': foreignKey({
+      columns: [columns['variation-modifier-optionsID']],
+      foreignColumns: [variation_modifier_options.id],
+      name: 'payload_locked_documents_rels_variation_modifier_options_fk',
+    }).onDelete('cascade'),
+    'variation-modifier-group-overridesIdFk': foreignKey({
+      columns: [columns['variation-modifier-group-overridesID']],
+      foreignColumns: [variation_modifier_group_overrides.id],
+      name: 'payload_locked_documents_rels_variation_modifier_group_overrides_fk',
+    }).onDelete('cascade'),
+    'variation-modifier-option-overridesIdFk': foreignKey({
+      columns: [columns['variation-modifier-option-overridesID']],
+      foreignColumns: [variation_modifier_option_overrides.id],
+      name: 'payload_locked_documents_rels_variation_modifier_option_overrides_fk',
+    }).onDelete('cascade'),
+    'merchant-product-modifier-group-overridesIdFk': foreignKey({
+      columns: [columns['merchant-product-modifier-group-overridesID']],
+      foreignColumns: [merchant_product_modifier_group_overrides.id],
+      name: 'payload_locked_documents_rels_merchant_product_modifier_group_overrides_fk',
+    }).onDelete('cascade'),
+    'merchant-product-modifier-option-overridesIdFk': foreignKey({
+      columns: [columns['merchant-product-modifier-option-overridesID']],
+      foreignColumns: [merchant_product_modifier_option_overrides.id],
+      name: 'payload_locked_documents_rels_merchant_product_modifier_option_overrides_fk',
+    }).onDelete('cascade'),
+    'merchant-variation-modifier-group-overridesIdFk': foreignKey({
+      columns: [columns['merchant-variation-modifier-group-overridesID']],
+      foreignColumns: [merchant_variation_modifier_group_overrides.id],
+      name: 'payload_locked_documents_rels_merchant_variation_modifier_group_overrides_fk',
+    }).onDelete('cascade'),
+    'merchant-variation-modifier-option-overridesIdFk': foreignKey({
+      columns: [columns['merchant-variation-modifier-option-overridesID']],
+      foreignColumns: [merchant_variation_modifier_option_overrides.id],
+      name: 'payload_locked_documents_rels_merchant_variation_modifier_option_overrides_fk',
+    }).onDelete('cascade'),
     'prod-tagsIdFk': foreignKey({
       columns: [columns['prod-tagsID']],
       foreignColumns: [prod_tags.id],
@@ -2696,6 +3489,16 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns['tag-group-membershipsID']],
       foreignColumns: [tag_group_memberships.id],
       name: 'payload_locked_documents_rels_tag_group_memberships_fk',
+    }).onDelete('cascade'),
+    'recent-viewsIdFk': foreignKey({
+      columns: [columns['recent-viewsID']],
+      foreignColumns: [recent_views.id],
+      name: 'payload_locked_documents_rels_recent_views_fk',
+    }).onDelete('cascade'),
+    wishlistsIdFk: foreignKey({
+      columns: [columns['wishlistsID']],
+      foreignColumns: [wishlists.id],
+      name: 'payload_locked_documents_rels_wishlists_fk',
     }).onDelete('cascade'),
   }),
 )
@@ -2775,6 +3578,21 @@ export const payload_migrations = pgTable(
     ),
   }),
 )
+
+export const system_settings = pgTable('system_settings', {
+  id: serial('id').primaryKey(),
+  maintenanceMode: boolean('maintenance_mode').default(false),
+  deliveryProvider: enum_system_settings_delivery_provider('delivery_provider')
+    .notNull()
+    .default('lalamove'),
+  lalamove_apiKey: varchar('lalamove_api_key'),
+  lalamove_apiSecret: varchar('lalamove_api_secret'),
+  lalamove_market: varchar('lalamove_market').default('PH'),
+  lalamove_sandbox: boolean('lalamove_sandbox').default(true),
+  native_riderAppUrl: varchar('native_rider_app_url'),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 }),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 }),
+})
 
 export const relations_users_reset_password_tokens = relations(
   users_reset_password_tokens,
@@ -2960,6 +3778,7 @@ export const relations_user_notifications = relations(user_notifications, ({ one
     relationName: 'notificationEvent',
   }),
 }))
+export const relations_business_zones = relations(business_zones, () => ({}))
 export const relations_vendors = relations(vendors, ({ one }) => ({
   user: one(users, {
     fields: [vendors.user],
@@ -3014,6 +3833,11 @@ export const relations_merchants = relations(merchants, ({ one, many }) => ({
     fields: [merchants.activeAddress],
     references: [addresses.id],
     relationName: 'activeAddress',
+  }),
+  businessZone: one(business_zones, {
+    fields: [merchants.businessZone],
+    references: [business_zones.id],
+    relationName: 'businessZone',
   }),
   _rels: many(merchants_rels, {
     relationName: '_rels',
@@ -3143,10 +3967,118 @@ export const relations_cart_items = relations(cart_items, ({ one }) => ({
     references: [merchant_products.id],
     relationName: 'merchantProduct',
   }),
+  order_id: one(orders, {
+    fields: [cart_items.order_id],
+    references: [orders.id],
+    relationName: 'order_id',
+  }),
   selectedVariation: one(prod_variations, {
     fields: [cart_items.selectedVariation],
     references: [prod_variations.id],
     relationName: 'selectedVariation',
+  }),
+}))
+export const relations_orders = relations(orders, ({ one }) => ({
+  customer: one(customers, {
+    fields: [orders.customer],
+    references: [customers.id],
+    relationName: 'customer',
+  }),
+  merchant: one(merchants, {
+    fields: [orders.merchant],
+    references: [merchants.id],
+    relationName: 'merchant',
+  }),
+}))
+export const relations_order_items = relations(order_items, ({ one }) => ({
+  order: one(orders, {
+    fields: [order_items.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+  product: one(products, {
+    fields: [order_items.product],
+    references: [products.id],
+    relationName: 'product',
+  }),
+  merchant_product: one(merchant_products, {
+    fields: [order_items.merchant_product],
+    references: [merchant_products.id],
+    relationName: 'merchant_product',
+  }),
+}))
+export const relations_delivery_locations = relations(delivery_locations, ({ one }) => ({
+  order: one(orders, {
+    fields: [delivery_locations.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+}))
+export const relations_transactions = relations(transactions, ({ one }) => ({
+  order: one(orders, {
+    fields: [transactions.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+}))
+export const relations_order_tracking = relations(order_tracking, ({ one }) => ({
+  order: one(orders, {
+    fields: [order_tracking.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+  actor: one(users, {
+    fields: [order_tracking.actor],
+    references: [users.id],
+    relationName: 'actor',
+  }),
+}))
+export const relations_driver_assignments = relations(driver_assignments, ({ one }) => ({
+  order: one(orders, {
+    fields: [driver_assignments.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+  driver: one(drivers, {
+    fields: [driver_assignments.driver],
+    references: [drivers.id],
+    relationName: 'driver',
+  }),
+}))
+export const relations_delivery_bookings = relations(delivery_bookings, ({ one }) => ({
+  order: one(orders, {
+    fields: [delivery_bookings.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+}))
+export const relations_order_discounts = relations(order_discounts, ({ one }) => ({
+  order: one(orders, {
+    fields: [order_discounts.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+}))
+export const relations_reviews = relations(reviews, ({ one }) => ({
+  order: one(orders, {
+    fields: [reviews.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+  customer: one(customers, {
+    fields: [reviews.customer],
+    references: [customers.id],
+    relationName: 'customer',
+  }),
+  merchant: one(merchants, {
+    fields: [reviews.merchant],
+    references: [merchants.id],
+    relationName: 'merchant',
+  }),
+  driver: one(drivers, {
+    fields: [reviews.driver],
+    references: [drivers.id],
+    relationName: 'driver',
   }),
 }))
 export const relations_prod_attributes = relations(prod_attributes, () => ({}))
@@ -3396,6 +4328,45 @@ export const relations_tag_group_memberships = relations(tag_group_memberships, 
     relationName: 'tag_id',
   }),
 }))
+export const relations_recent_views = relations(recent_views, ({ one }) => ({
+  user: one(users, {
+    fields: [recent_views.user],
+    references: [users.id],
+    relationName: 'user',
+  }),
+  merchant: one(merchants, {
+    fields: [recent_views.merchant],
+    references: [merchants.id],
+    relationName: 'merchant',
+  }),
+  merchantProduct: one(merchant_products, {
+    fields: [recent_views.merchantProduct],
+    references: [merchant_products.id],
+    relationName: 'merchantProduct',
+  }),
+  product: one(products, {
+    fields: [recent_views.product],
+    references: [products.id],
+    relationName: 'product',
+  }),
+}))
+export const relations_wishlists = relations(wishlists, ({ one }) => ({
+  user: one(users, {
+    fields: [wishlists.user],
+    references: [users.id],
+    relationName: 'user',
+  }),
+  merchant: one(merchants, {
+    fields: [wishlists.merchant],
+    references: [merchants.id],
+    relationName: 'merchant',
+  }),
+  merchantProduct: one(merchant_products, {
+    fields: [wishlists.merchantProduct],
+    references: [merchant_products.id],
+    relationName: 'merchantProduct',
+  }),
+}))
 export const relations_payload_locked_documents_rels = relations(
   payload_locked_documents_rels,
   ({ one }) => ({
@@ -3464,6 +4435,11 @@ export const relations_payload_locked_documents_rels = relations(
       references: [user_notifications.id],
       relationName: 'user-notifications',
     }),
+    'business-zonesID': one(business_zones, {
+      fields: [payload_locked_documents_rels['business-zonesID']],
+      references: [business_zones.id],
+      relationName: 'business-zones',
+    }),
     vendorsID: one(vendors, {
       fields: [payload_locked_documents_rels.vendorsID],
       references: [vendors.id],
@@ -3498,6 +4474,51 @@ export const relations_payload_locked_documents_rels = relations(
       fields: [payload_locked_documents_rels['cart-itemsID']],
       references: [cart_items.id],
       relationName: 'cart-items',
+    }),
+    ordersID: one(orders, {
+      fields: [payload_locked_documents_rels.ordersID],
+      references: [orders.id],
+      relationName: 'orders',
+    }),
+    'order-itemsID': one(order_items, {
+      fields: [payload_locked_documents_rels['order-itemsID']],
+      references: [order_items.id],
+      relationName: 'order-items',
+    }),
+    'delivery-locationsID': one(delivery_locations, {
+      fields: [payload_locked_documents_rels['delivery-locationsID']],
+      references: [delivery_locations.id],
+      relationName: 'delivery-locations',
+    }),
+    transactionsID: one(transactions, {
+      fields: [payload_locked_documents_rels.transactionsID],
+      references: [transactions.id],
+      relationName: 'transactions',
+    }),
+    'order-trackingID': one(order_tracking, {
+      fields: [payload_locked_documents_rels['order-trackingID']],
+      references: [order_tracking.id],
+      relationName: 'order-tracking',
+    }),
+    'driver-assignmentsID': one(driver_assignments, {
+      fields: [payload_locked_documents_rels['driver-assignmentsID']],
+      references: [driver_assignments.id],
+      relationName: 'driver-assignments',
+    }),
+    'delivery-bookingsID': one(delivery_bookings, {
+      fields: [payload_locked_documents_rels['delivery-bookingsID']],
+      references: [delivery_bookings.id],
+      relationName: 'delivery-bookings',
+    }),
+    'order-discountsID': one(order_discounts, {
+      fields: [payload_locked_documents_rels['order-discountsID']],
+      references: [order_discounts.id],
+      relationName: 'order-discounts',
+    }),
+    reviewsID: one(reviews, {
+      fields: [payload_locked_documents_rels.reviewsID],
+      references: [reviews.id],
+      relationName: 'reviews',
     }),
     'prod-attributesID': one(prod_attributes, {
       fields: [payload_locked_documents_rels['prod-attributesID']],
@@ -3608,6 +4629,16 @@ export const relations_payload_locked_documents_rels = relations(
       references: [tag_group_memberships.id],
       relationName: 'tag-group-memberships',
     }),
+    'recent-viewsID': one(recent_views, {
+      fields: [payload_locked_documents_rels['recent-viewsID']],
+      references: [recent_views.id],
+      relationName: 'recent-views',
+    }),
+    wishlistsID: one(wishlists, {
+      fields: [payload_locked_documents_rels.wishlistsID],
+      references: [wishlists.id],
+      relationName: 'wishlists',
+    }),
   }),
 )
 export const relations_payload_locked_documents = relations(
@@ -3639,6 +4670,7 @@ export const relations_payload_preferences = relations(payload_preferences, ({ m
   }),
 }))
 export const relations_payload_migrations = relations(payload_migrations, () => ({}))
+export const relations_system_settings = relations(system_settings, () => ({}))
 
 type DatabaseSchema = {
   enum_users_gender: typeof enum_users_gender
@@ -3673,19 +4705,30 @@ type DatabaseSchema = {
   enum_prod_categories_attributes_age_restriction: typeof enum_prod_categories_attributes_age_restriction
   enum_products_product_type: typeof enum_products_product_type
   enum_products_catalog_visibility: typeof enum_products_catalog_visibility
+  enum_cart_items_status: typeof enum_cart_items_status
   enum_cart_items_product_size: typeof enum_cart_items_product_size
+  enum_orders_status: typeof enum_orders_status
+  enum_orders_fulfillment_type: typeof enum_orders_fulfillment_type
+  enum_orders_delivery_status: typeof enum_orders_delivery_status
+  enum_delivery_locations_label: typeof enum_delivery_locations_label
+  enum_transactions_status: typeof enum_transactions_status
+  enum_order_tracking_status: typeof enum_order_tracking_status
+  enum_driver_assignments_status: typeof enum_driver_assignments_status
+  enum_delivery_bookings_status: typeof enum_delivery_bookings_status
+  enum_order_discounts_type: typeof enum_order_discounts_type
   enum_prod_attributes_type: typeof enum_prod_attributes_type
   enum_prod_variations_modifier_behavior_mode: typeof enum_prod_variations_modifier_behavior_mode
   enum_merchant_products_added_by: typeof enum_merchant_products_added_by
   enum_modifier_groups_selection_type: typeof enum_modifier_groups_selection_type
   enum_variation_modifier_groups_selection_type: typeof enum_variation_modifier_groups_selection_type
   enum_variation_modifier_group_overrides_mode: typeof enum_variation_modifier_group_overrides_mode
+  enum_variation_modifier_group_overrides_selection_type_override: typeof enum_variation_modifier_group_overrides_selection_type_override
   enum_variation_modifier_group_overrides_required_behavior: typeof enum_variation_modifier_group_overrides_required_behavior
   enum_variation_modifier_option_overrides_mode: typeof enum_variation_modifier_option_overrides_mode
   enum_variation_modifier_option_overrides_default_behavior: typeof enum_variation_modifier_option_overrides_default_behavior
   enum_variation_modifier_option_overrides_availability_behavior: typeof enum_variation_modifier_option_overrides_availability_behavior
-  enum_merchant_modifier_selection_type: typeof enum_merchant_modifier_selection_type
   enum_merchant_modifier_group_override_mode: typeof enum_merchant_modifier_group_override_mode
+  enum_merchant_modifier_selection_type: typeof enum_merchant_modifier_selection_type
   enum_merchant_modifier_group_required_behavior: typeof enum_merchant_modifier_group_required_behavior
   enum_merchant_modifier_option_override_mode: typeof enum_merchant_modifier_option_override_mode
   enum_merchant_modifier_option_default_behavior: typeof enum_merchant_modifier_option_default_behavior
@@ -3694,6 +4737,10 @@ type DatabaseSchema = {
   enum_merchant_variation_modifier_option_target_source: typeof enum_merchant_variation_modifier_option_target_source
   enum_prod_tags_tag_type: typeof enum_prod_tags_tag_type
   enum_prod_tags_junction_added_by_type: typeof enum_prod_tags_junction_added_by_type
+  enum_recent_views_item_type: typeof enum_recent_views_item_type
+  enum_recent_views_source: typeof enum_recent_views_source
+  enum_wishlists_item_type: typeof enum_wishlists_item_type
+  enum_system_settings_delivery_provider: typeof enum_system_settings_delivery_provider
   users_reset_password_tokens: typeof users_reset_password_tokens
   users_sessions: typeof users_sessions
   users: typeof users
@@ -3712,6 +4759,7 @@ type DatabaseSchema = {
   notification_templates: typeof notification_templates
   notification_events: typeof notification_events
   user_notifications: typeof user_notifications
+  business_zones: typeof business_zones
   vendors: typeof vendors
   merchants: typeof merchants
   merchants_rels: typeof merchants_rels
@@ -3722,6 +4770,15 @@ type DatabaseSchema = {
   products: typeof products
   products_rels: typeof products_rels
   cart_items: typeof cart_items
+  orders: typeof orders
+  order_items: typeof order_items
+  delivery_locations: typeof delivery_locations
+  transactions: typeof transactions
+  order_tracking: typeof order_tracking
+  driver_assignments: typeof driver_assignments
+  delivery_bookings: typeof delivery_bookings
+  order_discounts: typeof order_discounts
+  reviews: typeof reviews
   prod_attributes: typeof prod_attributes
   prod_attribute_terms: typeof prod_attribute_terms
   prod_variations: typeof prod_variations
@@ -3742,11 +4799,14 @@ type DatabaseSchema = {
   prod_tags_junction: typeof prod_tags_junction
   tag_groups: typeof tag_groups
   tag_group_memberships: typeof tag_group_memberships
+  recent_views: typeof recent_views
+  wishlists: typeof wishlists
   payload_locked_documents: typeof payload_locked_documents
   payload_locked_documents_rels: typeof payload_locked_documents_rels
   payload_preferences: typeof payload_preferences
   payload_preferences_rels: typeof payload_preferences_rels
   payload_migrations: typeof payload_migrations
+  system_settings: typeof system_settings
   relations_users_reset_password_tokens: typeof relations_users_reset_password_tokens
   relations_users_sessions: typeof relations_users_sessions
   relations_users: typeof relations_users
@@ -3765,6 +4825,7 @@ type DatabaseSchema = {
   relations_notification_templates: typeof relations_notification_templates
   relations_notification_events: typeof relations_notification_events
   relations_user_notifications: typeof relations_user_notifications
+  relations_business_zones: typeof relations_business_zones
   relations_vendors: typeof relations_vendors
   relations_merchants_rels: typeof relations_merchants_rels
   relations_merchants: typeof relations_merchants
@@ -3775,6 +4836,15 @@ type DatabaseSchema = {
   relations_products_rels: typeof relations_products_rels
   relations_products: typeof relations_products
   relations_cart_items: typeof relations_cart_items
+  relations_orders: typeof relations_orders
+  relations_order_items: typeof relations_order_items
+  relations_delivery_locations: typeof relations_delivery_locations
+  relations_transactions: typeof relations_transactions
+  relations_order_tracking: typeof relations_order_tracking
+  relations_driver_assignments: typeof relations_driver_assignments
+  relations_delivery_bookings: typeof relations_delivery_bookings
+  relations_order_discounts: typeof relations_order_discounts
+  relations_reviews: typeof relations_reviews
   relations_prod_attributes: typeof relations_prod_attributes
   relations_prod_attribute_terms: typeof relations_prod_attribute_terms
   relations_prod_variations: typeof relations_prod_variations
@@ -3795,11 +4865,14 @@ type DatabaseSchema = {
   relations_prod_tags_junction: typeof relations_prod_tags_junction
   relations_tag_groups: typeof relations_tag_groups
   relations_tag_group_memberships: typeof relations_tag_group_memberships
+  relations_recent_views: typeof relations_recent_views
+  relations_wishlists: typeof relations_wishlists
   relations_payload_locked_documents_rels: typeof relations_payload_locked_documents_rels
   relations_payload_locked_documents: typeof relations_payload_locked_documents
   relations_payload_preferences_rels: typeof relations_payload_preferences_rels
   relations_payload_preferences: typeof relations_payload_preferences
   relations_payload_migrations: typeof relations_payload_migrations
+  relations_system_settings: typeof relations_system_settings
 }
 
 declare module '@payloadcms/db-postgres' {

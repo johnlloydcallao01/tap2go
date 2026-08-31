@@ -79,6 +79,7 @@ export interface Config {
     'notification-templates': NotificationTemplate;
     'notification-events': NotificationEvent;
     'user-notifications': UserNotification;
+    'business-zones': BusinessZone;
     vendors: Vendor;
     merchants: Merchant;
     drivers: Driver;
@@ -135,6 +136,7 @@ export interface Config {
     'notification-templates': NotificationTemplatesSelect<false> | NotificationTemplatesSelect<true>;
     'notification-events': NotificationEventsSelect<false> | NotificationEventsSelect<true>;
     'user-notifications': UserNotificationsSelect<false> | UserNotificationsSelect<true>;
+    'business-zones': BusinessZonesSelect<false> | BusinessZonesSelect<true>;
     vendors: VendorsSelect<false> | VendorsSelect<true>;
     merchants: MerchantsSelect<false> | MerchantsSelect<true>;
     drivers: DriversSelect<false> | DriversSelect<true>;
@@ -844,6 +846,69 @@ export interface UserNotification {
   createdAt: string;
 }
 /**
+ * Manage platform Business Zones - admin-declared operational areas (e.g., Metro Manila, Cebu). Each record is one drawable polygon with kill-switch.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "business-zones".
+ */
+export interface BusinessZone {
+  id: number;
+  /**
+   * Zone name (e.g., "Metro Manila", "Cebu City", "Makati")
+   */
+  name: string;
+  /**
+   * Unique URL-friendly identifier (auto-generated from name)
+   */
+  slug: string;
+  /**
+   * Optional description of the zone and coverage notes
+   */
+  description?: string | null;
+  /**
+   * GeoJSON POLYGON or MULTIPOLYGON for zone coverage - drawn on map (editable)
+   */
+  boundary?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * PostGIS GEOMETRY(POLYGON/MULTIPOLYGON, 4326) for spatial queries - auto-synced from boundary (readOnly)
+   */
+  boundary_geometry?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Kill-switch: when OFF, all merchants inside this zone are hidden regardless of merchant isActive
+   */
+  isActive?: boolean | null;
+  /**
+   * Reason for disabling zone (e.g., Typhoon, rider shortage) - shown when isActive is false
+   */
+  disabledReason?: string | null;
+  /**
+   * Sort order for admin listing (lower = first)
+   */
+  displayOrder?: number | null;
+  /**
+   * IANA timezone for this zone (e.g., Asia/Manila)
+   */
+  timezone?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Manage business entities and vendor organizations
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1142,6 +1207,10 @@ export interface Merchant {
    * Currently active address for this merchant outlet (business location) - only addresses owned by the vendor user
    */
   activeAddress?: (number | null) | Address;
+  /**
+   * Platform Business Zone this outlet belongs to (for ops gating/kill-switch). Merchant service_area must be within this zone.
+   */
+  businessZone?: (number | null) | BusinessZone;
   /**
    * Denormalized latitude from active address for performance
    */
@@ -2940,6 +3009,10 @@ export interface PayloadLockedDocument {
         value: number | UserNotification;
       } | null)
     | ({
+        relationTo: 'business-zones';
+        value: number | BusinessZone;
+      } | null)
+    | ({
         relationTo: 'vendors';
         value: number | Vendor;
       } | null)
@@ -3402,6 +3475,23 @@ export interface UserNotificationsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "business-zones_select".
+ */
+export interface BusinessZonesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  boundary?: T;
+  boundary_geometry?: T;
+  isActive?: T;
+  disabledReason?: T;
+  displayOrder?: T;
+  timezone?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "vendors_select".
  */
 export interface VendorsSelect<T extends boolean = true> {
@@ -3481,6 +3571,7 @@ export interface MerchantsSelect<T extends boolean = true> {
   tags?: T;
   merchant_categories?: T;
   activeAddress?: T;
+  businessZone?: T;
   merchant_latitude?: T;
   merchant_longitude?: T;
   location_accuracy_radius?: T;

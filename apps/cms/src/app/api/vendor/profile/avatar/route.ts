@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
-import { authenticateVendor } from '@/utils/mediaLibrary'
+import { authenticateVendor, generateUniqueFilename } from '@/utils/mediaLibrary'
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
@@ -76,13 +76,14 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_UPLOAD_SIZE) return NextResponse.json({ error: 'File too large. Max 5 MB.' }, { status: 413 })
 
     const buffer = Buffer.from(await file.arrayBuffer())
+    const sanitizedName = generateUniqueFilename(file.name)
 
     let media: Record<string, any>
     try {
       media = (await payload.create({
         collection: 'media',
         data: { alt: `Vendor Avatar ${userIdNum} ${Date.now()}` },
-        file: { data: buffer, mimetype: file.type, name: file.name, size: file.size },
+        file: { data: buffer, mimetype: file.type, name: sanitizedName, filename: sanitizedName, size: file.size } as any,
         overrideAccess: true,
       })) as unknown as Record<string, any>
     } catch (e: any) {

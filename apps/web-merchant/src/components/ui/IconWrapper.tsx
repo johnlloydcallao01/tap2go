@@ -124,6 +124,8 @@ export const LayoutDashboard = createIconWrapper(LucideIcons.LayoutDashboard);
 export const CreditCard = createIconWrapper(LucideIcons.CreditCard);
 export const Layers = createIconWrapper(LucideIcons.Layers);
 export const SlidersHorizontal = createIconWrapper(LucideIcons.SlidersHorizontal);
+export const Timer = createIconWrapper((LucideIcons as any).Timer ?? LucideIcons.Clock);
+export const Zap = createIconWrapper((LucideIcons as any).Zap ?? LucideIcons.Activity);
 export const FileSpreadsheet = createIconWrapper(LucideIcons.FileSpreadsheet);
 
 // Type for icon components

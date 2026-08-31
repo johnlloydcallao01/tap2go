@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Upload,
   Search,
@@ -20,6 +21,7 @@ import {
   AlertCircle,
   CheckCircle,
   Link,
+  RefreshCw,
 } from '@/components/ui/IconWrapper';
 import { formatCMSDateTime } from '@/lib/cms';
 import { useAuth } from '@/hooks/useAuth';
@@ -327,7 +329,7 @@ export default function MediaLibraryPage() {
       );
     }
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-[#262626] dark:text-[#a1a1aa]">
         <FileText className="w-3 h-3 mr-1" />
         File
       </span>
@@ -356,7 +358,7 @@ export default function MediaLibraryPage() {
       );
     }
     return (
-      <div className="w-full h-32 bg-gray-100 flex items-center justify-center">
+      <div className="w-full h-32 bg-gray-100 dark:bg-[#262626] flex items-center justify-center">
         {item.type === 'video' ? (
           <Video className="w-10 h-10 text-purple-500" />
         ) : item.type === 'image' ? (
@@ -369,7 +371,7 @@ export default function MediaLibraryPage() {
   };
 
   const renderCard = (item: MediaItem) => (
-    <div key={item.id} className="group relative bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow">
+    <div key={item.id} className="group relative bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] overflow-hidden hover:shadow-md transition-shadow">
       <div className="relative">
         {renderPreview(item)}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -379,23 +381,23 @@ export default function MediaLibraryPage() {
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 bg-white rounded shadow-md hover:bg-gray-100 border border-gray-200"
+                className="p-1.5 bg-white dark:bg-[#171717] rounded shadow-md hover:bg-gray-100 dark:hover:bg-[#262626] border border-gray-200 dark:border-[#262626]"
                 title="Download / Open"
               >
-                <Download className="w-3 h-3 text-gray-700" />
+                <Download className="w-3 h-3 text-gray-700 dark:text-[#a1a1aa]" />
               </a>
             )}
             <button
               onClick={() => openEdit(item)}
-              className="p-1.5 bg-white rounded shadow-md hover:bg-gray-100 border border-gray-200"
+              className="p-1.5 bg-white dark:bg-[#171717] rounded shadow-md hover:bg-gray-100 dark:hover:bg-[#262626] border border-gray-200 dark:border-[#262626]"
               title="Edit alt text"
             >
-              <Edit className="w-3 h-3 text-blue-600" />
+              <Edit className="w-3 h-3 text-[#eba236]" />
             </button>
             <button
               onClick={() => handleDelete(item)}
               disabled={deletingId === item.id}
-              className="p-1.5 bg-white rounded shadow-md hover:bg-red-50 border border-gray-200 disabled:opacity-50"
+              className="p-1.5 bg-white dark:bg-[#171717] rounded shadow-md hover:bg-red-50 dark:hover:bg-red-900/20 border border-gray-200 dark:border-[#262626] disabled:opacity-50"
               title="Delete"
             >
               {deletingId === item.id ? (
@@ -410,27 +412,27 @@ export default function MediaLibraryPage() {
 
       <div className="p-3">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-medium text-gray-900 truncate" title={item.filename}>
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate" title={item.filename}>
             {item.filename}
           </h4>
           {getTypeBadge(item)}
         </div>
         {item.alt && (
-          <p className="text-xs text-gray-500 mt-1 truncate" title={item.alt}>
+          <p className="text-xs text-gray-500 dark:text-[#a1a1aa] mt-1 truncate" title={item.alt}>
             {item.alt}
           </p>
         )}
-        <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
+        <div className="mt-2 flex items-center justify-between text-xs text-gray-400 dark:text-[#a1a1aa]">
           <span>{formatFileSize(item.filesize)}</span>
           {getDimensions(item) && <span>{getDimensions(item)}</span>}
           {item.usage.total > 0 && (
-            <span className="inline-flex items-center text-gray-500" title={`Used in ${item.usage.total} places`}>
+            <span className="inline-flex items-center text-gray-500 dark:text-[#a1a1aa]" title={`Used in ${item.usage.total} places`}>
               <Link className="w-3 h-3 mr-1" />
               {item.usage.total}
             </span>
           )}
         </div>
-        <div className="mt-1 flex items-center text-xs text-gray-400">
+        <div className="mt-1 flex items-center text-xs text-gray-400 dark:text-[#a1a1aa]">
           <Calendar className="w-3 h-3 mr-1" />
           {formatCMSDateTime(item.createdAt || '')}
         </div>
@@ -439,8 +441,8 @@ export default function MediaLibraryPage() {
   );
 
   const renderListRow = (item: MediaItem) => (
-    <div key={item.id} className="flex items-center p-4 hover:bg-gray-50">
-      <div className="w-16 h-12 flex-shrink-0 overflow-hidden rounded bg-gray-100">
+    <div key={item.id} className="flex items-center p-4 hover:bg-gray-50 dark:hover:bg-[#0a0a0a]/50">
+      <div className="w-16 h-12 flex-shrink-0 overflow-hidden rounded bg-gray-100 dark:bg-[#262626]">
         {item.type === 'image' && item.url ? (
           <img src={item.url} alt={item.alt || item.filename} className="w-full h-full object-cover" loading="lazy" />
         ) : (
@@ -455,20 +457,20 @@ export default function MediaLibraryPage() {
       </div>
       <div className="flex-1 min-w-0 ml-4">
         <div className="flex items-center space-x-3">
-          <h4 className="text-sm font-medium text-gray-900 truncate">{item.filename}</h4>
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.filename}</h4>
           {getTypeBadge(item)}
         </div>
         {item.alt && (
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{item.alt}</p>
+          <p className="text-xs text-gray-500 dark:text-[#a1a1aa] mt-0.5 truncate">{item.alt}</p>
         )}
       </div>
-      <div className="hidden md:block text-xs text-gray-500 w-24 text-right">
+      <div className="hidden md:block text-xs text-gray-500 dark:text-[#a1a1aa] w-24 text-right">
         {formatFileSize(item.filesize)}
       </div>
-      <div className="hidden lg:block text-xs text-gray-500 w-24 text-right">
+      <div className="hidden lg:block text-xs text-gray-500 dark:text-[#a1a1aa] w-24 text-right">
         {getDimensions(item) || '—'}
       </div>
-      <div className="hidden xl:block text-xs text-gray-500 w-32 text-right">
+      <div className="hidden xl:block text-xs text-gray-500 dark:text-[#a1a1aa] w-32 text-right">
         {formatCMSDateTime(item.createdAt || '')}
       </div>
       <div className="flex items-center space-x-2 ml-6">
@@ -477,7 +479,7 @@ export default function MediaLibraryPage() {
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-2 text-gray-400 hover:text-gray-600"
+            className="p-2 text-gray-400 dark:text-[#a1a1aa] hover:text-gray-600 dark:hover:text-white"
             title="Download / Open"
           >
             <Download className="w-4 h-4" />
@@ -485,7 +487,7 @@ export default function MediaLibraryPage() {
         )}
         <button
           onClick={() => openEdit(item)}
-          className="p-2 text-gray-400 hover:text-blue-600"
+          className="p-2 text-gray-400 dark:text-[#a1a1aa] hover:text-[#eba236]"
           title="Edit alt text"
         >
           <Edit className="w-4 h-4" />
@@ -508,44 +510,58 @@ export default function MediaLibraryPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      <div className="space-y-6 py-5 px-2.5 animate-pulse">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-gray-100 dark:bg-[#262626]" />
+          <div className="space-y-2">
+            <div className="h-6 w-44 bg-gray-100 dark:bg-[#262626] rounded" />
+            <div className="h-4 w-72 bg-gray-100 dark:bg-[#262626] rounded" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="h-52 bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="space-y-6 py-5 px-2.5">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Media Library</h1>
-            <p className="text-gray-600 mt-1">
-              {totalDocs > 0 ? `${totalDocs} media file${totalDocs === 1 ? '' : 's'} in the library` : 'Manage your images and videos'}
-            </p>
-          </div>
-          <button
-            onClick={() => setIsUploadOpen(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Media
-          </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+            <span className="h-8 w-8 rounded-lg bg-[#eba236] text-white flex items-center justify-center">
+              <Image className="w-4 h-4" />
+            </span>
+            Media Library
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">
+            {totalDocs > 0 ? `${totalDocs} media file${totalDocs === 1 ? '' : 's'} in the library` : 'Manage your images and videos'}
+          </p>
         </div>
+        <button
+          onClick={() => setIsUploadOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition"
+        >
+          <Upload className="w-4 h-4" />
+          Upload Media
+        </button>
       </div>
 
       {/* Upload Modal */}
       {isUploadOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => !isUploading && setIsUploadOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+          <div className="relative bg-white dark:bg-[#171717] rounded-lg shadow-xl w-full max-w-lg p-6 border border-gray-200 dark:border-[#262626]">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Upload Media</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upload Media</h2>
               <button
                 onClick={() => setIsUploadOpen(false)}
                 disabled={isUploading}
-                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                className="p-1 text-gray-400 dark:text-[#a1a1aa] hover:text-gray-600 disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -553,18 +569,18 @@ export default function MediaLibraryPage() {
 
             {uploadSuccess ? (
               <div className="flex flex-col items-center py-8">
-                <CheckCircle className="w-12 h-12 text-green-500 mb-3" />
-                <p className="text-gray-700 font-medium">Upload successful!</p>
+                <CheckCircle className="w-12 h-12 text-emerald-500 mb-3" />
+                <p className="text-gray-700 dark:text-white font-medium">Upload successful!</p>
               </div>
             ) : isUploading ? (
               <div className="py-8">
                 <div className="flex items-center justify-center mb-4">
-                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-[#eba236] animate-spin" />
                 </div>
-                <p className="text-center text-sm text-gray-600 mb-4">Uploading... {uploadProgress}%</p>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <p className="text-center text-sm text-gray-600 dark:text-[#a1a1aa] mb-4">Uploading... {uploadProgress}%</p>
+                <div className="w-full bg-gray-200 dark:bg-[#262626] rounded-full h-2">
                   <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-[#eba236] h-2 rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -572,7 +588,7 @@ export default function MediaLibraryPage() {
             ) : (
               <>
                 <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
+                  className="border-2 border-dashed border-gray-300 dark:border-[#333] rounded-lg p-8 text-center hover:border-gray-400 dark:hover:border-[#a1a1aa] transition-colors dark:bg-[#0a0a0a]"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -583,17 +599,17 @@ export default function MediaLibraryPage() {
                   }}
                 >
                   <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                  <p className="text-sm text-gray-700 mb-1">
+                  <p className="text-sm text-gray-700 dark:text-[#a1a1aa] mb-1">
                     Drag & drop a file here, or{' '}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-blue-600 hover:text-blue-700 font-medium"
+                      className="text-[#eba236] hover:text-[#c88a20] font-medium"
                     >
                       browse
                     </button>
                   </p>
-                  <p className="text-xs text-gray-400">Images and videos up to 50 MB</p>
+                  <p className="text-xs text-gray-400 dark:text-[#a1a1aa]">Images and videos up to 50 MB</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -618,20 +634,20 @@ export default function MediaLibraryPage() {
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => !isSavingEdit && setEditingItem(null)} />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+          <div className="relative bg-white dark:bg-[#171717] rounded-lg shadow-xl w-full max-w-md p-6 border border-gray-200 dark:border-[#262626]">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Edit Media</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Media</h2>
               <button
                 onClick={() => setEditingItem(null)}
                 disabled={isSavingEdit}
-                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                className="p-1 text-gray-400 dark:text-[#a1a1aa] hover:text-gray-600 disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="mb-4">
-              <div className="w-24 h-24 mx-auto rounded overflow-hidden bg-gray-100 mb-3">
+              <div className="w-24 h-24 mx-auto rounded overflow-hidden bg-gray-100 dark:bg-[#262626] mb-3">
                 {editingItem.type === 'image' && editingItem.url ? (
                   <img src={editingItem.url} alt={editingItem.alt || editingItem.filename} className="w-full h-full object-cover" />
                 ) : (
@@ -644,13 +660,13 @@ export default function MediaLibraryPage() {
                   </div>
                 )}
               </div>
-              <p className="text-sm font-medium text-gray-900 text-center mb-3">{editingItem.filename}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white text-center mb-3">{editingItem.filename}</p>
               <label className="block text-sm font-medium text-gray-700 mb-1">Alt text</label>
               <input
                 type="text"
                 value={editAlt}
                 onChange={(e) => setEditAlt(e.target.value)}
-                className="w-full px-3 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-600"
+                className="w-full px-3 py-2 border-2 border-gray-400 dark:border-[#333] rounded-lg focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] text-gray-900 dark:text-white placeholder-gray-600 dark:bg-[#0a0a0a]"
                 placeholder="Describe this media..."
               />
             </div>
@@ -666,14 +682,14 @@ export default function MediaLibraryPage() {
               <button
                 onClick={() => setEditingItem(null)}
                 disabled={isSavingEdit}
-                className="px-4 py-2 border-2 border-gray-400 rounded-lg hover:bg-gray-100 transition-colors text-gray-900 disabled:opacity-50"
+                className="px-4 py-2 border-2 border-gray-400 dark:border-[#333] rounded-lg hover:bg-gray-100 dark:hover:bg-[#262626] transition-colors text-gray-900 dark:text-white disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveAlt}
                 disabled={isSavingEdit}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg hover:bg-[#c88a20] transition-colors disabled:opacity-50"
               >
                 {isSavingEdit && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Save Changes
@@ -684,118 +700,147 @@ export default function MediaLibraryPage() {
       )}
 
       {/* Controls */}
-      <div className="bg-white rounded-lg shadow mb-6">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
-            <div className="flex-1 relative max-w-md">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600" />
-              <input
-                type="text"
-                placeholder="Search media files..."
-                value={search}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-600"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center">
-                <Filter className="w-4 h-4 text-gray-600 mr-2" />
+      <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-3 shadow-sm">
+        <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+          <div className="relative flex-1 lg:max-w-md">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search media files..."
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-full pl-9 pr-9 py-2.5 text-sm bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#262626] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] text-gray-900 dark:text-white placeholder:text-gray-400"
+            />
+            {search && (
+              <button onClick={() => handleSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-[#262626]">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-gray-400 dark:text-[#a1a1aa]" />
                 <select
                   value={typeFilter}
                   onChange={(e) => handleTypeFilter(e.target.value)}
-                  className="px-3 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+                  className="px-3 py-2.5 text-sm border border-gray-200 dark:border-[#262626] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] text-gray-900 dark:text-white bg-white dark:bg-[#0a0a0a]"
                 >
                   <option value="all">All Types</option>
                   <option value="image">Images</option>
                   <option value="video">Videos</option>
                 </select>
               </div>
-              <div className="flex border-2 border-gray-400 rounded-lg">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`px-3 py-2 rounded-l-lg ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
-                  title="Grid view"
-                >
-                  <Grid className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-2 rounded-r-lg ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
-                  title="List view"
-                >
-                  <List className="w-4 h-4" />
-                </button>
+              <div className="flex items-center p-1 bg-gray-100 dark:bg-[#0a0a0a] rounded-full border border-gray-200 dark:border-[#262626]">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold ${viewMode === 'grid' ? 'bg-[#eba236] text-white' : 'text-gray-600 dark:text-[#a1a1aa] hover:bg-white dark:hover:bg-[#262626]'}`}
+                title="Grid view"
+              >
+                <Grid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold ${viewMode === 'list' ? 'bg-[#eba236] text-white' : 'text-gray-600 dark:text-[#a1a1aa] hover:bg-white dark:hover:bg-[#262626]'}`}
+                title="List view"
+              >
+                <List className="w-4 h-4" />
+              </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Content */}
-        <div>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
-                <p className="text-gray-600">Loading media library...</p>
+        {/* Content & Pagination card */}
+      <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 animate-pulse">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-gray-200 dark:border-[#262626] bg-gray-100 dark:bg-[#171717] overflow-hidden">
+                <div className="h-32 bg-gray-100 dark:bg-[#262626]" />
+                <div className="p-3 space-y-2">
+                  <div className="h-4 w-3/4 bg-gray-100 dark:bg-[#262626] rounded" />
+                  <div className="h-3 w-1/2 bg-gray-100 dark:bg-[#262626] rounded" />
+                  <div className="h-3 w-2/3 bg-gray-100 dark:bg-[#262626] rounded" />
+                </div>
               </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="h-12 w-12 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-3">
+              <AlertCircle className="h-6 w-6 text-red-500" />
             </div>
-          ) : error ? (
-            <div className="p-10 text-center">
-              <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-3" />
-              <p className="text-red-600 mb-2">{error}</p>
+            <p className="text-red-600 dark:text-red-400 mb-3">{error}</p>
+            <button
+              onClick={() => fetchMedia(currentPage, search, typeFilter)}
+              className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />Try again
+            </button>
+          </div>
+        ) : mediaItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="h-16 w-16 bg-[#eba236]/10 dark:bg-[#eba236]/15 rounded-2xl flex items-center justify-center mb-4">
+              <Upload className="w-8 h-8 text-[#eba236]" />
+            </div>
+            <p className="text-gray-900 dark:text-white font-medium mb-1">
+              {search || typeFilter !== 'all' ? 'No media files match your filters.' : 'No media files yet.'}
+            </p>
+            {!search && typeFilter === 'all' && (
               <button
-                onClick={() => fetchMedia(currentPage, search, typeFilter)}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                onClick={() => setIsUploadOpen(true)}
+                className="mt-2 inline-flex items-center text-[#eba236] hover:text-[#c88a20] font-medium"
               >
-                Try again
+                <Upload className="w-4 h-4 mr-1" />
+                Upload your first media file
               </button>
-            </div>
-          ) : mediaItems.length === 0 ? (
-            <div className="p-10 text-center">
-              <Upload className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600 mb-1">
-                {search || typeFilter !== 'all' ? 'No media files match your filters.' : 'No media files yet.'}
-              </p>
-              {!search && typeFilter === 'all' && (
-                <button
-                  onClick={() => setIsUploadOpen(true)}
-                  className="mt-2 inline-flex items-center text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  <Upload className="w-4 h-4 mr-1" />
-                  Upload your first media file
-                </button>
-              )}
-            </div>
-          ) : viewMode === 'grid' ? (
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {mediaItems.map(renderCard)}
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {mediaItems.map(renderListRow)}
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {mediaItems.map(renderCard)}
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-[#262626]">
+            {mediaItems.map(renderListRow)}
+          </div>
+        )}
 
         {/* Pagination */}
         {!isLoading && !error && totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-700">
+          <div className="px-4 py-3 border-t border-gray-200 dark:border-[#262626]">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-sm text-gray-600 dark:text-[#a1a1aa]">
                 Page {currentPage} of {totalPages} · {totalDocs} total
               </div>
-              <div className="flex space-x-2">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-[#262626]"
                 >
-                  Previous
+                  Prev
                 </button>
+                {(() => {
+                  const start = Math.max(1, Math.min(totalPages - 4, currentPage - 2))
+                  return Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                    const n = start + i
+                    if (n > totalPages) return null
+                    return (
+                      <button
+                        key={n}
+                        onClick={() => handlePageChange(n)}
+                        className={`h-8 w-8 rounded-lg text-sm font-medium border ${n === currentPage ? 'bg-[#eba236] text-white border-[#eba236]' : 'bg-white dark:bg-[#0a0a0a] border-gray-200 dark:border-[#262626] text-gray-700 dark:text-white'}`}
+                      >
+                        {n}
+                      </button>
+                    )
+                  })
+                })()}
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-[#262626]"
                 >
                   Next
                 </button>
@@ -806,10 +851,10 @@ export default function MediaLibraryPage() {
       </div>
 
       {deleteError && (
-        <div className="fixed bottom-4 right-4 z-50 p-3 bg-red-50 border border-red-200 rounded-md shadow-lg flex items-start max-w-sm">
-          <AlertCircle className="w-4 h-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-red-800 flex-1">{deleteError}</p>
-          <button onClick={() => setDeleteError(null)} className="ml-2 text-red-600 hover:text-red-800">
+        <div className="fixed bottom-4 right-4 z-[110] p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl shadow-lg flex items-start max-w-sm backdrop-blur">
+          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-red-800 dark:text-red-200 flex-1">{deleteError}</p>
+          <button onClick={() => setDeleteError(null)} className="ml-2 text-red-600 dark:text-red-400 hover:text-red-800">
             <X className="w-4 h-4" />
           </button>
         </div>

@@ -39,6 +39,7 @@ import { UserNotifications } from './collections/UserNotifications'
 // LMS Collections (removed)
 
 // Food Delivery Collections
+import { BusinessZones } from './collections/BusinessZones'
 import { Vendors } from './collections/Vendors'
 import { Merchants } from './collections/Merchants'
 import { MerchantCategories } from './collections/MerchantCategories'
@@ -112,6 +113,7 @@ export default buildConfig({
     UserNotifications,
 
     // Food Delivery System
+    BusinessZones,
     Vendors,
     Merchants,
     Drivers,

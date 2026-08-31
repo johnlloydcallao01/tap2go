@@ -1692,8 +1692,8 @@ function ProfileInner() {
   <Globe className="w-4 h-4 text-gray-400 dark:text-[#a1a1aa]" /> Quick links
   </h4>
   <div className="mt-3 space-y-2">
-  <a href="/settings/general" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-[#262626] hover:bg-gray-50 dark:hover:bg-[#262626] dark:bg-[#171717] dark:bg-[#262626] text-sm font-medium text-gray-900 dark:text-[#ededed] hover:text-gray-900 dark:text-[#ededed] dark:hover:text-gray-100 dark:text-[#ededed]">
-  Platform config <span className="text-gray-400 dark:text-[#a1a1aa]">→</span>
+  <a href="/settings/configuration" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-[#262626] hover:bg-gray-50 dark:hover:bg-[#262626] dark:bg-[#171717] dark:bg-[#262626] text-sm font-medium text-gray-900 dark:text-[#ededed] hover:text-gray-900 dark:text-[#ededed] dark:hover:text-gray-100 dark:text-[#ededed]">
+  Configurations <span className="text-gray-400 dark:text-[#a1a1aa]">→</span>
   </a>
   <a href="/settings/security" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-[#262626] hover:bg-gray-50 dark:hover:bg-[#262626] dark:bg-[#171717] dark:bg-[#262626] text-sm font-medium text-gray-900 dark:text-[#ededed] hover:text-gray-900 dark:text-[#ededed] dark:hover:text-gray-100 dark:text-[#ededed]">
   Security policies <span className="text-gray-400 dark:text-[#a1a1aa]">→</span>

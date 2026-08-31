@@ -74,6 +74,7 @@ export const Check = createIconWrapper(LucideIcons.Check);
 export const ArrowLeft = createIconWrapper(LucideIcons.ArrowLeft);
 export const X = createIconWrapper(LucideIcons.X);
 export const ChevronDown = createIconWrapper(LucideIcons.ChevronDown);
+export const ChevronRight = createIconWrapper(LucideIcons.ChevronRight);
 export const Truck = createIconWrapper(LucideIcons.Truck);
 export const ShoppingBag = createIconWrapper(LucideIcons.ShoppingBag);
 export const ShoppingCart = createIconWrapper(LucideIcons.ShoppingCart);
@@ -81,6 +82,7 @@ export const Package = createIconWrapper(LucideIcons.Package);
 export const Star = createIconWrapper(LucideIcons.Star);
 export const MapPin = createIconWrapper(LucideIcons.MapPin);
 export const XCircle = createIconWrapper(LucideIcons.XCircle);
+export const Ban = createIconWrapper(LucideIcons.Ban);
 export const Settings = createIconWrapper(LucideIcons.Settings);
 export const LogOut = createIconWrapper(LucideIcons.LogOut);
 export const Upload = createIconWrapper(LucideIcons.Upload);
@@ -130,6 +132,10 @@ export const Layers = createIconWrapper(LucideIcons.Layers);
 export const Award = createIconWrapper(LucideIcons.Award);
 export const SlidersHorizontal = createIconWrapper(LucideIcons.SlidersHorizontal);
 export const FileSpreadsheet = createIconWrapper(LucideIcons.FileSpreadsheet);
+export const Receipt = createIconWrapper(LucideIcons.Receipt);
+export const Coins = createIconWrapper(LucideIcons.Coins);
+export const ToggleLeft = createIconWrapper(LucideIcons.ToggleLeft);
+export const ToggleRight = createIconWrapper(LucideIcons.ToggleRight);
 
 // Type for icon components
 export type LucideIcon = React.ComponentType<IconProps>;

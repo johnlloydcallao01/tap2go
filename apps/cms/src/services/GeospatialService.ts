@@ -164,31 +164,41 @@ export class GeospatialService {
         throw new Error('Google Maps API is currently unavailable. Distance calculations cannot be performed.')
       }
 
-      // Build where clause for basic filters
+      // Build where clause for basic filters - includes 3 kill-switches (merchant, vendor, businessZone)
       const whereClause: Where = {
         and: [
-          // Ensure merchant has valid coordinates
           { merchant_latitude: { not_equals: null } },
           { merchant_longitude: { not_equals: null } },
+          { isActive: { equals: true } },
+          { isAcceptingOrders: { equals: true } },
         ]
       }
 
-      // Query merchants with vendor relationship populated
+      // Query merchants with vendor and businessZone populated
       const result = await this.payload.find({
         collection: 'merchants',
         where: whereClause,
-        limit: Math.min(limit * 3, 300), // Get more merchants to account for distance filtering
+        limit: Math.min(limit * 3, 300),
         page: Math.floor(offset / limit) + 1,
-        depth: 2, // Populate vendor relationship
+        depth: 2,
       })
 
       // Calculate distances using Google Maps API and filter by radius
       const merchantsWithDistance: MerchantWithDistance[] = []
       const customerLocation: LocationCoordinates = { latitude, longitude }
       
-      // Process merchants in batches for Google Maps API
+      // Process merchants - filter by vendor isActive and businessZone isActive (post-filter, as they are relationships)
       const merchantsWithLocations = result.docs
-        .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
+        .filter(merchant => {
+          if (!merchant.merchant_latitude || !merchant.merchant_longitude) return false
+          // Vendor kill-switch
+          const vendor = merchant.vendor as unknown as { isActive?: boolean }
+          if (vendor && vendor.isActive === false) return false
+          // BusinessZone kill-switch
+          const bz = (merchant as unknown as { businessZone?: { isActive?: boolean } }).businessZone
+          if (bz && typeof bz === 'object' && bz.isActive === false) return false
+          return true
+        })
         .map(merchant => ({
           merchant,
           location: {
@@ -327,31 +337,39 @@ export class GeospatialService {
         throw new Error('Google Maps API is currently unavailable. Distance calculations cannot be performed.')
       }
 
-      // Build where clause - removed raw PostGIS query
+      // Build where clause - includes merchant kill-switches
       const whereClause: Where = {
         and: [
-          // Ensure merchant has valid coordinates
           { merchant_latitude: { not_equals: null } },
           { merchant_longitude: { not_equals: null } },
+          { isActive: { equals: true } },
+          { isAcceptingOrders: { equals: true } },
         ]
       }
 
-      // Query merchants with vendor relationship
+      // Query merchants with vendor and businessZone populated
       const result = await this.payload.find({
         collection: 'merchants',
         where: whereClause,
-        limit: Math.min(limit * 3, 300), // Get more results to filter by delivery radius
+        limit: Math.min(limit * 3, 300),
         page: Math.floor(offset / (limit * 3)) + 1,
-        depth: 2, // Populate vendor relationship
+        depth: 2,
       })
 
       // Calculate distances using Google Maps API and filter by delivery radius
       const merchantsInDeliveryRadius: MerchantWithDistance[] = []
       const customerLocation: LocationCoordinates = { latitude, longitude }
       
-      // Process merchants in batches for Google Maps API
+      // Filter by vendor and businessZone kill-switches
       const merchantsWithLocations = result.docs
-        .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
+        .filter(merchant => {
+          if (!merchant.merchant_latitude || !merchant.merchant_longitude) return false
+          const vendor = merchant.vendor as unknown as { isActive?: boolean }
+          if (vendor && vendor.isActive === false) return false
+          const bz = (merchant as unknown as { businessZone?: { isActive?: boolean } }).businessZone
+          if (bz && typeof bz === 'object' && bz.isActive === false) return false
+          return true
+        })
         .map(merchant => ({
           merchant,
           location: {
@@ -490,28 +508,36 @@ export class GeospatialService {
         throw new Error('Google Maps API is currently unavailable. Distance calculations cannot be performed.')
       }
 
-      // Build where clause for basic filters
+      // Build where clause - includes merchant kill-switches
       const whereClause: Where = {
         and: [
-          // Only ensure merchant has valid coordinates
           { merchant_latitude: { not_equals: null } },
           { merchant_longitude: { not_equals: null } },
+          { isActive: { equals: true } },
+          { isAcceptingOrders: { equals: true } },
         ]
       }
 
-      // Query merchants with vendor relationship
+      // Query merchants with vendor and businessZone populated
       const result = await this.payload.find({
         collection: 'merchants',
         where: whereClause,
-        limit: Math.min(limit * 2, 200), // Get more results for service area filtering
+        limit: Math.min(limit * 2, 200),
         page: Math.floor(offset / (limit * 2)) + 1,
-        depth: 2, // Populate vendor relationship
+        depth: 2,
       })
 
-      // Process merchants and add service area analysis using Google Maps API
+      // Process merchants - filter by vendor and businessZone kill-switches
       const customerLocation: LocationCoordinates = { latitude, longitude }
       const merchantsWithLocations = result.docs
-        .filter(merchant => merchant.merchant_latitude && merchant.merchant_longitude)
+        .filter(merchant => {
+          if (!merchant.merchant_latitude || !merchant.merchant_longitude) return false
+          const vendor = merchant.vendor as unknown as { isActive?: boolean }
+          if (vendor && vendor.isActive === false) return false
+          const bz = (merchant as unknown as { businessZone?: { isActive?: boolean } }).businessZone
+          if (bz && typeof bz === 'object' && bz.isActive === false) return false
+          return true
+        })
         .map(merchant => ({
           merchant,
           location: {
@@ -770,6 +796,7 @@ export class GeospatialService {
           vl.alt as vendor_logo_alt
         FROM merchants m
         LEFT JOIN vendors v ON m.vendor_id = v.id
+        LEFT JOIN business_zones bz ON m.business_zone_id = bz.id
         LEFT JOIN media mt ON m.media_thumbnail_id = mt.id
         LEFT JOIN media ms ON m.media_store_front_image_id = ms.id
         LEFT JOIN media vl ON v.logo_id = vl.id
@@ -782,6 +809,8 @@ export class GeospatialService {
           AND jsonb_array_length(m.merchant_coordinates->'coordinates') = 2
           AND m.is_active = true
           AND m.is_accepting_orders = true
+          AND v.is_active = true
+          AND (m.business_zone_id IS NULL OR bz.is_active = true)
           AND ST_DWithin(
             ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857),
@@ -887,6 +916,8 @@ export class GeospatialService {
       const countResult = await this.payload.db.drizzle.execute(`
         SELECT COUNT(*) as total_count
         FROM merchants m
+        LEFT JOIN vendors v ON m.vendor_id = v.id
+        LEFT JOIN business_zones bz ON m.business_zone_id = bz.id
         WHERE 
           m.merchant_coordinates IS NOT NULL
           AND m.merchant_coordinates::text != 'null'
@@ -896,6 +927,8 @@ export class GeospatialService {
           AND jsonb_array_length(m.merchant_coordinates->'coordinates') = 2
           AND m.is_active = true
           AND m.is_accepting_orders = true
+          AND v.is_active = true
+          AND (m.business_zone_id IS NULL OR bz.is_active = true)
           AND ST_DWithin(
             ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857),

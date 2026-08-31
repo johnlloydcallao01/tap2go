@@ -337,6 +337,20 @@ export const Merchants: CollectionConfig = {
       },
     },
 
+    // === BUSINESS ZONE RELATIONSHIP (PLATFORM-SCOPE GATING) ===
+    {
+      name: 'businessZone',
+      type: 'relationship',
+      // @ts-ignore - business-zones collection will be registered via migration; fallback to string to unblock build
+      relationTo: 'business-zones' as any,
+      admin: {
+        description: 'Platform Business Zone this outlet belongs to (for ops gating/kill-switch). Merchant service_area must be within this zone.',
+        position: 'sidebar',
+      },
+      // Nullable for backfill - existing merchants have no zone yet
+      // Enforce via hook/service validation when provided
+    },
+
     // === DENORMALIZED GEOSPATIAL FIELDS ===
     {
       name: 'merchant_latitude',
