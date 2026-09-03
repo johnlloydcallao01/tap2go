@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { HeaderProps } from '@/types';
 import { User, Settings, Search } from '@/components/ui/IconWrapper';
 import LogoutButton from '@/components/LogoutButton';
@@ -154,20 +155,22 @@ export function Header({
                       <p className="text-xs text-gray-500 dark:text-[#a1a1aa] truncate">{user?.email ?? ''}</p>
                     </div>
                   </div>
-<a
-                      href="/profile"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-100 dark:hover:bg-[#262626]"
-                    >
+                  <Link
+                    href="/profile"
+                    onClick={() => setIsProfileDropdownOpen(false)}
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-100 dark:hover:bg-[#262626]"
+                  >
                     <User className="w-4 h-4 mr-3 text-gray-400" />
                     Your Profile
-                  </a>
-<a
-                      href="/settings"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-100 dark:hover:bg-[#262626]"
-                    >
+                  </Link>
+                  <Link
+                    href="/settings/configuration"
+                    onClick={() => setIsProfileDropdownOpen(false)}
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-100 dark:hover:bg-[#262626]"
+                  >
                     <Settings className="w-4 h-4 mr-3 text-gray-400" />
-                    Settings
-                  </a>
+                    Configuration
+                  </Link>
                   <div className="border-t border-gray-100 dark:border-[#262626] mt-1 pt-1">
                     <LogoutButton />
                   </div>

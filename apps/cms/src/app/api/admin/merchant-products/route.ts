@@ -117,11 +117,6 @@ export async function GET(request: NextRequest) {
       } else if (search || productTypeFilter || isActiveFilter !== null) {
         filteredVendorIds = vendorMatched
       }
-    } else if (vendorFilter && !Number.isNaN(vendorFilter)) {
-      filteredVendorIds = new Set([String(vendorFilter)])
-    } else if (merchantFilter && !Number.isNaN(merchantFilter)) {
-      const vid = merchantToVendor.get(String(merchantFilter))
-      if (vid) filteredVendorIds = new Set([vid])
     }
 
     // Apply vendor filter to vendorsDocs

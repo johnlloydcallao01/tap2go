@@ -134,8 +134,20 @@ export const SlidersHorizontal = createIconWrapper(LucideIcons.SlidersHorizontal
 export const FileSpreadsheet = createIconWrapper(LucideIcons.FileSpreadsheet);
 export const Receipt = createIconWrapper(LucideIcons.Receipt);
 export const Coins = createIconWrapper(LucideIcons.Coins);
+export const Banknote = createIconWrapper(LucideIcons.Banknote);
 export const ToggleLeft = createIconWrapper(LucideIcons.ToggleLeft);
 export const ToggleRight = createIconWrapper(LucideIcons.ToggleRight);
+export const Ticket = createIconWrapper((LucideIcons as any).Ticket || LucideIcons.Tag);
+export const GraduationCap = createIconWrapper((LucideIcons as any).GraduationCap || LucideIcons.Award);
+export const Home = createIconWrapper(LucideIcons.Home);
+export const Navigation = createIconWrapper((LucideIcons as any).Navigation || LucideIcons.Compass);
+export const Copy = createIconWrapper((LucideIcons as any).Copy || LucideIcons.Files);
+export const LocateFixed = createIconWrapper((LucideIcons as any).LocateFixed || LucideIcons.Locate || LucideIcons.MapPin);
+export const Crosshair = createIconWrapper((LucideIcons as any).Crosshair || LucideIcons.Target);
+export const MapPinned = createIconWrapper((LucideIcons as any).MapPinned || LucideIcons.MapPin);
+export const Route = createIconWrapper((LucideIcons as any).Route || LucideIcons.MapPin);
+export const Compass = createIconWrapper((LucideIcons as any).Compass || LucideIcons.Navigation);
+export const Files = createIconWrapper((LucideIcons as any).Files || LucideIcons.File);
 
 // Type for icon components
 export type LucideIcon = React.ComponentType<IconProps>;

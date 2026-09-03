@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  Building, ArrowLeft, Pencil, Layers, Package, CalendarDays, AlertCircle, Hash, ToggleLeft, Settings2
+  Building, ArrowLeft, Pencil, Layers, Package, CalendarDays, AlertCircle, Hash, ToggleLeft, Settings
 } from '@/components/ui/IconWrapper'
 
 type Doc = {

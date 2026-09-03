@@ -678,6 +678,9 @@ importers:
       '@lexical/utils':
         specifier: 0.28.0
         version: 0.28.0
+      '@react-google-maps/api':
+        specifier: ^2.20.7
+        version: 2.20.8(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       echarts:
         specifier: 6.1.0
         version: 6.1.0
@@ -702,6 +705,12 @@ importers:
       react-hook-form:
         specifier: ^7.53.2
         version: 7.71.1(react@19.1.0)
+      terra-draw:
+        specifier: ^1.32.3
+        version: 1.32.3
+      terra-draw-google-maps-adapter:
+        specifier: ^1.6.1
+        version: 1.6.1(@googlemaps/js-api-loader@1.16.8)(terra-draw@1.32.3)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -11063,6 +11072,15 @@ packages:
     resolution: {integrity: sha512-un0FmiRUQNr5PJqy9kP7c40F5BOfpGlYTrxonDChEZB7pzZxRNp/bt+ymiy9/npwXya9KH99nJ/GXFIiUkYGFQ==}
     engines: {node: '>=8'}
 
+  terra-draw-google-maps-adapter@1.6.1:
+    resolution: {integrity: sha512-YCmMaOUSnltFcRdCTPwfOgb6CMGLK2gIGwuf7Iuk0sX1dzwChpMZWyEhIJDMJeg0f6gN3XNn1OpOz4jfKCQRBQ==}
+    peerDependencies:
+      '@googlemaps/js-api-loader': ^1.14.3 || ^2.0.0
+      terra-draw: ^1.0.0
+
+  terra-draw@1.32.3:
+    resolution: {integrity: sha512-pQpwL8winsDW6/DbBgsaZKeMc83D+HqokxR+t1AbrN4U7C4mGgEfCtmRix1/5L4GfkLh1FE7pq44SWt76vK2Bw==}
+
   terser@5.46.0:
     resolution: {integrity: sha512-jTwoImyr/QbOWFFso3YoU3ik0jBBDJ6JTOQiy/J2YxVJdZCc+5u7skhNwiOR3FQIygFqVUPHl7qbbxtjW2K3Qg==}
     engines: {node: '>=10'}
@@ -19479,7 +19497,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.55.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.55.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -24199,6 +24217,13 @@ snapshots:
     dependencies:
       ansi-escapes: 4.3.2
       supports-hyperlinks: 2.3.0
+
+  terra-draw-google-maps-adapter@1.6.1(@googlemaps/js-api-loader@1.16.8)(terra-draw@1.32.3):
+    dependencies:
+      '@googlemaps/js-api-loader': 1.16.8
+      terra-draw: 1.32.3
+
+  terra-draw@1.32.3: {}
 
   terser@5.46.0:
     dependencies:

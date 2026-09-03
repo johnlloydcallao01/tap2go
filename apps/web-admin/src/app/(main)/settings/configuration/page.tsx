@@ -40,7 +40,7 @@ type ConfigData = {
     cors: { hasSecret: boolean; secretLength: number }
   }
   divergence: { lalamoveApiKeyMismatch: string | null; marketMismatch: string | null; sandboxMismatch: string | null }
-  authPolicy: { tokenExpirationDays: number; maxLoginAttempts: number; lockTimeMinutes: number }
+  authPolicy: { tokenExpirationDays: number; tokenExpirationSeconds?: number; maxLoginAttempts: number; lockTimeMinutes: number }
   meta: { generatedAt: string }
 }
 
@@ -351,7 +351,7 @@ export default function ConfigurationPage() {
 
                 <Section title="Authentication Policy (read-only)" icon={<KeyRound className="w-4 h-4 text-indigo-600" />}>
                   <div className="space-y-1">
-                    <Row label="Token expiration" value={`${data.authPolicy.tokenExpirationDays} days (${data.authPolicy.tokenExpirationSeconds}s)`} mono icon={<Clock className="w-3.5 h-3.5" />} />
+                    <Row label="Token expiration" value={`${data.authPolicy.tokenExpirationDays} days (${(data.authPolicy.tokenExpirationSeconds ?? data.authPolicy.tokenExpirationDays * 86400).toString()}s)`} mono icon={<Clock className="w-3.5 h-3.5" />} />
                     <Row label="Max login attempts" value={`${data.authPolicy.maxLoginAttempts} attempts → lock`} />
                     <Row label="Lock duration" value={`${data.authPolicy.lockTimeMinutes} minutes`} />
                     <Row label="Source" value="Users.ts auth (code) — requires deploy to change. See /settings/security for lock overview." mono />

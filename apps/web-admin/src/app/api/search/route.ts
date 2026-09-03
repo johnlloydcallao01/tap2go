@@ -83,12 +83,29 @@ function escapeWhere(value: string): string {
   return value.replace(/[[\]]/g, '\\$&');
 }
 
+function getThumbnailUrl(doc: PayloadDoc, category: SearchCategory): string | undefined {
+  if (category === 'vendors') {
+    const logo = (doc.logo ?? null) as { cloudinaryURL?: string; url?: string } | string | null | undefined;
+    if (typeof logo === 'string') return logo || undefined;
+    if (logo && typeof logo === 'object') return logo.cloudinaryURL || logo.url || undefined;
+  }
+
+  if (category === 'merchants') {
+    const vendor = (doc.vendor ?? null) as { logo?: { cloudinaryURL?: string; url?: string } | string | null } | null;
+    const logo = vendor?.logo ?? null;
+    if (typeof logo === 'string') return logo || undefined;
+    if (logo && typeof logo === 'object') return logo.cloudinaryURL || logo.url || undefined;
+  }
+
+  return undefined;
+}
+
 async function searchCollection(
   config: CollectionConfig,
   query: string,
   token: string,
   limit: number = 3,
-): Promise<{ id: string; title: string; subtitle: string; type: SearchCategory; href: string }[]> {
+): Promise<{ id: string; title: string; subtitle: string; type: SearchCategory; href: string; thumbnail?: string }[]> {
   try {
     const q = escapeWhere(query);
     let url: string;
@@ -126,12 +143,15 @@ async function searchCollection(
         href = `${config.hrefPrefix}/${doc.id}`;
       }
 
+      const thumbnail = getThumbnailUrl(doc, config.category);
+
       return {
         id: String(doc.id),
         title,
         subtitle,
         type: config.category,
         href,
+        thumbnail,
       };
     });
   } catch {

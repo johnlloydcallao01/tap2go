@@ -51,16 +51,15 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
   const [isVendorsExpanded, setIsVendorsExpanded] = React.useState(false);
   const [isMerchantsExpanded, setIsMerchantsExpanded] = React.useState(false);
+  const [isBusinessZonesExpanded, setIsBusinessZonesExpanded] = React.useState(false);
   const [isAttributesExpanded, setIsAttributesExpanded] = React.useState(false);
   const [isModifiersExpanded, setIsModifiersExpanded] = React.useState(false);
   const [isTagsExpanded, setIsTagsExpanded] = React.useState(false);
-  const [isOrderQueueExpanded, setIsOrderQueueExpanded] = React.useState(false);
-  const [isDeliveryExpanded, setIsDeliveryExpanded] = React.useState(false);
-  const [isReviewsExpanded, setIsReviewsExpanded] = React.useState(false);
   const [isPromotionsExpanded, setIsPromotionsExpanded] = React.useState(false);
   const [isCustomerActivityExpanded, setIsCustomerActivityExpanded] = React.useState(false);
   const hasActiveVendorsChild = dropdownActive(pathname, '/vendors');
   const hasActiveMerchantsChild = dropdownActive(pathname, '/merchants') || dropdownActive(pathname, '/merchant-categories');
+  const hasActiveBusinessZonesChild = dropdownActive(pathname, '/business-zones');
   const hasActiveAttributesChild = dropdownActive(pathname, '/catalog/attributes') || dropdownActive(pathname, '/catalog/attribute-terms') || dropdownActive(pathname, '/catalog/variations') || dropdownActive(pathname, '/catalog/variation-values');
   const hasActiveModifiersChild =
     dropdownActive(pathname, '/catalog/modifier-groups') ||
@@ -74,21 +73,18 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
     dropdownActive(pathname, '/catalog/merchant-variation-modifier-group-overrides') ||
     dropdownActive(pathname, '/catalog/merchant-variation-modifier-option-overrides');
   const hasActiveTagsChild = dropdownActive(pathname, '/catalog/tags') || dropdownActive(pathname, '/catalog/tag-groups');
-  const hasActiveOrderQueueChild = dropdownActive(pathname, '/orders/pending') || dropdownActive(pathname, '/orders/preparing') || dropdownActive(pathname, '/orders/ready-for-pickup') || dropdownActive(pathname, '/orders/on-delivery') || dropdownActive(pathname, '/orders/cancelled');
-  const hasActiveDeliveryChild = dropdownActive(pathname, '/delivery/bookings') || dropdownActive(pathname, '/delivery/locations') || dropdownActive(pathname, '/delivery/tracking');
-  const hasActiveReviewsChild = dropdownActive(pathname, '/reviews');
+
   const hasActivePromotionsChild = dropdownActive(pathname, '/promotions');
   const hasActiveCustomerActivityChild = dropdownActive(pathname, '/activity');
   const hasActivePlatformConfigChild = dropdownActive(pathname, '/settings/configuration');
 
   React.useEffect(() => { if (hasActiveVendorsChild) setIsVendorsExpanded(true); }, [hasActiveVendorsChild]);
   React.useEffect(() => { if (hasActiveMerchantsChild) setIsMerchantsExpanded(true); }, [hasActiveMerchantsChild]);
+  React.useEffect(() => { if (hasActiveBusinessZonesChild) setIsBusinessZonesExpanded(true); }, [hasActiveBusinessZonesChild]);
   React.useEffect(() => { if (hasActiveAttributesChild) setIsAttributesExpanded(true); }, [hasActiveAttributesChild]);
   React.useEffect(() => { if (hasActiveModifiersChild) setIsModifiersExpanded(true); }, [hasActiveModifiersChild]);
   React.useEffect(() => { if (hasActiveTagsChild) setIsTagsExpanded(true); }, [hasActiveTagsChild]);
-  React.useEffect(() => { if (hasActiveOrderQueueChild) setIsOrderQueueExpanded(true); }, [hasActiveOrderQueueChild]);
-  React.useEffect(() => { if (hasActiveDeliveryChild) setIsDeliveryExpanded(true); }, [hasActiveDeliveryChild]);
-  React.useEffect(() => { if (hasActiveReviewsChild) setIsReviewsExpanded(true); }, [hasActiveReviewsChild]);
+
   React.useEffect(() => { if (hasActivePromotionsChild) setIsPromotionsExpanded(true); }, [hasActivePromotionsChild]);
   React.useEffect(() => { if (hasActiveCustomerActivityChild) setIsCustomerActivityExpanded(true); }, [hasActiveCustomerActivityChild]);
 
@@ -153,6 +149,18 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
             >
               {renderChildLink({ label: 'All Merchants', href: '/merchants', isActive: exactActive(pathname, '/merchants') })}
               {renderChildLink({ label: 'Merchant Categories', href: '/merchant-categories', isActive: dropdownActive(pathname, '/merchant-categories') })}
+            </SidebarDropdownGroup>
+
+            <SidebarDropdownGroup
+              icon="shipping"
+              label="Business Zones"
+              isOpen={expanded}
+              isExpanded={isBusinessZonesExpanded}
+              onToggle={() => setIsBusinessZonesExpanded((c) => !c)}
+              active={hasActiveBusinessZonesChild}
+            >
+              {renderChildLink({ label: 'Admin', href: '/business-zones/admin', isActive: dropdownActive(pathname, '/business-zones/admin') })}
+              {renderChildLink({ label: 'Merchants', href: '/business-zones/merchants', isActive: dropdownActive(pathname, '/business-zones/merchants') })}
             </SidebarDropdownGroup>
           </div>
 
@@ -223,48 +231,9 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
             <SidebarItem icon="orders" label="All Orders" active={exactActive(pathname, '/orders')} collapsed={!expanded} href="/orders" />
 
-            <SidebarDropdownGroup
-              icon="orders"
-              label="Order Queue"
-              isOpen={expanded}
-              isExpanded={isOrderQueueExpanded}
-              onToggle={() => setIsOrderQueueExpanded((c) => !c)}
-              active={hasActiveOrderQueueChild}
-            >
-              {renderChildLink({ label: 'Pending', href: '/orders/pending', isActive: dropdownActive(pathname, '/orders/pending') })}
-              {renderChildLink({ label: 'Preparing', href: '/orders/preparing', isActive: dropdownActive(pathname, '/orders/preparing') })}
-              {renderChildLink({ label: 'Ready for Pickup', href: '/orders/ready-for-pickup', isActive: dropdownActive(pathname, '/orders/ready-for-pickup') })}
-              {renderChildLink({ label: 'On Delivery', href: '/orders/on-delivery', isActive: dropdownActive(pathname, '/orders/on-delivery') })}
-              {renderChildLink({ label: 'Cancelled / Issues', href: '/orders/cancelled', isActive: dropdownActive(pathname, '/orders/cancelled') })}
-            </SidebarDropdownGroup>
-
             <SidebarItem icon="pages" label="Order Items" active={dropdownActive(pathname, '/order-items')} collapsed={!expanded} href="/order-items" />
-            <SidebarItem icon="audit" label="Order Tracking History" active={dropdownActive(pathname, '/order-tracking')} collapsed={!expanded} href="/order-tracking" />
 
-            <SidebarDropdownGroup
-              icon="shipping"
-              label="Delivery & Logistics"
-              isOpen={expanded}
-              isExpanded={isDeliveryExpanded}
-              onToggle={() => setIsDeliveryExpanded((c) => !c)}
-              active={hasActiveDeliveryChild}
-            >
-              {renderChildLink({ label: 'Delivery Bookings (Lalamove)', href: '/delivery/bookings', isActive: dropdownActive(pathname, '/delivery/bookings') })}
-              {renderChildLink({ label: 'Delivery Locations', href: '/delivery/locations', isActive: dropdownActive(pathname, '/delivery/locations') })}
-              {renderChildLink({ label: 'Live Tracking', href: '/delivery/tracking', isActive: dropdownActive(pathname, '/delivery/tracking') })}
-            </SidebarDropdownGroup>
 
-            <SidebarDropdownGroup
-              icon="reviews"
-              label="Reviews & Ratings"
-              isOpen={expanded}
-              isExpanded={isReviewsExpanded}
-              onToggle={() => setIsReviewsExpanded((c) => !c)}
-              active={hasActiveReviewsChild}
-            >
-              {renderChildLink({ label: 'All Reviews', href: '/reviews', isActive: exactActive(pathname, '/reviews') })}
-              {renderChildLink({ label: 'Flagged Reviews', href: '/reviews/flagged', isActive: dropdownActive(pathname, '/reviews/flagged') })}
-            </SidebarDropdownGroup>
           </div>
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
@@ -274,7 +243,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
             <SidebarSectionLabel isOpen={expanded}>Finance</SidebarSectionLabel>
 
             <SidebarItem icon="payments" label="Transactions" active={dropdownActive(pathname, '/transactions')} collapsed={!expanded} href="/transactions" />
-            <SidebarItem icon="billing" label="Refunds & Failures" active={dropdownActive(pathname, '/transactions/refunds')} collapsed={!expanded} href="/transactions/refunds" />
 
             <SidebarDropdownGroup
               icon="campaigns"

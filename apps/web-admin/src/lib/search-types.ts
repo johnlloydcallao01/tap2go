@@ -21,6 +21,7 @@ export interface SearchSuggestion {
   subtitle?: string;
   type: SearchCategory;
   href: string;
+  thumbnail?: string;
 }
 
 export interface SearchResponse {

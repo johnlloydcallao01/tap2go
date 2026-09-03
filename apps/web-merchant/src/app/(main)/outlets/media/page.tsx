@@ -105,7 +105,6 @@ export default function OutletMediaPage() {
                     </p>
                     {o.media.thumbnail?.url ? (
                       <a href={o.media.thumbnail.url} target="_blank" rel="noreferrer" className="group block relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#0a0a0a] aspect-[16/10]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={o.media.thumbnail.url} alt={o.media.thumbnail.alt || o.outletName} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         <span className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <ExternalLink className="w-3.5 h-3.5" />
@@ -124,7 +123,6 @@ export default function OutletMediaPage() {
                     </p>
                     {o.media.storeFrontImage?.url ? (
                       <a href={o.media.storeFrontImage.url} target="_blank" rel="noreferrer" className="group block relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#0a0a0a] aspect-[16/10]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={o.media.storeFrontImage.url} alt={o.media.storeFrontImage.alt || o.outletName} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         <span className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <ExternalLink className="w-3.5 h-3.5" />

@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
       divergence,
       authPolicy: {
         tokenExpirationDays: 30,
+        tokenExpirationSeconds: 30 * 24 * 60 * 60,
         maxLoginAttempts: 5,
         lockTimeMinutes: 10,
       },

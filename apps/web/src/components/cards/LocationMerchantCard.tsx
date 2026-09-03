@@ -28,6 +28,8 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
   const thumbnailImageUrl = getImageUrl(merchant.media?.thumbnail);
   const altText = merchant.media?.thumbnail?.alt || `${merchant.outletName} thumbnail`;
   const vendorLogoUrl = getImageUrl(merchant.vendor?.logo);
+  const listImageUrl = vendorLogoUrl || thumbnailImageUrl || "/placeholder-merchant.jpg";
+  const listImageAlt = vendorLogoUrl ? `${merchant.vendor?.businessName || merchant.outletName || "Vendor"} logo` : altText;
   const distanceKm = (merchant as any)?.distanceKm as number | undefined;
   const distanceInMeters = (merchant as any)?.distanceInMeters as number | undefined;
   const distanceText = typeof distanceKm === "number" ? formatDistanceKm(distanceKm) : (typeof distanceInMeters === "number" ? formatDistanceKm(distanceInMeters / 1000) : null);
@@ -107,11 +109,12 @@ export default function LocationMerchantCard({ merchant, isWishlisted = false, o
             >
               <div className="flex items-center gap-4 p-2 rounded-xl hover:bg-gray-50 transition-colors">
                 <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
-                  {thumbnailImageUrl ? (
-                    <Image src={thumbnailImageUrl} alt={altText} fill className="object-cover" />
-                  ) : (
-                    <Image src="/placeholder-merchant.jpg" alt="Merchant placeholder" fill className="object-cover" />
-                  )}
+                  <Image
+                    src={listImageUrl}
+                    alt={listImageAlt}
+                    fill
+                    className={vendorLogoUrl ? "object-contain bg-white" : "object-cover"}
+                  />
                   {distanceText && (
                     <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded-full">{distanceText}</div>
                   )}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import {
-  Building, AlertCircle, RefreshCw, Layers, Package, ToggleLeft, Hash, Settings2
+  Building, AlertCircle, RefreshCw, Layers, Package, ToggleLeft, Hash, Settings
 } from '@/components/ui/IconWrapper'
 
 const SELECTION_OPTS = [
