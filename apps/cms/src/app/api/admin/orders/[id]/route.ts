@@ -105,6 +105,10 @@ function sanitizeOrderDoc(raw: Record<string, any>): Record<string, any> {
     subtotal: num(raw.subtotal, 0),
     delivery_fee: num(raw.delivery_fee, 0),
     platform_fee: num(raw.platform_fee, 0),
+    priority_fee: num(raw.priority_fee, 0),
+    discount_total: num(raw.discount_total, 0),
+    coupon_code: optionalString(raw.coupon_code),
+    free_delivery_applied: !!raw.free_delivery_applied,
     placed_at: raw.placed_at ? String(raw.placed_at) : null,
     notes: optionalString(raw.notes),
     lalamove: {
@@ -279,6 +283,14 @@ async function fetchAggregates(payload: any, orderId: number | string) {
     code: str(d.code, ''),
     amount_off: num(d.amount_off, 0),
     type: str(d.type, 'fixed'),
+    coupon: d.coupon ?? null,
+    food_discount: num(d.food_discount, 0),
+    delivery_discount: num(d.delivery_discount, 0),
+    funded_by: str(d.funded_by, 'platform'),
+    vendor_share_pct: num(d.vendor_share_pct, 0),
+    platform_share: num(d.platform_share, 0),
+    vendor_share: num(d.vendor_share, 0),
+    source: str(d.source, 'coupon'),
   }))
 
   const reviewRaw = ((reviewsRes as any).docs as any[])[0] || null

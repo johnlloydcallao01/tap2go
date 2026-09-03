@@ -1,5 +1,6 @@
 import { PayloadRequest } from 'payload'
 import crypto from 'crypto'
+import { CouponService } from '../services/CouponService'
 
 export const paymongoWebhook = async (req: PayloadRequest) => {
   try {
@@ -92,6 +93,14 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
                   }
               });
               console.log(`Cart items for order ${orderId} soft-cleared (status: ordered).`);
+
+              // Promote held coupon redemptions to applied + bump usage counters.
+              // Best-effort: never blocks the payment acknowledgement.
+              try {
+                await new CouponService(req.payload).finalizeForOrder(orderId, true);
+              } catch (couponErr) {
+                console.error(`[paymongo/webhook] coupon finalize error for order ${orderId}:`, couponErr);
+              }
           }
       } else {
           console.warn(`No transaction found for payment_intent_id: ${paymentIntentId}`);
@@ -101,29 +110,58 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
        const paymentIntentId = resource.attributes.payment_intent_id;
        
        const transactions = await req.payload.find({
-          collection: 'transactions',
-          where: {
-              payment_intent_id: {
-                  equals: paymentIntentId
-              }
-          }
-      });
+           collection: 'transactions',
+           where: {
+               payment_intent_id: {
+                   equals: paymentIntentId
+               }
+           }
+       });
 
-      if (transactions.docs.length > 0) {
-          const transaction = transactions.docs[0];
-          
-          await req.payload.update({
-              collection: 'transactions',
-              id: transaction.id,
-              data: {
-                  status: 'failed',
-              }
-          });
-          console.log(`Transaction ${transaction.id} updated to failed.`);
-      }
-    }
+       if (transactions.docs.length > 0) {
+           const transaction = transactions.docs[0];
+           
+           await req.payload.update({
+               collection: 'transactions',
+               id: transaction.id,
+               data: {
+                   status: 'failed',
+               }
+           });
+           console.log(`Transaction ${transaction.id} updated to failed.`);
 
-    // 3. Acknowledge Receipt
+           // Release held coupon redemptions so limited coupons are not burned.
+           try {
+             const failedOrder = (transaction as any).order;
+             if (failedOrder) {
+               const failedOrderId = typeof failedOrder === 'object' ? failedOrder.id : failedOrder;
+               await new CouponService(req.payload).finalizeForOrder(failedOrderId, false);
+             }
+           } catch (couponErr) {
+             console.error('[paymongo/webhook] coupon release error:', couponErr);
+           }
+       }
+     } else if (typeof type === 'string' && type.includes('refund')) {
+       // Reverse applied coupon redemptions on refunds (WooCommerce decrease_usage_count parity).
+       try {
+         const refundIntentId = resource.attributes?.payment_intent_id;
+         if (refundIntentId) {
+           const refundTx = await req.payload.find({
+               collection: 'transactions',
+               where: { payment_intent_id: { equals: refundIntentId } },
+           });
+           const refundOrder = (refundTx.docs[0] as any)?.order;
+           if (refundOrder) {
+             const refundOrderId = typeof refundOrder === 'object' ? refundOrder.id : refundOrder;
+             await new CouponService(req.payload).reverseForOrder(refundOrderId, 'refunded');
+           }
+         }
+       } catch (couponErr) {
+         console.error('[paymongo/webhook] coupon refund-reverse error:', couponErr);
+       }
+     }
+
+     // 3. Acknowledge Receipt
     return Response.json({ status: 'received' });
   } catch (error) {
     console.error('Webhook Error:', error);

@@ -92,14 +92,18 @@ export const deliveryCancelHandler = async (req: PayloadRequest) => {
       throw cancelErr
     }
 
-    // 3. Update our records to reflect the cancelled delivery
+    // 3. Update our records to reflect the cancelled delivery.
+    // Preserve coupon math: the delivery fee is refunded, but food discounts
+    // and the (already spent) priority fee stay in the total.
     const refundedFee = booking?.delivery_fee || order.delivery_fee || 0
-    const newTotal = (order.subtotal || 0) + (order.platform_fee || 0)
-
-    const updateData: Record<string, any> = {
-      delivery_status: 'canceled',
-      order_status: order.status,
-    }
+    const preservedDiscount = Number((order as any).discount_total) || 0
+    const preservedPriority = Number((order as any).priority_fee) || 0
+    const newTotal = Math.max(
+      0,
+      Math.round(
+        ((order.subtotal || 0) + (order.platform_fee || 0) + preservedPriority - preservedDiscount) * 100,
+      ) / 100,
+    )
 
     if (booking) {
       await req.payload.update({
@@ -114,7 +118,9 @@ export const deliveryCancelHandler = async (req: PayloadRequest) => {
       await req.payload.update({
         collection: 'orders',
         id: orderId,
-        data: updateData,
+        data: {
+          delivery_status: 'canceled',
+        },
       })
     }
 

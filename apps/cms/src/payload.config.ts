@@ -21,6 +21,9 @@ import { deliveryBookHandler } from './endpoints/deliveryBook'
 import { deliveryCancelHandler } from './endpoints/deliveryCancel'
 import { deliveryTrackHandler } from './endpoints/deliveryTrack'
 import { lalamoveWebhookHandler } from './endpoints/lalamoveWebhook'
+import { couponsValidateHandler } from './endpoints/couponsValidate'
+import { couponsAttachHandler } from './endpoints/couponsAttach'
+import { CouponService, roundMoney } from './services/CouponService'
 import type { PayloadRequest } from 'payload'
 import type { User as PayloadUser } from './payload-types'
 // import sharp from 'sharp'
@@ -55,6 +58,8 @@ import { OrderTracking } from './collections/OrderTracking'
 import { DriverAssignments } from './collections/DriverAssignments'
 import { DeliveryBookings } from './collections/DeliveryBookings'
 import { OrderDiscounts } from './collections/OrderDiscounts'
+import { Coupons } from './collections/Coupons'
+import { CouponRedemptions } from './collections/CouponRedemptions'
 import { Reviews } from './collections/Reviews'
 
 // Product Management Collections
@@ -131,6 +136,8 @@ export default buildConfig({
     DriverAssignments,
     DeliveryBookings,
     OrderDiscounts,
+    Coupons,
+    CouponRedemptions,
     Reviews,
 
     // Product Management System
@@ -1147,7 +1154,15 @@ export default buildConfig({
             ? (req as unknown as Required<MaybeJson>).json()
             : Promise.resolve((req as unknown as MaybeBody).body))) ?? {};
             
-          const { amount, currency = 'PHP' } = parsed as { amount?: number; currency?: string };
+          const { amount, currency = 'PHP', orderId, couponCode, customerId, merchantId, deliveryFee } = parsed as {
+            amount?: number
+            currency?: string
+            orderId?: number | string
+            couponCode?: string
+            customerId?: number | string
+            merchantId?: number | string
+            deliveryFee?: number
+          };
           const normalizedAmount = Number(amount);
 
           if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
@@ -1159,6 +1174,55 @@ export default buildConfig({
                { error: 'Checkout total must be at least PHP 1.00 before creating a payment intent.' },
                { status: 400 },
              );
+          }
+
+          // Coupon/order cross-check: never trust a client-computed discounted total.
+          // When an orderId is given, the charged amount must equal the order total.
+          // When coupon details are given without an order yet, the food subtotal +
+          // food discount are recomputed server-side from active cart items.
+          if (orderId !== undefined && orderId !== null && String(orderId) !== '') {
+            try {
+              const order = await req.payload.findByID({ collection: 'orders', id: orderId as number, depth: 0 });
+              const expected = Math.round(Number((order as any)?.total || 0) * 100);
+              if (!Number.isFinite(expected) || expected !== normalizedAmount) {
+                return Response.json(
+                  { error: 'Amount does not match the order total. Please refresh checkout and try again.', code: 'AMOUNT_MISMATCH' },
+                  { status: 400 },
+                );
+              }
+            } catch (e: any) {
+              return Response.json({ error: e?.message || 'Order not found for amount verification' }, { status: 404 });
+            }
+          } else if (typeof couponCode === 'string' && couponCode.trim()) {
+            if (customerId === undefined || customerId === null || String(customerId) === '' || merchantId === undefined || merchantId === null || String(merchantId) === '') {
+              return Response.json({ error: 'customerId and merchantId are required with couponCode' }, { status: 400 });
+            }
+            try {
+              const couponService = new CouponService(req.payload);
+              const validation = await couponService.validate({
+                code: couponCode,
+                customerId: customerId as number | string,
+                merchantId: merchantId as number | string,
+                deliveryFee: deliveryFee === undefined ? 0 : Number(deliveryFee),
+              });
+              if (!validation.valid) {
+                return Response.json(
+                  { error: validation.message, reason: validation.reason, wooCode: validation.wooCode },
+                  { status: 422 },
+                );
+              }
+              const expected = Math.round(
+                roundMoney(validation.foodSubtotal - validation.foodDiscount + (deliveryFee === undefined ? 0 : Number(deliveryFee) || 0) - validation.deliveryDiscount) * 100,
+              );
+              if (expected !== normalizedAmount) {
+                return Response.json(
+                  { error: 'Amount does not match the coupon-discounted total. Please refresh checkout and try again.', code: 'AMOUNT_MISMATCH' },
+                  { status: 400 },
+                );
+              }
+            } catch (e: any) {
+              return Response.json({ error: e?.message || 'Failed to verify coupon' }, { status: 422 });
+            }
           }
 
           // 3. Create Payment Intent via PayMongo
@@ -1221,6 +1285,18 @@ export default buildConfig({
            return Response.json({ error: 'Internal server error' }, { status: 500 });
         }
       })
+    },
+
+    {
+      path: '/coupons/validate',
+      method: 'post',
+      handler: couponsValidateHandler,
+    },
+
+    {
+      path: '/coupons/attach',
+      method: 'post',
+      handler: couponsAttachHandler,
     },
 
     {

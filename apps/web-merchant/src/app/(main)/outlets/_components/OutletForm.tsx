@@ -5,6 +5,7 @@ import { Building2, Mail, Store, MapPin, Clock, Truck, AlertCircle, RefreshCw, P
 import { MediaUploader } from '@/components/cms/MediaUploader';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+const TIMEZONES = ['Asia/Manila', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney', 'Europe/London', 'Europe/Paris', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'UTC'];
 
 type OutletDoc = {
   id: string;
@@ -74,15 +75,16 @@ const inputCls = 'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark
 const labelCls = 'text-xs font-medium text-gray-700 dark:text-[#a1a1aa]';
 const textareaCls = 'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm text-gray-900 dark:text-white font-mono placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236]';
 
-function buildHours(src: unknown): Record<string, { open: string; close: string; closed: boolean }> {
-  const out: Record<string, { open: string; close: string; closed: boolean }> = {};
+function buildHours(src: unknown): Record<string, { open: string; close: string; closed: boolean; periods?: { open: string; close: string }[] }> {
+  const out: Record<string, { open: string; close: string; closed: boolean; periods?: { open: string; close: string }[] }> = {};
   const s = src && typeof src === 'object' && !Array.isArray(src) ? (src as Record<string, unknown>) : {};
   for (const day of DAYS) {
     const key = day.toLowerCase();
     const v = s[key] as { open?: string; close?: string; closed?: boolean } | undefined;
     const v2 = s[day] as { open?: string; close?: string; closed?: boolean } | undefined;
     const cur = v ?? v2;
-    out[day] = cur && typeof cur === 'object' ? { open: (cur as any).open || '09:00', close: (cur as any).close || '21:00', closed: !!(cur as any).closed } : { open: '09:00', close: '21:00', closed: false };
+    const period = Array.isArray(cur) ? cur[0] : cur;
+    out[day] = period && typeof period === 'object' ? { open: (period as any).open || '09:00', close: (period as any).close || '21:00', closed: !!(period as any).closed, ...(Array.isArray(cur) ? { periods: cur } : {}) } : { open: '09:00', close: '21:00', closed: false };
   }
   return out;
 }
@@ -198,7 +200,21 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
   const set = (k: string, v: string | boolean | Record<string, { open: string; close: string; closed: boolean }>) =>
     setForm((prev) => ({ ...prev, [k]: v }) as typeof form);
   const setDay = (day: string, key: string, v: string | boolean) =>
-    setForm((prev) => ({ ...prev, hours: { ...prev.hours, [day]: { ...(prev.hours[day] || { open: '09:00', close: '21:00', closed: false }), [key]: v } } }));
+    setForm((prev) => {
+      const current = prev.hours[day] || { open: '09:00', close: '21:00', closed: false };
+      const periods = current.periods || [{ open: current.open, close: current.close }];
+      return { ...prev, hours: { ...prev.hours, [day]: { ...current, [key]: v, periods: key === 'closed' ? periods : periods.map((period, index) => index === 0 ? { ...period, [key]: v } : period) } } };
+    });
+  const addPeriod = (day: string) => setForm((prev) => {
+    const current = prev.hours[day] || { open: '09:00', close: '21:00', closed: false };
+    return { ...prev, hours: { ...prev.hours, [day]: { ...current, closed: false, periods: [...(current.periods || [{ open: current.open, close: current.close }]), { open: '17:00', close: '21:00' }] } } };
+  });
+  const removePeriod = (day: string, index: number) => setForm((prev) => {
+    const current = prev.hours[day];
+    if (!current?.periods || current.periods.length <= 1) return prev;
+    const periods = current.periods.filter((_, periodIndex) => periodIndex !== index);
+    return { ...prev, hours: { ...prev.hours, [day]: { ...current, open: periods[0].open, close: periods[0].close, periods } } };
+  });
 
   useEffect(() => {
     if (!initial) return;
@@ -342,10 +358,10 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
       if (Number.isNaN(d.getTime())) return setError('Next available slot must be a valid date/time');
     }
 
-    const operatingHours: Record<string, { open: string; close: string; closed: boolean }> = {};
+    const operatingHours: Record<string, { open: string; close: string }[]> = {};
     for (const d of DAYS) {
       const h = form.hours[d];
-      operatingHours[d.toLowerCase()] = { open: h.open || '09:00', close: h.close || '21:00', closed: !!h.closed };
+      operatingHours[d.toLowerCase()] = h.closed ? [] : (h.periods || [{ open: h.open || '09:00', close: h.close || '21:00' }]).map((period, index) => index === 0 ? { open: h.open || period.open, close: h.close || period.close } : period);
     }
 
     setSaving(true);
@@ -575,7 +591,7 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2"><label className={labelCls}>Outlet name *</label><input value={form.outletName} onChange={(e) => set('outletName', e.target.value)} placeholder="GMK CAFE — Bonifacio High Street" className={inputCls} /></div>
             <div><label className={labelCls}>Outlet code</label><input value={form.outletCode} onChange={(e) => set('outletCode', e.target.value)} placeholder="GMK-BGC-001 (auto if empty)" className={`${inputCls} font-mono`} /></div>
-            <div><label className={labelCls}><Globe className="w-3 h-3 inline mr-1" /> Timezone *</label><input value={form.timezone} onChange={(e) => set('timezone', e.target.value)} placeholder="Asia/Manila" className={`${inputCls} font-mono`} /><p className="text-xs text-gray-400 mt-1">IANA identifier (validated via Intl.DateTimeFormat)</p></div>
+            <div><label className={labelCls}><Globe className="w-3 h-3 inline mr-1" /> Timezone *</label><select value={form.timezone} onChange={(e) => set('timezone', e.target.value)} className={`${inputCls} font-mono`}>{TIMEZONES.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}</select><p className="text-xs text-gray-400 mt-1">IANA identifier</p></div>
             <div><label className={labelCls}>Operational status *</label>
               <select value={form.operationalStatus} onChange={(e) => set('operationalStatus', e.target.value)} className={inputCls}>
                 <option value="open">Open</option>
@@ -689,10 +705,16 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
                   <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-[#a1a1aa] cursor-pointer shrink-0">
                     <input type="checkbox" checked={!!h.closed} onChange={(e) => setDay(day, 'closed', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-[#eba236]" /> Closed
                   </label>
-                  <div className={`flex items-center gap-2 ${h.closed ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <input type="time" value={h.open || '09:00'} onChange={(e) => setDay(day, 'open', e.target.value)} disabled={h.closed} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" />
-                    <span className="text-gray-400">to</span>
-                    <input type="time" value={h.close || '21:00'} onChange={(e) => setDay(day, 'close', e.target.value)} disabled={h.closed} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" />
+                  <div className={`flex flex-col gap-2 ${h.closed ? 'opacity-40 pointer-events-none' : ''}`}>
+                    {(h.periods || [{ open: h.open || '09:00', close: h.close || '21:00' }]).map((period, periodIndex) => (
+                      <div key={`${day}-${periodIndex}`} className="flex items-center gap-2">
+                        <input type="time" value={periodIndex === 0 ? h.open : period.open} onChange={(e) => periodIndex === 0 ? setDay(day, 'open', e.target.value) : setForm((prev) => ({ ...prev, hours: { ...prev.hours, [day]: { ...h, periods: (h.periods || [period]).map((p, i) => i === periodIndex ? { ...p, open: e.target.value } : p) } } }))} disabled={h.closed} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" />
+                        <span className="text-gray-400">to</span>
+                        <input type="time" value={periodIndex === 0 ? h.close : period.close} onChange={(e) => periodIndex === 0 ? setDay(day, 'close', e.target.value) : setForm((prev) => ({ ...prev, hours: { ...prev.hours, [day]: { ...h, periods: (h.periods || [period]).map((p, i) => i === periodIndex ? { ...p, close: e.target.value } : p) } } }))} disabled={h.closed} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" />
+                        {periodIndex > 0 && <button type="button" onClick={() => removePeriod(day, periodIndex)} disabled={h.closed} className="text-xs text-red-600 hover:underline">Remove</button>}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addPeriod(day)} disabled={h.closed} className="self-start text-xs font-medium text-[#b97810] hover:underline">Add period</button>
                   </div>
                 </div>
               );

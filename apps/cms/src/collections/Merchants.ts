@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 
 export const Merchants: CollectionConfig = {
   slug: 'merchants',
@@ -603,6 +604,15 @@ export const Merchants: CollectionConfig = {
     },
   ],
   hooks: {
+    afterRead: [
+      ({ doc }) => {
+        const storeHoursStatus = getStoreHoursStatus(doc as Record<string, unknown>)
+        return { ...doc, isOpenNow: storeHoursStatus.isOpen, storeHoursStatus, nextOpeningAt: storeHoursStatus.nextOpeningAt ?? null }
+      },
+    ],
+    beforeValidate: [
+      ({ data }) => data ? validateStoreHoursFields(data as Record<string, unknown>) : data,
+    ],
     beforeChange: [
       ({ data }) => {
         // Auto-generate outletCode if not provided

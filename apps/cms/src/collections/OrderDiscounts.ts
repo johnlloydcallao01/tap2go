@@ -65,14 +65,88 @@ export const OrderDiscounts: CollectionConfig = {
         description: 'percentage or fixed',
       },
     },
-    // Future: Link to master voucher table
-    // {
-    //   name: 'source_voucher',
-    //   type: 'relationship',
-    //   relationTo: 'vouchers',
-    //   admin: {
-    //     description: '(Future) Link to master voucher table',
-    //   },
-    // },
+    {
+      name: 'coupon',
+      type: 'relationship',
+      relationTo: 'coupons',
+      admin: {
+        description: 'Master coupon (null = legacy manual code)',
+      },
+    },
+    {
+      name: 'coupon_snapshot',
+      type: 'json',
+      admin: {
+        description: 'Coupon definition at apply time (history never rewrites)',
+      },
+    },
+    {
+      name: 'food_discount',
+      type: 'number',
+      defaultValue: 0,
+      admin: {
+        description: 'Pesos discounted on the food subtotal leg',
+      },
+    },
+    {
+      name: 'delivery_discount',
+      type: 'number',
+      defaultValue: 0,
+      admin: {
+        description: 'Pesos discounted on the delivery fee leg',
+      },
+    },
+    {
+      name: 'funded_by',
+      type: 'select',
+      defaultValue: 'platform',
+      options: [
+        { label: 'Platform', value: 'platform' },
+        { label: 'Vendor', value: 'vendor' },
+        { label: 'Split', value: 'split' },
+      ],
+      admin: {
+        description: 'Who pays for this discount at settlement',
+      },
+    },
+    {
+      name: 'vendor_share_pct',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      max: 100,
+    },
+    {
+      name: 'platform_share',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      admin: {
+        description: 'Pesos absorbed by the platform',
+      },
+    },
+    {
+      name: 'vendor_share',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      admin: {
+        description: 'Pesos absorbed by the vendor (deducted from payout)',
+      },
+    },
+    {
+      name: 'source',
+      type: 'select',
+      defaultValue: 'coupon',
+      options: [
+        { label: 'Manual', value: 'manual' },
+        { label: 'Coupon', value: 'coupon' },
+        { label: 'Auto campaign', value: 'auto_campaign' },
+      ],
+    },
+  ],
+  indexes: [
+    { fields: ['order', 'coupon'] },
+    { fields: ['coupon'] },
   ],
 }

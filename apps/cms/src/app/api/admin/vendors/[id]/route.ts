@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { validateStoreHoursFields } from '@/utils/storeHours'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
 function str(v: unknown, fb=''): string { return typeof v === 'string' ? v : fb }
@@ -102,6 +103,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     let body: Record<string, any>
     try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
+    try { Object.assign(body, validateStoreHoursFields(body)) } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid store hours' }, { status: 400 }) }
 
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id

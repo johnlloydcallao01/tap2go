@@ -19,6 +19,32 @@ export const Orders: CollectionConfig = {
     description: 'Central entity for all transactions',
   },
   hooks: {
+    beforeValidate: [
+      ({ data, operation }) => {
+        if (!data || typeof data !== 'object') return data
+        const d = data as Record<string, any>
+        // Guard the totals invariant on full writes (create, or updates that set every leg).
+        // Partial PATCH updates (e.g. delivery book/cancel re-totals) skip this check.
+        if (
+          operation === 'create' &&
+          d.total !== undefined &&
+          d.subtotal !== undefined
+        ) {
+          const subtotal = Number(d.subtotal) || 0
+          const deliveryFee = Number(d.delivery_fee ?? 0) || 0
+          const platformFee = Number(d.platform_fee ?? 0) || 0
+          const priorityFee = Number(d.priority_fee ?? 0) || 0
+          const discountTotal = Number(d.discount_total ?? 0) || 0
+          const expected = subtotal + deliveryFee + platformFee + priorityFee - discountTotal
+          if (Math.abs(Number(d.total) - expected) > 0.01) {
+            throw new Error(
+              `Order total mismatch: expected ${expected.toFixed(2)} (subtotal + fees - discounts) but got ${Number(d.total).toFixed(2)}`,
+            )
+          }
+        }
+        return d
+      },
+    ],
     afterChange: [
       async ({ doc, previousDoc, operation, req }) => {
         try {
@@ -182,6 +208,39 @@ export const Orders: CollectionConfig = {
       defaultValue: 0,
       admin: {
         description: 'Service charge/App fee',
+      },
+    },
+    {
+      name: 'priority_fee',
+      type: 'number',
+      required: true,
+      defaultValue: 0,
+      admin: {
+        description: 'Lalamove priority fee to speed up rider matching (set at delivery booking)',
+      },
+    },
+    {
+      name: 'discount_total',
+      type: 'number',
+      required: true,
+      defaultValue: 0,
+      admin: {
+        description: 'Total coupon discount applied (food + delivery legs)',
+      },
+    },
+    {
+      name: 'coupon_code',
+      type: 'text',
+      admin: {
+        description: 'Coupon code applied to this order (denormalized for ops search)',
+      },
+    },
+    {
+      name: 'free_delivery_applied',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'A free-delivery coupon zeroed the delivery leg',
       },
     },
     {

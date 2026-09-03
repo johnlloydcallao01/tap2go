@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateVendor } from '@/utils/mediaLibrary'
+import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,6 +95,7 @@ function sanitizeMerchant(m: Record<string, any>): Record<string, any> {
     if (typeof raw === 'object' && raw !== null && 'id' in (raw as any)) return [(raw as any).id]
     return [raw]
   }
+  const storeHoursStatus = getStoreHoursStatus(m as Record<string, unknown>)
 
   return {
     id: String(m.id),
@@ -107,6 +109,9 @@ function sanitizeMerchant(m: Record<string, any>): Record<string, any> {
     is_currently_delivering: m.is_currently_delivering !== false,
     isCurrentlyDelivering: m.is_currently_delivering !== false,
     operationalStatus: getStr(m.operationalStatus, 'open'),
+    isOpenNow: storeHoursStatus.isOpen,
+    storeHoursStatus,
+    nextOpeningAt: storeHoursStatus.nextOpeningAt ?? null,
     timezone: getStr(m.timezone, 'Asia/Manila'),
     operatingHours: m.operatingHours ?? null,
     specialHours: m.specialHours ?? null,
@@ -227,6 +232,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } catch {
       return badRequest('Invalid JSON body')
     }
+    try { Object.assign(body, validateStoreHoursFields(body)) } catch (error) { return badRequest(error instanceof Error ? error.message : 'Invalid store hours') }
 
     console.log(`[vendor/outlets/[id]] PATCH:${requestId} body`, JSON.stringify(body).slice(0, 2000))
 

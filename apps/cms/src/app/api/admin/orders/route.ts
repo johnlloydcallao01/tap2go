@@ -120,6 +120,10 @@ function sanitizeOrderDoc(raw: Record<string, any>): Record<string, any> {
     subtotal: num(raw.subtotal, 0),
     delivery_fee: num(raw.delivery_fee, 0),
     platform_fee: num(raw.platform_fee, 0),
+    priority_fee: num(raw.priority_fee, 0),
+    discount_total: num(raw.discount_total, 0),
+    coupon_code: optionalString(raw.coupon_code),
+    free_delivery_applied: !!raw.free_delivery_applied,
     placed_at: raw.placed_at ? String(raw.placed_at) : null,
     notes: optionalString(raw.notes),
     lalamove: {
@@ -211,7 +215,11 @@ export async function GET(request: NextRequest) {
         })
       } else {
         and.push({
-          or: [{ lalamove_order_id: { contains: search } }, { notes: { contains: search } }],
+          or: [
+            { lalamove_order_id: { contains: search } },
+            { notes: { contains: search } },
+            { coupon_code: { contains: search } },
+          ],
         })
       }
     }
@@ -220,6 +228,9 @@ export async function GET(request: NextRequest) {
       const filtered = statusCsv.filter((v) => STATUS_SET.has(v))
       if (filtered.length) where.status = { in: filtered }
     }
+    const hasDiscount = (searchParams.get('has_discount') || '').trim().toLowerCase()
+    if (hasDiscount === 'true') where.discount_total = { greater_than: 0 }
+    else if (hasDiscount === 'false') where.discount_total = { equals: 0 }
     if (fulfillmentCsv.length) {
       const filtered = fulfillmentCsv.filter((v) => FULFILLMENT_SET.has(v))
       if (filtered.length) where.fulfillment_type = { in: filtered }

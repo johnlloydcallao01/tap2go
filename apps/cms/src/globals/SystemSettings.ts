@@ -20,6 +20,15 @@ export const SystemSettings: GlobalConfig = {
       },
     },
     {
+      name: 'couponsEnabled',
+      label: 'Coupons Enabled',
+      type: 'checkbox',
+      defaultValue: true,
+      admin: {
+        description: 'Global kill-switch for coupon codes (WooCommerce wc_coupons_enabled parity). When off, no coupon can be validated or applied.',
+      },
+    },
+    {
       type: 'tabs',
       tabs: [
         {

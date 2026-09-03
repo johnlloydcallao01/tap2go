@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { validateStoreHoursFields } from '@/utils/storeHours'
 import crypto from 'crypto'
 
 function optionalString(v: unknown): string | null {
@@ -236,6 +237,7 @@ export async function POST(request: NextRequest) {
 
     let body: Record<string, any>
     try { body = await request.json() } catch { return badRequest('Invalid JSON body') }
+    try { Object.assign(body, validateStoreHoursFields(body)) } catch (error) { return badRequest(error instanceof Error ? error.message : 'Invalid store hours') }
 
     // Validate required fields (enterprise-grade)
     const businessName = typeof body.businessName === 'string' ? body.businessName.trim() : ''

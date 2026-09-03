@@ -28,13 +28,18 @@ export interface ContactInfo {
 
 // Operating Hours interface
 export interface OperatingHours {
-  monday?: string | null;
-  tuesday?: string | null;
-  wednesday?: string | null;
-  thursday?: string | null;
-  friday?: string | null;
-  saturday?: string | null;
-  sunday?: string | null;
+  monday?: StoreHoursPeriod[];
+  tuesday?: StoreHoursPeriod[];
+  wednesday?: StoreHoursPeriod[];
+  thursday?: StoreHoursPeriod[];
+  friday?: StoreHoursPeriod[];
+  saturday?: StoreHoursPeriod[];
+  sunday?: StoreHoursPeriod[];
+}
+
+export interface StoreHoursPeriod {
+  open: string;
+  close: string;
 }
 
 // Delivery Settings interface
@@ -101,6 +106,10 @@ export interface Merchant {
   } | null;
   updatedAt?: string | null;
   createdAt?: string | null;
+  isOpenNow?: boolean;
+  nextOpeningAt?: string | null;
+  storeHoursStatus?: { isOpen: boolean; reason: string; nextOpeningAt?: string | null };
+  timezone?: string | null;
 }
 
 // Product Display Interface for Merchant Menu

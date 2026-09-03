@@ -22,6 +22,17 @@ function optionalString(v: unknown): string | null {
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
 }
+function sanitizeMediaRef(value: unknown): { id: number; url: string | null; filename: string | null } | null {
+  if (!value || typeof value !== 'object') return null
+  const source = value as Record<string, unknown>
+  const id = Number(source.id)
+  if (Number.isNaN(id)) return null
+  return {
+    id,
+    url: typeof source.cloudinaryURL === 'string' ? source.cloudinaryURL : typeof source.url === 'string' ? source.url : null,
+    filename: typeof source.filename === 'string' ? source.filename : null,
+  }
+}
 function sanitizeUserBrief(value: unknown): Record<string, any> | null {
   if (!value || typeof value !== 'object') return null
   const u = value as Record<string, any>
@@ -37,6 +48,7 @@ function sanitizeUserBrief(value: unknown): Record<string, any> | null {
     username: optionalString(u.username),
     role: str(u.role, 'customer'),
     isActive: typeof u.isActive === 'boolean' ? u.isActive : true,
+    profilePicture: sanitizeMediaRef(u.profilePicture),
     createdAt: String(u.createdAt ?? ''),
     updatedAt: String(u.updatedAt ?? ''),
   }

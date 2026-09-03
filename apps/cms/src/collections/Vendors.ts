@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { validateStoreHoursFields } from '@/utils/storeHours'
 
 export const Vendors: CollectionConfig = {
   slug: 'vendors',
@@ -290,6 +291,9 @@ export const Vendors: CollectionConfig = {
 
   ],
   hooks: {
+    beforeValidate: [
+      ({ data }) => data ? validateStoreHoursFields(data as Record<string, unknown>) : data,
+    ],
     beforeChange: [
       ({ data }) => {
         // Auto-generate onboarding date if not provided

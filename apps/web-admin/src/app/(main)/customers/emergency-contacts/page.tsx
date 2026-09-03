@@ -12,7 +12,7 @@ import {
 // Types matching BFF (CMS /api/admin/emergency-contacts)
 type EmergencyContactDoc = {
   id: number
-  user: { id: number; email: string; firstName: string; lastName: string; middleName: string | null; phone: string | null; username: string | null; role: string; isActive: boolean; createdAt: string } | null
+  user: { id: number; email: string; firstName: string; lastName: string; middleName: string | null; phone: string | null; username: string | null; role: string; isActive: boolean; profilePicture: { id: number; url: string | null; filename: string | null } | null; createdAt: string } | null
   userId: number | null
   firstName: string
   middleName: string | null
@@ -62,7 +62,8 @@ function fmtDate(iso: string | null) {
   if (!iso) return '—'
   try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
-function initials(first: string, last: string) {
+function initials(first: string, last: string, profilePicture?: NonNullable<EmergencyContactDoc['user']>['profilePicture']) {
+  if (profilePicture?.url) return <img src={profilePicture.url} alt={`${first} ${last}`} className="h-9 w-9 rounded-xl object-cover" />
   const a = (first?.[0] || '').toUpperCase()
   const b = (last?.[0] || '').toUpperCase()
   return `${a}${b}`.trim() || 'EC'
@@ -635,7 +636,7 @@ export default function EmergencyContactsPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3 min-w-[220px]">
                           <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${c.isPrimary ? 'bg-gradient-to-br from-rose-500 to-pink-600 text-white' : 'bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white'}`}>
-                            {initials(c.firstName, c.lastName)}
+                            {initials(c.firstName, c.lastName, c.user?.profilePicture)}
                           </div>
                           <div className="min-w-0">
                             <div className="font-semibold text-gray-900 dark:text-white truncate max-w-[180px] flex items-center gap-1">

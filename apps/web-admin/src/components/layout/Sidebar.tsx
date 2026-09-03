@@ -74,7 +74,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
     dropdownActive(pathname, '/catalog/merchant-variation-modifier-option-overrides');
   const hasActiveTagsChild = dropdownActive(pathname, '/catalog/tags') || dropdownActive(pathname, '/catalog/tag-groups');
 
-  const hasActivePromotionsChild = dropdownActive(pathname, '/promotions');
+  const hasActivePromotionsChild = dropdownActive(pathname, '/promotions') || dropdownActive(pathname, '/coupons');
   const hasActiveCustomerActivityChild = dropdownActive(pathname, '/activity');
   const hasActivePlatformConfigChild = dropdownActive(pathname, '/settings/configuration');
 
@@ -252,8 +252,8 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
               onToggle={() => setIsPromotionsExpanded((c) => !c)}
               active={hasActivePromotionsChild}
             >
-              {renderChildLink({ label: 'Order Discounts', href: '/promotions/discounts', isActive: dropdownActive(pathname, '/promotions/discounts') })}
-              {renderChildLink({ label: 'Coupon Usage Report', href: '/promotions/usage', isActive: dropdownActive(pathname, '/promotions/usage') })}
+              {renderChildLink({ label: 'Coupons', href: '/coupons', isActive: dropdownActive(pathname, '/coupons') && !dropdownActive(pathname, '/coupons/usage') })}
+              {renderChildLink({ label: 'Coupon Usage Report', href: '/coupons/usage', isActive: dropdownActive(pathname, '/coupons/usage') })}
             </SidebarDropdownGroup>
           </div>
 

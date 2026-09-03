@@ -95,7 +95,21 @@ export function VendorForm({ initial, onSuccess, onCancel }: { initial?: VendorD
   })
   const set = (k: string, v: any) => setForm((prev) => ({ ...prev, [k]: v }))
   const setDay = (day: string, key: string, v: any) =>
-    setForm((prev) => ({ ...prev, hours: { ...prev.hours, [day]: { ...(prev.hours[day] || { open: '09:00', close: '21:00', closed: false }), [key]: v } } }))
+    setForm((prev) => {
+      const current = prev.hours[day] || { open: '09:00', close: '21:00', closed: false }
+      const periods = current.periods || [{ open: current.open, close: current.close }]
+      return { ...prev, hours: { ...prev.hours, [day]: { ...current, [key]: v, periods: key === 'closed' ? periods : periods.map((period, index) => index === 0 ? { ...period, [key]: v } : period) } } }
+    })
+  const addPeriod = (day: string) => setForm((prev) => {
+    const current = prev.hours[day] || { open: '09:00', close: '21:00', closed: false }
+    return { ...prev, hours: { ...prev.hours, [day]: { ...current, closed: false, periods: [...(current.periods || [{ open: current.open, close: current.close }]), { open: '17:00', close: '21:00' }] } } }
+  })
+  const removePeriod = (day: string, index: number) => setForm((prev) => {
+    const current = prev.hours[day]
+    if (!current?.periods || current.periods.length <= 1) return prev
+    const periods = current.periods.filter((_, periodIndex) => periodIndex !== index)
+    return { ...prev, hours: { ...prev.hours, [day]: { ...current, open: periods[0].open, close: periods[0].close, periods } } }
+  })
 
   useEffect(() => {
     if (!initial) return
@@ -149,10 +163,10 @@ export function VendorForm({ initial, onSuccess, onCancel }: { initial?: VendorD
     if (!isEdit && form.ownerPassword && form.ownerPassword.length < 8) return setError('Owner password must be at least 8 characters (or leave blank to auto-generate)')
 
     // build operating hours json only for days with open/close (all until edited)
-    const operatingHours: Record<string, { open: string; close: string; closed: boolean }> | null = {}
+    const operatingHours: Record<string, { open: string; close: string }[]> | null = {}
     for (const day of DAYS) {
       const h = form.hours[day]
-      if (h) operatingHours[day.toLowerCase()] = { open: h.open || '09:00', close: h.close || '21:00', closed: !!h.closed }
+      if (h) operatingHours[day.toLowerCase()] = h.closed ? [] : [{ open: h.open || '09:00', close: h.close || '21:00' }]
     }
 
     setSaving(true)
@@ -300,10 +314,16 @@ export function VendorForm({ initial, onSuccess, onCancel }: { initial?: VendorD
                   <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-[#a1a1aa] cursor-pointer shrink-0">
                     <input type="checkbox" checked={!!h.closed} onChange={(e)=>setDay(day, 'closed', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-[#eba236]" /> Closed
                   </label>
-                  <div className={`flex items-center gap-2 ${h.closed ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <input type="time" value={h.open || '09:00'} onChange={(e)=>setDay(day, 'open', e.target.value)} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" disabled={h.closed} />
-                    <span className="text-gray-400">to</span>
-                    <input type="time" value={h.close || '21:00'} onChange={(e)=>setDay(day, 'close', e.target.value)} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" disabled={h.closed} />
+                  <div className={`flex flex-col gap-2 ${h.closed ? 'opacity-40 pointer-events-none' : ''}`}>
+                    {(h.periods || [{ open: h.open || '09:00', close: h.close || '21:00' }]).map((period, periodIndex) => (
+                      <div key={`${day}-${periodIndex}`} className="flex items-center gap-2">
+                        <input type="time" value={periodIndex === 0 ? h.open : period.open} onChange={(e)=>periodIndex === 0 ? setDay(day, 'open', e.target.value) : setForm((prev) => ({ ...prev, hours: { ...prev.hours, [day]: { ...h, periods: (h.periods || [period]).map((p, i) => i === periodIndex ? { ...p, open: e.target.value } : p) } } }))} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" disabled={h.closed} />
+                        <span className="text-gray-400">to</span>
+                        <input type="time" value={periodIndex === 0 ? h.close : period.close} onChange={(e)=>periodIndex === 0 ? setDay(day, 'close', e.target.value) : setForm((prev) => ({ ...prev, hours: { ...prev.hours, [day]: { ...h, periods: (h.periods || [period]).map((p, i) => i === periodIndex ? { ...p, close: e.target.value } : p) } } }))} className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm" disabled={h.closed} />
+                        {periodIndex > 0 && <button type="button" onClick={() => removePeriod(day, periodIndex)} disabled={h.closed} className="text-xs text-red-600 hover:underline">Remove</button>}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addPeriod(day)} disabled={h.closed} className="self-start text-xs font-medium text-[#b97810] hover:underline">Add period</button>
                   </div>
                 </div>
               )
@@ -346,14 +366,15 @@ export function VendorForm({ initial, onSuccess, onCancel }: { initial?: VendorD
   )
 }
 
-function buildHours(operatingHours: any): Record<string, { open: string; close: string; closed: boolean }> {
-  const out: Record<string, { open: string; close: string; closed: boolean }> = {}
+function buildHours(operatingHours: any): Record<string, { open: string; close: string; closed: boolean; periods?: { open: string; close: string }[] }> {
+  const out: Record<string, { open: string; close: string; closed: boolean; periods?: { open: string; close: string }[] }> = {}
   const src = operatingHours && typeof operatingHours === 'object' ? operatingHours : {}
   for (const day of DAYS) {
     const key = day.toLowerCase()
-    const h = src[key]
+    const raw = src[key]
+    const h = Array.isArray(raw) ? raw[0] : raw
     out[day] = h && typeof h === 'object'
-      ? { open: h.open || '09:00', close: h.close || '21:00', closed: !!h.closed }
+      ? { open: h.open || '09:00', close: h.close || '21:00', closed: !!h.closed, ...(Array.isArray(raw) ? { periods: raw } : {}) }
       : { open: '09:00', close: '21:00', closed: false }
   }
   return out

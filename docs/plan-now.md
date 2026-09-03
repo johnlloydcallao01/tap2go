@@ -203,7 +203,7 @@ If delivery hours differ from regular store hours:
 
 ### Current Gaps in Your Schema
 
-❌ **Missing**: Timezone identifier field in `Merchants` table
+✅ **Implemented**: Timezone identifier field in `Merchants` table
 
 ### Recommended Addition
 
@@ -302,31 +302,31 @@ ELSE:
 ### ✅ Database Schema
 - [x] Vendors: `operatingHours` field exists
 - [x] Merchants: `operatingHours`, `specialHours`, `delivery_hours` exist
-- [ ] **Add**: `timezone` field to Merchants (IANA identifier)
+- [x] **Add**: `timezone` field to Merchants (IANA identifier)
 
 ### ✅ JSON Schema Documentation
-- [ ] Document JSON structure for `operatingHours`
-- [ ] Document JSON structure for `specialHours`
-- [ ] Document JSON structure for `delivery_hours`
-- [ ] Create validation schemas (optional but recommended)
+- [x] Document JSON structure for `operatingHours`
+- [x] Document JSON structure for `specialHours`
+- [x] Document JSON structure for `delivery_hours`
+- [x] Create validation schemas
 
 ### ✅ Application Logic
-- [ ] Implement "Is Store Open Now?" query function
-- [ ] Handle midnight-spanning logic
-- [ ] Implement special hours override logic
-- [ ] Timezone conversion logic (merchant time → user time)
+- [x] Implement "Is Store Open Now?" query function
+- [x] Handle midnight-spanning logic
+- [x] Implement special hours override logic
+- [x] Timezone conversion logic (merchant time → user time)
 
 ### ✅ Admin UI (PayloadCMS)
-- [ ] Create user-friendly UI for editing weekly hours
-- [ ] Create UI for managing special hours/exceptions
-- [ ] Add timezone selector dropdown
-- [ ] Show preview of "when store is open" in local time
+- [x] Create user-friendly UI for editing weekly hours, including split shifts
+- [x] Create UI for managing special hours/exceptions
+- [x] Add timezone selector dropdown
+- [x] Show computed open/closed status and next opening time
 
 ### ✅ Frontend Display
-- [ ] Show "Open Now" / "Closed" status
-- [ ] Display next opening time if closed
-- [ ] Show today's hours
-- [ ] Show full weekly schedule
+- [x] Show "Open Now" / "Closed" status
+- [x] Display next opening time if closed
+- [x] Show today's hours
+- [x] Show full weekly schedule
 
 ---
 
@@ -603,19 +603,19 @@ You already have the right fields in place using JSON, which is flexible and fol
 ### 🎯 Priorities
 
 **High Priority:**
-- [ ] Add timezone field to Merchants
-- [ ] Implement "Is Store Open?" logic
-- [ ] Document JSON structure
+- [x] Add timezone field to Merchants
+- [x] Implement "Is Store Open?" logic
+- [x] Document JSON structure
 
 **Medium Priority:**
-- [ ] Build admin UI for hours management
-- [ ] Add validation schemas
-- [ ] Implement special hours override logic
+- [x] Build admin UI for hours management
+- [x] Add validation schemas
+- [x] Implement special hours override logic
 
 **Low Priority:**
-- [ ] Advanced features (e.g., different hours per delivery zone)
-- [ ] Analytics on peak operating hours
-- [ ] Automatic timezone detection
+- [x] Advanced features (different hours per delivery zone)
+- [x] Analytics on peak operating hours
+- [x] Automatic timezone detection
 
 ---
 

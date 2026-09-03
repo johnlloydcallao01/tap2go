@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
@@ -36,6 +37,7 @@ function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
   const mediaThumb = sanitizeMediaRef((raw.media as any)?.thumbnail)
   const mediaFront = sanitizeMediaRef((raw.media as any)?.storeFrontImage)
   const cats = Array.isArray(raw.merchant_categories) ? raw.merchant_categories.map((c:any)=> typeof c==='object'? { id: Number(c.id), name: str(c.name) } : { id: Number(c), name: String(c) }) : []
+  const storeHoursStatus = getStoreHoursStatus(raw)
   const addr = raw.activeAddress && typeof raw.activeAddress==='object' ? { id: Number((raw.activeAddress as any).id), formatted_address: str((raw.activeAddress as any).formatted_address) } : raw.activeAddress ? { id: Number(raw.activeAddress), formatted_address: '' } : null
   return {
     id: raw.id,
@@ -47,6 +49,9 @@ function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
     isActive: typeof raw.isActive==='boolean'?raw.isActive:true,
     isAcceptingOrders: typeof raw.isAcceptingOrders==='boolean'?raw.isAcceptingOrders:true,
     operationalStatus: str(raw.operationalStatus,'open'),
+    isOpenNow: storeHoursStatus.isOpen,
+    storeHoursStatus,
+    nextOpeningAt: storeHoursStatus.nextOpeningAt ?? null,
     operatingHours: raw.operatingHours ?? null,
     deliverySettings: raw.deliverySettings ?? null,
     description: optionalString(raw.description),
@@ -236,6 +241,7 @@ export async function POST(request: NextRequest){
     if(!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
     let body: Record<string, any>
     try{ body = await request.json() } catch { return badRequest('Invalid JSON body') }
+    try { Object.assign(body, validateStoreHoursFields(body)) } catch (error) { return badRequest(error instanceof Error ? error.message : 'Invalid store hours') }
 
     const vendorRaw = body.vendor
     const vendorId = typeof vendorRaw === 'number' ? vendorRaw : typeof vendorRaw === 'string' ? Number(vendorRaw) : Number(body.vendorId)

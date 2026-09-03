@@ -74,7 +74,8 @@ export default async function MerchantPage({ params }: PageProps) {
 
   const heroImage = getImageUrl(merchant.media?.storeFrontImage) || getImageUrl(merchant.media?.thumbnail);
   const vendorLogo = getImageUrl(merchant.vendor?.logo);
-  const operationalStatus = merchant.operationalStatus || (merchant.isAcceptingOrders ? 'open' : 'closed');
+  const isOpenNow = merchant.isOpenNow ?? (merchant.operationalStatus === 'open' && merchant.isAcceptingOrders);
+  const operationalStatus = isOpenNow ? 'open' : 'closed';
 
   const statusColor = operationalStatus === 'open'
     ? 'bg-green-600'
@@ -137,7 +138,11 @@ export default async function MerchantPage({ params }: PageProps) {
             {/* Operating Hours */}
             {merchant.operatingHours && (
               <section className="bg-white rounded-lg shadow-sm p-5">
-                <h2 className="text-lg font-semibold text-gray-900">Operating Hours</h2>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-gray-900">Operating Hours</h2>
+                  <span className={isOpenNow ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}>{isOpenNow ? 'Open Now' : 'Closed'}</span>
+                </div>
+                {!isOpenNow && merchant.nextOpeningAt && <p className="mt-1 text-sm text-gray-500">Next opening: {new Date(merchant.nextOpeningAt).toLocaleString()}</p>}
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm text-gray-700">
                   {Object.entries(merchant.operatingHours).map(([day, value]) => (
                     <div key={day} className="flex justify-between">

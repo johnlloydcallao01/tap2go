@@ -95,6 +95,8 @@ export interface Config {
     'driver-assignments': DriverAssignment;
     'delivery-bookings': DeliveryBooking;
     'order-discounts': OrderDiscount;
+    coupons: Coupon;
+    'coupon-redemptions': CouponRedemption;
     reviews: Review;
     'prod-attributes': ProdAttribute;
     'prod-attribute-terms': ProdAttributeTerm;
@@ -152,6 +154,8 @@ export interface Config {
     'driver-assignments': DriverAssignmentsSelect<false> | DriverAssignmentsSelect<true>;
     'delivery-bookings': DeliveryBookingsSelect<false> | DeliveryBookingsSelect<true>;
     'order-discounts': OrderDiscountsSelect<false> | OrderDiscountsSelect<true>;
+    coupons: CouponsSelect<false> | CouponsSelect<true>;
+    'coupon-redemptions': CouponRedemptionsSelect<false> | CouponRedemptionsSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     'prod-attributes': ProdAttributesSelect<false> | ProdAttributesSelect<true>;
     'prod-attribute-terms': ProdAttributeTermsSelect<false> | ProdAttributeTermsSelect<true>;
@@ -1903,6 +1907,22 @@ export interface Order {
    */
   platform_fee: number;
   /**
+   * Lalamove priority fee to speed up rider matching (set at delivery booking)
+   */
+  priority_fee: number;
+  /**
+   * Total coupon discount applied (food + delivery legs)
+   */
+  discount_total: number;
+  /**
+   * Coupon code applied to this order (denormalized for ops search)
+   */
+  coupon_code?: string | null;
+  /**
+   * A free-delivery coupon zeroed the delivery leg
+   */
+  free_delivery_applied?: boolean | null;
+  /**
    * Special instructions for the merchant
    */
   notes?: string | null;
@@ -2376,6 +2396,257 @@ export interface OrderDiscount {
    * percentage or fixed
    */
   type: 'percentage' | 'fixed';
+  /**
+   * Master coupon (null = legacy manual code)
+   */
+  coupon?: (number | null) | Coupon;
+  /**
+   * Coupon definition at apply time (history never rewrites)
+   */
+  coupon_snapshot?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Pesos discounted on the food subtotal leg
+   */
+  food_discount?: number | null;
+  /**
+   * Pesos discounted on the delivery fee leg
+   */
+  delivery_discount?: number | null;
+  /**
+   * Who pays for this discount at settlement
+   */
+  funded_by?: ('platform' | 'vendor' | 'split') | null;
+  vendor_share_pct?: number | null;
+  /**
+   * Pesos absorbed by the platform
+   */
+  platform_share?: number | null;
+  /**
+   * Pesos absorbed by the vendor (deducted from payout)
+   */
+  vendor_share?: number | null;
+  source?: ('manual' | 'coupon' | 'auto_campaign') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Master coupon codes (WooCommerce-style). Vendor = brand, merchants = branches.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coupons".
+ */
+export interface Coupon {
+  id: number;
+  /**
+   * Uppercase code, e.g. JOLLIBEE10. Case-insensitive at checkout.
+   */
+  code: string;
+  /**
+   * Internal notes only (never shown to customers).
+   */
+  description?: string | null;
+  /**
+   * Only published coupons within their date window can be used.
+   */
+  status: 'draft' | 'scheduled' | 'published' | 'paused' | 'archived';
+  discount_type: 'percent' | 'fixed_cart' | 'fixed_product';
+  /**
+   * Percent (0-100) or peso amount, depending on discount type.
+   */
+  amount: number;
+  /**
+   * Cap for percentage coupons, e.g. 20% off up to ₱100.
+   */
+  max_discount_amount?: number | null;
+  applies_to: 'food_subtotal' | 'delivery_fee' | 'both';
+  /**
+   * Zero out the delivery fee leg (capped below when set).
+   */
+  free_delivery?: boolean | null;
+  /**
+   * Max pesos discounted on delivery, e.g. free delivery up to ₱80.
+   */
+  delivery_discount_cap?: number | null;
+  /**
+   * Brand that owns this coupon (e.g. Jollibee). Empty = platform-wide.
+   */
+  vendor?: (number | null) | Vendor;
+  merchant_scope: 'all_vendor_branches' | 'selected_branches';
+  /**
+   * Branches this coupon works at. Empty = all branches of the vendor.
+   */
+  merchants?: (number | Merchant)[] | null;
+  /**
+   * Only these menu items qualify. Empty = all items.
+   */
+  menu_items?: (number | Product)[] | null;
+  excluded_menu_items?: (number | Product)[] | null;
+  /**
+   * Only these menu categories qualify. Empty = all categories.
+   */
+  menu_categories?: (number | ProductCategory)[] | null;
+  excluded_menu_categories?: (number | ProductCategory)[] | null;
+  /**
+   * Skip items already on promo (compare-at price set).
+   */
+  exclude_promo_items?: boolean | null;
+  /**
+   * Minimum food subtotal to qualify. Empty = no minimum.
+   */
+  minimum_basket?: number | null;
+  /**
+   * Maximum food subtotal to qualify. Empty = no maximum.
+   */
+  maximum_basket?: number | null;
+  /**
+   * Max discounted units per order. Only works when menu items/categories are set.
+   */
+  limit_per_order_items?: number | null;
+  /**
+   * One coupon per order (recommended for food delivery).
+   */
+  individual_use?: boolean | null;
+  max_coupons_per_order?: number | null;
+  /**
+   * Coupon becomes usable at this time.
+   */
+  starts_at?: string | null;
+  /**
+   * Coupon stops working after this time.
+   */
+  expires_at?: string | null;
+  /**
+   * Total redemptions allowed. 0 = unlimited.
+   */
+  usage_limit?: number | null;
+  /**
+   * Redemptions allowed per customer. 0 = unlimited.
+   */
+  usage_limit_per_user?: number | null;
+  /**
+   * Successful redemptions (updated automatically).
+   */
+  usage_count?: number | null;
+  /**
+   * Only these emails qualify. Supports * wildcards, e.g. *@gmail.com.
+   */
+  email_restrictions?: string[] | null;
+  /**
+   * Only these phone numbers qualify. Supports * wildcards.
+   */
+  phone_restrictions?: string[] | null;
+  first_order_only?: boolean | null;
+  /**
+   * Only these payment methods qualify. Empty = all methods.
+   */
+  allowed_payment_methods?:
+    | ('card' | 'gcash' | 'grab_pay' | 'paymaya' | 'billease' | 'dob' | 'brankas' | 'qrph')[]
+    | null;
+  /**
+   * Optional daypart schedule, e.g. lunch rush Mon-Fri 11:00-14:00.
+   */
+  time_windows?:
+    | {
+        days: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[];
+        /**
+         * HH:mm, 24h
+         */
+        start_time: string;
+        /**
+         * HH:mm, 24h
+         */
+        end_time: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Who pays for the discount at settlement.
+   */
+  funded_by: 'platform' | 'vendor' | 'split';
+  /**
+   * Vendor share (1-99) when funded_by is split.
+   */
+  vendor_share_pct?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * One row per coupon redemption (usage tracking + settlement audit).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coupon-redemptions".
+ */
+export interface CouponRedemption {
+  id: number;
+  /**
+   * Redeemed coupon
+   */
+  coupon: number | Coupon;
+  /**
+   * Order the coupon was applied to
+   */
+  order: number | Order;
+  customer: number | Customer;
+  /**
+   * Lowercased snapshot for guest matching
+   */
+  customer_email?: string | null;
+  /**
+   * Snapshot for guest matching
+   */
+  customer_phone?: string | null;
+  /**
+   * Coupon code at redeem time (history never rewrites)
+   */
+  code_snapshot: string;
+  /**
+   * Minimal coupon definition snapshot (WooCommerce coupon_info parity)
+   */
+  coupon_snapshot?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  food_discount: number;
+  delivery_discount: number;
+  /**
+   * food_discount + delivery_discount
+   */
+  total_discount: number;
+  funded_by: 'platform' | 'vendor' | 'split';
+  vendor_share_pct?: number | null;
+  /**
+   * Pesos absorbed by the platform
+   */
+  platform_share: number;
+  /**
+   * Pesos absorbed by the vendor (deducted from payout)
+   */
+  vendor_share: number;
+  /**
+   * held = checkout hold, applied = paid, refunded/cancelled = reversed
+   */
+  status: 'held' | 'applied' | 'refunded' | 'cancelled';
+  /**
+   * Tentative hold expiry (~15 min). Stale holds are ignored by validation.
+   */
+  held_until?: string | null;
+  /**
+   * Idempotency key for the hold
+   */
+  hold_key?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3073,6 +3344,14 @@ export interface PayloadLockedDocument {
         value: number | OrderDiscount;
       } | null)
     | ({
+        relationTo: 'coupons';
+        value: number | Coupon;
+      } | null)
+    | ({
+        relationTo: 'coupon-redemptions';
+        value: number | CouponRedemption;
+      } | null)
+    | ({
         relationTo: 'reviews';
         value: number | Review;
       } | null)
@@ -3761,6 +4040,10 @@ export interface OrdersSelect<T extends boolean = true> {
   subtotal?: T;
   delivery_fee?: T;
   platform_fee?: T;
+  priority_fee?: T;
+  discount_total?: T;
+  coupon_code?: T;
+  free_delivery_applied?: T;
   notes?: T;
   placed_at?: T;
   lalamove_order_id?: T;
@@ -3895,6 +4178,89 @@ export interface OrderDiscountsSelect<T extends boolean = true> {
   code?: T;
   amount_off?: T;
   type?: T;
+  coupon?: T;
+  coupon_snapshot?: T;
+  food_discount?: T;
+  delivery_discount?: T;
+  funded_by?: T;
+  vendor_share_pct?: T;
+  platform_share?: T;
+  vendor_share?: T;
+  source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coupons_select".
+ */
+export interface CouponsSelect<T extends boolean = true> {
+  code?: T;
+  description?: T;
+  status?: T;
+  discount_type?: T;
+  amount?: T;
+  max_discount_amount?: T;
+  applies_to?: T;
+  free_delivery?: T;
+  delivery_discount_cap?: T;
+  vendor?: T;
+  merchant_scope?: T;
+  merchants?: T;
+  menu_items?: T;
+  excluded_menu_items?: T;
+  menu_categories?: T;
+  excluded_menu_categories?: T;
+  exclude_promo_items?: T;
+  minimum_basket?: T;
+  maximum_basket?: T;
+  limit_per_order_items?: T;
+  individual_use?: T;
+  max_coupons_per_order?: T;
+  starts_at?: T;
+  expires_at?: T;
+  usage_limit?: T;
+  usage_limit_per_user?: T;
+  usage_count?: T;
+  email_restrictions?: T;
+  phone_restrictions?: T;
+  first_order_only?: T;
+  allowed_payment_methods?: T;
+  time_windows?:
+    | T
+    | {
+        days?: T;
+        start_time?: T;
+        end_time?: T;
+        id?: T;
+      };
+  funded_by?: T;
+  vendor_share_pct?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coupon-redemptions_select".
+ */
+export interface CouponRedemptionsSelect<T extends boolean = true> {
+  coupon?: T;
+  order?: T;
+  customer?: T;
+  customer_email?: T;
+  customer_phone?: T;
+  code_snapshot?: T;
+  coupon_snapshot?: T;
+  food_discount?: T;
+  delivery_discount?: T;
+  total_discount?: T;
+  funded_by?: T;
+  vendor_share_pct?: T;
+  platform_share?: T;
+  vendor_share?: T;
+  status?: T;
+  held_until?: T;
+  hold_key?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4310,6 +4676,10 @@ export interface SystemSetting {
    */
   maintenanceMode?: boolean | null;
   /**
+   * Global kill-switch for coupon codes (WooCommerce wc_coupons_enabled parity). When off, no coupon can be validated or applied.
+   */
+  couponsEnabled?: boolean | null;
+  /**
    * Select which delivery provider to use for order bookings.
    */
   deliveryProvider: 'lalamove' | 'native';
@@ -4346,6 +4716,7 @@ export interface SystemSetting {
  */
 export interface SystemSettingsSelect<T extends boolean = true> {
   maintenanceMode?: T;
+  couponsEnabled?: T;
   deliveryProvider?: T;
   lalamove?:
     | T

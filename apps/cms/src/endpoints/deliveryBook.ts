@@ -274,21 +274,28 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     })
 
     // 9. Update order with Lalamove data
+    // Preserve any coupon discount: the order total was already net of discounts
+    // at checkout, so re-adding the fresh delivery fee must subtract discount_total
+    // again instead of resurrecting the pre-discount total.
+    const preservedDiscount = Number((order as AnyDoc).discount_total) || 0
     await req.payload.update({
       collection: 'orders',
       id: orderId,
       data: {
         lalamove_order_id: lalamoveOrder.orderId,
         delivery_fee: deliveryFee,
+        priority_fee: priorityFee,
         delivery_service_type: serviceType,
         delivery_status: mapLalamoveStatus(lalamoveStatus) as any,
         delivery_tracking_link: lalamoveOrder.shareLink || undefined,
-        // Recalculate total to reflect actual delivery fee + any priority fee
-        total:
-          order.subtotal +
-          deliveryFee +
-          (order.platform_fee || 0) +
-          priorityFee,
+        // Recalculate total to reflect actual delivery fee + any priority fee,
+        // keeping the coupon discount intact.
+        total: Math.max(
+          0,
+          Math.round(
+            (order.subtotal + deliveryFee + (order.platform_fee || 0) + priorityFee - preservedDiscount) * 100,
+          ) / 100,
+        ),
       },
     })
 

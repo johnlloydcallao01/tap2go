@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 
 function str(v: unknown, fb=''): string { return typeof v==='string'?v:fb }
 function num(v: unknown, fb=0): number { if(typeof v==='number'&&Number.isFinite(v)) return v; if(typeof v==='string'){ const n=Number(v); return Number.isFinite(n)?n:fb } return fb }
@@ -31,6 +32,7 @@ function sanitizeMerchantDoc(raw: Record<string, any>, merchantCountForVendor?: 
   const interiorImages = Array.isArray(interiorRaw) ? interiorRaw : interiorRaw ? [interiorRaw] : null
   const menuImages = Array.isArray(menuRaw) ? menuRaw : menuRaw ? [menuRaw] : null
   const cats=Array.isArray(raw.merchant_categories)? raw.merchant_categories.map((c:any)=> typeof c==='object'?{id:Number(c.id),name:str(c.name)}:{id:Number(c),name:String(c)}):[]
+  const storeHoursStatus = getStoreHoursStatus(raw)
   const addr=raw.activeAddress && typeof raw.activeAddress==='object'? { id:Number((raw.activeAddress as any).id), formatted_address: str((raw.activeAddress as any).formatted_address)} : raw.activeAddress?{id:Number(raw.activeAddress),formatted_address:''}:null
   return {
     id: raw.id,
@@ -42,6 +44,9 @@ function sanitizeMerchantDoc(raw: Record<string, any>, merchantCountForVendor?: 
     isActive: typeof raw.isActive==='boolean'?raw.isActive:true,
     isAcceptingOrders: typeof raw.isAcceptingOrders==='boolean'?raw.isAcceptingOrders:true,
     operationalStatus: str(raw.operationalStatus,'open'),
+    isOpenNow: storeHoursStatus.isOpen,
+    storeHoursStatus,
+    nextOpeningAt: storeHoursStatus.nextOpeningAt ?? null,
     operatingHours: raw.operatingHours ?? null,
     specialHours: raw.specialHours ?? null,
     deliverySettings: raw.deliverySettings ?? null,
@@ -118,6 +123,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if(!admin) return NextResponse.json({ error:'Unauthorized' },{status:401})
     let body: Record<string, any>
     try{ body=await request.json() }catch{ return NextResponse.json({ error:'Invalid JSON body' },{status:400})}
+    try { Object.assign(body, validateStoreHoursFields(body)) } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid store hours' }, { status: 400 }) }
     const numericId=Number(id)
     const docId:number|string=Number.isFinite(numericId)?numericId:id
     const patch: Record<string, any>={}

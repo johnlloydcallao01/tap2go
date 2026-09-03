@@ -15,6 +15,8 @@ interface Restaurant {
   minimumOrder?: number;
   distance?: number;
   isOpen: boolean;
+  isOpenNow?: boolean;
+  nextOpeningAt?: string | null;
 }
 
 interface RestaurantCardProps {
@@ -106,13 +108,13 @@ export default function RestaurantCard({ restaurant, onPress }: RestaurantCardPr
           <View style={styles.status}>
             <View style={[
               styles.statusDot,
-              { backgroundColor: restaurant.isOpen ? '#10b981' : '#ef4444' }
+              { backgroundColor: (restaurant.isOpenNow ?? restaurant.isOpen) ? '#10b981' : '#ef4444' }
             ]} />
             <Text style={[
               styles.statusText,
-              { color: restaurant.isOpen ? '#059669' : '#dc2626' }
+              { color: (restaurant.isOpenNow ?? restaurant.isOpen) ? '#059669' : '#dc2626' }
             ]}>
-              {restaurant.isOpen ? 'Open now' : 'Closed'}
+              {(restaurant.isOpenNow ?? restaurant.isOpen) ? 'Open now' : restaurant.nextOpeningAt ? `Opens ${new Date(restaurant.nextOpeningAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Closed'}
             </Text>
           </View>
 

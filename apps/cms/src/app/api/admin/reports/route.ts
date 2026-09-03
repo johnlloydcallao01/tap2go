@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const periodStart = days === 0 ? null : new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
 
-    const [vendorsRes, merchantsRes, ordersRes, transactionsRes, orderItemsRes, deliveryBookingsRes, productsRes, reviewsRes] = await Promise.all([
+    const [vendorsRes, merchantsRes, ordersRes, transactionsRes, orderItemsRes, deliveryBookingsRes, productsRes, reviewsRes, discountsRes] = await Promise.all([
       payload.find({ collection: 'vendors', limit: 2000, depth: 1, overrideAccess: true }),
       payload.find({ collection: 'merchants', limit: 2000, depth: 1, overrideAccess: true }),
       payload.find({ collection: 'orders', limit: 3000, sort: '-createdAt', depth: 1, overrideAccess: true }),
@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
       payload.find({ collection: 'delivery-bookings', limit: 2000, depth: 0, overrideAccess: true }),
       payload.find({ collection: 'products', limit: 2000, depth: 0, overrideAccess: true }),
       payload.find({ collection: 'reviews', limit: 2000, depth: 0, overrideAccess: true }),
+      payload.find({ collection: 'order-discounts', limit: 3000, depth: 0, overrideAccess: true }),
     ])
 
     const vendorsDocs = vendorsRes.docs as unknown as Record<string, unknown>[]
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
     const transactionsDocs = transactionsRes.docs as unknown as Record<string, unknown>[]
     const orderItemsDocs = orderItemsRes.docs as unknown as Record<string, unknown>[]
     const deliveryBookingsDocs = deliveryBookingsRes.docs as unknown as Record<string, unknown>[]
+    const discountsDocs = (discountsRes.docs as unknown as Record<string, unknown>[]) ?? []
 
     const merchantMap = new Map<string, Record<string, unknown>>()
     merchantsDocs.forEach((m: any) => merchantMap.set(String(m.id), m as Record<string, unknown>))
@@ -90,6 +92,23 @@ export async function GET(request: NextRequest) {
     const totalOrders = ordersPeriod.length
     const avgOrder = totalOrders ? totalRevenue / totalOrders : 0
 
+    // Coupon discounts in period. Charged amounts (transactions/orders totals) are
+    // already net of discounts, so these are informational + settlement inputs —
+    // never subtracted from revenue again.
+    const discountsPeriod = discountsDocs.filter((d) => isInPeriod(d, 'createdAt'))
+    const totalDiscounts = discountsPeriod.reduce((s, d) => s + getNum(d.amount_off), 0)
+    const vendorFundedDiscounts = discountsPeriod.reduce((s, d) => s + getNum((d as any).vendor_share), 0)
+    const discountByOrder = new Map<string, { total: number; vendorShare: number; code: string }>()
+    for (const d of discountsPeriod) {
+      const oid = resolveId(d.order)
+      if (!oid) continue
+      const prev = discountByOrder.get(oid) || { total: 0, vendorShare: 0, code: '' }
+      prev.total += getNum(d.amount_off)
+      prev.vendorShare += getNum((d as any).vendor_share)
+      if (!prev.code) prev.code = getStr(d.code)
+      discountByOrder.set(oid, prev)
+    }
+
     // Financial reconciliation rows (one per paid transaction, joined to order/merchant/vendor)
     const financialRows = paidTxPeriod.slice(0, 200).map((t) => {
       const orderId = resolveId(t.order)
@@ -104,6 +123,7 @@ export async function GET(request: NextRequest) {
       const vendorId = vendorObj ? String(vendorObj.id ?? '') : String(vendorRaw ?? '')
       const vendor = vendorId ? vendorMap.get(vendorId) : vendorObj
       const vendorName = vendor ? getStr(vendor.businessName, `Vendor #${vendorId}`) : 'N/A'
+      const orderDiscount = orderId ? discountByOrder.get(orderId) : undefined
       return {
         transactionId: String(t.id),
         orderId: orderId || '—',
@@ -113,14 +133,18 @@ export async function GET(request: NextRequest) {
         amount: getNum(t.amount),
         platformFee: order ? getNum((order as any).platform_fee) : 0,
         deliveryFee: order ? getNum((order as any).delivery_fee) : 0,
+        discount: orderDiscount ? orderDiscount.total : 0,
+        couponCode: orderDiscount ? orderDiscount.code : '',
         status: String(t.status),
         paymentMethod: getStr(t.payment_method, 'unknown'),
         gross: order ? getNum((order as any).total) : getNum(t.amount),
       }
     })
 
-    // Vendor payouts aggregation (verified revenue per vendor)
-    const vendorAgg = new Map<string, { businessName: string; orders: number; gross: number; platformFees: number; deliveryFees: number; net: number }>()
+    // Vendor payouts aggregation (verified revenue per vendor).
+    // Platform-funded discounts do NOT reduce vendor payouts; only the
+    // vendor-funded share of a coupon is deducted from net.
+    const vendorAgg = new Map<string, { businessName: string; orders: number; gross: number; platformFees: number; deliveryFees: number; discountShare: number; net: number }>()
     paidTxPeriod.forEach((t) => {
       const orderId = resolveId(t.order)
       const order = orderId ? orderMap.get(orderId) : null
@@ -135,13 +159,15 @@ export async function GET(request: NextRequest) {
       if (!vendorId) return
       const vDoc = vendorId ? vendorMap.get(vendorId) : null
       const businessName = vDoc ? getStr(vDoc.businessName, `Vendor #${vendorId}`) : getStr(vendorObj?.businessName, `Vendor #${vendorId}`)
-      const agg = vendorAgg.get(vendorId) || { businessName, orders: 0, gross: 0, platformFees: 0, deliveryFees: 0, net: 0 }
+      const agg = vendorAgg.get(vendorId) || { businessName, orders: 0, gross: 0, platformFees: 0, deliveryFees: 0, discountShare: 0, net: 0 }
       const amt = getNum(t.amount)
+      const vendorDiscount = orderId ? discountByOrder.get(orderId)?.vendorShare ?? 0 : 0
       agg.orders += 1
       agg.gross += amt
       agg.platformFees += getNum((order as any).platform_fee)
       agg.deliveryFees += getNum((order as any).delivery_fee)
-      agg.net += Math.max(0, amt - getNum((order as any).platform_fee) - getNum((order as any).delivery_fee))
+      agg.discountShare += vendorDiscount
+      agg.net += Math.max(0, amt - getNum((order as any).platform_fee) - getNum((order as any).delivery_fee) - vendorDiscount)
       vendorAgg.set(vendorId, agg)
     })
     const vendorPayouts = Array.from(vendorAgg.entries())
@@ -236,6 +262,8 @@ export async function GET(request: NextRequest) {
         totalRevenue,
         totalRefunded,
         netRevenue,
+        totalDiscounts,
+        vendorFundedDiscounts,
         totalOrders,
         avgOrder,
         totalVendors: vendorsDocs.length,
@@ -248,7 +276,7 @@ export async function GET(request: NextRequest) {
       },
       financialReconciliation: {
         rows: financialRows,
-        totals: { gross: totalRevenue, platformFees: financialRows.reduce((s, r) => s + r.platformFee, 0), deliveryFees: financialRows.reduce((s, r) => s + r.deliveryFee, 0) },
+        totals: { gross: totalRevenue, platformFees: financialRows.reduce((s, r) => s + r.platformFee, 0), deliveryFees: financialRows.reduce((s, r) => s + r.deliveryFee, 0), discounts: financialRows.reduce((s, r) => s + (r.discount || 0), 0) },
         count: financialRows.length,
         totalCount: paidTxPeriod.length,
       },

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateVendor } from '@/utils/mediaLibrary'
+import { getStoreHoursStatus } from '@/utils/storeHours'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,6 +80,8 @@ function sanitizeMerchant(m: Record<string, any>): Record<string, any> {
     isActive: m.isActive !== false,
     isAcceptingOrders: m.isAcceptingOrders !== false,
     operationalStatus: getStr(m.operationalStatus, 'open'),
+    isOpenNow: getStoreHoursStatus(m as Record<string, unknown>).isOpen,
+    nextOpeningAt: getStoreHoursStatus(m as Record<string, unknown>).nextOpeningAt ?? null,
     operatingHours: m.operatingHours ?? null,
     specialHours: m.specialHours ?? null,
     contactInfo: {

@@ -67,6 +67,8 @@ import * as migration_20260809_235411 from './20260809_235411';
 import * as migration_20260809_add_user_notifications_seen_at from './20260809_add_user_notifications_seen_at';
 import * as migration_20260824_120000_add_modifier_override_uniqueness from './20260824_120000_add_modifier_override_uniqueness';
 import * as migration_20260831_081031 from './20260831_081031';
+import * as migration_20260903_000000_normalize_store_hours from './20260903_000000_normalize_store_hours';
+import * as migration_20260903_115731 from './20260903_115731';
 
 export const migrations = [
   {
@@ -412,6 +414,16 @@ export const migrations = [
   {
     up: migration_20260831_081031.up,
     down: migration_20260831_081031.down,
-    name: '20260831_081031'
+    name: '20260831_081031',
+  },
+  {
+    up: migration_20260903_000000_normalize_store_hours.up,
+    down: migration_20260903_000000_normalize_store_hours.down,
+    name: '20260903_000000_normalize_store_hours',
+  },
+  {
+    up: migration_20260903_115731.up,
+    down: migration_20260903_115731.down,
+    name: '20260903_115731'
   },
 ];
