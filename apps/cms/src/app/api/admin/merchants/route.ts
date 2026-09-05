@@ -29,7 +29,7 @@ function sanitizeVendorBrief(v: unknown){
   if(!v || typeof v!=='object') return null
   const o=v as Record<string, any>
   const id=Number(o.id); if(Number.isNaN(id)) return null
-  return { id, businessName: str(o.businessName,''), verificationStatus: str(o.verificationStatus,'pending'), businessType: str(o.businessType,'other'), isActive: !!o.isActive }
+  return { id, businessName: str(o.businessName,''), verificationStatus: str(o.verificationStatus,'pending'), businessType: str(o.businessType,'other'), isActive: !!o.isActive, logo: sanitizeMediaRef(o.logo) }
 }
 function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
   const vendorVal = raw.vendor
@@ -112,19 +112,53 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // Fetch paginated + stats + vendor map for joins
-    const [paginated, allVendorsRes, allMerchantsForStats] = await Promise.all([
-      payload.find({ collection: 'merchants', where: Object.keys(finalWhere).length?finalWhere:undefined, page, limit, sort, depth: 2, overrideAccess: true }),
-      payload.find({ collection: 'vendors', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any),
-      payload.find({ collection: 'merchants', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any),
+    const needsVendorDocuments = Boolean(search || verificationCsv.length || businessTypeCsv.length)
+    // The table needs direct relations only. Stats use count queries instead of
+    // transferring every merchant and vendor document on every request.
+    const [paginated, vendorStats, merchantStats] = await Promise.all([
+      payload.find({ collection: 'merchants', where: Object.keys(finalWhere).length?finalWhere:undefined, page, limit, sort, depth: 1, overrideAccess: true }),
+      Promise.all([
+        payload.find({ collection: 'vendors', limit: 1, depth: 0, overrideAccess: true } as any),
+        payload.find({ collection: 'vendors', where: { isActive: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
+        needsVendorDocuments
+          ? payload.find({ collection: 'vendors', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
+          : Promise.resolve({ docs: [] }),
+      ]),
+      Promise.all([
+        payload.find({ collection: 'merchants', limit: 1, depth: 0, overrideAccess: true } as any),
+        payload.find({ collection: 'merchants', where: { isActive: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
+        payload.find({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
+        ...Array.from(OPERATIONAL_STATUSES, status => payload.find({ collection: 'merchants', where: { operationalStatus: { equals: status } }, limit: 1, depth: 0, overrideAccess: true } as any)),
+      ]),
     ])
 
-    const vendorsDocs = (allVendorsRes.docs as any[]) || []
+    const vendorsDocs = (vendorStats[2].docs as any[]) || []
     const vendorMap = new Map<string, any>()
     vendorsDocs.forEach((v:any)=> vendorMap.set(String(v.id), v))
 
     // Enrich paginated docs with sanitized vendor + filter by verification/businessType if needed (post-filter if vendor join)
     let docsRaw = paginated.docs as unknown as Record<string, any>[]
+    const pageVendorIds = Array.from(new Set(docsRaw.map((merchant) => {
+      const rawVendor = merchant.vendor
+      return rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
+    }).filter(Boolean)))
+    if (pageVendorIds.length) {
+      const pageVendors = await payload.find({
+        collection: 'vendors',
+        where: { id: { in: pageVendorIds } },
+        limit: pageVendorIds.length,
+        depth: 1,
+        overrideAccess: true,
+        pagination: false,
+      } as any)
+      pageVendors.docs.forEach((vendor: any) => vendorMap.set(String(vendor.id), vendor))
+    }
+    docsRaw = docsRaw.map((merchant) => {
+      const rawVendor = merchant.vendor
+      const vendorId = rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
+      const vendor = vendorMap.get(String(vendorId))
+      return vendor ? { ...merchant, vendor } : merchant
+    })
     // Post-filter for vendor verification/businessType because where on relationship not directly filterable via simple where
     if(verificationCsv.length || businessTypeCsv.length){
       docsRaw = docsRaw.filter((m)=>{
@@ -193,19 +227,16 @@ export async function GET(request: NextRequest) {
 
     const docs = docsRaw.map(sanitizeMerchantDoc)
 
-    // Stats from allMerchantsForStats (or filtered if needed)
-    const allDocsRaw = (allMerchantsForStats.docs as any[]) || []
-    const totalMerchants = allDocsRaw.length
-    const activeCount = allDocsRaw.filter((m:any)=> m.isActive).length
-    const acceptingCount = allDocsRaw.filter((m:any)=> m.isAcceptingOrders).length
+    // Stats are exact totals from count queries, not capped document arrays.
+    const totalMerchants = merchantStats[0].totalDocs || 0
+    const activeCount = merchantStats[1].totalDocs || 0
+    const acceptingCount = merchantStats[2].totalDocs || 0
     const operationalBreakdown: Record<string, number> = {}
-    for(const m of allDocsRaw as any[]){
-      const s=String(m.operationalStatus||'open'); operationalBreakdown[s]=(operationalBreakdown[s]||0)+1
-    }
-    const activeMerchantsFiltered = docs.length // current page filtered count, but for global stats use total
-    // Vendor stats
-    const totalVendors = vendorsDocs.length
-    const activeVendors = vendorsDocs.filter((v:any)=> v.isActive).length
+    Array.from(OPERATIONAL_STATUSES).forEach((status, index) => {
+      operationalBreakdown[status] = merchantStats[index + 3].totalDocs || 0
+    })
+    const totalVendors = vendorStats[0].totalDocs || 0
+    const activeVendors = vendorStats[1].totalDocs || 0
 
     return NextResponse.json({
       docs,

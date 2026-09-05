@@ -5,8 +5,13 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Tag, AlertCircle, CheckCircle } from '@/components/ui/IconWrapper'
 import { TagGroupForm } from '../../_components/TagGroupForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditTagGroupPage() {
+function EditTagGroupSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditTagGroupContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -89,5 +94,13 @@ export default function EditTagGroupPage() {
       </div>
       <TagGroupForm initial={doc} onSuccess={handleSaveSuccess} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function EditTagGroupPage(){
+  return (
+    <ClientOnly fallback={<EditTagGroupSkeleton />}>
+      <EditTagGroupContent />
+    </ClientOnly>
   )
 }

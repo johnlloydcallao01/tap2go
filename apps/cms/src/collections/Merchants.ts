@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
+import { createAdminNotificationFanout } from '../utils/notificationFanout'
 
 export const Merchants: CollectionConfig = {
   slug: 'merchants',
@@ -604,6 +605,22 @@ export const Merchants: CollectionConfig = {
     },
   ],
   hooks: {
+    afterChange: [
+      async ({ doc, operation, req }) => {
+        if (operation === 'create') {
+          await createAdminNotificationFanout(req.payload, {
+            typeKey: 'merchant.created',
+            domain: 'system',
+            title: 'New merchant created',
+            body: `${doc.outletName || 'A merchant outlet'} was added to the platform.`,
+            sourceEntityType: 'merchant',
+            sourceEntityId: doc.id,
+            metadata: { merchantId: doc.id, vendor: doc.vendor, outletCode: doc.outletCode },
+          })
+        }
+        return doc
+      },
+    ],
     afterRead: [
       ({ doc }) => {
         const storeHoursStatus = getStoreHoursStatus(doc as Record<string, unknown>)

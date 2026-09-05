@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Users, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   ShieldCheck, ShieldAlert, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2,
@@ -77,7 +78,7 @@ function roleBadge(role: string) {
 }
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
+  try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
 function initials(first: string, last: string) {
   const a = (first?.[0] || '').toUpperCase()
@@ -116,7 +117,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function UsersPage() {
+function UsersSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function UsersPageContent(){
   // query state
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
@@ -539,7 +552,7 @@ export default function UsersPage() {
       </div>
 
       {/* Delete confirm — WordPress-style: choose Delete all content vs Attribute to another user */}
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) setDeleting(null) }}>
             <div
@@ -596,7 +609,7 @@ export default function UsersPage() {
         )}
 
       {/* View Dependencies — read-only inspection of all linked records (enterprise) */}
-      {viewingDeps &&
+      {viewingDeps && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[105] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setViewingDeps(null)}>
             <div
@@ -778,7 +791,7 @@ export default function UsersPage() {
                           </div>
                           {(depsData.previews?.userEvents?.length > 0 || depsData.previews?.recentSearches?.length > 0) && (
                             <div className="mt-2 rounded-lg border border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#0a0a0a] p-3 space-y-2">
-                              {depsData.previews?.userEvents?.length > 0 && <div><p className="text-[11px] font-semibold text-gray-600 dark:text-[#a1a1aa] uppercase tracking-wide">Recent user events</p><ul className="mt-1 space-y-1">{depsData.previews.userEvents.map((e: any) => <li key={e.id} className="text-xs text-gray-700 dark:text-[#a1a1aa]">#{e.id} • {e.eventType} • {e.timestamp ? new Date(e.timestamp).toLocaleDateString() : '—'}</li>)}</ul></div>}
+                              {depsData.previews?.userEvents?.length > 0 && <div><p className="text-[11px] font-semibold text-gray-600 dark:text-[#a1a1aa] uppercase tracking-wide">Recent user events</p><ul className="mt-1 space-y-1">{depsData.previews.userEvents.map((e: any) => <li key={e.id} className="text-xs text-gray-700 dark:text-[#a1a1aa]">#{e.id} • {e.eventType} • {e.timestamp ? new Date(e.timestamp).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</li>)}</ul></div>}
                               {depsData.previews?.recentSearches?.length > 0 && <div><p className="text-[11px] font-semibold text-gray-600 dark:text-[#a1a1aa] uppercase tracking-wide">Recent searches</p><ul className="mt-1 space-y-1">{depsData.previews.recentSearches.map((s: any) => <li key={s.id} className="text-xs text-gray-700 dark:text-[#a1a1aa]">#{s.id} • “{s.query}”</li>)}</ul></div>}
                             </div>
                           )}
@@ -807,7 +820,7 @@ export default function UsersPage() {
         )}
 
       {/* Delete error — professional modal (replaces alert) */}
-      {deleteError &&
+      {deleteError && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteError(null)}>
             <div
@@ -827,7 +840,7 @@ export default function UsersPage() {
         )}
 
       {/* Action error — toast (replaces alert for toggle/status) */}
-      {actionError &&
+      {actionError && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed top-4 right-4 z-[110] max-w-sm animate-in slide-in-from-top-2 fade-in">
             <div className="flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 text-sm font-medium">
@@ -839,5 +852,13 @@ export default function UsersPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function UsersPage(){
+  return (
+    <ClientOnly fallback={<UsersSkeleton />}>
+      <UsersPageContent />
+    </ClientOnly>
   )
 }

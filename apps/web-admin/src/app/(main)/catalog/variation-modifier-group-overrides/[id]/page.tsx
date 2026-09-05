@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import { ArrowLeft, Layers, Package, CalendarDays, AlertCircle, Pencil, ToggleLeft } from '@/components/ui/IconWrapper'
 
 type Doc = {
@@ -23,7 +24,7 @@ type Doc = {
   updatedAt: string
 }
 
-function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso).slice(0,10) } }
+function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso).slice(0,10) } }
 function labelOf(v: any){ if(!v) return '—'; if(typeof v==='number') return `#${v}`; return v.name ? `${v.name} (#${v.id})` : `#${v.id}` }
 function variationLabel(v: any){ if(!v) return '—'; if(typeof v==='number') return `#${v}`; return v.name ? `${v.name} (#${v.id})` : (v.sku ? `${v.sku} (#${v.id})` : `#${v.id}`) }
 
@@ -34,7 +35,11 @@ function Row({ label, value, mono }: { label: string; value: React.ReactNode; mo
   return <div className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm"><span className="text-gray-500 dark:text-[#a1a1aa] text-xs font-medium shrink-0">{label}</span><span className={`text-gray-900 dark:text-white text-right max-w-[60%] break-words ${mono ? 'font-mono text-xs' : 'text-sm'}`}>{value as any}</span></div>
 }
 
-export default function VariationModifierGroupOverrideViewPage() {
+function VariationModifierGroupOverrideViewSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function VariationModifierGroupOverrideViewContent() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -133,5 +138,13 @@ export default function VariationModifierGroupOverrideViewPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function VariationModifierGroupOverrideViewPage(){
+  return (
+    <ClientOnly fallback={<VariationModifierGroupOverrideViewSkeleton />}>
+      <VariationModifierGroupOverrideViewContent />
+    </ClientOnly>
   )
 }

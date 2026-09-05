@@ -41,13 +41,74 @@ export async function GET(request: NextRequest) {
     const isActiveParam = searchParams.get('isActive')
     const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
 
-    // Fetch all needed collections (bounded) — depth 1 for vendors to populate logo (like /vendors BFF depth 2), depth 2 for products to populate primaryImage
-    const [vendorsRes, merchantsRes, merchantProductsRes, productsRes] = await Promise.all([
-      payload.find({ collection: 'vendors', limit: 2000, depth: 2, overrideAccess: true, pagination: false } as any),
-      payload.find({ collection: 'merchants', limit: 2000, depth: 1, overrideAccess: true, pagination: false } as any),
-      payload.find({ collection: 'merchant-products', limit: 5000, depth: 2, overrideAccess: true, pagination: false } as any),
-      payload.find({ collection: 'products', limit: 2000, depth: 2, overrideAccess: true, pagination: false } as any),
-    ])
+    const isUnfiltered = !search && !vendorFilter && !merchantFilter && !productTypeFilter && isActiveFilter === null
+    let totalVendorsCount: number | null = null
+    let totalMerchantsCount: number | null = null
+    let totalMerchantProductsCount: number | null = null
+    let activeMerchantsCount: number | null = null
+    let vendorsRes: any
+    let merchantsRes: any
+    let merchantProductsRes: any
+    let productsRes: any
+    const vendorProductCounts = new Map<string, number>()
+
+    if (isUnfiltered) {
+      // The landing page only displays vendor summaries. Page vendors in SQL first,
+      // then load relations for those vendors instead of the entire catalog.
+      vendorsRes = await payload.find({
+        collection: 'vendors', page, limit, sort: 'businessName', depth: 1,
+        overrideAccess: true,
+      } as any)
+      const vendorIds = (vendorsRes.docs || []).map((vendor: any) => vendor.id)
+      const [counts, scopedMerchants] = await Promise.all([
+        Promise.all([
+          payload.find({ collection: 'vendors', limit: 1, depth: 0, overrideAccess: true } as any),
+          payload.find({ collection: 'merchants', limit: 1, depth: 0, overrideAccess: true } as any),
+          payload.find({ collection: 'merchant-products', limit: 1, depth: 0, overrideAccess: true } as any),
+          payload.find({ collection: 'merchants', where: { isActive: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
+        ]),
+        vendorIds.length
+          ? payload.find({ collection: 'merchants', where: { vendor: { in: vendorIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
+          : Promise.resolve({ docs: [] }),
+      ])
+      totalVendorsCount = counts[0].totalDocs || 0
+      totalMerchantsCount = counts[1].totalDocs || 0
+      totalMerchantProductsCount = counts[2].totalDocs || 0
+      activeMerchantsCount = counts[3].totalDocs || 0
+      merchantsRes = scopedMerchants
+      await Promise.all((vendorsRes.docs || []).map(async (vendor: any) => {
+        const merchantIds = (merchantsRes.docs || [])
+          .filter((merchant: any) => {
+            const rawVendor = merchant.vendor
+            const merchantVendorId = rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
+            return String(merchantVendorId) === String(vendor.id)
+          })
+          .map((merchant: any) => merchant.id)
+        if (!merchantIds.length) {
+          vendorProductCounts.set(String(vendor.id), 0)
+          return
+        }
+        const result = await payload.find({
+          collection: 'merchant-products',
+          where: { merchant_id: { in: merchantIds } },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        } as any)
+        vendorProductCounts.set(String(vendor.id), result.totalDocs || 0)
+      }))
+      merchantProductsRes = { docs: [] }
+      productsRes = { docs: [] }
+    } else {
+      // Filtered searches currently use the legacy in-memory matcher so their
+      // existing vendor/product matching behavior remains unchanged.
+      ;[vendorsRes, merchantsRes, merchantProductsRes, productsRes] = await Promise.all([
+        payload.find({ collection: 'vendors', limit: 2000, depth: 1, overrideAccess: true, pagination: false } as any),
+        payload.find({ collection: 'merchants', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any),
+        payload.find({ collection: 'merchant-products', limit: 5000, depth: 0, overrideAccess: true, pagination: false, context: { skipEffectiveModifierPreview: true } } as any),
+        payload.find({ collection: 'products', limit: 2000, depth: 1, overrideAccess: true, pagination: false } as any),
+      ])
+    }
 
     const vendorsDocs = (vendorsRes.docs as any[]) || []
     const merchantsDocs = (merchantsRes.docs as any[]) || []
@@ -63,10 +124,25 @@ export async function GET(request: NextRequest) {
 
     // Build merchant -> vendor lookup
     const merchantToVendor = new Map<string, string>()
+    const merchantsByVendor = new Map<string, any[]>()
     merchantsDocs.forEach((m: any) => {
       const vRaw = m.vendor
       const vId = vRaw && typeof vRaw === 'object' ? String((vRaw as any).id ?? '') : String(vRaw ?? '')
-      if (vId) merchantToVendor.set(String(m.id), vId)
+      if (vId) {
+        merchantToVendor.set(String(m.id), vId)
+        const vendorMerchants = merchantsByVendor.get(vId) || []
+        vendorMerchants.push(m)
+        merchantsByVendor.set(vId, vendorMerchants)
+      }
+    })
+    const productsByMerchant = new Map<string, any[]>()
+    merchantProductsDocs.forEach((mp: any) => {
+      const raw = mp.merchant_id ?? mp.merchant
+      const merchantId = raw && typeof raw === 'object' ? String(raw.id ?? '') : String(raw ?? '')
+      if (!merchantId) return
+      const merchantProducts = productsByMerchant.get(merchantId) || []
+      merchantProducts.push(mp)
+      productsByMerchant.set(merchantId, merchantProducts)
     })
 
     // Filter vendors by search and vendorFilter/merchantFilter
@@ -124,21 +200,36 @@ export async function GET(request: NextRequest) {
     // Sort vendors by businessName
     vendorsForPage.sort((a: any, b: any) => String(a.businessName || '').localeCompare(String(b.businessName || '')))
 
-    const totalVendors = vendorsForPage.length
+    const totalVendors = isUnfiltered ? (totalVendorsCount || 0) : vendorsForPage.length
     const totalPages = Math.max(1, Math.ceil(totalVendors / limit))
     const start = (page - 1) * limit
-    const pagedVendors = vendorsForPage.slice(start, start + limit)
+    const pagedVendors = isUnfiltered ? vendorsForPage : vendorsForPage.slice(start, start + limit)
 
     // Correct grouping: rebuild resultVendors properly
     const finalVendors = pagedVendors.map((vendor: any) => {
       const vendorId = String(vendor.id)
-      const vendorMerchants = merchantsDocs.filter((m: any) => merchantToVendor.get(String(m.id)) === vendorId && (!merchantFilter || Number(m.id) === merchantFilter))
+      const vendorMerchants = (merchantsByVendor.get(vendorId) || []).filter((m: any) => !merchantFilter || Number(m.id) === merchantFilter)
+      if (isUnfiltered) {
+        const totalProducts = vendorProductCounts.get(vendorId) || 0
+        return {
+          vendor: {
+            id: Number(vendor.id),
+            businessName: String(vendor.businessName || ''),
+            legalName: String(vendor.legalName || ''),
+            businessType: String(vendor.businessType || 'other'),
+            verificationStatus: String(vendor.verificationStatus || 'pending'),
+            isActive: !!vendor.isActive,
+            logo: sanitizeMediaRef(vendor.logo),
+          },
+          merchants: [],
+          totalMerchants: vendorMerchants.length,
+          totalProducts,
+          totalProductsFiltered: totalProducts,
+        }
+      }
       const merchantsWithProducts = vendorMerchants.map((merchant: any) => {
         const merchantId = String(merchant.id)
-        let mps = merchantProductsDocs.filter((mp: any) => {
-          const mid = ( ()=>{ const raw=(mp as any).merchant_id ?? (mp as any).merchant; return raw && typeof raw==="object" ? String((raw as any).id ?? "") : String(raw ?? "") })()
-          return mid === merchantId
-        })
+        let mps = productsByMerchant.get(merchantId) || []
         if (search) {
           const lower = search.toLowerCase()
           mps = mps.filter((mp: any) => {
@@ -221,10 +312,10 @@ export async function GET(request: NextRequest) {
     })
 
     // Stats
-    const totalVendorsAll = vendorsDocs.length
-    const totalMerchantsAll = merchantsDocs.length
-    const totalMerchantProductsAll = merchantProductsDocs.length
-    const activeMerchantsAll = merchantsDocs.filter((m: any) => m.isActive).length
+    const totalVendorsAll = totalVendorsCount ?? vendorsDocs.length
+    const totalMerchantsAll = totalMerchantsCount ?? merchantsDocs.length
+    const totalMerchantProductsAll = totalMerchantProductsCount ?? merchantProductsDocs.length
+    const activeMerchantsAll = activeMerchantsCount ?? merchantsDocs.filter((m: any) => m.isActive).length
 
     return NextResponse.json({
       vendors: finalVendors,

@@ -4,8 +4,9 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
-  Globe, Store, MapPin, ArrowLeft, RefreshCw, Eye, Pencil, Trash2, Activity, CheckCircle, AlertCircle, Building
+  Globe, Store, MapPin, ArrowLeft, RefreshCw, Eye, Pencil, Activity, CheckCircle, AlertCircle, Building
 } from '@/components/ui/IconWrapper'
 import { BusinessZoneOverviewMap, BusinessZoneDrawingMap } from '../../_components/ZoneMaps'
 
@@ -13,7 +14,7 @@ type MerchantDoc = {
   id: number
   outletName: string
   outletCode: string
-  vendor: { id: number; businessName: string } | null
+  vendor: { id: number; businessName: string; logo?: { id: number; url: string | null } | null } | null
   businessZone: { id: number; name: string; isActive: boolean; slug?: string; boundary?: any } | null
   businessZoneId: number | null
   isActive: boolean
@@ -47,7 +48,11 @@ function isValidGeoJSON(v: any): boolean {
   return Array.isArray(v.coordinates)
 }
 
-export default function MerchantZoneDetailPage(){
+function MerchantZoneDetailSkeleton(){
+  return <div className="py-10 px-2.5"><div className="animate-pulse space-y-3"><div className="h-24 bg-gray-100 dark:bg-[#171717] rounded-xl"/><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl"/><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl"/></div></div>
+}
+
+function MerchantZoneDetailPageContent(){
   const params = useParams() as { id: string }
   const id = params?.id
   const router = useRouter()
@@ -72,7 +77,7 @@ export default function MerchantZoneDetailPage(){
         id: Number(d.id),
         outletName: String(d.outletName||''),
         outletCode: String(d.outletCode||''),
-        vendor: d.vendor && typeof d.vendor==='object' ? { id: Number((d.vendor as any).id), businessName: String((d.vendor as any).businessName||'') } : null,
+        vendor: d.vendor && typeof d.vendor==='object' ? { id: Number((d.vendor as any).id), businessName: String((d.vendor as any).businessName||''), logo: (d.vendor as any).logo ?? null } : null,
         businessZone: d.businessZone && typeof d.businessZone==='object' ? { id: Number((d.businessZone as any).id), name: String((d.businessZone as any).name||''), isActive: !!(d.businessZone as any).isActive, slug: (d.businessZone as any).slug, boundary: (d.businessZone as any).boundary } : (d.businessZoneId ? { id: Number(d.businessZoneId), name: String(d.businessZone||''), isActive: true } : null),
         businessZoneId: d.businessZone && typeof d.businessZone==='object' ? Number((d.businessZone as any).id) : (d.businessZoneId ? Number(d.businessZoneId) : (d.businessZone ? Number(d.businessZone) : null)),
         isActive: !!d.isActive,
@@ -140,24 +145,6 @@ export default function MerchantZoneDetailPage(){
     }catch(e:any){ alert(e.message||'Toggle failed')}
   }
 
-  const handleDeleteZone=async(row: ZoneRow)=>{
-    if(!doc) return
-    if(!confirm(`Delete ${row.name}? This will clear its boundary.`)) return
-    try{
-      if(row.type==='businessZone'){
-        const res=await fetch(`/api/merchants/${doc.id}`,{method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ businessZone: null })})
-        if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||'Failed')}
-        await load()
-      } else {
-        const patch: any = {}
-        patch[row.type] = null
-        const res=await fetch(`/api/merchants/${doc.id}`,{method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(patch)})
-        if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||'Failed')}
-        await load()
-      }
-    }catch(e:any){ alert(e.message||'Delete failed')}
-  }
-
   const openEdit=(row: ZoneRow)=>{
     setEditZone(row)
     setEditGeo(row.boundary ?? null)
@@ -193,14 +180,14 @@ export default function MerchantZoneDetailPage(){
   return (
     <div className="space-y-6 py-5 px-2.5">
       <div className="flex items-center gap-2 text-sm">
-        <Link href="/business-zones/merchants" className="inline-flex items-center gap-1 text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900"><ArrowLeft className="w-4 h-4"/> Back to Merchant Zones</Link>
+        <Link href="/business-zones/merchants" className="inline-flex items-center gap-1 text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white"><ArrowLeft className="w-4 h-4"/> Back to Merchant Zones</Link>
         <span className="text-gray-300">/</span>
         <span className="font-semibold text-gray-900 dark:text-white truncate">{doc.outletName}</span>
       </div>
 
       <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div className="flex gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold">{doc.outletName.slice(0,2).toUpperCase()}</div>
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold overflow-hidden">{doc.vendor?.logo?.url ? <img src={doc.vendor.logo.url} alt={doc.vendor.businessName || doc.outletName} className="h-12 w-12 rounded-xl object-cover" /> : doc.outletName.slice(0,2).toUpperCase()}</div>
           <div className="min-w-0">
             <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate">{doc.outletName} <span className="text-sm font-mono text-gray-500">({doc.outletCode})</span></h1>
             <p className="text-sm text-gray-500 flex items-center gap-2"><Building className="w-3 h-3"/>{doc.vendor?.businessName||'—'} • {doc.operationalStatus} • {doc.timezone}</p>
@@ -270,7 +257,6 @@ export default function MerchantZoneDetailPage(){
                       <button onClick={()=>setViewZone(row)} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262626] text-gray-500" title="View"><Eye className="w-4 h-4"/></button>
                       <button onClick={()=>openEdit(row)} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 hover:text-blue-600" title="Edit"><Pencil className="w-4 h-4"/></button>
                       <button onClick={()=>handleToggleZone(row)} className={`h-7 w-7 inline-flex items-center justify-center rounded-lg border ${row.isActive?'hover:bg-amber-50 text-amber-600 border-amber-200':'hover:bg-emerald-50 text-emerald-600 border-emerald-200'}`} title={row.isActive?'Disable':'Enable'}><Activity className="w-4 h-4"/></button>
-                      <button onClick={()=>handleDeleteZone(row)} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-500 hover:text-red-600" title="Delete"><Trash2 className="w-4 h-4"/></button>
                     </div>
                   </td>
                 </tr>
@@ -280,7 +266,7 @@ export default function MerchantZoneDetailPage(){
         </div>
       </div>
 
-      {viewZone && createPortal(
+      {viewZone && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={()=>setViewZone(null)}>
           <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-2xl max-h-[80vh] overflow-auto p-6" onClick={e=>e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-4">
@@ -303,7 +289,7 @@ export default function MerchantZoneDetailPage(){
         document.body
       )}
 
-      {editZone && createPortal(
+      {editZone && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={()=>{setEditZone(null); setEditGeo(null)}}>
           <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-3xl max-h-[90vh] overflow-auto" onClick={e=>e.stopPropagation()}>
             <div className="sticky top-0 bg-white dark:bg-[#171717] border-b border-gray-200 dark:border-[#262626] px-6 py-4 flex items-center justify-between">
@@ -322,5 +308,15 @@ export default function MerchantZoneDetailPage(){
         document.body
       )}
     </div>
+  )
+}
+
+export default function MerchantZoneDetailPage(){
+  // Pure CSR: Google Maps overview + drawing map are client-only,
+  // portals need document.body → identical skeleton on server + hydration.
+  return (
+    <ClientOnly fallback={<MerchantZoneDetailSkeleton />}>
+      <MerchantZoneDetailPageContent />
+    </ClientOnly>
   )
 }

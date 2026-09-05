@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Ticket, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
   TrendingUp, CheckCircle, Clock, XCircle, DollarSign, ArrowLeft
@@ -51,11 +52,11 @@ function refName(v: unknown) {
   return refId(v)
 }
 function fmtMoney(n: number) {
-  return `₱${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+  return `₱${Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
 }
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
+  try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
 function statusBadge(status: string) {
   const s = String(status || '').toLowerCase()
@@ -94,7 +95,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function CouponUsagePage() {
+function CouponUsageSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function CouponUsagePageContent() {
   const [couponId, setCouponId] = useState('')
   const [orderId, setOrderId] = useState('')
   const [statusFilter, setStatusFilter] = useState<string[]>([])
@@ -326,5 +339,13 @@ export default function CouponUsagePage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function CouponUsagePage(){
+  return (
+    <ClientOnly fallback={<CouponUsageSkeleton />}>
+      <CouponUsagePageContent />
+    </ClientOnly>
   )
 }

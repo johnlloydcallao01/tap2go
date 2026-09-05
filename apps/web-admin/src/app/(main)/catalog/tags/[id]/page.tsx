@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import { ArrowLeft, Tag, Layers, Sparkles, AlertCircle, Palette, Hash, ToggleLeft, Store, CalendarDays } from '@/components/ui/IconWrapper'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -22,7 +23,16 @@ function Row({ label, value, mono, icon }: { label: string; value: React.ReactNo
   )
 }
 
-export default function TagDetailPage() {
+function fmtDateTime(iso: string | null) {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso).slice(0, 19).replace('T', ' ') }
+}
+
+function TagDetailSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function TagDetailContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -112,8 +122,8 @@ export default function TagDetailPage() {
           </Section>
 
           <Section title="Timestamps">
-            <Row label="Created" value={doc.createdAt ? new Date(doc.createdAt).toLocaleString('en-PH') : '—'} icon={<CalendarDays className="w-3 h-3" />} />
-            <Row label="Updated" value={doc.updatedAt ? new Date(doc.updatedAt).toLocaleString('en-PH') : '—'} icon={<CalendarDays className="w-3 h-3" />} />
+            <Row label="Created" value={fmtDateTime(doc.createdAt)} icon={<CalendarDays className="w-3 h-3" />} />
+            <Row label="Updated" value={fmtDateTime(doc.updatedAt)} icon={<CalendarDays className="w-3 h-3" />} />
             <Row label="ID" value={String(doc.id)} mono />
           </Section>
         </div>
@@ -122,5 +132,13 @@ export default function TagDetailPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function TagDetailPage(){
+  return (
+    <ClientOnly fallback={<TagDetailSkeleton />}>
+      <TagDetailContent />
+    </ClientOnly>
   )
 }

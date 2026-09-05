@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Package, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Building, Store, ChevronRight, Layers, Tag, Eye
@@ -33,7 +34,19 @@ function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: st
   )
 }
 
-export default function ProductsPage(){
+function ProductsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function ProductsPageContent(){
   const [q,setQ]=useState('')
   const [debouncedQ,setDebouncedQ]=useState('')
   const [showFilters,setShowFilters]=useState(false)
@@ -44,6 +57,7 @@ export default function ProductsPage(){
   const [stats,setStats]=useState<Stats|null>(null)
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState<string|null>(null)
+  const requestController=useRef<AbortController|null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount=useMemo(()=> debouncedQ?1:0,[debouncedQ])
@@ -56,20 +70,22 @@ export default function ProductsPage(){
   },[page,limit,debouncedQ])
 
   const load=useCallback(async (opts?:{hard?:boolean})=>{
+    requestController.current?.abort()
+    const controller=new AbortController()
+    requestController.current=controller
     if(opts?.hard){ setPagination(null); setStats(null); setVendors([]) }
     setLoading(true); setError(null)
     try{
       const qs=buildQuery()
       const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/merchant-products?${bust}`,{cache:'no-store'})
+      const res=await fetch(`/api/merchant-products?${bust}`,{cache:'no-store',signal:controller.signal})
       if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
       const j=await res.json()
       setVendors(j.vendors||[]); setPagination(j.pagination||null); setStats(j.stats||null)
-    }catch(e:any){ setError(e.message||'Failed') } finally{ setLoading(false) }
+    }catch(e:any){ if(e?.name!=='AbortError' && !controller.signal.aborted) setError(e.message||'Failed') } finally{ if(!controller.signal.aborted) setLoading(false) }
   },[buildQuery])
 
   useEffect(()=>{void load()},[load])
-  useEffect(()=>{setPage(1)},[debouncedQ])
 
   const isInitial=loading && !pagination
 
@@ -110,7 +126,7 @@ export default function ProductsPage(){
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search vendor, legal name…" className="w-full pl-9 pr-9 py-2.5 text-sm bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#262626] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] text-gray-900 dark:text-white placeholder:text-gray-400" />
+            <input value={q} onChange={(e)=>{setQ(e.target.value); setPage(1)}} placeholder="Search vendor, legal name…" className="w-full pl-9 pr-9 py-2.5 text-sm bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#262626] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] text-gray-900 dark:text-white placeholder:text-gray-400" />
             {q && <button onClick={()=>setQ('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-[#262626]"><X className="w-4 h-4 text-gray-400" /></button>}
           </div>
           <div className="flex items-center gap-2">
@@ -178,5 +194,13 @@ export default function ProductsPage(){
         )}
       </div>
     </div>
+  )
+}
+
+export default function ProductsPage(){
+  return (
+    <ClientOnly fallback={<ProductsSkeleton />}>
+      <ProductsPageContent />
+    </ClientOnly>
   )
 }

@@ -18,7 +18,8 @@ export type MerchantZoneDoc = {
   id: number
   outletName: string
   outletCode: string
-  vendor: { id: number; businessName: string } | null
+  vendor: { id: number; businessName: string; logo?: { id: number; url: string | null } | null } | null
+  media?: { thumbnail?: { id: number; url: string | null } | null; storeFrontImage?: { id: number; url: string | null } | null } | null
   businessZone: { id: number; name: string; isActive: boolean } | null
   businessZoneId: number | null
   isActive: boolean
@@ -43,7 +44,7 @@ export type Stats = {
 }
 
 export function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'Z' }
-export function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
+export function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
 
 export function isValidGeoJSON(v: any): boolean {
   if (!v) return true

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, notFound } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import { Package, ArrowLeft, Pencil, Building, Tag, DollarSign, Eye, EyeOff, Image as ImageIcon, CalendarDays, AlertCircle } from '@/components/ui/IconWrapper'
 
 type ProductDoc = {
@@ -23,8 +24,8 @@ type ProductDoc = {
   createdAt: string
   updatedAt: string
 }
-function fmtPHP(n: number | null){ if(n==null) return '—'; return `₱${Number(n).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}` }
-function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
+function fmtPHP(n: number | null){ if(n==null) return '—'; return `₱${Number(n).toLocaleString('en-PH',{minimumFractionDigits:2, maximumFractionDigits:2})}` }
+function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'P' }
 function Section({ title, children }: { title: string; children: React.ReactNode }){
   return <div><h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{title}</h4><div className="rounded-xl border border-gray-200 dark:border-[#262626] divide-y divide-gray-100 dark:divide-[#262626] overflow-hidden bg-white dark:bg-[#171717]">{children}</div></div>
@@ -33,7 +34,11 @@ function Row({ label, value, mono, icon }: { label: string; value: React.ReactNo
   return <div className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm"><span className="text-gray-500 dark:text-[#a1a1aa] text-xs font-medium shrink-0 flex items-center gap-1">{icon}{label}</span><span className={`text-gray-900 dark:text-white text-right max-w-[60%] break-words ${mono?'font-mono text-xs':'text-sm'}`}>{value as any}</span></div>
 }
 
-export default function ProductViewPage(){
+function ProductViewSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function ProductViewContent(){
   const params=useParams()
   const router=useRouter()
   const id=params.id as string
@@ -152,5 +157,13 @@ export default function ProductViewPage(){
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ProductViewPage(){
+  return (
+    <ClientOnly fallback={<ProductViewSkeleton />}>
+      <ProductViewContent />
+    </ClientOnly>
   )
 }

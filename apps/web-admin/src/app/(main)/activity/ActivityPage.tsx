@@ -32,7 +32,7 @@ const DEFINITIONS: Record<ActivityKey, { title: string; description: string; ico
   views: { title: 'Recently Viewed', description: 'See the merchants and products customers viewed most recently.', icon: <Eye className="w-4 h-4" />, empty: 'No recently viewed items found', searchPlaceholder: 'Search customer, merchant, or product...' },
 }
 
-function formatDate(value: string | null) { if (!value) return '—'; try { return new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return value.slice(0, 10) } }
+function formatDate(value: string | null) { if (!value) return '—'; try { return new Date(value).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return value.slice(0, 10) } }
 function formatMoney(value: number) { return value ? `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' }
 function customerName(customer: ActivityDoc['customer']) { if (!customer) return 'Unknown customer'; return `${customer.firstName} ${customer.lastName}`.trim() || customer.email || 'Unknown customer' }
 function initials(customer: ActivityDoc['customer']) {

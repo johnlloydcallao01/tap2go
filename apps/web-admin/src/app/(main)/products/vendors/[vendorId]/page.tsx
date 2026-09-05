@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import { Building, ArrowLeft, Store, Eye, Pencil, RefreshCw, AlertCircle, Search, X } from '@/components/ui/IconWrapper'
 
 type Merchant = {
@@ -19,7 +20,11 @@ type Vendor = { id: number; businessName: string; legalName: string; businessTyp
 
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'V' }
 
-export default function VendorMerchantsPage(){
+function VendorMerchantsSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function VendorMerchantsPageContent(){
   const params=useParams()
   const router=useRouter()
   const vendorId=params.vendorId as string
@@ -163,5 +168,13 @@ export default function VendorMerchantsPage(){
         )}
       </div>
     </div>
+  )
+}
+
+export default function VendorMerchantsPage(){
+  return (
+    <ClientOnly fallback={<VendorMerchantsSkeleton />}>
+      <VendorMerchantsPageContent />
+    </ClientOnly>
   )
 }

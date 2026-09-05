@@ -3,8 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Layers } from '@/components/ui/IconWrapper'
 import { GroupedItemForm } from '../_components/GroupedItemForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function NewGroupedItemPage() {
+function NewGroupedItemSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function NewGroupedItemContent() {
   const router = useRouter()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
@@ -26,5 +31,13 @@ export default function NewGroupedItemPage() {
       </div>
       <GroupedItemForm onSuccess={() => router.push('/catalog/grouped-items')} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function NewGroupedItemPage(){
+  return (
+    <ClientOnly fallback={<NewGroupedItemSkeleton />}>
+      <NewGroupedItemContent />
+    </ClientOnly>
   )
 }

@@ -5,8 +5,13 @@ import { useParams, useRouter, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Store, AlertCircle } from '@/components/ui/IconWrapper'
 import { MerchantForm } from '../../_components/MerchantForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditMerchantPage() {
+function EditMerchantSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditMerchantContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -67,5 +72,13 @@ export default function EditMerchantPage() {
       </div>
       <MerchantForm initial={doc} onSuccess={() => router.push(`/merchants/${id}`)} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function EditMerchantPage(){
+  return (
+    <ClientOnly fallback={<EditMerchantSkeleton />}>
+      <EditMerchantContent />
+    </ClientOnly>
   )
 }

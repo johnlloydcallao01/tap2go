@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Package, CheckCircle, Eye, Pencil, Trash2, Layers, ToggleLeft, Tag
@@ -100,7 +101,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function MerchantVariationModifierOptionOverridesPage() {
+function MerchantVariationModifierOptionOverridesSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function MerchantVariationModifierOptionOverridesPageContent(){
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [merchantProductFilter, setMerchantProductFilter] = useState('')
@@ -572,7 +585,7 @@ export default function MerchantVariationModifierOptionOverridesPage() {
         )}
       </div>
 
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
             <div
@@ -591,5 +604,13 @@ export default function MerchantVariationModifierOptionOverridesPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function MerchantVariationModifierOptionOverridesPage(){
+  return (
+    <ClientOnly fallback={<MerchantVariationModifierOptionOverridesSkeleton />}>
+      <MerchantVariationModifierOptionOverridesPageContent />
+    </ClientOnly>
   )
 }

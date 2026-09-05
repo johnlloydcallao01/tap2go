@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Shield,
   ShieldCheck,
@@ -91,13 +92,25 @@ function Row({ label, value, mono, icon }: { label: string; value: React.ReactNo
 function fmtDateTime(iso: string | null) {
   if (!iso) return '—'
   try {
-    return new Date(iso).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch {
     return String(iso).slice(0, 19).replace('T', ' ')
   }
 }
 
-export default function SecuritySettingsPage() {
+function SecuritySkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function SecuritySettingsPageContent(){
   const [data, setData] = useState<SecurityData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -421,7 +434,7 @@ export default function SecuritySettingsPage() {
       )}
 
       {/* Toast */}
-      {toast &&
+      {toast && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed top-4 right-4 z-[110] max-w-sm animate-in slide-in-from-top-2 fade-in">
             <div className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur text-sm font-medium ${toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : toast.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200' : 'bg-sky-50 dark:bg-sky-900/30 border-sky-200 text-sky-800'}`}>
@@ -432,5 +445,13 @@ export default function SecuritySettingsPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function SecuritySettingsPage(){
+  return (
+    <ClientOnly fallback={<SecuritySkeleton />}>
+      <SecuritySettingsPageContent />
+    </ClientOnly>
   )
 }

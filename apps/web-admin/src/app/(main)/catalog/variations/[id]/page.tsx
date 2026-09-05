@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import { Building, ArrowLeft, Pencil, CalendarDays, AlertCircle, DollarSign, Package, Layers, Eye, EyeOff } from '@/components/ui/IconWrapper'
 
 type VariationDoc = {
@@ -34,7 +35,7 @@ function modeBadge(mode: string) {
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
   try {
-    return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+    return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' })
   } catch {
     return String(iso).slice(0, 10)
   }
@@ -56,7 +57,11 @@ function Row({ label, value, mono }: { label: string; value: React.ReactNode; mo
   )
 }
 
-export default function VariationViewPage() {
+function VariationViewSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function VariationViewContent() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -220,5 +225,13 @@ export default function VariationViewPage() {
         </div>
       </Section>
     </div>
+  )
+}
+
+export default function VariationViewPage(){
+  return (
+    <ClientOnly fallback={<VariationViewSkeleton />}>
+      <VariationViewContent />
+    </ClientOnly>
   )
 }

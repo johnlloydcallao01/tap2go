@@ -49,6 +49,14 @@ function parseCsv(sp: URLSearchParams, key: string): string[] {
   if (!raw) return []
   return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 }
+function sanitizeMediaRef(value: unknown): { id: number; url: string | null } | null {
+  if (!value || typeof value !== 'object') return null
+  const media = value as Record<string, unknown>
+  const id = Number(media.id)
+  if (Number.isNaN(id)) return null
+  const url = typeof media.cloudinaryURL === 'string' ? media.cloudinaryURL : typeof media.url === 'string' ? media.url : null
+  return { id, url }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -116,7 +124,7 @@ export async function GET(request: NextRequest) {
     const refundedTxPeriod = transactionsDocs.filter((t) => String(t.status) === 'refunded' && isInPeriod(t as Record<string, any>, 'createdAt'))
 
     // Build vendor payout aggregation (verified revenue per vendor, like reports)
-    const vendorAgg = new Map<string, { businessName: string; legalName: string; businessType: string; verificationStatus: string; isActive: boolean; totalMerchants: number; averageRating: number; orders: number; gross: number; platformFees: number; deliveryFees: number; net: number; refunded: number }>()
+    const vendorAgg = new Map<string, { businessName: string; legalName: string; businessType: string; verificationStatus: string; isActive: boolean; logo: { id: number; url: string | null } | null; totalMerchants: number; averageRating: number; orders: number; gross: number; platformFees: number; deliveryFees: number; net: number; refunded: number }>()
     // Pre-init with filtered vendors so zero-payout vendors still appear
     const vendorsForAgg = filteredVendorIds ? vendorsDocs.filter((v: any) => filteredVendorIds!.has(String(v.id))) : vendorsDocs
     for (const v of vendorsForAgg as any[]) {
@@ -127,6 +135,7 @@ export async function GET(request: NextRequest) {
         businessType: getStr(v.businessType, 'other'),
         verificationStatus: getStr(v.verificationStatus, 'pending'),
         isActive: !!v.isActive,
+        logo: sanitizeMediaRef(v.logo),
         totalMerchants: getNum(v.totalMerchants),
         averageRating: getNum(v.averageRating),
         orders: 0, gross: 0, platformFees: 0, deliveryFees: 0, net: 0, refunded: 0,
@@ -205,6 +214,7 @@ export async function GET(request: NextRequest) {
       businessType: v.businessType,
       verificationStatus: v.verificationStatus,
       isActive: v.isActive,
+      logo: v.logo,
       totalMerchants: v.totalMerchants,
       averageRating: v.averageRating,
       orders: v.orders,

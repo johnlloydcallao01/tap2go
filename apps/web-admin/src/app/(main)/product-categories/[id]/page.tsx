@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import { ArrowLeft, Tag, Layers, Sparkles, AlertCircle, Globe, Store, ShieldCheck, Hash } from '@/components/ui/IconWrapper'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -22,7 +23,16 @@ function Row({ label, value, mono, icon }: { label: string; value: React.ReactNo
   )
 }
 
-export default function ProductCategoryDetailPage() {
+function fmtDateTime(iso: string | null) {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso).slice(0, 19).replace('T', ' ') }
+}
+
+function ProductCategoryDetailSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function ProductCategoryDetailContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -115,8 +125,8 @@ export default function ProductCategoryDetailPage() {
           <Section title="Status">
             <Row label="Active" value={doc.isActive ? 'Active' : 'Inactive'} icon={<Hash className="w-3 h-3" />} />
             <Row label="Featured" value={doc.isFeatured ? 'Featured' : 'No'} icon={<Sparkles className="w-3 h-3" />} />
-            <Row label="Created" value={doc.createdAt ? new Date(doc.createdAt).toLocaleString('en-PH') : '—'} />
-            <Row label="Updated" value={doc.updatedAt ? new Date(doc.updatedAt).toLocaleString('en-PH') : '—'} />
+            <Row label="Created" value={fmtDateTime(doc.createdAt)} />
+            <Row label="Updated" value={fmtDateTime(doc.updatedAt)} />
           </Section>
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#0a0a0a] px-6 py-4 rounded-b-xl">
@@ -124,5 +134,13 @@ export default function ProductCategoryDetailPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ProductCategoryDetailPage(){
+  return (
+    <ClientOnly fallback={<ProductCategoryDetailSkeleton />}>
+      <ProductCategoryDetailContent />
+    </ClientOnly>
   )
 }

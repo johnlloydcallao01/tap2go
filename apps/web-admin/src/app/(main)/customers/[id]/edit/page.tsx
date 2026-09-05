@@ -5,8 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, AlertCircle, RefreshCw } from '@/components/ui/IconWrapper'
 import { CustomerForm } from '../../_components/CustomerForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditCustomerPage() {
+function EditCustomerSkeleton(){
+  return <div className="py-5 px-2.5"><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditCustomerContent() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -49,5 +54,13 @@ export default function EditCustomerPage() {
       {success && <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Customer updated — redirecting…</div>}
       <CustomerForm initial={doc} onSuccess={() => { setSuccess(true); setTimeout(()=> router.push(`/customers/${doc.id}`), 700) }} onCancel={() => router.push(`/customers/${doc.id}`)} />
     </div>
+  )
+}
+
+export default function EditCustomerPage(){
+  return (
+    <ClientOnly fallback={<EditCustomerSkeleton />}>
+      <EditCustomerContent />
+    </ClientOnly>
   )
 }

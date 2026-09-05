@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
   DollarSign, CreditCard, Truck, TrendingUp, TrendingDown, Receipt, Coins, Store, Eye, Pencil, FileText, CalendarDays
@@ -14,6 +15,7 @@ type PayoutRow = {
   businessType: string
   verificationStatus: string
   isActive: boolean
+  logo: { id: number; url: string | null } | null
   totalMerchants: number
   averageRating: number
   orders: number
@@ -59,7 +61,8 @@ const VERIFICATION_OPTS = [
 function businessLabel(v: string){ return BUSINESS_OPTS.find(o=>o.value===v)?.label || v.replace(/_/g,' ') }
 function fmtPHP(n: number){ return `₱${n.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}` }
 function fmtCompact(n: number){ if(n>=1000000) return `₱${(n/1000000).toFixed(1)}M`; if(n>=1000) return `₱${(n/1000).toFixed(1)}k`; return fmtPHP(n) }
-function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}catch{return iso.slice(0,10)} }
+function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'})}catch{return iso.slice(0,10)} }
+function initials(name: string){ return name.split(' ').slice(0,2).map(word=>word[0]?.toUpperCase() || '').join('') || 'V' }
 
 function KpiCard({ title, value, sub, icon, iconBg, trend }: { title: string; value: string; sub?: string; icon: React.ReactNode; iconBg: string; trend?: string }) {
   return (
@@ -90,7 +93,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function PayoutsPage() {
+function PayoutsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function PayoutsPageContent() {
   const [range, setRange] = useState('30d')
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
@@ -283,10 +298,15 @@ export default function PayoutsPage() {
                   {pagedRows.map(r=>(
                     <tr key={r.vendorId} className="hover:bg-gray-50 dark:hover:bg-[#0a0a0a]/50 transition">
                       <td className="px-4 py-3">
-                        <div className="min-w-[180px]">
-                          <div className="font-semibold text-gray-900 dark:text-white truncate max-w-[180px]">{r.businessName}</div>
-                          <div className="text-xs text-gray-500 dark:text-[#a1a1aa] truncate max-w-[180px]">{r.legalName} • {businessLabel(r.businessType)} • {r.verificationStatus} • {r.isActive?'Active':'Inactive'}</div>
-                          <div className="text-[11px] text-gray-400">{r.totalMerchants} outlet{r.totalMerchants!==1?'s':''}</div>
+                        <div className="min-w-[180px] flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
+                            {r.logo?.url ? <img src={r.logo.url} alt={r.businessName} className="h-9 w-9 rounded-xl object-cover" /> : initials(r.businessName)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-gray-900 dark:text-white truncate max-w-[180px]">{r.businessName}</div>
+                            <div className="text-xs text-gray-500 dark:text-[#a1a1aa] truncate max-w-[180px]">{r.legalName} • {businessLabel(r.businessType)} • {r.verificationStatus} • {r.isActive?'Active':'Inactive'}</div>
+                            <div className="text-[11px] text-gray-400">{r.totalMerchants} outlet{r.totalMerchants!==1?'s':''}</div>
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell"><span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] border border-gray-200 dark:border-[#333]">{businessLabel(r.businessType)}</span></td>
@@ -340,5 +360,13 @@ export default function PayoutsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PayoutsPage(){
+  return (
+    <ClientOnly fallback={<PayoutsSkeleton />}>
+      <PayoutsPageContent />
+    </ClientOnly>
   )
 }

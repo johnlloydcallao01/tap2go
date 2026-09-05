@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { validateStoreHoursFields } from '@/utils/storeHours'
+import { createAdminNotificationFanout } from '../utils/notificationFanout'
 
 export const Vendors: CollectionConfig = {
   slug: 'vendors',
@@ -291,6 +292,23 @@ export const Vendors: CollectionConfig = {
 
   ],
   hooks: {
+    afterChange: [
+      async ({ doc, operation, req }) => {
+        if (operation === 'create') {
+          await createAdminNotificationFanout(req.payload, {
+            typeKey: 'vendor.created',
+            domain: 'system',
+            title: 'New vendor registered',
+            body: `${doc.businessName || 'A vendor'} was registered and may require verification.`,
+            sourceEntityType: 'vendor',
+            sourceEntityId: doc.id,
+            priority: 'warning',
+            metadata: { vendorId: doc.id, verificationStatus: doc.verificationStatus },
+          })
+        }
+        return doc
+      },
+    ],
     beforeValidate: [
       ({ data }) => data ? validateStoreHoursFields(data as Record<string, unknown>) : data,
     ],

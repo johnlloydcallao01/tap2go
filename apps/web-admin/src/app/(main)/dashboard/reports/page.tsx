@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import type { ReportsData } from '@/lib/reports-types'
+import { ClientOnly } from '@/components/ClientOnly'
 import { FileText, Download, Clock, ShieldCheck, DollarSign, Store, ShoppingCart, Truck, Package, Award, AlertCircle, RefreshCw, FileSpreadsheet } from '@/components/ui/IconWrapper'
 
 type Range = '7d' | '30d' | '90d' | '1y' | 'all'
@@ -13,8 +14,9 @@ const RANGE_OPTS: { value: Range; label: string }[] = [
   { value: 'all', label: 'All time' },
 ]
 
-function fmtCurrency(n: number) { return `₱${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}` }
-function fmtDate(iso: string) { try { return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) } catch { return iso } }
+function fmtCurrency(n: number) { return `₱${Number(n).toLocaleString('en-PH', { maximumFractionDigits: 2 })}` }
+function fmtDate(iso: string) { try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }) } catch { return iso } }
+function fmtDateTime(iso: string) { try { return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) } catch { return iso } }
 function toCsv(rows: Record<string, unknown>[], headers: string[]): string {
   const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
   return [headers.join(','), ...rows.map((r) => headers.map((h) => esc(r[h])).join(','))].join('\n')
@@ -37,7 +39,17 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
   )
 }
 
-export default function ReportsPage() {
+function ReportsSkeleton(){
+  return (
+    <div className="space-y-[10px] py-5 px-2.5 animate-pulse">
+      <div className="h-7 bg-gray-100 dark:bg-[#171717] rounded w-40" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-[10px]">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}</div>
+      <div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
+    </div>
+  )
+}
+
+function ReportsPageContent() {
   const [range, setRange] = useState<Range>('30d')
   const [data, setData] = useState<ReportsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -83,7 +95,7 @@ export default function ReportsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2"><FileText className="w-6 h-6 text-blue-600" />Reports</h1>
-          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Final numbers for <span className="font-medium text-gray-700 dark:text-white">{period}</span> • Ready to download for accounting • Updated {new Date(data.meta.generatedAt).toLocaleString('en-PH')}</p>
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Final numbers for <span className="font-medium text-gray-700 dark:text-white">{period}</span> • Ready to download for accounting • Updated {fmtDateTime(data.meta.generatedAt)}</p>
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 inline-flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Completed payments only — these numbers are final and won&apos;t change. For up-to-the-minute activity, check Analytics.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -179,7 +191,16 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <p className="text-[11px] text-gray-400 dark:text-[#52525b] text-center">Showing final numbers for {period} • Updated {new Date(data.meta.generatedAt).toLocaleString('en-PH')} • For live activity, see Dashboard. For trends, see Analytics.</p>
+      <p className="text-[11px] text-gray-400 dark:text-[#52525b] text-center">Showing final numbers for {period} • Updated {fmtDateTime(data.meta.generatedAt)} • For live activity, see Dashboard. For trends, see Analytics.</p>
     </div>
+  )
+}
+
+export default function ReportsPage(){
+  // Pure CSR: currency/date formatting is locale+timezone sensitive → render post-mount only.
+  return (
+    <ClientOnly fallback={<ReportsSkeleton />}>
+      <ReportsPageContent />
+    </ClientOnly>
   )
 }

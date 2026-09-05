@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { createAdminNotificationFanout } from '../utils/notificationFanout'
 
 export const Customers: CollectionConfig = {
   slug: 'customers',
@@ -7,6 +8,22 @@ export const Customers: CollectionConfig = {
     defaultColumns: ['email', 'user', 'enrollmentDate', 'currentLevel'],
   },
   hooks: {
+    afterChange: [
+      async ({ doc, operation, req }) => {
+        if (operation === 'create') {
+          await createAdminNotificationFanout(req.payload, {
+            typeKey: 'customer.created',
+            domain: 'account',
+            title: 'New customer registered',
+            body: `${doc.email || 'A new customer'} joined the platform.`,
+            sourceEntityType: 'customer',
+            sourceEntityId: doc.id,
+            metadata: { customerId: doc.id, userId: doc.user },
+          })
+        }
+        return doc
+      },
+    ],
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create' || operation === 'update') {

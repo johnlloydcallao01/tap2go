@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Shield,
   Search,
@@ -88,7 +89,7 @@ function eventIcon(type: string) {
 function fmtDateTime(iso: string | null) {
   if (!iso) return '—'
   try {
-    return new Date(iso).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch {
     return String(iso).slice(0, 19).replace('T', ' ')
   }
@@ -131,7 +132,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function AuditPage() {
+function AuditSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function AuditPageContent(){
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [eventFilter, setEventFilter] = useState<string[]>([])
@@ -556,7 +569,7 @@ export default function AuditPage() {
       </div>
 
       {/* Detail drawer */}
-      {selected &&
+      {selected && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setSelected(null)}>
             <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
@@ -636,7 +649,7 @@ export default function AuditPage() {
         )}
 
       {/* Toast */}
-      {toast &&
+      {toast && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed top-4 right-4 z-[110] max-w-sm animate-in slide-in-from-top-2 fade-in">
             <div className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur text-sm font-medium ${toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : toast.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200' : 'bg-sky-50 dark:bg-sky-900/30 border-sky-200 text-sky-800'}`}>
@@ -647,5 +660,13 @@ export default function AuditPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function AuditPage(){
+  return (
+    <ClientOnly fallback={<AuditSkeleton />}>
+      <AuditPageContent />
+    </ClientOnly>
   )
 }

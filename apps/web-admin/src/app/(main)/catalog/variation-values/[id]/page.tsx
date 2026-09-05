@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, ArrowLeft, Pencil, Tag, CalendarDays, AlertCircle, Palette, Layers, Hash
 } from '@/components/ui/IconWrapper'
@@ -27,7 +28,7 @@ function typeBadge(type: string) {
   if (t === 'radio') return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800'
   return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
 }
-function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0,10) } }
+function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0,10) } }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return <div><h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{title}</h4><div className="rounded-xl border border-gray-200 dark:border-[#262626] divide-y divide-gray-100 dark:divide-[#262626] overflow-hidden bg-white dark:bg-[#171717]">{children}</div></div>
@@ -36,7 +37,11 @@ function Row({ label, value, mono }: { label: string; value: React.ReactNode; mo
   return <div className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm"><span className="text-gray-500 dark:text-[#a1a1aa] text-xs font-medium shrink-0">{label}</span><span className={`text-gray-900 dark:text-white text-right max-w-[60%] break-words ${mono ? 'font-mono text-xs' : 'text-sm'}`}>{value as any}</span></div>
 }
 
-export default function VariationValueViewPage() {
+function VariationValueViewSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function VariationValueViewContent() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -138,5 +143,13 @@ export default function VariationValueViewPage() {
         {doc.term && <Link href={`/catalog/attribute-terms/${doc.term.id}`} className="inline-flex items-center gap-2 text-sm text-[#eba236] hover:underline"><Palette className="w-4 h-4" /> View term</Link>}
       </div>
     </div>
+  )
+}
+
+export default function VariationValueViewPage(){
+  return (
+    <ClientOnly fallback={<VariationValueViewSkeleton />}>
+      <VariationValueViewContent />
+    </ClientOnly>
   )
 }

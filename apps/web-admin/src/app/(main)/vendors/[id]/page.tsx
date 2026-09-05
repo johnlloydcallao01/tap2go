@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, ArrowLeft, Pencil, Trash2, Store, Star, ShieldCheck, ShieldAlert, Clock,
   Mail, Phone, Globe, CalendarDays, AlertCircle, RefreshCw, X, FileText
@@ -51,7 +52,7 @@ function verificationBadge(status: string) {
   if (s === 'suspended') return 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
   return 'bg-gray-100 text-gray-700 border-gray-200'
 }
-function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0,10) } }
+function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0,10) } }
 function initials(name: string) { return name.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'V' }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -61,7 +62,16 @@ function Row({ label, value, mono, icon }: { label: string; value: React.ReactNo
   return <div className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm"><span className="text-gray-500 dark:text-[#a1a1aa] text-xs font-medium shrink-0 flex items-center gap-1">{icon}{label}</span><span className={`text-gray-900 dark:text-white text-right max-w-[60%] break-words ${mono ? 'font-mono text-xs' : 'text-sm'}`}>{value as any}</span></div>
 }
 
-export default function VendorViewPage() {
+function VendorViewSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" />
+    </div>
+  )
+}
+
+function VendorViewContent() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -220,5 +230,13 @@ export default function VendorViewPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function VendorViewPage(){
+  return (
+    <ClientOnly fallback={<VendorViewSkeleton />}>
+      <VendorViewContent />
+    </ClientOnly>
   )
 }

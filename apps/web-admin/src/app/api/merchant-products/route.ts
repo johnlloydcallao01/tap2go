@@ -10,6 +10,9 @@ export async function GET(request: NextRequest) {
   try {
     const res = await fetch(`${CMS_BASE}/admin/merchant-products?${searchParams.toString()}`, { headers: { Authorization: `JWT ${token}` }, cache: 'no-store' })
     const data = await res.text()
+    if (!res.ok && !res.headers.get('content-type')?.includes('application/json')) {
+      return NextResponse.json({ error: `CMS request failed (${res.status})` }, { status: res.status >= 500 ? 502 : res.status })
+    }
     return new NextResponse(data, { status: res.status, headers: { 'Content-Type': res.headers.get('content-type') || 'application/json' } })
   } catch { return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 }) }
 }

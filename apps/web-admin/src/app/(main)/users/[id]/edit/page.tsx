@@ -5,8 +5,13 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, AlertCircle, RefreshCw, CheckCircle, Users } from '@/components/ui/IconWrapper'
 import { UserForm } from '../../_components/UserForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditUserPage() {
+function EditUserSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditUserContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -96,5 +101,13 @@ export default function EditUserPage() {
       </div>
       <UserForm initial={doc} onSuccess={handleSaveSuccess} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function EditUserPage(){
+  return (
+    <ClientOnly fallback={<EditUserSkeleton />}>
+      <EditUserContent />
+    </ClientOnly>
   )
 }

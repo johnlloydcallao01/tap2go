@@ -3,8 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Layers } from '@/components/ui/IconWrapper'
 import { MerchantProductModifierGroupOverrideForm } from '../_components/MerchantProductModifierGroupOverrideForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function NewMerchantProductModifierGroupOverridePage() {
+function NewMerchantProductModifierGroupOverrideSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function NewMerchantProductModifierGroupOverrideContent() {
   const router = useRouter()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
@@ -24,5 +29,13 @@ export default function NewMerchantProductModifierGroupOverridePage() {
       </div>
       <MerchantProductModifierGroupOverrideForm onSuccess={() => router.push('/catalog/merchant-product-modifier-group-overrides')} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function NewMerchantProductModifierGroupOverridePage(){
+  return (
+    <ClientOnly fallback={<NewMerchantProductModifierGroupOverrideSkeleton />}>
+      <NewMerchantProductModifierGroupOverrideContent />
+    </ClientOnly>
   )
 }

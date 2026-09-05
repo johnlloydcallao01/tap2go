@@ -513,7 +513,7 @@ export function BusinessZoneDrawingMap({
           }}
         >
         </GoogleMap>
-        {contextMenu && createPortal(
+        {contextMenu && typeof document !== 'undefined' && createPortal(
           <div
             style={{ left: contextMenu.x, top: contextMenu.y }}
             className="fixed z-[9999] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#262626] rounded-lg shadow-xl py-1 min-w-[160px] text-xs"
@@ -528,7 +528,7 @@ export function BusinessZoneDrawingMap({
           document.body
         )}
       </div>
-      {contextMenu && createPortal(<div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e)=>{e.preventDefault(); setContextMenu(null)}} />, document.body)}
+      {contextMenu && typeof document !== 'undefined' && createPortal(<div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e)=>{e.preventDefault(); setContextMenu(null)}} />, document.body)}
       <p className="text-[11px] text-gray-500">
         <b>Polygon:</b> Click to place vertices, double-click or click first vertex to close. <b>Rectangle/Circle:</b> Click then drag. Stay in selected draw mode to add more polygons — only <b>Select/Edit</b> click switches mode. Right-click → Remove to delete whole zone.
       </p>

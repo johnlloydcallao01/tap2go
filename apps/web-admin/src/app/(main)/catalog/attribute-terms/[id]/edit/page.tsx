@@ -5,8 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Building, AlertCircle } from '@/components/ui/IconWrapper'
 import { AttributeTermForm, AttributeTermDoc } from '../../_components/AttributeTermForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditAttributeTermPage() {
+function EditAttributeTermSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditAttributeTermContent() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -71,5 +76,13 @@ export default function EditAttributeTermPage() {
       </div>
       <AttributeTermForm initial={doc} onSuccess={() => router.push(`/catalog/attribute-terms/${doc.id}`)} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function EditAttributeTermPage(){
+  return (
+    <ClientOnly fallback={<EditAttributeTermSkeleton />}>
+      <EditAttributeTermContent />
+    </ClientOnly>
   )
 }

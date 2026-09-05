@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   ShoppingBag, Receipt, Package, Truck, Store, Users, Mail, Phone, CheckCircle, XCircle, Clock,
   Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle, ShieldAlert, Building,
@@ -104,11 +105,11 @@ function deliveryBadge(s: string | null) {
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
+  try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
 function fmtDateTime(iso: string | null) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso).slice(0, 16) }
+  try { return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso).slice(0, 16) }
 }
 function fmtCurrency(n: number) {
   try { return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(n || 0) } catch { return `₱${(n || 0).toFixed(2)}` }
@@ -149,7 +150,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function OrdersPage() {
+function OrdersSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
+        {Array.from({length:5}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function OrdersPageContent() {
   const searchParams = useSearchParams()
   // query state
   const [q, setQ] = useState('')
@@ -307,6 +320,9 @@ export default function OrdersPage() {
           >
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
           </button>
+          <Link href="/orders/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
+            <Plus className="w-4 h-4" /> New Order
+          </Link>
         </div>
       </div>
 
@@ -481,7 +497,7 @@ export default function OrdersPage() {
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex items-center gap-1">
                             <Link href={`/orders/${o.id}`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262626] text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white" title="View"><Eye className="w-4 h-4" /></Link>
-                            <Link href={`/orders/${o.id}`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-blue-600 dark:hover:text-blue-400" title="Edit"><Pencil className="w-4 h-4" /></Link>
+                            <Link href={`/orders/${o.id}/edit`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-blue-600 dark:hover:text-blue-400" title="Edit"><Pencil className="w-4 h-4" /></Link>
                             <button onClick={() => { setDeleting(o); setDeleteError(null) }} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-red-600 dark:hover:text-red-400" title="Cancel"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         </td>
@@ -512,7 +528,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Delete/Cancel portal */}
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
             <div
@@ -540,5 +556,15 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function OrdersPage(){
+  // Pure CSR: ?status= seeds useState on first render (server [] vs client
+  // [status]) + dates are TZ-sensitive → identical skeleton until mounted.
+  return (
+    <ClientOnly fallback={<OrdersSkeleton />}>
+      <OrdersPageContent />
+    </ClientOnly>
   )
 }

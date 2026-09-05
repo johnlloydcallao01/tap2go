@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import { ArrowLeft, RefreshCw, AlertCircle, Users, Mail, Phone, CalendarDays, ShieldCheck } from '@/components/ui/IconWrapper'
 
 type UserDoc = {
@@ -23,7 +24,7 @@ type UserDoc = {
   completeAddress: string | null
 }
 
-function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric'}) } catch { return String(iso).slice(0,10)} }
+function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year:'numeric', month:'short', day:'numeric'}) } catch { return String(iso).slice(0,10)} }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] overflow-hidden"><div className="px-4 py-3 border-b border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#0a0a0a]"><h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3></div><div className="divide-y divide-gray-100 dark:divide-[#262626]">{children}</div></div>
@@ -32,7 +33,11 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   return <div className="flex justify-between gap-4 px-4 py-2.5 text-sm"><span className="text-xs text-gray-500 dark:text-[#a1a1aa]">{label}</span><span className={`text-gray-900 dark:text-white text-right max-w-[60%] break-words ${mono?'font-mono text-xs':''}`}>{value}</span></div>
 }
 
-export default function UserDetailPage() {
+function UserDetailSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-32 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function UserDetailContent() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const id = params.id
@@ -99,5 +104,13 @@ export default function UserDetailPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function UserDetailPage(){
+  return (
+    <ClientOnly fallback={<UserDetailSkeleton />}>
+      <UserDetailContent />
+    </ClientOnly>
   )
 }

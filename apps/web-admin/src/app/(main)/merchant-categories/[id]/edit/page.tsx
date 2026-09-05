@@ -5,8 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Tag, AlertCircle } from '@/components/ui/IconWrapper'
 import { MerchantCategoryForm } from '../../_components/MerchantCategoryForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditMerchantCategoryPage() {
+function EditMerchantCategorySkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditMerchantCategoryContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -64,5 +69,13 @@ export default function EditMerchantCategoryPage() {
       </div>
       <MerchantCategoryForm initial={doc} onSuccess={() => router.push(`/merchant-categories/${id}`)} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function EditMerchantCategoryPage(){
+  return (
+    <ClientOnly fallback={<EditMerchantCategorySkeleton />}>
+      <EditMerchantCategoryContent />
+    </ClientOnly>
   )
 }

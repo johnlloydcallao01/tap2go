@@ -4,8 +4,13 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from '@/components/ui/IconWrapper'
 import { CustomerForm } from '../_components/CustomerForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function NewCustomerPage() {
+function NewCustomerSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function NewCustomerContent() {
   const router = useRouter()
   const [success, setSuccess] = useState(false)
   return (
@@ -20,5 +25,13 @@ export default function NewCustomerPage() {
       {success && <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-300">Customer created — redirecting…</div>}
       <CustomerForm onSuccess={() => { setSuccess(true); setTimeout(()=> router.push('/customers'), 700) }} onCancel={() => router.push('/customers')} />
     </div>
+  )
+}
+
+export default function NewCustomerPage(){
+  return (
+    <ClientOnly fallback={<NewCustomerSkeleton />}>
+      <NewCustomerContent />
+    </ClientOnly>
   )
 }

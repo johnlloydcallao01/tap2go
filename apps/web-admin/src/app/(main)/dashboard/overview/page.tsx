@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { DashboardData } from '@/lib/dashboard-types';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   MetricCard,
   RevenueChart,
@@ -119,7 +120,7 @@ function DashboardSkeleton() {
   );
 }
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -211,5 +212,15 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage(){
+  // Pure CSR: charts (echarts canvas), toLocaleString totals, and order dates
+  // only render post-mount → identical skeleton on server + hydration → no #441.
+  return (
+    <ClientOnly fallback={<DashboardSkeleton />}>
+      <DashboardPageContent />
+    </ClientOnly>
   );
 }

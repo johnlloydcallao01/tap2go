@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Store, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Building, Clock, CheckCircle, Eye, Pencil, Trash2, MapPin, Phone, Mail, Tag
@@ -12,7 +13,7 @@ type MerchantDoc = {
   id: number
   outletName: string
   outletCode: string
-  vendor: { id: number; businessName: string; verificationStatus: string; businessType: string; isActive: boolean } | null
+  vendor: { id: number; businessName: string; verificationStatus: string; businessType: string; isActive: boolean; logo: { id: number; url: string | null } | null } | null
   contactInfo: { phone?: string; email?: string; managerName?: string; managerPhone?: string } | null
   isActive: boolean
   isAcceptingOrders: boolean
@@ -54,7 +55,10 @@ function operationalBadge(s: string){
   return 'bg-gray-100 text-gray-700 border-gray-200'
 }
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'M' }
-function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
+// Deterministic timezone — server UTC vs client Asia/Manila previously
+// produced different day strings during SSR → React #441. Wrapped in
+// ClientOnly below so this only runs on the client, timeZone pins it.
+function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
 
 function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: string; sub?: string; icon: React.ReactNode; iconBg: string }){
   return (
@@ -84,7 +88,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function MerchantsPage(){
+function MerchantsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function MerchantsPageContent(){
   const [q,setQ]=useState('')
   const [debouncedQ,setDebouncedQ]=useState('')
   const [operationalFilter,setOperationalFilter]=useState<string[]>([])
@@ -101,6 +117,7 @@ export default function MerchantsPage(){
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState<string|null>(null)
   const [deleting,setDeleting]=useState<MerchantDoc|null>(null)
+  const requestController=useRef<AbortController|null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount=useMemo(()=> operationalFilter.length + verificationFilter.length + (isActiveFilter!==null?1:0) + (isAcceptingFilter!==null?1:0) + (debouncedQ?1:0),[operationalFilter,verificationFilter,isActiveFilter,isAcceptingFilter,debouncedQ])
@@ -117,20 +134,22 @@ export default function MerchantsPage(){
   },[page,limit,sort,debouncedQ,operationalFilter,isActiveFilter,isAcceptingFilter,verificationFilter])
 
   const load=useCallback(async (opts?:{hard?:boolean})=>{
+    requestController.current?.abort()
+    const controller=new AbortController()
+    requestController.current=controller
     if(opts?.hard){ setPagination(null); setStats(null); setDocs([]) }
     setLoading(true); setError(null)
     try{
       const qs=buildQuery()
       const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/merchants?${bust}`,{cache:'no-store'})
+      const res=await fetch(`/api/merchants?${bust}`,{cache:'no-store',signal:controller.signal})
       if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
       const j=await res.json()
       setDocs(j.docs||[]); setPagination(j.pagination||null); setStats(j.stats||null)
-    }catch(e:any){ setError(e.message||'Failed') } finally{ setLoading(false) }
+    }catch(e:any){ if(e?.name!=='AbortError' && !controller.signal.aborted) setError(e.message||'Failed') } finally{ if(!controller.signal.aborted) setLoading(false) }
   },[buildQuery])
 
   useEffect(()=>{void load()},[load])
-  useEffect(()=>{setPage(1)},[debouncedQ,operationalFilter,isActiveFilter,isAcceptingFilter,verificationFilter,sort])
   useEffect(()=>{
     const isOpen=!!deleting
     if(isOpen){ const prev=document.body.style.overflow; document.body.style.overflow='hidden'; return()=>{document.body.style.overflow=prev} }
@@ -186,12 +205,12 @@ export default function MerchantsPage(){
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search outlet, code, vendor, manager, email…" className="w-full pl-9 pr-9 py-2.5 text-sm bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#262626] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] text-gray-900 dark:text-white placeholder:text-gray-400" />
+            <input value={q} onChange={(e)=>{setQ(e.target.value); setPage(1)}} placeholder="Search outlet, code, vendor, manager, email…" className="w-full pl-9 pr-9 py-2.5 text-sm bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#262626] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] text-gray-900 dark:text-white placeholder:text-gray-400" />
             {q && <button onClick={()=>setQ('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-[#262626]"><X className="w-4 h-4 text-gray-400" /></button>}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#0a0a0a] rounded-full border border-gray-200 dark:border-[#262626]">
-              <select value={sort} onChange={(e)=>setSort(e.target.value)} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#333] text-gray-700 dark:text-white">
+              <select value={sort} onChange={(e)=>{setSort(e.target.value); setPage(1)}} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#333] text-gray-700 dark:text-white">
                 <option value="-createdAt">Newest</option>
                 <option value="createdAt">Oldest</option>
                 <option value="outletName">Name A–Z</option>
@@ -208,8 +227,8 @@ export default function MerchantsPage(){
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-[#262626] space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <FilterPills label="Operational Status" options={OPERATIONAL_OPTS} value={operationalFilter} onToggle={(v)=> setOperationalFilter(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v])} />
-              <FilterPills label="Vendor Verification" options={VERIFICATION_OPTS} value={verificationFilter} onToggle={(v)=> setVerificationFilter(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v])} />
+              <FilterPills label="Operational Status" options={OPERATIONAL_OPTS} value={operationalFilter} onToggle={(v)=>{setPage(1); setOperationalFilter(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v])}} />
+              <FilterPills label="Vendor Verification" options={VERIFICATION_OPTS} value={verificationFilter} onToggle={(v)=>{setPage(1); setVerificationFilter(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v])}} />
               <div>
                 <p className="text-xs font-semibold text-gray-700 dark:text-[#a1a1aa] mb-2">Toggles</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -220,11 +239,12 @@ export default function MerchantsPage(){
                     const isActiveKey=key==='isActive'
                     const active=isActiveKey ? isActiveFilter===true : isAcceptingFilter===true
                     return <button key={key} onClick={()=>{
+                      setPage(1)
                       if(isActiveKey) setIsActiveFilter(active?null:true)
                       else setIsAcceptingFilter(active?null:true)
                     }} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${active?'bg-[#eba236] text-white border-[#eba236]':'bg-white dark:bg-[#0a0a0a] text-gray-700 dark:text-[#a1a1aa] border-gray-200 dark:border-[#262626]'}`}>{label}</button>
                   })}
-                  <button onClick={()=>{setIsActiveFilter(v=> v===false?null:false)}} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${isActiveFilter===false?'bg-[#eba236] text-white border-[#eba236]':'bg-white dark:bg-[#0a0a0a] text-gray-700 dark:text-[#a1a1aa] border-gray-200 dark:border-[#262626]'}`}>Inactive only</button>
+                  <button onClick={()=>{setPage(1); setIsActiveFilter(v=> v===false?null:false)}} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${isActiveFilter===false?'bg-[#eba236] text-white border-[#eba236]':'bg-white dark:bg-[#0a0a0a] text-gray-700 dark:text-[#a1a1aa] border-gray-200 dark:border-[#262626]'}`}>Inactive only</button>
                 </div>
               </div>
             </div>
@@ -270,7 +290,7 @@ export default function MerchantsPage(){
                     <tr key={m.id} className="hover:bg-gray-50 dark:hover:bg-[#262626] dark:hover:bg-[#0a0a0a]/50 transition">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3 min-w-[220px]">
-                          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center text-xs font-bold shrink-0">{m.media?.thumbnail?.url ? <img src={m.media.thumbnail.url} alt={m.outletName} className="h-9 w-9 rounded-xl object-cover" /> : initials(m.outletName)}</div>
+                          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">{m.vendor?.logo?.url ? <img src={m.vendor.logo.url} alt={m.vendor.businessName || m.outletName} className="h-9 w-9 rounded-xl object-cover" /> : initials(m.vendor?.businessName || m.outletName)}</div>
                           <div className="min-w-0">
                             <div className="font-semibold text-gray-900 dark:text-white truncate max-w-[180px]">{m.outletName}</div>
                             <div className="text-xs text-gray-500 dark:text-[#a1a1aa] font-mono truncate max-w-[180px]">{m.outletCode} • {fmtDate(m.createdAt)}</div>
@@ -328,7 +348,7 @@ export default function MerchantsPage(){
         )}
       </div>
 
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
             <div
@@ -347,5 +367,15 @@ export default function MerchantsPage(){
           document.body
         )}
     </div>
+  )
+}
+
+export default function MerchantsPage(){
+  // Pure CSR: server + first client render emit identical skeleton,
+  // real table/dates/portal only run after mount → no hydration mismatch (#441).
+  return (
+    <ClientOnly fallback={<MerchantsSkeleton />}>
+      <MerchantsPageContent />
+    </ClientOnly>
   )
 }

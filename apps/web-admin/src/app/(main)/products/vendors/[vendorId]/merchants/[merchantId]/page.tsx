@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import { Package, ArrowLeft, Search, X, Plus, RefreshCw, AlertCircle, Eye, Pencil, Trash2, Store, Tag, DollarSign } from '@/components/ui/IconWrapper'
 
 type MerchantProduct = {
@@ -15,9 +16,13 @@ type MerchantProduct = {
   is_available: boolean
 }
 
-function fmtPHP(n: number | null){ if(n==null) return '—'; return `₱${Number(n).toLocaleString(undefined,{minimumFractionDigits:2})}` }
+function fmtPHP(n: number | null){ if(n==null) return '—'; return `₱${Number(n).toLocaleString('en-PH',{minimumFractionDigits:2})}` }
 
-export default function MerchantProductsListPage(){
+function MerchantProductsSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function MerchantProductsListPageContent(){
   const params=useParams()
   const router=useRouter()
   const vendorId=params.vendorId as string
@@ -253,5 +258,13 @@ export default function MerchantProductsListPage(){
         </div>
       )}
     </div>
+  )
+}
+
+export default function MerchantProductsListPage(){
+  return (
+    <ClientOnly fallback={<MerchantProductsSkeleton />}>
+      <MerchantProductsListPageContent />
+    </ClientOnly>
   )
 }

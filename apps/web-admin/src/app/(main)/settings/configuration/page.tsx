@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Settings,
   Shield,
@@ -85,7 +86,19 @@ function Row({ label, value, mono, icon }: { label: string; value: React.ReactNo
 const inputCls = 'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236]'
 const labelCls = 'text-xs font-medium text-gray-700 dark:text-[#a1a1aa]'
 
-export default function ConfigurationPage() {
+function ConfigurationSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function ConfigurationPageContent(){
   const searchParams = useSearchParams()
   const router = useRouter()
   const initialTab = (searchParams.get('tab') as Tab) || 'general'
@@ -240,7 +253,7 @@ export default function ConfigurationPage() {
           <KpiCard title="Maintenance" value={data.systemSettings.maintenanceMode ? 'Enabled' : 'Disabled'} sub={data.systemSettings.maintenanceMode ? 'Redirect for non-admin' : 'Platform live'} icon={<Shield className="w-5 h-5 text-white" />} iconBg={data.systemSettings.maintenanceMode ? 'bg-amber-500' : 'bg-emerald-500'} />
           <KpiCard title="Delivery Provider" value={data.systemSettings.deliveryProvider === 'lalamove' ? 'Lalamove' : 'Native'} sub={`Market ${data.systemSettings.lalamove.market} • ${data.runtimeEnv.lalamove.baseUrl.includes('sandbox') ? 'Sandbox' : 'Live'}`} icon={<Truck className="w-5 h-5 text-white" />} iconBg="bg-sky-600" />
           <KpiCard title="Payment Gateway" value={data.runtimeEnv.paymongo.sandbox ? 'PayMongo Sandbox' : 'PayMongo Live'} sub={`${data.runtimeEnv.paymongo.hasSecretKey ? 'Secrets set ✓' : 'Secrets missing'} • ${data.runtimeEnv.paymongo.hasWebhookSecret ? 'Webhook ✓' : 'Webhook ✕'}`} icon={<CreditCard className="w-5 h-5 text-white" />} iconBg={data.runtimeEnv.paymongo.hasSecretKey ? 'bg-emerald-500' : 'bg-red-500'} />
-          <KpiCard title="System Settings" value={data.systemSettings.hasSystemSettings ? 'Persisted' : 'Defaults'} sub={data.systemSettings.updatedAt ? `Updated ${new Date(data.systemSettings.updatedAt).toLocaleDateString()}` : 'No row yet'} icon={<Activity className="w-5 h-5 text-white" />} iconBg="bg-[#eba236]" />
+          <KpiCard title="System Settings" value={data.systemSettings.hasSystemSettings ? 'Persisted' : 'Defaults'} sub={data.systemSettings.updatedAt ? `Updated ${fmtDate(data.systemSettings.updatedAt)}` : 'No row yet'} icon={<Activity className="w-5 h-5 text-white" />} iconBg="bg-[#eba236]" />
         </div>
       ) : loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
@@ -560,7 +573,7 @@ export default function ConfigurationPage() {
       )}
 
       {/* Toast */}
-      {toast &&
+      {toast && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed top-4 right-4 z-[110] max-w-sm animate-in slide-in-from-top-2 fade-in">
             <div className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur text-sm font-medium ${toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : toast.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200' : 'bg-sky-50 dark:bg-sky-900/30 border-sky-200 text-sky-800'}`}>
@@ -576,10 +589,20 @@ export default function ConfigurationPage() {
   )
 }
 
+export default function ConfigurationPage(){
+  // Pure CSR: ?tab= seeds useState on first render (server null vs client real)
+  // + TZ-sensitive dates → identical skeleton until mounted.
+  return (
+    <ClientOnly fallback={<ConfigurationSkeleton />}>
+      <ConfigurationPageContent />
+    </ClientOnly>
+  )
+}
+
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
   try {
-    return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch {
     return String(iso).slice(0, 19).replace('T', ' ')
   }

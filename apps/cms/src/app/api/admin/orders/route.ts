@@ -244,7 +244,7 @@ export async function GET(request: NextRequest) {
     const hasFilters = and.length > 0 || Object.keys(where).length > 0
     const queryWhere = hasFilters ? finalWhere : undefined
 
-    const [paginated, statsAll] = await Promise.all([
+    const [paginated, statsAll, paidTxns] = await Promise.all([
       payload.find({
         collection: 'orders',
         where: queryWhere as any,
@@ -256,6 +256,16 @@ export async function GET(request: NextRequest) {
       }),
       payload.find({
         collection: 'orders',
+        limit: 2000,
+        depth: 0,
+        overrideAccess: true,
+        pagination: false,
+      } as any),
+      // Revenue is verified-transaction based (same principle as analytics):
+      // only paid transactions count, never raw order totals.
+      payload.find({
+        collection: 'transactions',
+        where: { status: { equals: 'paid' } },
         limit: 2000,
         depth: 0,
         overrideAccess: true,
@@ -289,9 +299,10 @@ export async function GET(request: NextRequest) {
       const ds = String(o.delivery_status || 'none')
       if (deliveryStatusBreakdown[ds] !== undefined) deliveryStatusBreakdown[ds]++
       else deliveryStatusBreakdown[ds] = (deliveryStatusBreakdown[ds] || 0) + 1
-
-      totalRevenue += num(o.total, 0)
     }
+    // Revenue counts verified (paid) transactions only — same as dashboard analytics.
+    const paidDocs = ((paidTxns as any).docs as Record<string, any>[]) ?? []
+    for (const t of paidDocs) totalRevenue += num(t.amount, 0)
     const avgOrderValue = totalAll > 0 ? totalRevenue / totalAll : 0
     const filteredTotal = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
 
@@ -319,5 +330,75 @@ export async function GET(request: NextRequest) {
   } catch (err: any) {
     console.error('[admin/orders] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load orders' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const payload = await getPayload({ config: configPromise })
+    const admin = await authenticateAdmin(payload, request)
+    if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
+
+    let body: Record<string, any>
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const customer = body.customer ?? body.customer_id ?? null
+    const merchant = body.merchant ?? body.merchant_id ?? null
+    if (customer == null || customer === '') return NextResponse.json({ error: 'customer is required' }, { status: 400 })
+    if (merchant == null || merchant === '') return NextResponse.json({ error: 'merchant is required' }, { status: 400 })
+
+    const status = str(body.status, 'pending').toLowerCase()
+    if (!STATUS_SET.has(status)) return NextResponse.json({ error: `Invalid status: ${body.status}` }, { status: 400 })
+
+    const fulfillmentType = str(body.fulfillment_type || body.fulfillmentType, '')
+    if (!FULFILLMENT_SET.has(fulfillmentType))
+      return NextResponse.json({ error: 'fulfillment_type is required (delivery|pickup)' }, { status: 400 })
+
+    const deliveryStatus = str(body.delivery_status, 'none').toLowerCase()
+    if (!DELIVERY_STATUS_SET.has(deliveryStatus))
+      return NextResponse.json({ error: `Invalid delivery_status: ${body.delivery_status}` }, { status: 400 })
+
+    const data: Record<string, any> = {
+      customer: typeof customer === 'object' ? customer : Number(customer),
+      merchant: typeof merchant === 'object' ? merchant : Number(merchant),
+      status,
+      fulfillment_type: fulfillmentType,
+      subtotal: num(body.subtotal, 0),
+      delivery_fee: num(body.delivery_fee, 0),
+      platform_fee: num(body.platform_fee, 0),
+      priority_fee: num(body.priority_fee, 0),
+      discount_total: num(body.discount_total, 0),
+      total: num(body.total, 0),
+      coupon_code: optionalString(body.coupon_code),
+      free_delivery_applied: !!body.free_delivery_applied,
+      notes: optionalString(body.notes),
+      placed_at: optionalString(body.placed_at) || new Date().toISOString(),
+      lalamove_order_id: optionalString(body.lalamove_order_id),
+      delivery_service_type: optionalString(body.delivery_service_type) || 'MOTORCYCLE',
+      delivery_status: deliveryStatus,
+      delivery_tracking_link: optionalString(body.delivery_tracking_link),
+    }
+    if (Number.isNaN(data.customer) || Number.isNaN(data.merchant))
+      return NextResponse.json({ error: 'customer and merchant must be valid IDs' }, { status: 400 })
+
+    const created = await payload.create({
+      collection: 'orders',
+      data: data as any,
+      depth: 2,
+      overrideAccess: true,
+    })
+    return NextResponse.json(
+      { success: true, message: 'Order created successfully', doc: sanitizeOrderDoc(created as Record<string, any>) },
+      { status: 201 },
+    )
+  } catch (err: any) {
+    console.error('[admin/orders] POST error:', err)
+    const message = err?.message || 'Failed to create order'
+    // Collection beforeValidate invariant (total mismatch) surfaces here
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }

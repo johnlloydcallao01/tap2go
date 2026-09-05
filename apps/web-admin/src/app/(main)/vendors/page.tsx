@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Store, Star, ShieldCheck, ShieldAlert, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2,
@@ -74,7 +75,7 @@ function businessLabel(v: string) {
 }
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
+  try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
 function initials(name: string) { return name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || 'V' }
 
@@ -109,7 +110,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function VendorsPage() {
+function VendorsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function VendorsPageContent() {
   // query state
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
@@ -431,7 +444,7 @@ export default function VendorsPage() {
       </div>
 
       {/* Delete confirm — portal to body for true viewport centering (fixes bottom-appearing bug) */}
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
             <div
@@ -451,6 +464,14 @@ export default function VendorsPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function VendorsPage(){
+  return (
+    <ClientOnly fallback={<VendorsSkeleton />}>
+      <VendorsPageContent />
+    </ClientOnly>
   )
 }
 

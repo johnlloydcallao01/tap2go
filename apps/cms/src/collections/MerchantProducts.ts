@@ -90,6 +90,8 @@ export const MerchantProducts: CollectionConfig = {
     ],
     afterRead: [
       async ({ doc, req }) => {
+        if (req.context?.skipEffectiveModifierPreview) return doc
+
         const productId = typeof doc?.product_id === 'object' ? doc.product_id?.id : doc?.product_id
         if (!productId || !doc?.id) {
           return doc

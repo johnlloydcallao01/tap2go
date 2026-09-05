@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Plus, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
   FileText, Eye, Pencil, Trash2, CheckCircle, Calendar,
@@ -44,7 +45,7 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
+  try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
 
 function statusBadge(status: string) {
@@ -53,7 +54,19 @@ function statusBadge(status: string) {
   return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-[#262626] dark:text-[#a1a1aa] dark:border-[#333]'
 }
 
-export default function PostsPage() {
+function PostsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 animate-pulse">
+        {Array.from({length:3}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function PostsPageContent(){
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string[]>([])
@@ -317,5 +330,15 @@ export default function PostsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PostsPage(){
+  // Pure CSR: direct-CMS fetch + TZ-sensitive dates + Lexical-free list —
+  // identical skeleton on server + hydration, real UI post-mount.
+  return (
+    <ClientOnly fallback={<PostsSkeleton />}>
+      <PostsPageContent />
+    </ClientOnly>
   )
 }

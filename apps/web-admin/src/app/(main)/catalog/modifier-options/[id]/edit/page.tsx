@@ -5,8 +5,13 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Coins, AlertCircle, CheckCircle } from '@/components/ui/IconWrapper'
 import { ModifierOptionForm } from '../../_components/ModifierOptionForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditModifierOptionPage() {
+function EditModifierOptionSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditModifierOptionContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -87,5 +92,13 @@ export default function EditModifierOptionPage() {
       </div>
       <ModifierOptionForm initial={doc} onSuccess={handleSaveSuccess} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function EditModifierOptionPage(){
+  return (
+    <ClientOnly fallback={<EditModifierOptionSkeleton />}>
+      <EditModifierOptionContent />
+    </ClientOnly>
   )
 }

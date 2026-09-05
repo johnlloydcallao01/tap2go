@@ -43,6 +43,7 @@ export function formatCMSDate(dateString: string): string {
   
   try {
     return new Date(dateString).toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -57,6 +58,7 @@ export function formatCMSDateTime(dateString: string): string {
   
   try {
     return new Date(dateString).toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
       year: 'numeric',
       month: 'short',
       day: 'numeric',

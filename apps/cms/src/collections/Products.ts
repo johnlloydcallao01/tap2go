@@ -13,8 +13,11 @@ export const Products: CollectionConfig = {
     read: ({ req: { user } }) => {
       // If user exists, they've been authenticated (either via API key or login)
       if (user) {
-        // Allow service accounts (for website display) and admins
-        if (user.role === 'service' || user.role === 'admin') {
+        // Allow service accounts (for website display), admins, and vendors.
+        // Vendors need read access so the merchant portal (vendor JWT) can
+        // populate product_id.media.primaryImage for merchant-products search
+        // (see apps/web-merchant search routes, parity with apps/web-admin).
+        if (user.role === 'service' || user.role === 'admin' || user.role === 'vendor') {
           return true
         }
       }

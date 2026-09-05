@@ -49,7 +49,7 @@ export function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
                   </span>
                 </td>
                 <td className="px-6 py-3 text-sm text-gray-500 dark:text-[#a1a1aa]">
-                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                 </td>
               </tr>
             ))}

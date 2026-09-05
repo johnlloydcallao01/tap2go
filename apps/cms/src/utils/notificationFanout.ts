@@ -23,6 +23,8 @@ type NotificationFanoutArgs = {
   priority?: 'info' | 'warning' | 'critical'
 }
 
+type NotificationFanoutInput = Omit<NotificationFanoutArgs, 'payload' | 'userId'>
+
 const ORDER_STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   accepted: 'Accepted',
@@ -138,4 +140,23 @@ export async function createNotificationFanout({
   })
 
   return { notificationEvent, userNotification }
+}
+
+export async function createAdminNotificationFanout(
+  payload: Payload,
+  args: NotificationFanoutInput,
+) {
+  const admins = await payload.find({
+    collection: 'users',
+    where: { role: { equals: 'admin' } },
+    limit: 1000,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  await Promise.all(admins.docs.map((admin) => createNotificationFanout({
+    userId: admin.id,
+    ...args,
+    payload,
+  })))
 }

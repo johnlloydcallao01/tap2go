@@ -2,13 +2,25 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Globe, MapPin, Store, Search, X, RefreshCw, Eye, Pencil, CheckCircle
 } from '@/components/ui/IconWrapper'
 import { BusinessZoneOverviewMap } from '../_components/ZoneMaps'
 import type { BusinessZoneDoc, MerchantZoneDoc, Stats } from '../_components/types'
+import { initials } from '../_components/types'
 
-export default function MerchantZonesPage(){
+function MerchantZonesSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="h-[420px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] animate-pulse" />
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function MerchantZonesPageContent(){
   const [merchantZones,setMerchantZones]=useState<MerchantZoneDoc[]>([])
   const [zones,setZones]=useState<BusinessZoneDoc[]>([])
   const [stats,setStats]=useState<Stats|null>(null)
@@ -163,9 +175,14 @@ export default function MerchantZonesPage(){
                 {filteredMerchantZones.slice(0,200).map(m=>(
                   <tr key={m.id} className="hover:bg-gray-50 dark:hover:bg-[#0a0a0a]/50">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900 dark:text-white truncate max-w-[180px]">{m.outletName}</div>
-                      <div className="text-xs text-gray-500 font-mono">{m.outletCode} • {m.vendor?.businessName||'—'}</div>
-                      {m.merchant_latitude && m.merchant_longitude && <div className="text-[11px] text-gray-400 flex items-center gap-1"><MapPin className="w-3 h-3"/>{Number(m.merchant_latitude).toFixed(4)}, {Number(m.merchant_longitude).toFixed(4)}</div>}
+                      <div className="flex items-center gap-3 min-w-[220px]">
+                        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">{m.vendor?.logo?.url ? <img src={m.vendor.logo.url} alt={m.vendor.businessName || m.outletName} className="h-9 w-9 rounded-xl object-cover" /> : initials(m.vendor?.businessName || m.outletName)}</div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white truncate max-w-[180px]">{m.outletName}</div>
+                          <div className="text-xs text-gray-500 font-mono">{m.outletCode} • {m.vendor?.businessName||'—'}</div>
+                          {m.merchant_latitude && m.merchant_longitude && <div className="text-[11px] text-gray-400 flex items-center gap-1"><MapPin className="w-3 h-3"/>{Number(m.merchant_latitude).toFixed(4)}, {Number(m.merchant_longitude).toFixed(4)}</div>}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {m.businessZone ? <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border ${m.businessZone.isActive?'bg-emerald-50 text-emerald-700 border-emerald-200':'bg-red-50 text-red-700 border-red-200'}`}>{m.businessZone.name}</span> : <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">Unassigned</span>}
@@ -191,5 +208,14 @@ export default function MerchantZonesPage(){
         )}
       </div>
     </div>
+  )
+}
+
+export default function MerchantZonesPage(){
+  // Pure CSR: Google Maps is client-only → server + hydration emit identical skeleton.
+  return (
+    <ClientOnly fallback={<MerchantZonesSkeleton />}>
+      <MerchantZonesPageContent />
+    </ClientOnly>
   )
 }

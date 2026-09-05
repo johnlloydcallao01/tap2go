@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
+import { createAdminNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -48,6 +48,47 @@ export const Orders: CollectionConfig = {
     afterChange: [
       async ({ doc, previousDoc, operation, req }) => {
         try {
+          const orderId = resolveId(doc?.id) || String(doc?.id ?? '')
+          const merchantId = resolveId(doc?.merchant)
+          const status = doc?.status ?? null
+          const previousStatus = previousDoc?.status ?? null
+
+          if (operation === 'create') {
+            await createAdminNotificationFanout(req.payload, {
+              typeKey: 'order.created',
+              domain: 'order',
+              priority: 'info',
+              title: 'New order received',
+              body: `Order #${orderId} has been placed by a customer.`,
+              sourceEntityType: 'order',
+              sourceEntityId: orderId,
+              metadata: {
+                orderId,
+                status,
+                merchantId,
+                customerId: resolveId(doc?.customer),
+              },
+            })
+          } else if (operation === 'update' && previousStatus && status && previousStatus !== status) {
+            const label = getOrderStatusLabel(status, doc?.delivery_status)
+            await createAdminNotificationFanout(req.payload, {
+              typeKey: 'order.status_changed',
+              domain: 'order',
+              priority: status === 'cancelled' ? 'warning' : 'info',
+              title: `Order ${label}`,
+              body: `Order #${orderId} is now ${label.toLowerCase()}.`,
+              sourceEntityType: 'order',
+              sourceEntityId: orderId,
+              metadata: {
+                orderId,
+                status,
+                previousStatus,
+                merchantId,
+                customerId: resolveId(doc?.customer),
+              },
+            })
+          }
+
           const customerId = resolveId(doc?.customer)
           if (!customerId) return doc
 
@@ -59,10 +100,6 @@ export const Orders: CollectionConfig = {
           })
           const userId = resolveId(customer?.user)
           if (!userId) return doc
-
-          const orderId = resolveId(doc?.id) || String(doc?.id ?? '')
-          const merchantId = resolveId(doc?.merchant)
-          const status = doc?.status ?? null
 
           if (operation === 'create') {
             await createNotificationFanout({
@@ -82,7 +119,6 @@ export const Orders: CollectionConfig = {
               },
             })
           } else if (operation === 'update') {
-            const previousStatus = previousDoc?.status ?? null
             if (previousStatus && status && previousStatus !== status) {
               const label = getOrderStatusLabel(status, doc?.delivery_status)
               await createNotificationFanout({

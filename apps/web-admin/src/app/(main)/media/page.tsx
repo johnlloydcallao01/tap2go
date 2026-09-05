@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   Upload,
   Search,
@@ -71,7 +71,26 @@ function formatFileSize(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-export default function MediaLibraryPage() {
+function MediaLibrarySkeleton() {
+  return (
+    <div className="space-y-6 py-5 px-2.5 animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="h-8 w-8 rounded-lg bg-gray-100 dark:bg-[#262626]" />
+        <div className="space-y-2">
+          <div className="h-6 w-44 bg-gray-100 dark:bg-[#262626] rounded" />
+          <div className="h-4 w-72 bg-gray-100 dark:bg-[#262626] rounded" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div key={i} className="h-52 bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MediaLibraryPageContent() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -860,5 +879,15 @@ export default function MediaLibraryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MediaLibraryPage() {
+  // Pure CSR: auth-gated fetch via localStorage JWT + TZ-sensitive dates +
+  // XHR upload all require the browser → identical skeleton until mounted.
+  return (
+    <ClientOnly fallback={<MediaLibrarySkeleton />}>
+      <MediaLibraryPageContent />
+    </ClientOnly>
   );
 }

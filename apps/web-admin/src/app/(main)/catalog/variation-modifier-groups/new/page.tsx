@@ -3,8 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Layers } from '@/components/ui/IconWrapper'
 import { VariationModifierGroupForm } from '../_components/VariationModifierGroupForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function NewVariationModifierGroupPage() {
+function NewVariationModifierGroupSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function NewVariationModifierGroupContent() {
   const router = useRouter()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
@@ -24,5 +29,13 @@ export default function NewVariationModifierGroupPage() {
       </div>
       <VariationModifierGroupForm onSuccess={() => router.push('/catalog/variation-modifier-groups')} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function NewVariationModifierGroupPage(){
+  return (
+    <ClientOnly fallback={<NewVariationModifierGroupSkeleton />}>
+      <NewVariationModifierGroupContent />
+    </ClientOnly>
   )
 }

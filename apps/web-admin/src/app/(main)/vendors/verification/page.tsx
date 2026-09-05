@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
   ShieldCheck, ShieldAlert, Clock, CheckCircle, Eye, Pencil, FileText, Image as ImageIcon, CalendarDays, Ban, XCircle
@@ -54,7 +55,7 @@ function verificationBadge(s: string) {
   return 'bg-gray-100 text-gray-700 border-gray-200'
 }
 function businessLabel(v: string) { return BUSINESS_OPTS.find(o=>o.value===v)?.label || v.replace(/_/g,' ') }
-function fmtDate(iso: string | null) { if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
+function fmtDate(iso: string | null) { if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'V' }
 
 function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: string; sub?: string; icon: React.ReactNode; iconBg: string }) {
@@ -72,7 +73,16 @@ function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: st
   )
 }
 
-export default function VerificationPage() {
+function VerificationSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function VerificationPageContent() {
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [verificationFilter, setVerificationFilter] = useState<string[]>(['pending'])
@@ -294,7 +304,7 @@ export default function VerificationPage() {
         )}
       </div>
 
-      {confirm &&
+      {confirm && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setConfirm(null)}>
             <div
@@ -318,5 +328,13 @@ export default function VerificationPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function VerificationPage(){
+  return (
+    <ClientOnly fallback={<VerificationSkeleton />}>
+      <VerificationPageContent />
+    </ClientOnly>
   )
 }

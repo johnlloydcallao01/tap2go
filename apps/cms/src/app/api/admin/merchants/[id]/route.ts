@@ -21,7 +21,7 @@ function sanitizeMediaRef(v: unknown): { id:number; url:string|null } | null {
 function sanitizeVendorBrief(v: unknown){
   if(!v||typeof v!=='object') return null
   const o=v as Record<string, any>; const id=Number(o.id); if(Number.isNaN(id)) return null
-  return { id, businessName: str(o.businessName,''), verificationStatus: str(o.verificationStatus,'pending'), businessType: str(o.businessType,'other'), isActive: !!o.isActive }
+  return { id, businessName: str(o.businessName,''), verificationStatus: str(o.verificationStatus,'pending'), businessType: str(o.businessType,'other'), isActive: !!o.isActive, logo: sanitizeMediaRef(o.logo) }
 }
 function sanitizeMerchantDoc(raw: Record<string, any>, merchantCountForVendor?: number){
   const vendorVal=raw.vendor; const vendor=sanitizeVendorBrief(vendorVal)

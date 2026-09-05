@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Users, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Heart, ShieldCheck, ShieldAlert, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2,
@@ -60,7 +61,7 @@ function relationshipBadge(rel: string) {
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
+  try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
 function initials(first: string, last: string, profilePicture?: NonNullable<EmergencyContactDoc['user']>['profilePicture']) {
   if (profilePicture?.url) return <img src={profilePicture.url} alt={`${first} ${last}`} className="h-9 w-9 rounded-xl object-cover" />
@@ -235,6 +236,7 @@ function EmergencyContactFormModal({
   const inputCls = 'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236]'
   const labelCls = 'text-xs font-medium text-gray-700 dark:text-[#a1a1aa]'
 
+  if (typeof document === 'undefined') return null
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -345,7 +347,19 @@ function EmergencyContactFormModal({
   )
 }
 
-export default function EmergencyContactsPage() {
+function EmergencyContactsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function EmergencyContactsPageContent() {
   // query state
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
@@ -722,7 +736,7 @@ export default function EmergencyContactsPage() {
       />
 
       {/* Delete confirm */}
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => !isDeleting && setDeleting(null)}>
             <div
@@ -743,5 +757,13 @@ export default function EmergencyContactsPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function EmergencyContactsPage(){
+  return (
+    <ClientOnly fallback={<EmergencyContactsSkeleton />}>
+      <EmergencyContactsPageContent />
+    </ClientOnly>
   )
 }

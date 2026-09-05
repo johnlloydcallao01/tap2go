@@ -12,6 +12,15 @@ import { authenticateAdmin } from '@/utils/mediaLibrary'
 
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
 
+function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
+  if (!v || typeof v !== 'object') return null
+  const s = v as Record<string, unknown>
+  const id = Number(s.id)
+  if (Number.isNaN(id)) return null
+  const url = typeof s.cloudinaryURL === 'string' ? s.cloudinaryURL : typeof s.url === 'string' ? s.url : null
+  return { id, url }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const payload = await getPayload({ config: configPromise })
@@ -74,8 +83,12 @@ export async function GET(request: NextRequest) {
         id: m.id,
         outletName: str(m.outletName),
         outletCode: str(m.outletCode),
-        vendor: vendor ? { id: vendor.id, businessName: str(vendor.businessName) } : null,
+        vendor: vendor ? { id: vendor.id, businessName: str(vendor.businessName), logo: sanitizeMediaRef(vendor.logo) } : null,
         vendorId: vendor ? vendor.id : (typeof m.vendor === 'number' ? m.vendor : null),
+        media: {
+          thumbnail: sanitizeMediaRef((m.media as any)?.thumbnail),
+          storeFrontImage: sanitizeMediaRef((m.media as any)?.storeFrontImage),
+        },
         businessZone: zoneObj ? { id: zoneObj.id, name: str(zoneObj.name), isActive: !!zoneObj.isActive } : (zoneVal ? { id: Number(zoneVal), name: String(zoneVal) } : null),
         businessZoneId: zoneObj ? zoneObj.id : (zoneVal ? Number(zoneVal) : null),
         isActive: !!m.isActive,

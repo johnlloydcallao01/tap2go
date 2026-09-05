@@ -3,8 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Coins } from '@/components/ui/IconWrapper'
 import { MerchantProductModifierOptionOverrideForm } from '../_components/MerchantProductModifierOptionOverrideForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function NewMerchantProductModifierOptionOverridePage() {
+function NewMerchantProductModifierOptionOverrideSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function NewMerchantProductModifierOptionOverrideContent() {
   const router = useRouter()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
@@ -24,5 +29,13 @@ export default function NewMerchantProductModifierOptionOverridePage() {
       </div>
       <MerchantProductModifierOptionOverrideForm onSuccess={() => router.push('/catalog/merchant-product-modifier-option-overrides')} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function NewMerchantProductModifierOptionOverridePage(){
+  return (
+    <ClientOnly fallback={<NewMerchantProductModifierOptionOverrideSkeleton />}>
+      <NewMerchantProductModifierOptionOverrideContent />
+    </ClientOnly>
   )
 }

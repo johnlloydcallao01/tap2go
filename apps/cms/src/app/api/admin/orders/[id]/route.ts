@@ -143,6 +143,7 @@ const DELIVERY_STATUS_SET = new Set([
   'canceled',
   'expired',
 ])
+const FULFILLMENT_SET = new Set(['delivery', 'pickup'])
 
 async function fetchAggregates(payload: any, orderId: number | string) {
   const [itemsRes, bookingRes, locationRes, transactionsRes, trackingRes, discountsRes, reviewsRes] =
@@ -382,6 +383,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       patch.status = v
     }
+    if (body.fulfillment_type !== undefined && body.fulfillment_type !== null && body.fulfillment_type !== '') {
+      if (typeof body.fulfillment_type !== 'string') {
+        return NextResponse.json({ error: 'fulfillment_type must be a string' }, { status: 400 })
+      }
+      const v = body.fulfillment_type.trim().toLowerCase()
+      if (!FULFILLMENT_SET.has(v)) {
+        return NextResponse.json(
+          { error: `fulfillment_type must be one of ${Array.from(FULFILLMENT_SET).join(', ')}` },
+          { status: 400 },
+        )
+      }
+      patch.fulfillment_type = v
+    }
     if (body.delivery_status !== undefined && body.delivery_status !== null && body.delivery_status !== '') {
       if (typeof body.delivery_status === 'string') {
         const v = body.delivery_status.trim().toLowerCase()
@@ -397,9 +411,79 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.notes !== undefined) {
       patch.notes = typeof body.notes === 'string' ? (body.notes.trim() || null) : null
     }
+    if (body.customer !== undefined && body.customer !== null && body.customer !== '') {
+      const cid = typeof body.customer === 'object' ? Number((body.customer as any).id) : Number(body.customer)
+      if (!Number.isFinite(cid)) return NextResponse.json({ error: 'customer must be a valid ID' }, { status: 400 })
+      patch.customer = cid
+    }
+    if (body.merchant !== undefined && body.merchant !== null && body.merchant !== '') {
+      const mid = typeof body.merchant === 'object' ? Number((body.merchant as any).id) : Number(body.merchant)
+      if (!Number.isFinite(mid)) return NextResponse.json({ error: 'merchant must be a valid ID' }, { status: 400 })
+      patch.merchant = mid
+    }
+    const MONEY_KEYS = ['subtotal', 'delivery_fee', 'platform_fee', 'priority_fee', 'discount_total', 'total'] as const
+    let touchesMoney = false
+    for (const k of MONEY_KEYS) {
+      if (body[k] !== undefined && body[k] !== null && body[k] !== '') {
+        const n = Number(body[k])
+        if (!Number.isFinite(n) || n < 0)
+          return NextResponse.json({ error: `${k} must be a non-negative number` }, { status: 400 })
+        patch[k] = n
+        touchesMoney = true
+      }
+    }
+    if (body.coupon_code !== undefined) {
+      patch.coupon_code = typeof body.coupon_code === 'string' ? (body.coupon_code.trim() || null) : null
+    }
+    if (body.free_delivery_applied !== undefined) {
+      patch.free_delivery_applied = !!body.free_delivery_applied
+    }
+    if (body.placed_at !== undefined && body.placed_at !== null && body.placed_at !== '') {
+      const t = new Date(body.placed_at).getTime()
+      if (Number.isNaN(t)) return NextResponse.json({ error: 'placed_at must be a valid date' }, { status: 400 })
+      patch.placed_at = new Date(body.placed_at).toISOString()
+    }
+    if (body.delivery_service_type !== undefined) {
+      patch.delivery_service_type =
+        typeof body.delivery_service_type === 'string' && body.delivery_service_type.trim()
+          ? body.delivery_service_type.trim()
+          : 'MOTORCYCLE'
+    }
+    if (body.lalamove_order_id !== undefined) {
+      patch.lalamove_order_id =
+        typeof body.lalamove_order_id === 'string' ? (body.lalamove_order_id.trim() || null) : null
+    }
+    if (body.delivery_tracking_link !== undefined) {
+      patch.delivery_tracking_link =
+        typeof body.delivery_tracking_link === 'string' ? (body.delivery_tracking_link.trim() || null) : null
+    }
 
     if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ error: 'Nothing to update. Provide status, delivery_status, or notes.' }, { status: 400 })
+      return NextResponse.json({ error: 'Nothing to update. Provide order fields to change.' }, { status: 400 })
+    }
+
+    // Totals guard (mirrors collection beforeValidate invariant on create):
+    // whenever money legs change, total must equal subtotal + fees - discounts.
+    if (touchesMoney) {
+      let current: Record<string, any> | null = null
+      try {
+        current = (await payload.findByID({
+          collection: 'orders',
+          id: docId as number,
+          depth: 0,
+          overrideAccess: true,
+        })) as unknown as Record<string, any>
+      } catch {
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+      }
+      const leg = (k: string) => (patch[k] !== undefined ? Number(patch[k]) : Number(current?.[k] ?? 0) || 0)
+      const expected = leg('subtotal') + leg('delivery_fee') + leg('platform_fee') + leg('priority_fee') - leg('discount_total')
+      if (Math.abs(leg('total') - expected) > 0.01) {
+        return NextResponse.json(
+          { error: `Order total mismatch: expected ${expected.toFixed(2)} (subtotal + fees - discounts) but got ${leg('total').toFixed(2)}` },
+          { status: 400 },
+        )
+      }
     }
 
     let updated: Record<string, any>

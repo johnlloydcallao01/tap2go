@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   ShoppingBag, Receipt, Package, Layers, Store, Truck, Users, Mail, Phone,
   CheckCircle, XCircle, Clock, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
@@ -44,11 +45,11 @@ const HAS_OPTIONS_OPTS: { value: string; label: string }[] = [
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
+  try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }) } catch { return String(iso).slice(0, 10) }
 }
 function fmtDateTime(iso: string | null | undefined) {
   if (!iso) return '—'
-  try { return new Date(iso).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso) }
+  try { return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return String(iso) }
 }
 function fmtCurrency(v: number | string | null | undefined) {
   const n = typeof v === 'string' ? Number(v) : (v ?? 0)
@@ -103,7 +104,19 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function OrderItemsPage() {
+function OrderItemsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function OrderItemsPageContent(){
   // query state
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
@@ -487,7 +500,7 @@ export default function OrderItemsPage() {
       </div>
 
       {/* Delete confirm — portal to body for true viewport centering */}
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { setDeleting(null); setDeleteError(null) }}>
             <div
@@ -508,5 +521,13 @@ export default function OrderItemsPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function OrderItemsPage(){
+  return (
+    <ClientOnly fallback={<OrderItemsSkeleton />}>
+      <OrderItemsPageContent />
+    </ClientOnly>
   )
 }

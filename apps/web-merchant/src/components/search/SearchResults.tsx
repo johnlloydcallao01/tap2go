@@ -14,6 +14,14 @@ const CATEGORY_ICONS: Record<SearchCategory, React.ReactNode> = {
 
 const CATEGORY_COLORS = SEARCH_CATEGORY_COLORS;
 
+function ThumbnailOrIcon({ thumbnail, title, type }: { thumbnail?: string; title: string; type: SearchCategory }) {
+  if (thumbnail) {
+    return <img src={thumbnail} alt={title} className="h-8 w-8 rounded-md object-cover border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717]" />;
+  }
+
+  return <span className={`flex-shrink-0 p-1 rounded ${CATEGORY_COLORS[type]}`}>{CATEGORY_ICONS[type]}</span>;
+}
+
 interface SearchResultsProps {
   suggestions: SearchSuggestion[];
   results: SearchResult[];
@@ -104,9 +112,7 @@ export function SearchResults({
                   activeIndex === i ? 'bg-gray-100 dark:bg-[#262626]' : 'hover:bg-gray-50 dark:hover:bg-[#262626]'
                 }`}
               >
-                <span className={`flex-shrink-0 p-1 rounded ${CATEGORY_COLORS[suggestion.type]}`}>
-                  {CATEGORY_ICONS[suggestion.type]}
-                </span>
+                <ThumbnailOrIcon thumbnail={suggestion.thumbnail} title={suggestion.label} type={suggestion.type} />
                 <div className="flex-1 min-w-0">
 <div className="font-medium text-gray-900 dark:text-white truncate">{suggestion.label}</div>
                     <div className="text-xs text-gray-500 dark:text-[#a1a1aa] truncate">{suggestion.subtitle}</div>
@@ -140,9 +146,7 @@ export function SearchResults({
                   activeIndex === suggestions.length + i ? 'bg-gray-100 dark:bg-[#262626]' : 'hover:bg-gray-50 dark:hover:bg-[#262626]'
                 }`}
               >
-                <span className={`flex-shrink-0 p-1 rounded ${CATEGORY_COLORS[result.type]}`}>
-                  {CATEGORY_ICONS[result.type]}
-                </span>
+                <ThumbnailOrIcon thumbnail={result.thumbnail} title={result.title} type={result.type} />
                 <div className="flex-1 min-w-0">
 <div className="font-medium text-gray-900 dark:text-white truncate">{result.title}</div>
                     <div className="text-xs text-gray-500 dark:text-[#a1a1aa] truncate">{result.subtitle}</div>

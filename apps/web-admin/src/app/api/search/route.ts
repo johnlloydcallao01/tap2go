@@ -25,7 +25,7 @@ const COLLECTIONS: CollectionConfig[] = [
     subtitleFields: ['description'],
     hrefPrefix: '/merchants',
     category: 'merchants',
-    depth: 1,
+    depth: 2,
   },
   {
     slug: 'products',
@@ -33,6 +33,7 @@ const COLLECTIONS: CollectionConfig[] = [
     subtitleFields: ['description'],
     hrefPrefix: '/products',
     category: 'products',
+    depth: 1,
   },
   {
     slug: 'orders',
@@ -47,6 +48,7 @@ const COLLECTIONS: CollectionConfig[] = [
     subtitleFields: ['legalName', 'businessEmail'],
     hrefPrefix: '/vendors',
     category: 'vendors',
+    depth: 1,
   },
   {
     slug: 'customers',
@@ -83,18 +85,71 @@ function escapeWhere(value: string): string {
   return value.replace(/[[\]]/g, '\\$&');
 }
 
+function absolutizeUrl(u: string): string {
+  if (!u) return u;
+  if (/^https?:\/\//i.test(u)) return u;
+  // CMS `url` is often relative (e.g. "/api/media/file/...") — resolve vs CMS host.
+  if (u.startsWith('/')) return `${API_BASE.replace(/\/api$/, '')}${u}`;
+  return u;
+}
+
+/**
+ * Resolve a displayable URL from a populated Media doc (or raw string).
+ * CMS Media (apps/cms/src/collections/Media.ts + cloudinary adapter) exposes
+ * cloudinaryURL / url / thumbnailURL — prefer in that order.
+ */
+function getMediaUrl(media: unknown): string | undefined {
+  if (!media) return undefined;
+  if (typeof media === 'string') return absolutizeUrl(media) || undefined;
+  if (typeof media === 'number') return undefined;
+  if (typeof media === 'object') {
+    const m = media as { cloudinaryURL?: unknown; url?: unknown; thumbnailURL?: unknown };
+    if (typeof m.cloudinaryURL === 'string' && m.cloudinaryURL) return absolutizeUrl(m.cloudinaryURL);
+    if (typeof m.url === 'string' && m.url) return absolutizeUrl(m.url);
+    if (typeof m.thumbnailURL === 'string' && m.thumbnailURL) return absolutizeUrl(m.thumbnailURL);
+  }
+  return undefined;
+}
+
 function getThumbnailUrl(doc: PayloadDoc, category: SearchCategory): string | undefined {
+  if (category === 'products') {
+    // CMS shape (apps/cms/src/collections/Products.ts):
+    // products.media = group { primaryImage: upload->media, images: [{ image: upload->media }] }
+    const media = (doc.media ?? null) as { primaryImage?: unknown; images?: unknown; image?: unknown } | null;
+    if (media && typeof media === 'object') {
+      const primaryUrl = getMediaUrl(media.primaryImage);
+      if (primaryUrl) return primaryUrl;
+      if (Array.isArray(media.images)) {
+        for (const entry of media.images as Array<{ image?: unknown } | unknown>) {
+          const url = getMediaUrl((entry as { image?: unknown })?.image ?? entry);
+          if (url) return url;
+        }
+      }
+      const legacy = getMediaUrl(media.image);
+      if (legacy) return legacy;
+    }
+    return getMediaUrl((doc as { primaryImage?: unknown }).primaryImage);
+  }
+
   if (category === 'vendors') {
-    const logo = (doc.logo ?? null) as { cloudinaryURL?: string; url?: string } | string | null | undefined;
-    if (typeof logo === 'string') return logo || undefined;
-    if (logo && typeof logo === 'object') return logo.cloudinaryURL || logo.url || undefined;
+    // CMS shape (apps/cms/src/collections/Vendors.ts): vendors.logo upload->media
+    return getMediaUrl((doc as { logo?: unknown }).logo);
   }
 
   if (category === 'merchants') {
-    const vendor = (doc.vendor ?? null) as { logo?: { cloudinaryURL?: string; url?: string } | string | null } | null;
-    const logo = vendor?.logo ?? null;
-    if (typeof logo === 'string') return logo || undefined;
-    if (logo && typeof logo === 'object') return logo.cloudinaryURL || logo.url || undefined;
+    // CMS shape (apps/cms/src/collections/Merchants.ts): outlet's own
+    // media.thumbnail / media.storeFrontImage, then vendor logo via
+    // merchants.vendor -> vendors.logo.
+    const media = (doc.media ?? null) as { thumbnail?: unknown; storeFrontImage?: unknown } | null;
+    if (media && typeof media === 'object') {
+      const thumb = getMediaUrl(media.thumbnail);
+      if (thumb) return thumb;
+      const front = getMediaUrl(media.storeFrontImage);
+      if (front) return front;
+    }
+    const vendor = (doc.vendor ?? null) as { logo?: unknown } | null;
+    if (!vendor || typeof vendor !== 'object') return undefined;
+    return getMediaUrl(vendor.logo);
   }
 
   return undefined;
@@ -107,7 +162,7 @@ async function searchCollection(
   limit: number = 3,
 ): Promise<{ id: string; title: string; subtitle: string; type: SearchCategory; href: string; thumbnail?: string }[]> {
   try {
-    const q = escapeWhere(query);
+    const q = encodeURIComponent(escapeWhere(query));
     let url: string;
 
     if (config.slug === 'orders' && /^\d+$/.test(query)) {

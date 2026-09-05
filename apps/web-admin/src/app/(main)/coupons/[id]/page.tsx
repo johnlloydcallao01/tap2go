@@ -8,6 +8,7 @@ import {
   DollarSign, ShieldCheck, Clock, Users, Truck
 } from '@/components/ui/IconWrapper'
 import { statusBadge, discountSummary, fmtMoney, fmtDate, vendorName, type CouponDoc } from '../page'
+import { ClientOnly } from '@/components/ClientOnly'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -47,7 +48,11 @@ function redemptionId(v: unknown) {
   return '—'
 }
 
-export default function CouponDetailPage() {
+function CouponDetailSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function CouponDetailContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
@@ -194,5 +199,15 @@ export default function CouponDetailPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CouponDetailPage(){
+  // Helpers (fmtMoney/fmtDate) are imported pinned from ../page; ClientOnly
+  // defers first render to post-mount so SSR + hydration match.
+  return (
+    <ClientOnly fallback={<CouponDetailSkeleton />}>
+      <CouponDetailContent />
+    </ClientOnly>
   )
 }

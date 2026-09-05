@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { createAdminNotificationFanout } from '../utils/notificationFanout'
 
 export const Transactions: CollectionConfig = {
   slug: 'transactions',
@@ -87,4 +88,24 @@ export const Transactions: CollectionConfig = {
       },
     },
   ],
+  hooks: {
+    afterChange: [
+      async ({ doc, previousDoc, operation, req }) => {
+        if (operation === 'create' || (operation === 'update' && previousDoc?.status !== doc.status)) {
+          const status = doc.status || 'pending'
+          await createAdminNotificationFanout(req.payload, {
+            typeKey: `payment.${status}`,
+            domain: 'order',
+            title: `Payment ${status}`,
+            body: `A payment for order #${typeof doc.order === 'object' ? doc.order.id : doc.order} is ${status}.`,
+            sourceEntityType: 'transaction',
+            sourceEntityId: doc.id,
+            priority: status === 'failed' ? 'critical' : status === 'refunded' ? 'warning' : 'info',
+            metadata: { transactionId: doc.id, orderId: doc.order, status, amount: doc.amount, currency: doc.currency },
+          })
+        }
+        return doc
+      },
+    ],
+  },
 }

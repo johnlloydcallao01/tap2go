@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from '@/components/ui/LinkWrapper';
+import { ClientOnly } from '@/components/ClientOnly';
 import type { SearchResult, SearchCategory } from '@/lib/search-types';
 import { SEARCH_CATEGORY_LABELS, SEARCH_CATEGORY_COLORS } from '@/lib/search-types';
 import { Search, Store, Package, ShoppingBag, Users, Truck, RefreshCw } from '@/components/ui/IconWrapper';
@@ -18,13 +19,46 @@ const CATEGORY_ICONS: Record<SearchCategory, React.ReactNode> = {
 
 const ALL_CATEGORIES: SearchCategory[] = ['merchants', 'products', 'orders', 'customers', 'drivers', 'vendors'];
 
-export default function SearchPage() {
+function ThumbnailOrIcon({ thumbnail, title, type }: { thumbnail?: string; title: string; type: SearchCategory }) {
+  if (thumbnail) {
+    return <img src={thumbnail} alt={title} className="h-10 w-10 flex-shrink-0 rounded-lg object-cover border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717]" />;
+  }
+
+  return (
+    <span className={`flex-shrink-0 p-2 rounded-lg ${SEARCH_CATEGORY_COLORS[type].replace('100', '50').replace('800', '700')} dark:bg-opacity-20`}>
+      {CATEGORY_ICONS[type]}
+    </span>
+  );
+}
+
+function SearchSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="space-y-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="animate-pulse">
+            <div className="flex items-center gap-4 p-4 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-lg">
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-100 dark:bg-[#262626]" />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 w-3/4 bg-gray-100 dark:bg-[#262626] rounded" />
+                <div className="h-3 w-1/2 bg-gray-100 dark:bg-[#262626] rounded" />
+              </div>
+              <div className="flex-shrink-0 w-24 h-6 rounded-full bg-gray-100 dark:bg-[#262626]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') ?? '';
 
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<SearchCategory | 'all'>('all');
 
   const fetchResults = useCallback(async (q: string) => {
     if (!q || q.length < 2) {
@@ -48,10 +82,6 @@ export default function SearchPage() {
   useEffect(() => {
     fetchResults(query);
   }, [query, fetchResults]);
-
-  const filteredResults = activeTab === 'all'
-    ? results
-    : results.filter((r) => r.type === activeTab);
 
   const counts = ALL_CATEGORIES.reduce(
     (acc, cat) => {
@@ -91,9 +121,15 @@ export default function SearchPage() {
             )}
           </h1>
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">
-            {query
-              ? `${results.length} result${results.length !== 1 ? 's' : ''} found`
-              : 'Search the admin panel — merchants, products, orders, customers, drivers, vendors'}
+            {query ? (
+              isLoading ? (
+                <span className="inline-block h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-[#262626]" aria-label="Loading result count" />
+              ) : (
+                `${results.length} result${results.length !== 1 ? 's' : ''} found`
+              )
+            ) : (
+              'Search the admin panel — merchants, products, orders, customers, drivers, vendors'
+            )}
           </p>
         </div>
         <button
@@ -103,36 +139,6 @@ export default function SearchPage() {
         >
           <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${isLoading ? 'animate-spin' : ''}`} />
         </button>
-      </div>
-
-      {/* Category Tabs */}
-      <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-1.5 shadow-sm flex flex-wrap gap-1">
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition ${
-            activeTab === 'all'
-              ? 'bg-[#eba236] text-white shadow-sm'
-              : 'text-gray-600 dark:text-[#a1a1aa] hover:bg-gray-50 dark:hover:bg-[#262626] hover:text-gray-900 dark:hover:text-white'
-          }`}
-        >
-          All ({results.length})
-        </button>
-        {ALL_CATEGORIES.map((cat) => (
-          counts[cat] > 0 && (
-            <button
-              key={cat}
-              onClick={() => setActiveTab(cat)}
-              className={`flex-1 min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition ${
-                activeTab === cat
-                  ? 'bg-[#eba236] text-white shadow-sm'
-                  : 'text-gray-600 dark:text-[#a1a1aa] hover:bg-gray-50 dark:hover:bg-[#262626] hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              {CATEGORY_ICONS[cat]}
-              {SEARCH_CATEGORY_LABELS[cat]} ({counts[cat]})
-            </button>
-          )
-        ))}
       </div>
 
       {/* Loading skeleton */}
@@ -156,27 +162,42 @@ export default function SearchPage() {
       )}
 
       {/* Results List */}
-      {!isLoading && filteredResults.length > 0 && (
-        <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-[#262626]">
-          {filteredResults.map((result) => (
-            <div key={`${result.type}-${result.id}`}>
-              <Link
-                href={result.href as any}
-                className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-[#0a0a0a]/50 transition"
-              >
-                <span className={`flex-shrink-0 p-2 rounded-lg ${SEARCH_CATEGORY_COLORS[result.type].replace('100', '50').replace('800', '700')} dark:bg-opacity-20`}>
-                  {CATEGORY_ICONS[result.type]}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-900 dark:text-white truncate">{result.title}</div>
-                  <div className="text-sm text-gray-500 dark:text-[#a1a1aa] truncate">{result.subtitle}</div>
+      {!isLoading && results.length > 0 && (
+        <div className="space-y-6">
+          {ALL_CATEGORIES.map((category) => {
+            const categoryResults = results.filter((result) => result.type === category);
+            if (categoryResults.length === 0) return null;
+
+            return (
+              <section key={category} aria-labelledby={`search-section-${category}`}>
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className={`p-1.5 rounded-lg ${SEARCH_CATEGORY_COLORS[category].replace('100', '50').replace('800', '700')} dark:bg-opacity-20`}>
+                    {CATEGORY_ICONS[category]}
+                  </span>
+                  <h2 id={`search-section-${category}`} className="text-base font-semibold text-gray-900 dark:text-white">
+                    {SEARCH_CATEGORY_LABELS[category]}
+                  </h2>
+                  <span className="text-sm text-gray-500 dark:text-[#a1a1aa]">{counts[category]}</span>
                 </div>
-                <span className={`flex-shrink-0 text-xs font-medium px-2 py-1 rounded-full ${SEARCH_CATEGORY_COLORS[result.type].replace('100', '50').replace('800', '700')} dark:bg-opacity-20`}>
-                  {SEARCH_CATEGORY_LABELS[result.type]}
-                </span>
-              </Link>
-            </div>
-          ))}
+                <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-[#262626]">
+                  {categoryResults.map((result) => (
+                    <div key={`${result.type}-${result.id}`}>
+                      <Link
+                        href={result.href as any}
+                        className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-[#0a0a0a]/50 transition"
+                      >
+                        <ThumbnailOrIcon thumbnail={result.thumbnail} title={result.title} type={result.type} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white truncate">{result.title}</div>
+                          <div className="text-sm text-gray-500 dark:text-[#a1a1aa] truncate">{result.subtitle}</div>
+                        </div>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -193,5 +214,16 @@ export default function SearchPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SearchPage(){
+  // Pure CSR: `q` comes from the URL — server prerenders with q=null while the
+  // client hydrates with the real ?q= value, so the heading/empty-state would
+  // differ → React #441. Render post-mount only.
+  return (
+    <ClientOnly fallback={<SearchSkeleton />}>
+      <SearchPageContent />
+    </ClientOnly>
   );
 }

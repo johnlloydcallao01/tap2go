@@ -3,8 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Coins } from '@/components/ui/IconWrapper'
 import { VariationModifierOptionForm } from '../_components/VariationModifierOptionForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function NewVariationModifierOptionPage() {
+function NewVariationModifierOptionSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function NewVariationModifierOptionContent() {
   const router = useRouter()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
@@ -24,5 +29,13 @@ export default function NewVariationModifierOptionPage() {
       </div>
       <VariationModifierOptionForm onSuccess={() => router.push('/catalog/variation-modifier-options')} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function NewVariationModifierOptionPage(){
+  return (
+    <ClientOnly fallback={<NewVariationModifierOptionSkeleton />}>
+      <NewVariationModifierOptionContent />
+    </ClientOnly>
   )
 }

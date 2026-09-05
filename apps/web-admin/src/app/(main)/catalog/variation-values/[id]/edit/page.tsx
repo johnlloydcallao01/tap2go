@@ -5,8 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Building, AlertCircle, Layers } from '@/components/ui/IconWrapper'
 import { VariationValueForm, VariationValueDoc } from '../../_components/VariationValueForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function EditVariationValuePage() {
+function EditVariationValueSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function EditVariationValueContent() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -73,5 +78,13 @@ export default function EditVariationValuePage() {
       </div>
       <VariationValueForm initial={doc} onSuccess={() => router.push(`/catalog/variation-values/${doc.id}`)} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function EditVariationValuePage(){
+  return (
+    <ClientOnly fallback={<EditVariationValueSkeleton />}>
+      <EditVariationValueContent />
+    </ClientOnly>
   )
 }

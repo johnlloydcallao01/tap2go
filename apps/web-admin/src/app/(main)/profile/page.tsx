@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo, useCallback, Suspense } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { ClientOnly } from '@/components/ClientOnly';
 import { useAuth, getFullName, getUserInitials } from '@/hooks/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
@@ -60,6 +61,7 @@ function formatDate(iso?: string | null): string {
   if (!iso) return '—';
   try {
   return new Date(iso).toLocaleDateString('en-PH', {
+  timeZone: 'Asia/Manila',
   year: 'numeric',
   month: 'long',
   day: 'numeric',
@@ -72,6 +74,7 @@ function formatDateTime(iso?: string | null): string {
   if (!iso) return '—';
   try {
   return new Date(iso).toLocaleString('en-PH', {
+  timeZone: 'Asia/Manila',
   year: 'numeric',
   month: 'short',
   day: 'numeric',
@@ -1751,9 +1754,12 @@ function AtSign({ className }: { className?: string }) {
 }
 
 export default function ProfilePage() {
+  // Pure CSR: ?tab= drives first render (server null vs client real) plus
+  // TZ-sensitive dates/relative times — Suspense alone can't fix hydration,
+  // so render post-mount only. Data still flows via profile server actions.
   return (
-    <Suspense fallback={<ProfileSkeleton />}>
+    <ClientOnly fallback={<ProfileSkeleton />}>
       <ProfileInner />
-    </Suspense>
+    </ClientOnly>
   );
 }

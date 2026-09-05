@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Package,
   Layers,
@@ -40,7 +41,7 @@ type Stats = { total: number; totalAll: number; filteredTotal: number; perParent
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
   try {
-    return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+    return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' })
   } catch {
     return String(iso).slice(0, 10)
   }
@@ -70,7 +71,19 @@ function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: st
   )
 }
 
-export default function GroupedItemsPage() {
+function GroupedItemsSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function GroupedItemsPageContent(){
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [parentFilter, setParentFilter] = useState<string>('')
@@ -414,7 +427,7 @@ export default function GroupedItemsPage() {
         )}
       </div>
 
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
             <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
@@ -431,5 +444,13 @@ export default function GroupedItemsPage() {
           document.body
         )}
     </div>
+  )
+}
+
+export default function GroupedItemsPage(){
+  return (
+    <ClientOnly fallback={<GroupedItemsSkeleton />}>
+      <GroupedItemsPageContent />
+    </ClientOnly>
   )
 }

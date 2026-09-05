@@ -3,8 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Building } from '@/components/ui/IconWrapper'
 import { VendorForm } from '../_components/VendorForm'
+import { ClientOnly } from '@/components/ClientOnly'
 
-export default function NewVendorPage() {
+function NewVendorSkeleton(){
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>
+}
+
+function NewVendorContent() {
   const router = useRouter()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
@@ -24,5 +29,13 @@ export default function NewVendorPage() {
       </div>
       <VendorForm onSuccess={() => router.push('/vendors')} onCancel={handleBack} />
     </div>
+  )
+}
+
+export default function NewVendorPage(){
+  return (
+    <ClientOnly fallback={<NewVendorSkeleton />}>
+      <NewVendorContent />
+    </ClientOnly>
   )
 }

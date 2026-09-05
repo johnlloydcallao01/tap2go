@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { ClientOnly } from '@/components/ClientOnly'
 import {
   Tag, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Building, Star, Eye, Pencil, Trash2, Hash, Layers, Sparkles, CheckCircle
@@ -24,7 +25,7 @@ type Doc = {
 type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
 type Stats = { total: number; activeCount: number; featuredCount: number; inactiveCount: number; filteredCount: number }
 
-function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
+function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'C' }
 
 function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: string; sub?: string; icon: React.ReactNode; iconBg: string }){
@@ -42,7 +43,19 @@ function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: st
   )
 }
 
-export default function MerchantCategoriesPage(){
+function MerchantCategoriesSkeleton(){
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+        {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+      </div>
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  )
+}
+
+function MerchantCategoriesPageContent(){
   const [q,setQ]=useState('')
   const [debouncedQ,setDebouncedQ]=useState('')
   const [isActiveFilter,setIsActiveFilter]=useState<boolean|null>(null)
@@ -280,7 +293,7 @@ export default function MerchantCategoriesPage(){
         )}
       </div>
 
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
             <div
@@ -300,5 +313,13 @@ export default function MerchantCategoriesPage(){
           document.body
         )}
     </div>
+  )
+}
+
+export default function MerchantCategoriesPage(){
+  return (
+    <ClientOnly fallback={<MerchantCategoriesSkeleton />}>
+      <MerchantCategoriesPageContent />
+    </ClientOnly>
   )
 }
