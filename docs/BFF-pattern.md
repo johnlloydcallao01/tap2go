@@ -1,5 +1,5 @@
 # Fetching Solution Guide
-
+ 
 ## Summary
 
 The fix applied in this repository uses a **backend-mediated aggregation pattern**.
