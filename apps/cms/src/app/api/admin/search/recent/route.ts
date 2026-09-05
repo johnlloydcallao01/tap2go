@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(20, Math.max(1, Number(searchParams.get('limit') || 10)))
     const result = await payload.find({
       collection: 'recent-searches',
-      where: { user: { equals: admin.id }, scope: { equals: 'global' } },
+      where: { user: { equals: admin.id } },
       limit,
       sort: '-updatedAt',
       depth: 0,
@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
       collection: 'recent-searches',
       where: {
         user: { equals: admin.id },
-        scope: { equals: 'global' },
         normalizedQuery: { equals: normalizedQuery },
       },
       limit: 1,
@@ -102,7 +101,6 @@ export async function DELETE(request: NextRequest) {
     const query = new URL(request.url).searchParams.get('query')?.trim()
     const where: Record<string, unknown> = {
       user: { equals: admin.id },
-      scope: { equals: 'global' },
     }
     if (query) where.normalizedQuery = { equals: normalize(query) }
 
