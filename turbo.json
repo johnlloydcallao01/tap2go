@@ -12,7 +12,9 @@
     "DATABASE_URL",
     "DATABASE_URI",
     "POSTGRES_URL",
-    "SUPABASE_SERVICE_ROLE_KEY"
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN"
   ],
   "tasks": {
     "build": {
@@ -32,7 +34,7 @@
       "outputs": []
     },
     "@encreasl/redux#build": {
-      "outputs": ["dist/**"]
+      "outputs": []
     },
     "dev": {
       "cache": false,

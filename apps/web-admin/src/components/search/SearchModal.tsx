@@ -45,12 +45,13 @@ export default function SearchModal({ isOpen, onClose, initialQuery = '' }: Prop
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const debouncedQuery = useDebounce(query, 350);
-  const { recentSearches, addRecentSearch, clearRecentSearches, removeRecentSearch } = useRecentSearches();
+  const { recentSearches, addRecentSearch, clearRecentSearches, removeRecentSearch, refreshRecentSearches } = useRecentSearches();
 
   // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      refreshRecentSearches();
       setTimeout(() => inputRef.current?.focus(), 100);
     } else {
       document.body.style.overflow = '';
@@ -63,7 +64,7 @@ export default function SearchModal({ isOpen, onClose, initialQuery = '' }: Prop
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isOpen, initialQuery]);
+  }, [isOpen, initialQuery, refreshRecentSearches]);
 
   // Fetch suggestions
   const fetchSuggestions = useCallback(async (q: string) => {
