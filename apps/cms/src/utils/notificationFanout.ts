@@ -142,6 +142,36 @@ export async function createNotificationFanout({
   return { notificationEvent, userNotification }
 }
 
+export async function createMerchantNotificationFanout(
+  payload: Payload,
+  merchantId: string | number | null | undefined,
+  args: NotificationFanoutInput,
+) {
+  if (merchantId == null) return null
+
+  const merchant = await payload.findByID({
+    collection: 'merchants',
+    id: merchantId,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const vendorId = typeof merchant.vendor === 'object' && merchant.vendor !== null
+    ? merchant.vendor.id
+    : merchant.vendor
+  if (vendorId == null) return null
+
+  const vendor = await payload.findByID({
+    collection: 'vendors',
+    id: vendorId,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const userId = typeof vendor.user === 'object' && vendor.user !== null ? vendor.user.id : vendor.user
+  if (userId == null) return null
+
+  return createNotificationFanout({ payload, userId, ...args })
+}
+
 export async function createAdminNotificationFanout(
   payload: Payload,
   args: NotificationFanoutInput,

@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { createAdminNotificationFanout } from '../utils/notificationFanout'
+import { createAdminNotificationFanout, createMerchantNotificationFanout } from '../utils/notificationFanout'
 
 export const Transactions: CollectionConfig = {
   slug: 'transactions',
@@ -93,15 +93,33 @@ export const Transactions: CollectionConfig = {
       async ({ doc, previousDoc, operation, req }) => {
         if (operation === 'create' || (operation === 'update' && previousDoc?.status !== doc.status)) {
           const status = doc.status || 'pending'
+          const orderId = typeof doc.order === 'object' ? doc.order.id : doc.order
           await createAdminNotificationFanout(req.payload, {
             typeKey: `payment.${status}`,
             domain: 'order',
             title: `Payment ${status}`,
-            body: `A payment for order #${typeof doc.order === 'object' ? doc.order.id : doc.order} is ${status}.`,
+            body: `A payment for order #${orderId} is ${status}.`,
             sourceEntityType: 'transaction',
             sourceEntityId: doc.id,
             priority: status === 'failed' ? 'critical' : status === 'refunded' ? 'warning' : 'info',
             metadata: { transactionId: doc.id, orderId: doc.order, status, amount: doc.amount, currency: doc.currency },
+          })
+          const order = await req.payload.findByID({
+            collection: 'orders',
+            id: orderId,
+            depth: 0,
+            overrideAccess: true,
+          })
+          const merchantId = typeof order.merchant === 'object' ? order.merchant.id : order.merchant
+          await createMerchantNotificationFanout(req.payload, merchantId, {
+            typeKey: `payment.${status}`,
+            domain: 'order',
+            title: `Payment ${status}`,
+            body: `A payment for order #${orderId} is ${status}.`,
+            sourceEntityType: 'transaction',
+            sourceEntityId: doc.id,
+            priority: status === 'failed' ? 'critical' : status === 'refunded' ? 'warning' : 'info',
+            metadata: { transactionId: doc.id, orderId, status, amount: doc.amount, currency: doc.currency },
           })
         }
         return doc

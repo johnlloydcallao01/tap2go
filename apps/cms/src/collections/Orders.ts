@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { createAdminNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
+import { createAdminNotificationFanout, createMerchantNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -69,6 +69,16 @@ export const Orders: CollectionConfig = {
                 customerId: resolveId(doc?.customer),
               },
             })
+            await createMerchantNotificationFanout(req.payload, merchantId, {
+              typeKey: 'order.created',
+              domain: 'order',
+              priority: 'info',
+              title: 'New order received',
+              body: `Order #${orderId} has been placed at your outlet.`,
+              sourceEntityType: 'order',
+              sourceEntityId: orderId,
+              metadata: { orderId, status, merchantId, customerId: resolveId(doc?.customer) },
+            })
           } else if (operation === 'update' && previousStatus && status && previousStatus !== status) {
             const label = getOrderStatusLabel(status, doc?.delivery_status)
             await createAdminNotificationFanout(req.payload, {
@@ -86,6 +96,16 @@ export const Orders: CollectionConfig = {
                 merchantId,
                 customerId: resolveId(doc?.customer),
               },
+            })
+            await createMerchantNotificationFanout(req.payload, merchantId, {
+              typeKey: 'order.status_changed',
+              domain: 'order',
+              priority: status === 'cancelled' ? 'warning' : 'info',
+              title: `Order ${label}`,
+              body: `Order #${orderId} is now ${label.toLowerCase()}.`,
+              sourceEntityType: 'order',
+              sourceEntityId: orderId,
+              metadata: { orderId, status, previousStatus, merchantId, customerId: resolveId(doc?.customer) },
             })
           }
 

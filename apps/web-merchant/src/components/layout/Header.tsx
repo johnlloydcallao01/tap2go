@@ -6,6 +6,7 @@ import LogoutButton from '@/components/LogoutButton';
 import { useAuth, getFullName, getUserInitials } from '@/hooks/useAuth';
 import { SearchBar } from '@/components/search/SearchBar';
 import SearchModal from '@/components/search/SearchModal';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 /**
  * Admin Header component with navigation, search, and user controls
@@ -113,6 +114,7 @@ export function Header({
 
           {/* Right section */}
           <div className="flex items-center space-x-3">
+            <NotificationBell />
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={toggleProfileDropdown}
