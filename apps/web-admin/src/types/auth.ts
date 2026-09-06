@@ -10,6 +10,14 @@ import React from 'react';
 // USER TYPES
 // ========================================
 
+export interface ProfilePicture {
+  id: number;
+  filename?: string | null;
+  url?: string | null;
+  alt?: string | null;
+  cloudinaryURL?: string | null;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -27,13 +35,11 @@ export interface User {
   placeOfBirth?: string | null;
   completeAddress?: string | null;
   phone?: string | null;
+  biography?: unknown;
+  pushNotificationsEnabled?: boolean | null;
+  securityAlertsEmailEnabled?: boolean | null;
   lastLogin?: string | null;
-  profilePicture?: {
-    id: number;
-    filename: string;
-    url: string;
-    alt?: string;
-  } | null;
+  profilePicture?: ProfilePicture | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,10 +94,9 @@ export interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  updateUser: (user: User) => void;
   clearError: () => void;
   checkAuthStatus: () => Promise<boolean>;
-  updateUser: (user: User) => void;
-  refetchUser: () => Promise<void>;
 }
 
 // ========================================

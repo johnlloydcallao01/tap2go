@@ -8,17 +8,6 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.c
 const AUTH_COOKIE = 'tap2go-admin-token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
 
-async function setSessionCookie(token: string): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(AUTH_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: COOKIE_MAX_AGE,
-  });
-}
-
 async function readResponse(response: Response): Promise<Record<string, unknown>> {
   try {
     return await response.json();
@@ -54,21 +43,29 @@ export async function serverLogin(credentials: LoginCredentials): Promise<AuthRe
 
   const user = requireAdmin(data.user, 'Access denied. Only administrators can access this application.');
   const token = stringValue(data.token);
-  if (token) await setSessionCookie(token);
+  if (token) {
+    const cookieStore = await cookies();
+    cookieStore.set(AUTH_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: COOKIE_MAX_AGE,
+    });
+  }
   return { message: stringValue(data.message) || '', user, token, exp: numberValue(data.exp) };
 }
 
 export async function serverLogout(): Promise<void> {
   const cookieStore = await cookies();
-  const token = cookieStore.get(AUTH_COOKIE)?.value;
   cookieStore.delete(AUTH_COOKIE);
   try {
     await fetch(`${API_BASE_URL}/users/logout`, {
       method: 'POST',
-      headers: token ? { Authorization: `JWT ${token}` } : undefined,
+      headers: { 'Content-Type': 'application/json' },
     });
   } catch {
-    // Cookie deletion still logs the browser out when the API is unavailable.
+    // Ignore CMS logout errors — cookie deletion still logs the browser out.
   }
 }
 
@@ -108,6 +105,14 @@ export async function serverRefresh(): Promise<AuthResponse> {
 
   const user = requireAdmin(data.user, 'Access denied during refresh');
   const token = stringValue(data.refreshedToken) || stringValue(data.token);
-  if (token) await setSessionCookie(token);
+  if (token) {
+    cookieStore.set(AUTH_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: COOKIE_MAX_AGE,
+    });
+  }
   return { message: stringValue(data.message) || '', user, token, exp: numberValue(data.exp) };
 }

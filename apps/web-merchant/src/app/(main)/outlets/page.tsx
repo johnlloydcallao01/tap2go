@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   Store,
   Building2,
@@ -81,7 +82,7 @@ function initials(name: string) {
 function fmtDate(iso: string | null) {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' });
   } catch {
     return String(iso).slice(0, 10);
   }
@@ -124,7 +125,16 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   );
 }
 
-export default function OutletsPage() {
+function OutletsSkeleton() {
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="p-4 space-y-3 animate-pulse">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
+    </div>
+  );
+}
+
+function OutletsPageContent() {
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -423,7 +433,7 @@ export default function OutletsPage() {
         )}
       </div>
 
-      {deleting &&
+      {deleting && typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
             <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
@@ -439,5 +449,13 @@ export default function OutletsPage() {
           document.body
         )}
     </div>
+  );
+}
+
+export default function OutletsPage() {
+  return (
+    <ClientOnly fallback={<OutletsSkeleton />}>
+      <OutletsPageContent />
+    </ClientOnly>
   );
 }

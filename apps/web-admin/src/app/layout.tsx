@@ -38,7 +38,8 @@ type LayoutProps = {
 };
 
 export default async function RootLayout({ children }: LayoutProps) {
-  const [initialUser, initialToken] = await Promise.all([getServerUser(), getServerToken()]);
+  const initialUser = await getServerUser();
+  const initialToken = await getServerToken();
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

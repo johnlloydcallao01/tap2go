@@ -2,12 +2,22 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, notFound } from 'next/navigation';
 import { ArrowLeft, Store, AlertCircle, CheckCircle } from '@/components/ui/IconWrapper';
 import { OutletForm } from '../../_components/OutletForm';
 import type { DebugLogInfo } from '../../_components/OutletForm';
+import { ClientOnly } from '@/components/ClientOnly';
 
-export default function EditOutletPage() {
+function EditOutletSkeleton() {
+  return (
+    <div className="space-y-6 py-5 px-2.5">
+      <div className="h-8 w-32 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" />
+      <div className="h-96 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" />
+    </div>
+  );
+}
+
+function EditOutletContent() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
@@ -159,5 +169,19 @@ export default function EditOutletPage() {
       </div>
       <OutletForm initial={doc} onSuccess={handleSaveSuccess} onCancel={handleBack} />
     </div>
+  );
+}
+
+export default function EditOutletPage() {
+  // SSR-level guard: see [id]/page.tsx — reserved slugs 404 with proper status.
+  const params = useParams();
+  const id = params.id as string;
+  if (['new', 'hours', 'delivery', 'media', 'service-area'].includes(id)) {
+    notFound();
+  }
+  return (
+    <ClientOnly fallback={<EditOutletSkeleton />}>
+      <EditOutletContent />
+    </ClientOnly>
   );
 }

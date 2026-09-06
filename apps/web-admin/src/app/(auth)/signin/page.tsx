@@ -4,9 +4,8 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from '@/components/ui/ImageWrapper';
 import { Eye, EyeOff, AlertCircle, Loader2, Users, BarChart3, Settings, ArrowLeft, Mail, Lock } from '@/components/ui/IconWrapper';
-import { useAuth } from '@/hooks/useAuth';
+import { useLogin } from '@/hooks/useAuth';
 import { PublicRoute } from '@/components/auth';
-import { AuthenticationError } from '@/lib/auth';
 import Link from 'next/link';
 
 function LoginForm() {
@@ -17,20 +16,15 @@ function LoginForm() {
   const [error, setError] = useState('');
 
   const searchParams = useSearchParams();
-  const { login, isLoading, error: authError, clearError } = useAuth();
+  const { login, isLoading, error: authError, clearError } = useLogin();
 
   const redirectTo = searchParams.get('redirect') || '/dashboard/overview';
 
   useEffect(() => {
-    setEmail('');
-    setPassword('');
-    setError('');
-    clearError();
-  }, [clearError]);
-
-  useEffect(() => {
     if (authError) {
       setError(authError);
+    } else {
+      setError('');
     }
   }, [authError]);
 
@@ -39,37 +33,25 @@ function LoginForm() {
     setError('');
     clearError();
 
+    if (!email || !password) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
     try {
       await login({ email, password });
 
+      // PublicRoute performs the actual navigation once auth state settles.
       if (redirectTo !== '/dashboard/overview') {
         sessionStorage.setItem('auth:redirectAfterLogin', redirectTo);
       }
     } catch (err: unknown) {
-      let errorMessage = 'Authentication failed. Please try again.';
-
-      if (err instanceof AuthenticationError) {
-        switch (err.type) {
-          case 'ACCESS_DENIED':
-            errorMessage = 'Access denied. Only administrators can access this application.';
-            break;
-          case 'INVALID_CREDENTIALS':
-            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-            break;
-          case 'ACCOUNT_LOCKED':
-            errorMessage = 'Account temporarily locked due to multiple failed attempts. Please try again later.';
-            break;
-          case 'NETWORK_ERROR':
-            errorMessage = 'Network connection failed. Please check your internet connection and try again.';
-            break;
-          default:
-            errorMessage = err.message || errorMessage;
-        }
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
+      // login() already stores the message via LOGIN_ERROR; only fall back here.
+      if (err instanceof Error && err.message) {
+        setError(err.message);
+      } else {
+        setError('Authentication failed. Please try again.');
       }
-
-      setError(errorMessage);
     }
   };
 

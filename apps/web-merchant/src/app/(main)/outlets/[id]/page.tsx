@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, notFound } from 'next/navigation';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   ArrowLeft,
   Edit,
@@ -76,7 +77,20 @@ function Row({ label, value, mono, icon }: { label: string; value: React.ReactNo
   );
 }
 
-export default function OutletViewPage() {
+function fmtDate(iso: string | null) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' });
+  } catch {
+    return String(iso).slice(0, 10);
+  }
+}
+
+function OutletViewSkeleton() {
+  return <div className="space-y-6 py-5 px-2.5"><div className="h-8 w-48 bg-gray-200 dark:bg-[#262626] rounded animate-pulse" /><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl animate-pulse" /></div>;
+}
+
+function OutletViewContent() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -205,13 +219,29 @@ export default function OutletViewPage() {
           <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4">
             <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Timeline</h4>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">Created</span><span className="font-mono text-xs text-gray-900 dark:text-white">{new Date(doc.createdAt).toLocaleDateString('en-PH')}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Updated</span><span className="font-mono text-xs text-gray-900 dark:text-white">{new Date(doc.updatedAt).toLocaleDateString('en-PH')}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Created</span><span className="font-mono text-xs text-gray-900 dark:text-white">{fmtDate(doc.createdAt)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Updated</span><span className="font-mono text-xs text-gray-900 dark:text-white">{fmtDate(doc.updatedAt)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">ID</span><span className="font-mono text-xs text-gray-900 dark:text-white">#{doc.id}</span></div>
             </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OutletViewPage() {
+  // SSR-level guard: reserved/deleted slugs must 404 with proper status instead
+  // of prerendering the skeleton and matching [id] as id="hours". Runs during
+  // prerender AND hydration, before ClientOnly.
+  const params = useParams();
+  const id = params.id as string;
+  if (['new', 'hours', 'delivery', 'media', 'service-area'].includes(id)) {
+    notFound();
+  }
+  return (
+    <ClientOnly fallback={<OutletViewSkeleton />}>
+      <OutletViewContent />
+    </ClientOnly>
   );
 }

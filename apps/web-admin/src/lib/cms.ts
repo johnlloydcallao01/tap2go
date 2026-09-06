@@ -25,6 +25,33 @@ export const cmsConfig = {
 } as const;
 
 // ========================================
+// AUTHENTICATED CMS FETCH (reference pattern)
+// ========================================
+
+/**
+ * Authenticated CMS fetch mirroring the reference pattern: attach the mirrored
+ * client token as `Authorization: JWT ...`, never `credentials: 'include'`
+ * (ambient cookies conflict cross-origin with the CMS domain).
+ */
+export async function cmsApiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  let token: string | null = null;
+  if (typeof window !== 'undefined') {
+    token =
+      localStorage.getItem('tap2go_auth_token_admin') ?? localStorage.getItem('admin_auth_token');
+  }
+
+  const headers = new Headers(options.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `JWT ${token}`);
+  }
+
+  return fetch(`${cmsConfig.apiUrl}${path.startsWith('/') ? path : `/${path}`}`, {
+    ...options,
+    headers,
+  });
+}
+
+// ========================================
 // UTILITY FUNCTIONS
 // ========================================
 

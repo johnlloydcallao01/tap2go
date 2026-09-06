@@ -1,18 +1,24 @@
 'use client'
 import React, { useState, useEffect, useCallback } from 'react'
 import type { VendorReportsData } from '@/lib/reports-types'
+import { ClientOnly } from '@/components/ClientOnly'
 import { FileText, Download, Clock, ShieldCheck, DollarSign, Store, Package, AlertCircle, RefreshCw, FileSpreadsheet, Truck } from '@/components/ui/IconWrapper'
 
 type Range='7d'|'30d'|'90d'|'1y'|'all'
 const RANGE_OPTS:{value:Range;label:string}[]=[{value:'7d',label:'Last 7 days'},{value:'30d',label:'Last 30 days'},{value:'90d',label:'Last 90 days'},{value:'1y',label:'Last 12 months'},{value:'all',label:'All time'}]
-function fmtCurrency(n:number){return `₱${Number(n).toLocaleString(undefined,{maximumFractionDigits:2})}`}
-function fmtDate(iso:string){try{return new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}catch{return iso}}
+function fmtCurrency(n:number){return `₱${Number(n).toLocaleString('en-PH',{maximumFractionDigits:2})}`}
+function fmtDate(iso:string){try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'})}catch{return iso}}
+function fmtDateTime(iso:string){try{return new Date(iso).toLocaleString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}catch{return iso}}
 function toCsv(rows:Record<string,unknown>[], headers:string[]){const esc=(v:unknown)=>`"${String(v??'').replace(/"/g,'""')}"`; return [headers.join(','), ...rows.map(r=>headers.map(h=>esc(r[h])).join(','))].join('\n')}
 function downloadCsv(fn:string, csv:string){const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=fn;a.click();URL.revokeObjectURL(url)}
 function Kpi({label,value,sub}:{label:string;value:string;sub?:string}){
   return <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4"><p className="text-xs font-medium text-gray-500 dark:text-[#a1a1aa]">{label}</p><p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{value}</p>{sub&&<p className="text-xs text-gray-500 mt-1">{sub}</p>}</div>
 }
-export default function ReportsPage(){
+function ReportsSkeleton(){
+  return <div className="space-y-[10px] py-5 px-2.5 animate-pulse"><div className="h-7 bg-gray-100 dark:bg-[#171717] rounded w-40" /><div className="grid grid-cols-2 lg:grid-cols-4 gap-[10px]">{Array.from({length:4}).map((_,i)=><div key={i} className="h-24 bg-gray-100 dark:bg-[#171717] rounded-xl" />)}</div><div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl" /></div>;
+}
+
+function ReportsPageContent(){
   const [range,setRange]=useState<Range>('30d')
   const [data,setData]=useState<VendorReportsData|null>(null)
   const [loading,setLoading]=useState(true)
@@ -82,7 +88,17 @@ export default function ReportsPage(){
             <tbody className="divide-y divide-gray-100 dark:divide-[#262626]">{data.productPerformance.rows.map(r=><tr key={r.id}><td className="px-3 py-2 truncate max-w-[180px]">{r.name}</td><td className="px-3 py-2 text-right">{r.quantity}</td><td className="px-3 py-2 text-right font-medium">{fmtCurrency(r.revenue)}</td></tr>)}</tbody></table></div></div>
       </div>
 
-      <p className="text-[11px] text-gray-400 text-center">Vendor {data.meta.vendorName} • {data.meta.range} • {new Date(data.meta.generatedAt).toLocaleString()} • BFF /vendor/reports • Reports=auditable (your outlets only)</p>
+      <p className="text-[11px] text-gray-400 text-center">Vendor {data.meta.vendorName} • {data.meta.range} • {fmtDateTime(data.meta.generatedAt)} • BFF /vendor/reports • Reports=auditable (your outlets only)</p>
     </div>
   )
+}
+
+export default function ReportsPage(){
+  // Pure CSR: locale-sensitive currency/dates + generated-at timestamp only
+  // render post-mount → identical skeleton on server + hydration → no #441.
+  return (
+    <ClientOnly fallback={<ReportsSkeleton />}>
+      <ReportsPageContent />
+    </ClientOnly>
+  );
 }

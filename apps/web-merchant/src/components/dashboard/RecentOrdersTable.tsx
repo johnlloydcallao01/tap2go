@@ -39,14 +39,14 @@ export function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
               <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-[#262626] transition-colors">
                 <td className="px-6 py-3 text-sm font-medium text-gray-900 dark:text-white">#{order.id}</td>
                 <td className="px-6 py-3 text-sm text-gray-600 dark:text-[#a1a1aa] truncate max-w-[180px]">{order.customerEmail}</td>
-                <td className="px-6 py-3 text-sm font-medium text-gray-900 dark:text-white">₱{order.total.toLocaleString()}</td>
+                <td className="px-6 py-3 text-sm font-medium text-gray-900 dark:text-white">₱{order.total.toLocaleString('en-PH')}</td>
                 <td className="px-6 py-3">
                   <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${STATUS_STYLES[order.status] || 'bg-gray-100 text-gray-800'}`}>
                     {order.status.replace(/_/g, ' ')}
                   </span>
                 </td>
                 <td className="px-6 py-3 text-sm text-gray-500 dark:text-[#a1a1aa]">
-                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                 </td>
               </tr>
             ))}

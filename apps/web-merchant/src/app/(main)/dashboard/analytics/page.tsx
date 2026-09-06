@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import { ClientOnly } from '@/components/ClientOnly'
 import type { VendorAnalyticsData } from '@/lib/analytics-types'
 import {
   DollarSign, ShoppingCart, Store, TrendingUp, TrendingDown, BarChart3, Package,
@@ -25,9 +26,14 @@ const FULFILLMENT_OPTS = ['delivery','pickup'] as const
 const DELIVERY_OPTS = ['none','pending','assigning_driver','driver_assigned','picked_up','completed','canceled','expired'] as const
 const PAYMENT_OPTS = ['card','gcash','grab_pay','paymaya','billease','dob','qrph'] as const
 
-function fmtCurrency(n: number) { return `₱${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}` }
+function fmtCurrency(n: number) { return `₱${Number(n).toLocaleString('en-PH', { maximumFractionDigits: 0 })}` }
 function fmtPct(n: number) { const s = n > 0 ? '+' : ''; return `${s}${n.toFixed(1)}%` }
-function fmtNum(n: number) { return n.toLocaleString() }
+function fmtNum(n: number) { return n.toLocaleString('en-PH') }
+function fmtDateTime(iso: string) { try { return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return iso } }
+
+function AnalyticsSkeleton() {
+  return <div className="space-y-[10px] py-5 px-2.5 animate-pulse"><div className="grid grid-cols-2 lg:grid-cols-4 gap-[10px]">{Array.from({length:8}).map((_,i)=><div key={i} className="h-28 bg-gray-100 dark:bg-[#171717] rounded-xl" />)}</div><div className="grid grid-cols-1 lg:grid-cols-2 gap-[10px]"><div className="h-80 bg-gray-100 dark:bg-[#171717] rounded-xl" /><div className="h-80 bg-gray-100 dark:bg-[#171717] rounded-xl" /></div></div>;
+}
 
 function KpiCard({ title, value, sub, change, icon, iconBg }: { title: string; value: string; sub?: string; change?: number; icon: React.ReactNode; iconBg: string }) {
   const isUp = (change ?? 0) >= 0
@@ -66,7 +72,7 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
   )
 }
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const [range, setRange] = useState<Range>('30d')
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
@@ -262,9 +268,20 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-gray-400 text-center">Vendor {data.meta.vendorName} • {data.meta.range} • {new Date(data.meta.generatedAt).toLocaleString()} • BFF /vendor/analytics</p>
+          <p className="text-[11px] text-gray-400 text-center">Vendor {data.meta.vendorName} • {data.meta.range} • {fmtDateTime(data.meta.generatedAt)} • BFF /vendor/analytics</p>
         </>
       )}
     </div>
   )
+}
+
+export default function AnalyticsPage(){
+  // Pure CSR: locale-sensitive currency/numbers + generated-at timestamp only
+  // render post-mount → identical skeleton on server + hydration → no #441.
+  // (Charts are already dynamic ssr:false.)
+  return (
+    <ClientOnly fallback={<AnalyticsSkeleton />}>
+      <AnalyticsPageContent />
+    </ClientOnly>
+  );
 }

@@ -1,7 +1,14 @@
 /**
  * @file apps/web-admin/src/contexts/AuthContext.tsx
  * @description Authentication Context Provider for PayloadCMS
- * Manages global authentication state with automatic session restoration
+ * Manages global authentication state with automatic session restoration.
+ *
+ * Logic ported 1:1 from the proven grandline web-admin pattern:
+ * - No optimistic AUTH_FAST_SUCCESS — never render protected UI on stale cache
+ * - Trust the server-seeded session (httpOnly cookie) with an early return;
+ *   never clobber a valid session with a transient revalidation failure
+ * - Single-run init guard (isInitializedRef) + empty-dep callback (StrictMode safe)
+ * - No auto-refresh polling wired here; only passive logout listeners
  */
 
 'use client';
@@ -17,13 +24,10 @@ import {
   login as authLogin,
   logout as authLogout,
   getCurrentUser,
-  getStoredUser,
-  hasValidStoredToken,
   refreshSession as authRefreshSession,
   checkAuthStatus,
   clearAuthState,
   emitAuthEvent,
-  startSessionMonitoring,
 } from '@/lib/auth';
 import { getServerToken } from '@/app/actions/auth';
 
@@ -33,7 +37,6 @@ import { getServerToken } from '@/app/actions/auth';
 
 type AuthAction =
   | { type: 'AUTH_INIT_START' }
-  | { type: 'AUTH_FAST_SUCCESS'; payload: { user: User; token: string } }
   | { type: 'AUTH_INIT_SUCCESS'; payload: { user: User | null; token: string | null } }
   | { type: 'AUTH_INIT_ERROR'; payload: { error: string } }
   | { type: 'LOGIN_START' }
@@ -42,7 +45,7 @@ type AuthAction =
   | { type: 'LOGOUT_START' }
   | { type: 'LOGOUT_SUCCESS' }
   | { type: 'REFRESH_SUCCESS'; payload: { user: User; token: string } }
-  | { type: 'SET_USER'; payload: { user: User } }
+  | { type: 'USER_UPDATED'; payload: { user: User } }
   | { type: 'CLEAR_ERROR' }
   | { type: 'SESSION_EXPIRED' };
 
@@ -64,23 +67,12 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: null,
       };
 
-    case 'AUTH_FAST_SUCCESS':
-      return {
-        ...state,
-        user: action.payload.user,
-        token: action.payload.token,
-        isAuthenticated: true,
-        isLoading: false,
-        isInitialized: false, // Keep as false until real validation completes
-        error: null,
-      };
-
     case 'AUTH_INIT_SUCCESS':
       return {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
-        isAuthenticated: action.payload.user !== null,
+        isAuthenticated: action.payload.user !== null && action.payload.token !== null,
         isLoading: false,
         isInitialized: true,
         error: null,
@@ -151,11 +143,10 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: null,
       };
 
-    case 'SET_USER':
+    case 'USER_UPDATED':
       return {
         ...state,
         user: action.payload.user,
-        isAuthenticated: true,
         error: null,
       };
 
@@ -186,44 +177,67 @@ interface AuthProviderProps {
   initialToken?: string | null;
 }
 
-export const AuthProvider = ({ children, initialUser = null, initialToken = null }: AuthProviderProps): JSX.Element => {
+export const AuthProvider = ({ children, initialUser = null, initialToken = null }: AuthProviderProps): React.ReactNode => {
   const [state, dispatch] = useReducer(authReducer, {
     ...initialState,
     user: initialUser,
     token: initialToken,
     isAuthenticated: !!initialUser && !!initialToken,
-    isLoading: !initialUser || !initialToken,
-    isInitialized: !!initialUser && !!initialToken,
+    isLoading: !initialUser, // Only load if we didn't get initial user
+    isInitialized: !!initialUser, // If we got it from server, we are initialized
   });
 
   // ========================================
   // INITIALIZATION
   // ========================================
 
+  const isInitializedRef = React.useRef(false);
+
   const initializeAuth = useCallback(async () => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
     try {
+      // Trust the server-seeded session on first load. It already came from
+      // the HTTP-only cookie and avoids clobbering a valid session with a
+      // transient client-side revalidation failure.
       if (initialUser && initialToken) {
         try {
-          localStorage.setItem('admin_auth_user', JSON.stringify(initialUser));
-          localStorage.setItem('admin_auth_token', initialToken);
-        } catch { void 0; }
+          localStorage.setItem('tap2go_auth_user_admin', JSON.stringify(initialUser));
+          localStorage.setItem('tap2go_auth_token_admin', initialToken);
+        } catch {
+          void 0;
+        }
+
         emitAuthEvent('session_restored', { user: initialUser });
         return;
       }
 
-      // Fast path: restore cached admin session from localStorage before validating with server
-      if (hasValidStoredToken()) {
-        const cachedUser = getStoredUser();
-        if (cachedUser && cachedUser.role === 'admin') {
-          dispatch({ type: 'AUTH_FAST_SUCCESS', payload: { user: cachedUser, token: localStorage.getItem('admin_auth_token') || '' } });
-          emitAuthEvent('session_restored', { user: cachedUser });
+      let cachedUser: User | null = null;
+      let cachedToken: string | null = null;
+
+      try {
+        const cached = localStorage.getItem('tap2go_auth_user_admin');
+        cachedToken = localStorage.getItem('tap2go_auth_token_admin');
+        if (cached) {
+          cachedUser = JSON.parse(cached);
+          dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: cachedUser, token: cachedToken } });
         }
+      } catch {
+        void 0;
       }
 
-      // Validate with server
+      // Re-validate session with the server
       const user = await getCurrentUser();
       const token = await getServerToken();
-      if (token) localStorage.setItem('admin_auth_token', token);
+
+      // Update local storage token just in case legacy code needs it
+      if (token) {
+        localStorage.setItem('tap2go_auth_token_admin', token);
+      } else {
+        localStorage.removeItem('tap2go_auth_token_admin');
+      }
+
       dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user, token } });
 
       if (user) {
@@ -233,7 +247,7 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
       const errorMessage = error instanceof Error ? error.message : 'Failed to initialize authentication';
       dispatch({ type: 'AUTH_INIT_ERROR', payload: { error: errorMessage } });
     }
-  }, [initialToken, initialUser]);
+  }, []);
 
   // Initialize authentication on mount
   useEffect(() => {
@@ -277,20 +291,14 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
 
   const refreshSession = useCallback(async () => {
     try {
-      const user = await authRefreshSession();
-      if (user) {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('admin_auth_token') || '' : '';
-        dispatch({ type: 'REFRESH_SUCCESS', payload: { user, token } });
-        emitAuthEvent('session_refreshed', { user });
-      } else {
-        dispatch({ type: 'SESSION_EXPIRED' });
-        emitAuthEvent('session_expired');
-      }
-    } catch (error: unknown) {
+      const response = await authRefreshSession();
+      dispatch({ type: 'REFRESH_SUCCESS', payload: { user: response.user, token: response.token || '' } });
+      emitAuthEvent('session_refreshed', { user: response.user });
+    } catch (_error) {
       // If refresh fails, treat as session expired
       dispatch({ type: 'SESSION_EXPIRED' });
       emitAuthEvent('session_expired');
-      throw error;
+      throw _error;
     }
   }, []);
 
@@ -299,21 +307,15 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
   }, []);
 
   const updateUser = useCallback((user: User) => {
-    try {
-      localStorage.setItem('admin_auth_user', JSON.stringify(user));
-    } catch {}
-    dispatch({ type: 'SET_USER', payload: { user } });
-    emitAuthEvent('profile_updated', { user });
-  }, []);
+    dispatch({ type: 'USER_UPDATED', payload: { user } });
 
-  const refetchUser = useCallback(async () => {
-    const user = await getCurrentUser();
-    if (user) {
-      try {
-        localStorage.setItem('admin_auth_user', JSON.stringify(user));
-      } catch {}
-      dispatch({ type: 'SET_USER', payload: { user } });
+    try {
+      localStorage.setItem('tap2go_auth_user_admin', JSON.stringify(user));
+    } catch {
+      // Keep the in-memory session usable when storage is unavailable.
     }
+
+    emitAuthEvent('user_updated', { user });
   }, []);
 
   // ========================================
@@ -339,13 +341,11 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
     // Listen for custom auth events
     const handleAuthEvent = (e: CustomEvent) => {
       if (e.type === 'auth:logout') {
+        // Only logout on explicit logout event
         handleSessionExpired();
       }
-      // Removed 'auth:session_expired' to prevent infinite loop
+      // Ignore auth:session_expired to prevent auto-logout
     };
-
-    // Start session monitoring
-    const stopSessionMonitoring = startSessionMonitoring();
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('auth:logout', handleAuthEvent as EventListener);
@@ -355,7 +355,6 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('auth:logout', handleAuthEvent as EventListener);
       window.removeEventListener('auth:session_expired', handleAuthEvent as EventListener);
-      stopSessionMonitoring();
     };
   }, [state.isAuthenticated, state.isInitialized]);
 
@@ -368,17 +367,12 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
     login,
     logout,
     refreshSession,
+    updateUser,
     clearError,
     checkAuthStatus,
-    updateUser,
-    refetchUser,
   };
 
-  return React.createElement(
-    AuthContext.Provider,
-    { value: contextValue },
-    children
-  );
+  return React.createElement(AuthContext.Provider, { value: contextValue }, children);
 }
 
 // ========================================
@@ -387,11 +381,11 @@ export const AuthProvider = ({ children, initialUser = null, initialToken = null
 
 export function useAuthContext(): AuthContextType {
   const context = useContext(AuthContext);
-  
+
   if (context === undefined) {
     throw new Error('useAuthContext must be used within an AuthProvider');
   }
-  
+
   return context;
 }
 

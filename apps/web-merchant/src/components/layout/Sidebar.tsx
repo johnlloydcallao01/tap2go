@@ -119,10 +119,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
               active={hasActiveOutletsChild}
             >
               {renderChildLink({ label: 'All Outlets', href: '/outlets', isActive: exactActive(pathname, '/outlets') })}
-              {renderChildLink({ label: 'Status & Operating Hours', href: '/outlets/hours', isActive: dropdownActive(pathname, '/outlets/hours') })}
-              {renderChildLink({ label: 'Delivery Settings', href: '/outlets/delivery', isActive: dropdownActive(pathname, '/outlets/delivery') })}
-              {renderChildLink({ label: 'Service Areas & Radius', href: '/outlets/service-area', isActive: dropdownActive(pathname, '/outlets/service-area') })}
-              {renderChildLink({ label: 'Photos & Branding', href: '/outlets/media', isActive: dropdownActive(pathname, '/outlets/media') })}
             </SidebarDropdownGroup>
 
             <SidebarDropdownGroup

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { MerchantDashboardData } from '@/lib/dashboard-types';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   MetricCard,
   RevenueChart,
@@ -156,7 +157,7 @@ function DashboardSkeleton() {
   );
 }
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const [data, setData] = useState<MerchantDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -208,28 +209,28 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard
           title="Today's Revenue"
-          value={`₱${metrics.todayRevenue.toLocaleString()}`}
+          value={`₱${metrics.todayRevenue.toLocaleString('en-PH')}`}
           change={metrics.revenueChange}
           icon={<DollarSign className="w-5 h-5 text-white" />}
           iconBg="bg-green-500"
         />
         <MetricCard
           title="Pending Orders"
-          value={metrics.pendingOrders.toLocaleString()}
+          value={metrics.pendingOrders.toLocaleString('en-PH')}
           change={0}
           icon={<Clock className="w-5 h-5 text-white" />}
           iconBg="bg-amber-500"
         />
         <MetricCard
           title="Total Orders"
-          value={metrics.totalOrders.toLocaleString()}
+          value={metrics.totalOrders.toLocaleString('en-PH')}
           change={metrics.ordersChange}
           icon={<ShoppingCart className="w-5 h-5 text-white" />}
           iconBg="bg-blue-500"
         />
         <MetricCard
           title="Total Revenue"
-          value={`₱${metrics.totalRevenue.toLocaleString()}`}
+          value={`₱${metrics.totalRevenue.toLocaleString('en-PH')}`}
           change={metrics.revenueChange}
           icon={<DollarSign className="w-5 h-5 text-white" />}
           iconBg="bg-purple-500"
@@ -257,5 +258,15 @@ export default function DashboardPage() {
         <RecentOrdersTable orders={recentOrders} />
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage(){
+  // Pure CSR: locale-sensitive totals, TZ-sensitive dates, new-Date()
+  // relative times, and echarts canvas only render post-mount → no #441.
+  return (
+    <ClientOnly fallback={<DashboardSkeleton />}>
+      <DashboardPageContent />
+    </ClientOnly>
   );
 }
