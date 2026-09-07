@@ -67,6 +67,16 @@ Full Render-parity list (see `apps/cms/.env.example` + `render.yaml`):
   `overrides`, `peerDependencyRules`, `allowBuilds` (replaces
   `onlyBuiltDependencies`), and `nodeLinker` (replaces `.npmrc`
   `node-linker`). No panel change needed — redeploy picks it up.
+- `spawnSync pnpm ENOENT` / `Command failed with ENOENT: pnpm install` in the
+  build phase: the panel is NOT running `hostinger-build.sh` — it runs a bare
+  `pnpm run ...` via Corepack, and pnpm 11's pre-run check spawns a `pnpm`
+  binary that doesn't exist on Hostinger's PATH. Fix: set the panel build
+  command to `npm run hostinger-build` (repo root as app root). Belt and
+  braces is also in-repo: `verifyDepsBeforeRun: false` in
+  `pnpm-workspace.yaml`, plus the build script installs a real global
+  `pnpm@9.12.3` when permitted. If the build log lacks the script's
+  `Node: ...` / `npm: ...` first lines, the panel is still on the wrong
+  command.
 - `DATABASE_URI / PAYLOAD_SECRET is not set`: set them in Hostinger env and
   rebuild (build-time requirement, not just runtime).
 - Wrong public URL / Supabase / Cloudinary values after deploy: those are

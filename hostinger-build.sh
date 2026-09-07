@@ -37,6 +37,14 @@ fi
 
 PNPM="npx --yes pnpm@9.12.3"
 
+# Make a real `pnpm` binary resolvable for child processes. pnpm 10/11's
+# pre-run check spawns bare `pnpm`, which is not on PATH on Hostinger
+# (Corepack shim only) and fails with `spawnSync pnpm ENOENT`.
+if npm install -g pnpm@9.12.3 >/dev/null 2>&1; then
+  export PATH="$(npm config get prefix 2>/dev/null)/bin:$PATH"
+  PNPM="pnpm"
+fi
+
 $PNPM --version
 $PNPM install --frozen-lockfile --prod=false
 $PNPM --filter @encreasl/cms run build

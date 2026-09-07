@@ -13,11 +13,20 @@ pmOnFail: ignore
 # Preserve pnpm 9 behaviour: unlisted postinstall scripts warn, don't fail.
 strictDepBuilds: false
 
+# Stop pnpm 10/11 from auto-spawning `pnpm install` before every `pnpm run`.
+# On Hostinger the bare `pnpm` binary is not on PATH (pnpm only exists via a
+# Corepack shim), so that pre-run check crashes the build with
+# `spawnSync pnpm ENOENT`. Installs are run explicitly anyway.
+verifyDepsBeforeRun: false
+
 # Replaces `onlyBuiltDependencies` (removed in pnpm 11) from package.json.
 allowBuilds:
   sharp: true
   esbuild: true
   unrs-resolver: true
+  # Reviewed: no build needed (polyfill notice / optional DTrace bindings).
+  core-js-pure: false
+  dtrace-provider: false
 
 # Replaces `.npmrc` node-linker (pnpm 11 ignores non-auth .npmrc settings).
 nodeLinker: hoisted
