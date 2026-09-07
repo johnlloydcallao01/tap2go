@@ -32,41 +32,52 @@ if (!fs.existsSync(serverFile)) {
 }
 
 const appModules = path.join(appDir, 'node_modules')
+const installedModules = path.join(cmsDir, 'node_modules')
 fs.mkdirSync(appModules, { recursive: true })
+
+const copyIfMissing = (name, sourceRoot) => {
+  const src = path.join(sourceRoot, name)
+  const dest = path.join(appModules, name)
+  if (fs.existsSync(dest) || !fs.existsSync(src)) return
+  fs.cpSync(src, dest, { recursive: true, dereference: true })
+  console.log(`self-contain: merged ${name} from ${path.relative(cmsDir, sourceRoot)}`)
+}
 
 if (fs.existsSync(parentModules)) {
   for (const name of fs.readdirSync(parentModules)) {
     if (name === '.bin') continue
-    const src = path.join(parentModules, name)
-    const dest = path.join(appModules, name)
-    if (!fs.existsSync(dest)) {
-      fs.cpSync(src, dest, { recursive: true, dereference: true })
-      console.log(`self-contain: merged ${name}`)
-    }
+    copyIfMissing(name, parentModules)
   }
-
-  // Materialize any remaining symlinks/junctions inside the app tree.
-  const materialize = (dir) => {
-    for (const name of fs.readdirSync(dir)) {
-      const p = path.join(dir, name)
-      let stat
-      try {
-        stat = fs.lstatSync(p)
-      } catch {
-        continue
-      }
-      if (stat.isSymbolicLink()) {
-        const target = fs.realpathSync(p)
-        fs.rmSync(p, { recursive: true, force: true })
-        fs.cpSync(target, p, { recursive: true, dereference: true })
-        console.log(`self-contain: materialized link ${path.relative(appModules, p)}`)
-      } else if (stat.isDirectory()) {
-        materialize(p)
-      }
-    }
-  }
-  materialize(appModules)
 }
+
+// Some hosts flatten or regenerate the standalone tree and omit modules that
+// Next traced into its parent directory. Seed the critical runtime packages
+// from the CMS install as a fallback before validating the staged server.
+for (const name of ['react', 'react-dom', 'next', 'scheduler', 'use-sync-external-store']) {
+  copyIfMissing(name, installedModules)
+}
+
+// Materialize any remaining symlinks/junctions inside the app tree.
+const materialize = (dir) => {
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name)
+    let stat
+    try {
+      stat = fs.lstatSync(p)
+    } catch {
+      continue
+    }
+    if (stat.isSymbolicLink()) {
+      const target = fs.realpathSync(p)
+      fs.rmSync(p, { recursive: true, force: true })
+      fs.cpSync(target, p, { recursive: true, dereference: true })
+      console.log(`self-contain: materialized link ${path.relative(appModules, p)}`)
+    } else if (stat.isDirectory()) {
+      materialize(p)
+    }
+  }
+}
+materialize(appModules)
 
 // Never ship local secrets: a staged .env would shadow Hostinger panel env
 // vars at runtime (dotenv loads .env from CWD) and leak credentials.
