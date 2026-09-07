@@ -14,6 +14,8 @@ if (!fs.existsSync(path.join(standaloneDir, 'server.js'))) {
 fs.rmSync(path.join(standaloneDir, '.next', 'static'), { recursive: true, force: true })
 fs.rmSync(path.join(standaloneDir, 'public'), { recursive: true, force: true })
 fs.cpSync(staticSource, path.join(standaloneDir, '.next', 'static'), { recursive: true })
-fs.cpSync(publicSource, path.join(standaloneDir, 'public'), { recursive: true })
+if (fs.existsSync(publicSource)) {
+  fs.cpSync(publicSource, path.join(standaloneDir, 'public'), { recursive: true })
+}
 
 console.log(`Prepared standalone assets in ${standaloneDir}`)
