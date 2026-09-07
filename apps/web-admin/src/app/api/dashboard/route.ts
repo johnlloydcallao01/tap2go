@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${CMS_BASE}/admin/dashboard`, {
       headers: { Authorization: `JWT ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) {

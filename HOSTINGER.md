@@ -83,16 +83,17 @@ Full Render-parity list (see `apps/cms/.env.example` + `render.yaml`):
   `overrides`, `peerDependencyRules`, `allowBuilds` (replaces
   `onlyBuiltDependencies`), and `nodeLinker` (replaces `.npmrc`
   `node-linker`). No panel change needed — redeploy picks it up.
-- `Failed to load SWC binary` / `GLIBC_2.29 not found` during `next build`:
-  this host's glibc predates what Next's native SWC binaries need, and the
-  musl fallback won't load there either — so the build must use Next's wasm
-  SWC. `apps/cms` now depends directly on `@next/swc-wasm-nodejs` (pinned to
-  the Next version), which Next's loader `import()`s from `node_modules`
-  before ever attempting its on-demand download (that download shells out to
-  bare `pnpm`, which doesn't exist on this host). Commit must include both
-  `apps/cms/package.json` and `pnpm-lock.yaml` (frozen install). No panel
-  change needed. If the wasm compile then hits the 15-minute limit or OOM,
-  use the archive-upload fallback below.
+- `Failed to load SWC binary` / `GLIBC_2.29 not found` / `Failed to get
+  registry from "pnpm"` during `next build`: this host's glibc predates what
+  Next's native SWC binaries need, so the build must use Next's wasm SWC —
+  but Next's on-demand download picks its downloader from
+  `npm_config_user_agent` (set to pnpm by every upstream runner) and throws
+  instead of falling back when bare `pnpm` is missing. Fixed in-repo two
+  ways: `apps/cms` depends directly on `@next/swc-wasm-nodejs` (pinned to
+  the Next version), and the CMS `build` script exports
+  `npm_config_user_agent=npm` so any download that is still needed goes
+  through `npm config get registry` (npm exists on the host). No lockfile
+  impact from the script change; no panel change needed.
 - `spawnSync pnpm ENOENT` / `Command failed with ENOENT: pnpm install` in the
   build phase: the locked `pnpm run build` went through Corepack pnpm 11,
   whose pre-run check spawns a `pnpm` binary missing from Hostinger's PATH.

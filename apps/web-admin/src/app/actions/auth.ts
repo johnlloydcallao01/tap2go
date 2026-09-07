@@ -76,6 +76,7 @@ export async function getServerUser(): Promise<User | null> {
     const response = await fetch(`${API_BASE_URL}/users/me?depth=2`, {
       headers: { Authorization: `JWT ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) return null;
     const data = await readResponse(response);

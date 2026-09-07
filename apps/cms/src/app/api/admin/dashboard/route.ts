@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { authenticateAdmin } from '@/utils/mediaLibrary'
 
 function daysAgo(n: number): string {
   const d = new Date()
@@ -34,6 +35,10 @@ function getStr(val: unknown, fallback = ''): string {
 export async function GET(request: NextRequest) {
   try {
     const payload = await getPayload({ config: configPromise })
+    const admin = await authenticateAdmin(payload, request)
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     const [vendorsRes, merchantsRes, ordersRes, driversRes, customersRes, transactionsRes] = await Promise.all([
       payload.find({ collection: 'vendors', limit: 1000, depth: 1, overrideAccess: true }),
