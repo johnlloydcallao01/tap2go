@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo run build",
+    "build": "node scripts/deploy-router.js build",
     "build:packages": "turbo run build --filter=\"./packages/*\"",
     "build:apps": "turbo run build --filter=\"./apps/*\"",
     "build:parallel": "turbo run build --parallel",
@@ -54,7 +54,7 @@
     "vercel-build": "cd apps/web && pnpm run build",
     "hostinger-build": "bash hostinger-build.sh",
     "hostinger-start": "bash hostinger-start.sh",
-    "start": "cd apps/web && pnpm start",
+    "start": "node scripts/deploy-router.js start",
     "tsc-errors": "node tools/ts-error-checker/index.js"
   },
   "devDependencies": {
