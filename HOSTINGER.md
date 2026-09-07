@@ -104,14 +104,18 @@ Full Render-parity list (see `apps/cms/.env.example` + `render.yaml`):
 - `DATABASE_URI / PAYLOAD_SECRET is not set`: set them in Hostinger env and
   rebuild (build-time requirement, not just runtime).
 - `Error: Cannot find module 'react'` from
-  `nodejs/cjs/react-dom-server-legacy.node.production.js` at boot: Hostinger
-  snapshots only the app subtree (`standalone/apps/cms`) into its version
-  dir, dropping the parent `standalone/node_modules` where Next's trace puts
-  `react`/`react-dom` (the app dir only ever contains `@img, @next, nanoid,
-  next, postcss`). Fixed in-repo: `hostinger-build.sh` merges the parent
-  modules down into the app dir (dereferencing pnpm symlinks), strips staged
-  `.env*`, and fails the build fast if `react`/`react-dom`/`next` don't
-  resolve from the staged server. Redeploy to pick it up.
+  `nodejs/cjs/react-dom-server-legacy.node.production.js` at boot (503 from
+  the edge): Next's standalone trace puts shared deps (`react`, `react-dom`,
+  ...) in the parent `standalone/node_modules`, and the app server only
+  resolves them by walking up from `standalone/apps/cms/server.js` — but
+  Hostinger snapshots just the app subtree into its version dir, dropping the
+  parent. Fixed in-repo and config-proof: `apps/cms/scripts/self-contain-
+  standalone.mjs` merges the parent modules down into the app dir
+  (dereferencing pnpm symlinks, never overwriting traced versions), strips
+  staged `.env*`, and fails the build fast unless `react`/`react-dom`/`next`
+  resolve from the staged server. It runs at the end of the `apps/cms`
+  `build` script itself, so both the repo-root router build and direct
+  `apps/cms` panel builds get it. Commit, push, redeploy.
 - Wrong public URL / Supabase / Cloudinary values after deploy: those are
   build-time inlined — fix env vars and trigger a rebuild.
 - Build OOM: `apps/cms` build allows up to 8 GB heap but only uses what it

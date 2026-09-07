@@ -66,47 +66,10 @@ mkdir -p "$STANDALONE_DIR/.next"
 cp -R apps/cms/.next/static "$STANDALONE_DIR/.next/static"
 cp -R apps/cms/public "$STANDALONE_DIR/public"
 
-# Self-contain the runnable subtree.
-# Next's standalone trace hoists shared deps (react, react-dom, ...) to
-# standalone/node_modules, and the app server only resolves them by walking
-# UP from standalone/apps/cms/server.js. Hostinger snapshots just the app
-# subtree into hbuilds/versions/<id>/nodejs (dropping that parent dir), so
-# `require('react')` from react-dom's server bundle dies at boot with
-# "Error: Cannot find module 'react'". Merge every parent entry missing from
-# the app dir down into it (never overwriting traced versions), dereferencing
-# symlinks so pnpm links survive the snapshot copy.
-if [ -d "$STANDALONE_PARENT" ]; then
-  mkdir -p "$STANDALONE_DIR/node_modules"
-  for entry in "$STANDALONE_PARENT"/.* "$STANDALONE_PARENT"/*; do
-    [ -e "$entry" ] || continue
-    name="$(basename "$entry")"
-    case "$name" in
-      .|..|.bin) continue ;;
-    esac
-    if [ ! -e "$STANDALONE_DIR/node_modules/$name" ]; then
-      cp -rL "$entry" "$STANDALONE_DIR/node_modules/$name"
-    fi
-  done
-  # Materialize any remaining symlinks inside the app tree (pnpm hoisted
-  # links dangle once Hostinger copies the subtree to its version dir).
-  while IFS= read -r link; do
-    target="$(readlink -f "$link")"
-    rm "$link"
-    cp -rL "$target" "$link"
-  done < <(find "$STANDALONE_DIR/node_modules" -type l -print)
-fi
-
-# Never ship local secrets: the staged .env would shadow Hostinger panel env
-# vars at runtime (dotenv loads .env from CWD) and leaks credentials.
-rm -f "$STANDALONE_DIR/.env" "$STANDALONE_DIR/.env."*
-
-# Fail fast: the exact runtime check is `require('react')` from the app dir.
-for mod in react react-dom next; do
-  if [ ! -f "$STANDALONE_DIR/node_modules/$mod/package.json" ]; then
-    echo "ERROR: $STANDALONE_DIR/node_modules/$mod is missing. The standalone trace is incomplete; aborting before deploy." >&2
-    exit 1
-  fi
-done
-node -e "const {createRequire}=require('module');const r=createRequire(process.cwd()+'/apps/cms/.next/standalone/apps/cms/server.js');for(const m of ['react','react-dom','next'])r.resolve(m);console.log('standalone resolve ok: react, react-dom, next')"
+# Self-contain the runnable subtree (react/react-dom live in the parent
+# standalone/node_modules; Hostinger snapshots only the app dir). Single
+# implementation in apps/cms/scripts/self-contain-standalone.mjs — also wired
+# into apps/cms `build`, so direct apps/cms panel builds get it too.
+node apps/cms/scripts/self-contain-standalone.mjs
 
 echo "Hostinger build complete. Start with: bash hostinger-start.sh"
