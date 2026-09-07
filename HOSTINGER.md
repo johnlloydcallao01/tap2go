@@ -84,12 +84,15 @@ Full Render-parity list (see `apps/cms/.env.example` + `render.yaml`):
   `onlyBuiltDependencies`), and `nodeLinker` (replaces `.npmrc`
   `node-linker`). No panel change needed — redeploy picks it up.
 - `Failed to load SWC binary` / `GLIBC_2.29 not found` / `pnpm: command not
-  found` during `next build`: Hostinger's shared-host glibc is too old for
-  Next's default SWC binary, and bare `pnpm` isn't on PATH for Next's
-  fallback downloader. Fixed in-repo: `supportedArchitectures.libc:
-  [glibc, musl]` in `pnpm-workspace.yaml` (Next loads the statically-linked
-  musl SWC instead) plus a user-local `pnpm@9.12.3` install in
-  `hostinger-build.sh`. Redeploy picks it up; no panel change needed.
+  found` during `next build`: this host's glibc predates what Next's SWC
+  gnu binary needs, and the musl fallback also fails to load there — so Next
+  must use its wasm SWC, which it downloads via bare `pnpm` (absent on this
+  host). Fixed in-repo: `pnpm-workspace.yaml` still ships both libc variants,
+  and `hostinger-build.sh` guarantees a working bare `pnpm` (npx-backed shim
+  in `~/.hostinger-bin`, real user-local install when permitted) so the wasm
+  download succeeds. Redeploy picks it up; no panel change needed. If the
+  wasm compile then hits the 15-minute limit or OOM, use the archive-upload
+  fallback below instead of fighting the shared host further.
 - `spawnSync pnpm ENOENT` / `Command failed with ENOENT: pnpm install` in the
   build phase: the locked `pnpm run build` went through Corepack pnpm 11,
   whose pre-run check spawns a `pnpm` binary missing from Hostinger's PATH.

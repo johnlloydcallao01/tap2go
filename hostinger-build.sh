@@ -35,25 +35,24 @@ if [ -z "${PAYLOAD_SECRET:-}" ]; then
   exit 1
 fi
 
-PNPM="npx --yes pnpm@9.12.3"
-
-# Make a real `pnpm` binary resolvable for child processes. Next's SWC
-# downloader and other tooling spawn bare `pnpm` (e.g. `pnpm config get
-# registry`), which is not on PATH on Hostinger (Corepack shim only) and
-# fails with `pnpm: command not found`. Install user-local (system prefix
-# is not writable on shared hosting) and prefer it when it succeeds.
+# Bare `pnpm` MUST resolve for child processes: Next's SWC fallback
+# downloader runs `pnpm config get registry`, and without it the build dies
+# with `pnpm: command not found` (this host has no pnpm outside Corepack).
+# A npx-backed shim always works here (npx downloads are proven on this
+# host); a real user-local install is preferred when permitted (faster).
+HOSTINGER_BIN="$HOME/.hostinger-bin"
+mkdir -p "$HOSTINGER_BIN"
+printf '#!/bin/sh\nexec npx --yes pnpm@9.12.3 "$@"\n' > "$HOSTINGER_BIN/pnpm"
+chmod +x "$HOSTINGER_BIN/pnpm"
+export PATH="$HOSTINGER_BIN:$PATH"
 NPM_GLOBAL="$HOME/.npm-global"
 mkdir -p "$NPM_GLOBAL"
-if npm install -g --prefix="$NPM_GLOBAL" pnpm@9.12.3 >/tmp/pnpm-global-install.log 2>&1; then
-  export PATH="$NPM_GLOBAL/bin:$PATH"
-  PNPM="pnpm"
-else
-  echo "WARNING: user-local pnpm install failed; falling back to npx"
-  tail -n 5 /tmp/pnpm-global-install.log || true
+if npm install -g --prefix="$NPM_GLOBAL" pnpm@9.12.3 >"$HOME/.cache/pnpm-global-install.log" 2>&1; then
+  export PATH="$NPM_GLOBAL/bin:$HOSTINGER_BIN:$PATH"
 fi
-command -v pnpm || echo "WARNING: no bare pnpm on PATH (npx fallback in use)"
-
-$PNPM --version
+PNPM="pnpm"
+echo "pnpm resolved: $(command -v pnpm)"
+pnpm --version
 $PNPM install --frozen-lockfile --prod=false
 $PNPM --filter @encreasl/cms run build
 
