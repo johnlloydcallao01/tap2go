@@ -108,6 +108,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQ(q.trim()), 400)
@@ -133,21 +134,28 @@ export default function AnalyticsPage() {
     return p.toString()
   }, [])
 
-  // Non-blocking fetch: keep search/filter UI mounted while data below refreshes
-  const load = useCallback(async (r: Range, query: string, f: Filters) => {
-    // initial load uses loading, subsequent uses isFetching overlay — we reuse loading but render header anyway
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery(r, query, f)
-      const res = await fetch(`/api/analytics?${qs}`, { cache: 'no-store' })
-      if (!res.ok) throw new Error('Failed to load analytics')
-      const json = await res.json()
-      setData(json)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load analytics') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  useEffect(() => {
+    const controller = new AbortController()
+    const qs = buildQuery(range, debouncedQ, filters)
+    setLoading(true)
+    setError(null)
 
-  useEffect(() => { void load(range, debouncedQ, filters) }, [load, range, debouncedQ, filters])
+    void fetch(`/api/analytics?${qs}`, { cache: 'no-store', signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to load analytics')
+        return res.json() as Promise<AnalyticsData>
+      })
+      .then(setData)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setError(error instanceof Error ? error.message : 'Failed to load analytics')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [buildQuery, range, debouncedQ, filters, reloadToken])
 
   const toggle = (key: keyof Filters, val: string) => {
     setFilters((prev) => {
@@ -309,7 +317,7 @@ export default function AnalyticsPage() {
               <button key={o.value} onClick={() => setRange(o.value)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${range===o.value ? 'bg-white dark:bg-[#262626] text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-[#333]' : 'text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900'}`}>{o.label}</button>
             ))}
           </div>
-          <button onClick={() => load(range, debouncedQ, filters)} disabled={loading} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"><RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} /></button>
+          <button onClick={() => setReloadToken((value) => value + 1)} disabled={loading} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"><RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} /></button>
         </div>
       </div>
 
@@ -384,7 +392,7 @@ export default function AnalyticsPage() {
           <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
           <h2 className="font-semibold text-gray-900 dark:text-white mb-2">Failed to load analytics</h2>
           <p className="text-sm text-gray-500 mb-6">{error}</p>
-          <button onClick={() => load(range, debouncedQ, filters)} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+          <button onClick={() => setReloadToken((value) => value + 1)} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
         </div>
       ) : isInitialLoading ? (
         <div className="space-y-[10px] animate-pulse">

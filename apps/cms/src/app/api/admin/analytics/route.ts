@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 
 // Helpers
 function daysAgoISO(n: number): string {
@@ -68,8 +70,11 @@ function parseCsvParam(searchParams: URLSearchParams, key: string): string[] {
 }
 
 export async function GET(request: NextRequest) {
-  try {
+  return withAdminRequestSlot(async () => {
+    try {
     const payload = await getPayload({ config: configPromise })
+      const admin = await authenticateAdmin(payload, request)
+      if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const { days, label } = parseRange(searchParams)
 
@@ -646,8 +651,9 @@ export async function GET(request: NextRequest) {
       driverStatusBreakdown,
       funnel,
     })
-  } catch (error) {
-    console.error('Analytics aggregation error:', error)
-    return NextResponse.json({ error: 'Failed to load analytics' }, { status: 500 })
-  }
+    } catch (error) {
+      console.error('Analytics aggregation error:', error)
+      return NextResponse.json({ error: 'Failed to load analytics' }, { status: 500 })
+    }
+  })
 }

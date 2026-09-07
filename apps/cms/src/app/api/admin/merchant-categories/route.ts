@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -35,7 +36,8 @@ function sanitizeDoc(raw: Record<string, any>, merchantCount: number): Record<st
 function badRequest(m: string, d?: unknown) { return NextResponse.json({ error: m, details: d }, { status: 400 }) }
 
 export async function GET(request: NextRequest) {
-  try {
+  return withAdminRequestSlot(async () => {
+    try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
@@ -100,10 +102,11 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     })
-  } catch (err: any) {
-    console.error('[admin/merchant-categories] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load merchant categories' }, { status: 500 })
-  }
+    } catch (err: any) {
+      console.error('[admin/merchant-categories] GET error:', err)
+      return NextResponse.json({ error: err?.message || 'Failed to load merchant categories' }, { status: 500 })
+    }
+  })
 }
 
 export async function POST(request: NextRequest) {

@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${CMS_BASE}/admin/analytics?${forward.toString()}`, {
       headers: { Authorization: `JWT ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(25000),
     })
     if (!res.ok) {
       const text = await res.text()

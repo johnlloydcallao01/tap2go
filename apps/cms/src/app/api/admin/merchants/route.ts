@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -73,7 +74,8 @@ function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
 const OPERATIONAL_STATUSES = new Set(['open','closed','busy','temp_closed','maintenance'])
 
 export async function GET(request: NextRequest) {
-  try{
+  return withAdminRequestSlot(async () => {
+    try{
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if(!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
@@ -259,10 +261,11 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search }
     })
-  }catch(err:any){
-    console.error('[admin/merchants] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load merchants' }, { status: 500 })
-  }
+    }catch(err:any){
+      console.error('[admin/merchants] GET error:', err)
+      return NextResponse.json({ error: err?.message || 'Failed to load merchants' }, { status: 500 })
+    }
+  })
 }
 
 export async function POST(request: NextRequest){

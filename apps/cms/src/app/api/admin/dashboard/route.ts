@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 
 function daysAgo(n: number): string {
   const d = new Date()
@@ -33,7 +34,8 @@ function getStr(val: unknown, fallback = ''): string {
 }
 
 export async function GET(request: NextRequest) {
-  try {
+  return withAdminRequestSlot(async () => {
+    try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) {
@@ -190,8 +192,9 @@ export async function GET(request: NextRequest) {
       topVendors,
       recentOrders: recentOrdersList,
     })
-  } catch (error) {
-    console.error('Dashboard aggregation error:', error)
-    return NextResponse.json({ error: 'Failed to load dashboard data' }, { status: 500 })
-  }
+    } catch (error) {
+      console.error('Dashboard aggregation error:', error)
+      return NextResponse.json({ error: 'Failed to load dashboard data' }, { status: 500 })
+    }
+  })
 }
