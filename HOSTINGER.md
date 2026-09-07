@@ -61,6 +61,12 @@ Full Render-parity list (see `apps/cms/.env.example` + `render.yaml`):
 - `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` + `pnpm/11.23.0/bin/pnpm.cjs`:
   panel is on Node 20 (often from a stale `.nvmrc`). Switch panel to Node 22
   and redeploy. This repo's `.nvmrc` is now `22.17.0`.
+- `This project is configured to use 9.12.3 of pnpm. Your current pnpm is
+  v11.23.0` / `"pnpm" field in package.json is no longer read`: fixed in
+  `pnpm-workspace.yaml` via `pmOnFail: ignore` plus the pnpm 11 homes for
+  `overrides`, `peerDependencyRules`, `allowBuilds` (replaces
+  `onlyBuiltDependencies`), and `nodeLinker` (replaces `.npmrc`
+  `node-linker`). No panel change needed — redeploy picks it up.
 - `DATABASE_URI / PAYLOAD_SECRET is not set`: set them in Hostinger env and
   rebuild (build-time requirement, not just runtime).
 - Wrong public URL / Supabase / Cloudinary values after deploy: those are
