@@ -37,13 +37,21 @@ fi
 
 PNPM="npx --yes pnpm@9.12.3"
 
-# Make a real `pnpm` binary resolvable for child processes. pnpm 10/11's
-# pre-run check spawns bare `pnpm`, which is not on PATH on Hostinger
-# (Corepack shim only) and fails with `spawnSync pnpm ENOENT`.
-if npm install -g pnpm@9.12.3 >/dev/null 2>&1; then
-  export PATH="$(npm config get prefix 2>/dev/null)/bin:$PATH"
+# Make a real `pnpm` binary resolvable for child processes. Next's SWC
+# downloader and other tooling spawn bare `pnpm` (e.g. `pnpm config get
+# registry`), which is not on PATH on Hostinger (Corepack shim only) and
+# fails with `pnpm: command not found`. Install user-local (system prefix
+# is not writable on shared hosting) and prefer it when it succeeds.
+NPM_GLOBAL="$HOME/.npm-global"
+mkdir -p "$NPM_GLOBAL"
+if npm install -g --prefix="$NPM_GLOBAL" pnpm@9.12.3 >/tmp/pnpm-global-install.log 2>&1; then
+  export PATH="$NPM_GLOBAL/bin:$PATH"
   PNPM="pnpm"
+else
+  echo "WARNING: user-local pnpm install failed; falling back to npx"
+  tail -n 5 /tmp/pnpm-global-install.log || true
 fi
+command -v pnpm || echo "WARNING: no bare pnpm on PATH (npx fallback in use)"
 
 $PNPM --version
 $PNPM install --frozen-lockfile --prod=false

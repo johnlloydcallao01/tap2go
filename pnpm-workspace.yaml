@@ -13,6 +13,13 @@ pmOnFail: ignore
 # Preserve pnpm 9 behaviour: unlisted postinstall scripts warn, don't fail.
 strictDepBuilds: false
 
+# Hostinger's shared-host glibc is older than what @next/swc-linux-x64-gnu
+# requires (GLIBC_2.29), so Next's native loader fails there. Installing the
+# musl variant too (statically linked) gives Next a working fallback —
+# without it the build dies with "Failed to load SWC binary for linux/x64".
+supportedArchitectures:
+  libc: [glibc, musl]
+
 # Stop pnpm 10/11 from auto-spawning `pnpm install` before every `pnpm run`.
 # On Hostinger the bare `pnpm` binary is not on PATH (pnpm only exists via a
 # Corepack shim), so that pre-run check crashes the build with

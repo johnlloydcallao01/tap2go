@@ -83,16 +83,20 @@ Full Render-parity list (see `apps/cms/.env.example` + `render.yaml`):
   `overrides`, `peerDependencyRules`, `allowBuilds` (replaces
   `onlyBuiltDependencies`), and `nodeLinker` (replaces `.npmrc`
   `node-linker`). No panel change needed — redeploy picks it up.
+- `Failed to load SWC binary` / `GLIBC_2.29 not found` / `pnpm: command not
+  found` during `next build`: Hostinger's shared-host glibc is too old for
+  Next's default SWC binary, and bare `pnpm` isn't on PATH for Next's
+  fallback downloader. Fixed in-repo: `supportedArchitectures.libc:
+  [glibc, musl]` in `pnpm-workspace.yaml` (Next loads the statically-linked
+  musl SWC instead) plus a user-local `pnpm@9.12.3` install in
+  `hostinger-build.sh`. Redeploy picks it up; no panel change needed.
 - `spawnSync pnpm ENOENT` / `Command failed with ENOENT: pnpm install` in the
-  build phase: the panel is NOT running `hostinger-build.sh` — it runs a bare
-  `pnpm run ...` via Corepack, and pnpm 11's pre-run check spawns a `pnpm`
-  binary that doesn't exist on Hostinger's PATH. Fix: set the panel build
-  command to `npm run hostinger-build` (repo root as app root). Belt and
-  braces is also in-repo: `verifyDepsBeforeRun: false` in
-  `pnpm-workspace.yaml`, plus the build script installs a real global
-  `pnpm@9.12.3` when permitted. If the build log lacks the script's
-  `Node: ...` / `npm: ...` first lines, the panel is still on the wrong
-  command.
+  build phase: the locked `pnpm run build` went through Corepack pnpm 11,
+  whose pre-run check spawns a `pnpm` binary missing from Hostinger's PATH.
+  Fixed in-repo: `verifyDepsBeforeRun: false` in `pnpm-workspace.yaml`, the
+  `HOSTINGER_APP=cms` router (`scripts/deploy-router.js`), and a user-local
+  `pnpm@9.12.3` on PATH in `hostinger-build.sh`. Confirm the build log shows
+  `[deploy-router] HOSTINGER_APP=cms -> build CMS only`.
 - `DATABASE_URI / PAYLOAD_SECRET is not set`: set them in Hostinger env and
   rebuild (build-time requirement, not just runtime).
 - Wrong public URL / Supabase / Cloudinary values after deploy: those are
