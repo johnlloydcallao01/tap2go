@@ -4,12 +4,31 @@ const CACHE_TIMEOUT_MS = 1500
 
 let redis: Redis | null | undefined
 
+function cleanEnvValue(value: string | undefined): string | undefined {
+  const cleaned = value?.trim()
+  if (!cleaned) return undefined
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    return cleaned.slice(1, -1).trim()
+  }
+  return cleaned
+}
+
 function getRedis(): Redis | null {
   if (redis !== undefined) return redis
 
-  const url = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  redis = url && token ? new Redis({ url, token, enableTelemetry: false }) : null
+  const url = cleanEnvValue(process.env.UPSTASH_REDIS_REST_URL)
+  const token = cleanEnvValue(process.env.UPSTASH_REDIS_REST_TOKEN)
+  if (!url || !token || !/^https:\/\//i.test(url)) {
+    redis = null
+    return redis
+  }
+
+  try {
+    redis = new Redis({ url, token, enableTelemetry: false })
+  } catch (error) {
+    console.error('[RedisCache] Invalid Upstash configuration; caching disabled:', error instanceof Error ? error.message : error)
+    redis = null
+  }
   return redis
 }
 
