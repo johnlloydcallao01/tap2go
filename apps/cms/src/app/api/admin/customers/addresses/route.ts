@@ -5,8 +5,11 @@
  * backend owns context resolution, joins, filtering, pagination, and sanitization
  * with overrideAccess:true. Frontend is thin consumer.
  *
- * GET  /api/admin/customers/addresses?page=1&limit=10&search=&address_type=home,work&is_verified=true&is_default=false&verification_method=GPS_CONFIRMED&geocoding_accuracy=ROOFTOP&locality=Manila&sort=-createdAt
- *      -> { docs, pagination, stats, meta }
+ * GET  /api/admin/customers/addresses?page=1&limit=10&search=&address_type=home,work&is_verified=true&is_default=false&is_active=true&verification_method=GPS_CONFIRMED&geocoding_accuracy=ROOFTOP&locality=Manila&sort=-createdAt
+ *      -> { docs: [{ ...address, customer, customerActiveAddressId, customerActiveAddress, isActiveAddress }], pagination, stats: {..., activeCount, savedCount, totalActiveCustomers}, meta }
+ *      Admin perspective: active current address = customers.activeAddress (not addresses.is_default).
+ *      Each doc exposes isActiveAddress + customerActiveAddress so the page can show
+ *      "Active current" vs "Saved" per customer. Filter with is_active=true (active only) / false (saved only).
  * POST /api/admin/customers/addresses -> create address (admin can create for any user)
  * Access: admin-only via authenticateAdmin (JWT / Bearer / payload-token cookie)
  */
@@ -121,6 +124,28 @@ function parseCsv(value: string | null): string[] {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean)
 }
+function sanitizeAddressBrief(value: unknown): Record<string, any> | null {
+  if (!value || typeof value !== 'object') return null
+  const a = value as Record<string, any>
+  const id = Number(a.id)
+  if (Number.isNaN(id)) return null
+  return {
+    id,
+    formatted_address: str(a.formatted_address, ''),
+    shortAddress:
+      [optionalString(a.barangay), optionalString(a.locality), optionalString(a.administrative_area_level_1), optionalString(a.postal_code)]
+        .filter(Boolean)
+        .join(', ') || String(a.formatted_address || '').slice(0, 80),
+    locality: optionalString(a.locality),
+    administrative_area_level_1: optionalString(a.administrative_area_level_1),
+    postal_code: optionalString(a.postal_code),
+    address_type: optionalString(a.address_type) || 'home',
+    is_default: !!a.is_default,
+    is_verified: !!a.is_verified,
+    latitude: typeof a.latitude === 'number' ? a.latitude : null,
+    longitude: typeof a.longitude === 'number' ? a.longitude : null,
+  }
+}
 function badRequest(message: string, details?: unknown) {
   return NextResponse.json({ error: message, details }, { status: 400 })
 }
@@ -159,6 +184,31 @@ export async function GET(request: NextRequest) {
     const postalFilter = searchParams.get('postal_code')?.trim() || searchParams.get('postalCode')?.trim() || ''
     const userIdFilter = searchParams.get('userId')?.trim() || searchParams.get('user')?.trim() || ''
     const customerIdFilter = searchParams.get('customerId')?.trim() || ''
+    const isActiveParam = searchParams.get('is_active') ?? searchParams.get('isActive')
+    const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
+
+    // ── Admin perspective: active current address lives on customers.activeAddress,
+    // not on addresses.is_default. Resolve all customers once (overrideAccess) so we can
+    // (a) filter by active-vs-saved via addresses.id, (b) enrich each row with its
+    // customer's current active address. This keeps the frontend thin per docs/BFF-pattern.md.
+    const customersForActive = await payload
+      .find({ collection: 'customers', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any)
+      .catch(() => ({ docs: [] }) as any)
+    const activeIdSet = new Set<number>()
+    const activeByUserId = new Map<number, number>()
+    const customerByUserId = new Map<number, Record<string, any>>()
+    for (const c of ((customersForActive as any).docs as Record<string, any>[] ?? [])) {
+      const rawUser = (c as any).user
+      const uid = rawUser && typeof rawUser === 'object' ? Number((rawUser as any).id) : Number(rawUser)
+      if (!Number.isFinite(uid)) continue
+      customerByUserId.set(uid, c as Record<string, any>)
+      const rawActive = (c as any).activeAddress
+      const aid = rawActive && typeof rawActive === 'object' ? Number((rawActive as any).id) : Number(rawActive)
+      if (Number.isFinite(aid) && aid > 0) {
+        activeIdSet.add(aid)
+        activeByUserId.set(uid, aid)
+      }
+    }
 
     const where: Record<string, any> = {}
     const and: any[] = []
@@ -248,6 +298,41 @@ export async function GET(request: NextRequest) {
       and.push({ or })
     }
 
+    // Active-vs-saved filter: active current = customers.activeAddress id set.
+    if (isActiveFilter !== null) {
+      const ids = Array.from(activeIdSet)
+      if (isActiveFilter === true) {
+        if (!ids.length) {
+          return NextResponse.json({
+            docs: [],
+            pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
+            stats: {
+              totalAddresses: 0,
+              totalAll: 0,
+              filteredTotal: 0,
+              addressTypeBreakdown: {},
+              verificationMethodBreakdown: {},
+              geocodingBreakdown: {},
+              coordinateSourceBreakdown: {},
+              localityBreakdown: {},
+              topLocalities: [],
+              verifiedCount: 0,
+              unverifiedCount: 0,
+              defaultCount: 0,
+              highQualityCount: 0,
+              activeCount: 0,
+              savedCount: 0,
+              totalActiveCustomers: activeIdSet.size,
+            },
+            meta: { generatedAt: new Date().toISOString(), sort, search, isActiveFilter },
+          })
+        }
+        where.id = { in: ids }
+      } else {
+        if (ids.length) where.id = { not_in: ids }
+      }
+    }
+
     const finalWhere = and.length ? { and: [...and, where] } : where
 
     // parallel: paginated list + full stats (bounded)
@@ -278,7 +363,62 @@ export async function GET(request: NextRequest) {
     ])
 
     const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
-    const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeAddressDoc(d))
+    const rawDocs = paginated.docs as unknown as Record<string, any>[] ?? []
+
+    // Fetch active-address docs for customers on this page so each row can show
+    // both its own saved data AND the customer's current active address.
+    const neededActiveIds = Array.from(
+      new Set(
+        rawDocs
+          .map((d) => {
+            const u = (d as any).user
+            const uid = u && typeof u === 'object' ? Number((u as any).id) : Number(u)
+            return Number.isFinite(uid) ? activeByUserId.get(uid) : undefined
+          })
+          .filter((n): n is number => typeof n === 'number' && Number.isFinite(n)),
+      ),
+    )
+    let activeDocMap = new Map<number, Record<string, any>>()
+    if (neededActiveIds.length) {
+      try {
+        const activeRes = await payload.find({
+          collection: 'addresses',
+          where: { id: { in: neededActiveIds } },
+          limit: neededActiveIds.length,
+          depth: 0,
+          overrideAccess: true,
+          pagination: false,
+        } as any)
+        for (const a of ((activeRes as any).docs as Record<string, any>[] ?? [])) {
+          activeDocMap.set(Number((a as any).id), a)
+        }
+      } catch {}
+    }
+
+    const docs = rawDocs.map((d) => {
+      const base = sanitizeAddressDoc(d)
+      const u = (d as any).user
+      const uid = u && typeof u === 'object' ? Number((u as any).id) : Number(u)
+      const cust = Number.isFinite(uid) ? customerByUserId.get(uid) : undefined
+      const customerActiveAddressId = Number.isFinite(uid) ? (activeByUserId.get(uid) ?? null) : null
+      const isActiveAddress = customerActiveAddressId != null && Number(base.id) === Number(customerActiveAddressId)
+      const activeRaw = customerActiveAddressId != null ? activeDocMap.get(Number(customerActiveAddressId)) : undefined
+      return {
+        ...base,
+        customer: cust
+          ? {
+              id: Number((cust as any).id),
+              srn: typeof (cust as any).srn === 'string' ? (cust as any).srn : null,
+              currentLevel: typeof (cust as any).currentLevel === 'string' ? (cust as any).currentLevel : null,
+              email: typeof (cust as any).email === 'string' ? (cust as any).email : (base.user as any)?.email ?? null,
+              activeAddressId: customerActiveAddressId,
+            }
+          : null,
+        customerActiveAddressId,
+        customerActiveAddress: activeRaw ? sanitizeAddressBrief(activeRaw) : null,
+        isActiveAddress,
+      }
+    })
 
     // stats aggregation from statsDocs
     const totalAddresses = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
@@ -292,6 +432,7 @@ export async function GET(request: NextRequest) {
     let unverifiedCount = 0
     let defaultCount = 0
     let highQualityCount = 0 // score >= 80
+    let activeCount = 0
     for (const a of statsDocs) {
       const at = String(a.address_type || 'home').toLowerCase()
       addressTypeBreakdown[at] = (addressTypeBreakdown[at] || 0) + 1
@@ -306,6 +447,7 @@ export async function GET(request: NextRequest) {
       if (a.is_verified) verifiedCount++
       else unverifiedCount++
       if (a.is_default) defaultCount++
+      if (activeIdSet.has(Number((a as any).id))) activeCount++
       if (typeof a.address_quality_score === 'number' && a.address_quality_score >= 80) highQualityCount++
     }
 
@@ -339,8 +481,11 @@ export async function GET(request: NextRequest) {
         unverifiedCount,
         defaultCount,
         highQualityCount,
+        activeCount,
+        savedCount: Math.max(0, totalAll - activeCount),
+        totalActiveCustomers: activeIdSet.size,
       },
-      meta: { generatedAt: new Date().toISOString(), sort, search },
+      meta: { generatedAt: new Date().toISOString(), sort, search, isActiveFilter },
     })
   } catch (err: any) {
     console.error('[admin/customers/addresses] GET error:', err)

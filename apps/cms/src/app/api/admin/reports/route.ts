@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function getNum(val: unknown, fallback = 0): number {
   if (typeof val === 'number' && Number.isFinite(val)) return val
@@ -38,9 +41,20 @@ function parseRange(searchParams: URLSearchParams): { days: number; label: strin
 }
 
 export async function GET(request: NextRequest) {
-  try {
+  return withAdminRequestSlot(async () => {
+    try {
     const payload = await getPayload({ config: configPromise })
+    const admin = await authenticateAdmin(payload, request)
+    if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'range=30d'
+    const cacheKey = `admin:reports:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Reports-Cache': 'HIT' } })
+
     const { days, label } = parseRange(searchParams)
     const now = new Date()
     const periodStart = days === 0 ? null : new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
@@ -248,7 +262,7 @@ export async function GET(request: NextRequest) {
     const periodLabel = days === 0 ? 'All time' : `${days}d`
     const periodStartIso = periodStart ? periodStart.toISOString() : ordersDocs.length ? String(ordersDocs[ordersDocs.length - 1]?.createdAt ?? '') : now.toISOString()
 
-    return NextResponse.json({
+    const response = {
       meta: {
         range: label,
         periodLabel,
@@ -296,9 +310,12 @@ export async function GET(request: NextRequest) {
           driverName: getStr(b.driver_name, '—'),
         })),
       },
-    })
-  } catch (error) {
-    console.error('Reports aggregation error:', error)
-    return NextResponse.json({ error: 'Failed to load reports' }, { status: 500 })
-  }
+    }
+    await setCached(cacheKey, response, 30)
+    return NextResponse.json(response, { headers: { 'X-Reports-Cache': 'MISS' } })
+    } catch (error) {
+      console.error('Reports aggregation error:', error)
+      return NextResponse.json({ error: 'Failed to load reports' }, { status: 500 })
+    }
+  })
 }

@@ -86,6 +86,25 @@ function sanitizeAddressDoc(raw: Record<string, any>): Record<string, any> {
   }
 }
 
+function sanitizeAddressBrief(value: unknown): Record<string, any> | null {
+  if (!value || typeof value !== 'object') return null
+  const a = value as Record<string, any>
+  const nid = Number(a.id)
+  if (Number.isNaN(nid)) return null
+  return {
+    id: nid,
+    formatted_address: str(a.formatted_address, ''),
+    locality: optionalString(a.locality),
+    administrative_area_level_1: optionalString(a.administrative_area_level_1),
+    postal_code: optionalString(a.postal_code),
+    address_type: optionalString(a.address_type) || 'home',
+    is_default: !!a.is_default,
+    is_verified: !!a.is_verified,
+    latitude: typeof a.latitude === 'number' ? a.latitude : null,
+    longitude: typeof a.longitude === 'number' ? a.longitude : null,
+  }
+}
+
 const ADDRESS_TYPES = new Set(['home', 'work', 'partner', 'billing', 'shipping', 'pickup', 'delivery'])
 const VERIFICATION_METHODS = new Set(['GPS_CONFIRMED', 'DELIVERY_CONFIRMED', 'USER_CONFIRMED', 'UNVERIFIED'])
 const GEOCODING_ACCURACIES = new Set(['ROOFTOP', 'RANGE_INTERPOLATED', 'GEOMETRIC_CENTER', 'APPROXIMATE'])
@@ -118,12 +137,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ])
 
     const sanitized = sanitizeAddressDoc(doc)
-    const customerBrief = (customerRes as any).docs?.[0]
+    const customerRaw = (customerRes as any).docs?.[0] ?? null
+    // Admin perspective: active current = customers.activeAddress id (not is_default).
+    const rawActive = customerRaw?.activeAddress
+    const customerActiveAddressId =
+      rawActive && typeof rawActive === 'object' ? Number((rawActive as any).id) : rawActive != null ? Number(rawActive) : null
+    const activeIdNum = customerActiveAddressId != null && Number.isFinite(Number(customerActiveAddressId)) ? Number(customerActiveAddressId) : null
+    const isActiveAddress = activeIdNum != null && Number(sanitized.id) === activeIdNum
+    const customerActiveAddress =
+      rawActive && typeof rawActive === 'object' ? sanitizeAddressBrief(rawActive) : null
+    const customerBrief = customerRaw
       ? {
-          id: (customerRes as any).docs[0].id,
-          srn: (customerRes as any).docs[0].srn || null,
-          currentLevel: (customerRes as any).docs[0].currentLevel || null,
-          email: (customerRes as any).docs[0].email || sanitized.user?.email || null,
+          id: customerRaw.id,
+          srn: customerRaw.srn || null,
+          currentLevel: customerRaw.currentLevel || null,
+          email: customerRaw.email || sanitized.user?.email || null,
+          activeAddressId: activeIdNum,
+          activeAddress: customerActiveAddress,
         }
       : null
     const linkedMerchants = ((merchantRes as any).docs as any[] ?? []).map((m: any) => ({
@@ -133,7 +163,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       isActive: !!m.isActive,
     }))
 
-    return NextResponse.json({ doc: sanitized, customer: customerBrief, linkedMerchants })
+    return NextResponse.json({
+      doc: { ...sanitized, isActiveAddress, customerActiveAddressId: activeIdNum, customerActiveAddress, customer: customerBrief },
+      customer: customerBrief,
+      isActiveAddress,
+      customerActiveAddressId: activeIdNum,
+      customerActiveAddress,
+      linkedMerchants,
+    })
   } catch (err: any) {
     console.error('[admin/customers/addresses/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load address' }, { status: 500 })

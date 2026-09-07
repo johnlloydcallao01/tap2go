@@ -13,6 +13,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { deleteCached, getCached, setCached } from '@/utils/redisCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v : null
@@ -67,7 +69,8 @@ function badRequest(message: string, details?: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  try {
+  return withAdminRequestSlot(async () => {
+    try {
     const payload = await getPayload({ config: configPromise })
     const authUser = await authenticateAdmin(payload, request)
     if (!authUser) {
@@ -101,6 +104,10 @@ export async function GET(request: NextRequest) {
     if (String(authUser.id) !== String(userIdNum) && !isSystemAdmin) {
       return NextResponse.json({ error: 'Forbidden: can only fetch own profile' }, { status: 403 })
     }
+
+    const cacheKey = `admin:profile:${userIdNum}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Profile-Cache': 'HIT' } })
 
     // 1. Resolve user (overrideAccess: true is safe boundary - endpoint is admin-only)
     let userDoc: Record<string, any>
@@ -175,16 +182,19 @@ export async function GET(request: NextRequest) {
       userAgent: a.userAgent || null,
     }))
 
-    return NextResponse.json({
+    const response = {
       user,
       raw,
       admin,
       activities: sanitizedActivities,
-    })
-  } catch (err: any) {
-    console.error('[admin/profile] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 })
-  }
+    }
+    await setCached(cacheKey, response, 15)
+    return NextResponse.json(response, { headers: { 'X-Profile-Cache': 'MISS' } })
+    } catch (err: any) {
+      console.error('[admin/profile] GET error:', err)
+      return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 })
+    }
+  })
 }
 
 export async function PATCH(request: NextRequest) {
@@ -283,6 +293,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const user = sanitizeUserForResponse(updated)
+    await deleteCached(`admin:profile:${userIdNum}`)
     return NextResponse.json({ success: true, message: 'Profile updated successfully', user })
   } catch (err: any) {
     console.error('[admin/profile] PATCH error:', err)

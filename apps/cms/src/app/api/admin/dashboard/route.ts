@@ -3,6 +3,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function daysAgo(n: number): string {
   const d = new Date()
@@ -33,6 +34,15 @@ function getStr(val: unknown, fallback = ''): string {
   return fallback
 }
 
+type DashboardResponse = {
+  metrics: Record<string, number>
+  revenueChart: Array<Record<string, string | number>>
+  orderStatusChart: Array<Record<string, string | number>>
+  topMerchants: Array<Record<string, string | number>>
+  topVendors: Array<Record<string, string | number>>
+  recentOrders: Array<Record<string, string | number>>
+}
+
 export async function GET(request: NextRequest) {
   return withAdminRequestSlot(async () => {
     try {
@@ -41,6 +51,10 @@ export async function GET(request: NextRequest) {
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const cacheKey = `admin:dashboard:overview:${admin.id}`
+    const cached = await getCached<DashboardResponse>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Dashboard-Cache': 'HIT' } })
 
     const [vendorsRes, merchantsRes, ordersRes, driversRes, customersRes, transactionsRes] = await Promise.all([
       payload.find({ collection: 'vendors', limit: 1000, depth: 1, overrideAccess: true }),
@@ -184,14 +198,16 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({
+    const response: DashboardResponse = {
       metrics,
       revenueChart,
       orderStatusChart,
       topMerchants,
       topVendors,
       recentOrders: recentOrdersList,
-    })
+    }
+    await setCached(cacheKey, response, 20)
+    return NextResponse.json(response, { headers: { 'X-Dashboard-Cache': 'MISS' } })
     } catch (error) {
       console.error('Dashboard aggregation error:', error)
       return NextResponse.json({ error: 'Failed to load dashboard data' }, { status: 500 })

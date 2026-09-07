@@ -13,10 +13,14 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${CMS_BASE}/admin/reports?${forward.toString()}`, {
       headers: { Authorization: `JWT ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(25000),
     })
     if (!res.ok) return NextResponse.json({ error: 'Failed to load reports' }, { status: res.status })
     const data = await res.json()
-    return NextResponse.json(data)
+    const response = NextResponse.json(data)
+    const cacheStatus = res.headers.get('X-Reports-Cache')
+    if (cacheStatus) response.headers.set('X-Reports-Cache', cacheStatus)
+    return response
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
   }

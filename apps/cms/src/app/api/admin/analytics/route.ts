@@ -3,6 +3,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getCached, setCached } from '@/utils/redisCache'
 
 // Helpers
 function daysAgoISO(n: number): string {
@@ -76,6 +77,14 @@ export async function GET(request: NextRequest) {
       const admin = await authenticateAdmin(payload, request)
       if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'range=30d'
+    const cacheKey = `admin:analytics:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Analytics-Cache': 'HIT' } })
+
     const { days, label } = parseRange(searchParams)
 
     // Search + advanced filters (all optional, AND combined)
@@ -629,7 +638,7 @@ export async function GET(request: NextRequest) {
       totalCartsCurrent: cartCurrent.length,
     }
 
-    return NextResponse.json({
+    const response = {
       meta: { range: label, days, generatedAt: now.toISOString(), totalOrdersAllTime: ordersDocs.length },
       kpis,
       revenueTrend,
@@ -650,7 +659,9 @@ export async function GET(request: NextRequest) {
       vendorVerificationBreakdown,
       driverStatusBreakdown,
       funnel,
-    })
+    }
+    await setCached(cacheKey, response, 30)
+    return NextResponse.json(response, { headers: { 'X-Analytics-Cache': 'MISS' } })
     } catch (error) {
       console.error('Analytics aggregation error:', error)
       return NextResponse.json({ error: 'Failed to load analytics' }, { status: 500 })

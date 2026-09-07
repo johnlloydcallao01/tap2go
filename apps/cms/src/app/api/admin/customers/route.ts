@@ -15,6 +15,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getCached, setCached } from '@/utils/redisCache'
 import crypto from 'crypto'
 
 function optionalString(v: unknown): string | null {
@@ -96,12 +98,15 @@ function sanitizeCustomerDoc(
   const isActive = userBrief ? userBrief.isActive : true
   return {
     id: rawUser.id,
+    customerId: profile?.id != null ? Number(profile.id) : null,
+    userId: userBrief ? Number(userBrief.id) : Number(rawUser.id),
     email: optionalString(rawUser.email) || (userBrief ? userBrief.email : ''),
     srn: optionalString(profile?.srn),
     couponCode: optionalString(profile?.couponCode),
     enrollmentDate: profile?.enrollmentDate ? String(profile.enrollmentDate) : null,
     currentLevel: optionalString(profile?.currentLevel) || 'beginner',
     activeAddress: addressBrief,
+    activeAddressId: addressBrief ? Number(addressBrief.id) : null,
     user: userBrief,
     isActive,
     orderCount: orderCountMap.get(customerIdStr) ?? 0,
@@ -125,12 +130,21 @@ function badRequest(message: string, details?: unknown) {
 const LEVEL_SET = new Set(['beginner', 'intermediate', 'advanced'])
 
 export async function GET(request: NextRequest) {
-  try {
+  return withAdminRequestSlot(async () => {
+    try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=20&sort=-createdAt'
+    const cacheKey = `admin:customers:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Customers-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
     const search = searchParams.get('search')?.trim() || ''
@@ -138,6 +152,8 @@ export async function GET(request: NextRequest) {
     const levelCsv = parseCsv(searchParams.get('currentLevel') || searchParams.get('level'))
     const isActiveParam = searchParams.get('isActive')
     const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
+    const hasActiveParam = searchParams.get('has_active') ?? searchParams.get('hasActive')
+    const hasActiveFilter = hasActiveParam === 'true' ? true : hasActiveParam === 'false' ? false : null
 
     // Build where for direct customer user fields; the customer page should be sourced from users with role=customer.
     const where: Record<string, any> = { role: { equals: 'customer' } }
@@ -172,6 +188,8 @@ export async function GET(request: NextRequest) {
                 activeCount: 0,
                 inactiveCount: 0,
                 enrollmentThisMonth: 0,
+                withActiveAddressCount: 0,
+                withoutActiveAddressCount: 0,
               },
               meta: { generatedAt: new Date().toISOString(), sort, search },
             })
@@ -210,6 +228,62 @@ export async function GET(request: NextRequest) {
 
     if (isActiveFilter !== null) {
       where.isActive = { equals: isActiveFilter }
+    }
+
+    // Customer-first address management: filter by whether customers.activeAddress is set.
+    // Backend resolves this so the page stays thin per docs/BFF-pattern.md.
+    if (hasActiveFilter !== null) {
+      try {
+        const activeProbe = await payload.find({
+          collection: 'customers',
+          limit: 5000,
+          depth: 0,
+          overrideAccess: true,
+          pagination: false,
+        } as any)
+        const withActive: number[] = []
+        const withoutActive: number[] = []
+        // Build userId sets; need all customer users to compute withoutActive correctly.
+        const activeUserSet = new Set<number>()
+        for (const c of ((activeProbe as any).docs as any[] ?? [])) {
+          const rawUser = (c as any).user
+          const uid = rawUser && typeof rawUser === 'object' ? Number((rawUser as any).id) : Number(rawUser)
+          if (!Number.isFinite(uid)) continue
+          const rawActive = (c as any).activeAddress
+          const aid = rawActive && typeof rawActive === 'object' ? Number((rawActive as any).id) : Number(rawActive)
+          if (Number.isFinite(aid) && aid > 0) {
+            activeUserSet.add(uid)
+            withActive.push(uid)
+          }
+        }
+        if (hasActiveFilter === true) {
+          if (!withActive.length) {
+            return NextResponse.json({
+              docs: [],
+              pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
+              stats: {
+                totalCustomers: 0,
+                totalAll: 0,
+                filteredTotal: 0,
+                levelBreakdown: { beginner: 0, intermediate: 0, advanced: 0 },
+                activeCount: 0,
+                inactiveCount: 0,
+                enrollmentThisMonth: 0,
+                withActiveAddressCount: 0,
+                withoutActiveAddressCount: 0,
+              },
+              meta: { generatedAt: new Date().toISOString(), sort, search, hasActiveFilter },
+            })
+          }
+          and.push({ id: { in: withActive } })
+        } else {
+          // without active = all customer users minus withActive. Resolve via users query below
+          // by excluding active ids; if no active at all, no extra filter needed.
+          if (activeUserSet.size) {
+            and.push({ id: { not_in: Array.from(activeUserSet) } })
+          }
+        }
+      } catch {}
     }
 
     const finalWhere = and.length ? { and: [...and, where] } : where
@@ -307,6 +381,7 @@ export async function GET(request: NextRequest) {
     let inactiveCount = 0
     const levelBreakdown: Record<string, number> = { beginner: 0, intermediate: 0, advanced: 0 }
     let enrollmentThisMonth = 0
+    let withActiveAddressCount = 0
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
     for (const userDoc of statsDocs) {
@@ -320,12 +395,15 @@ export async function GET(request: NextRequest) {
       }
       if (userDoc.isActive === false) inactiveCount++
       else activeCount++
+      const rawActive = (profile as any)?.activeAddress
+      const aid = rawActive && typeof rawActive === 'object' ? Number((rawActive as any).id) : Number(rawActive)
+      if (Number.isFinite(aid) && aid > 0) withActiveAddressCount++
     }
 
     const totalCustomers = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
     const totalAll = statsDocs.length
 
-    return NextResponse.json({
+    const response = {
       docs,
       pagination: {
         page: paginated.page,
@@ -343,13 +421,18 @@ export async function GET(request: NextRequest) {
         activeCount,
         inactiveCount,
         enrollmentThisMonth,
+        withActiveAddressCount,
+        withoutActiveAddressCount: Math.max(0, totalAll - withActiveAddressCount),
       },
-      meta: { generatedAt: new Date().toISOString(), sort, search },
-    })
-  } catch (err: any) {
-    console.error('[admin/customers] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load customers' }, { status: 500 })
-  }
+      meta: { generatedAt: new Date().toISOString(), sort, search, hasActiveFilter },
+    }
+    await setCached(cacheKey, response, 20)
+    return NextResponse.json(response, { headers: { 'X-Customers-Cache': 'MISS' } })
+    } catch (err: any) {
+      console.error('[admin/customers] GET error:', err)
+      return NextResponse.json({ error: err?.message || 'Failed to load customers' }, { status: 500 })
+    }
+  })
 }
 
 export async function POST(request: NextRequest) {

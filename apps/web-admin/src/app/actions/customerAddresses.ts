@@ -74,6 +74,28 @@ export type AddressDoc = {
   is_default: boolean
   is_verified: boolean
   notes: string | null
+  // ── Admin perspective (BFF-enriched from customers.activeAddress) ──
+  customer: {
+    id: number
+    srn: string | null
+    currentLevel: string | null
+    email: string | null
+    activeAddressId: number | null
+  } | null
+  customerActiveAddressId: number | null
+  customerActiveAddress: {
+    id: number
+    formatted_address: string
+    locality: string | null
+    administrative_area_level_1: string | null
+    postal_code: string | null
+    address_type: string | null
+    is_default: boolean
+    is_verified: boolean
+    latitude: number | null
+    longitude: number | null
+  } | null
+  isActiveAddress: boolean
   createdAt: string
   updatedAt: string
 }
@@ -88,9 +110,11 @@ export type AddressesListParams = {
   coordinate_source?: string[]
   is_verified?: boolean | null
   is_default?: boolean | null
+  is_active?: boolean | null
   locality?: string
   sort?: string
   userId?: string
+  customerId?: string
 }
 
 export type AddressesListResult = {
@@ -110,6 +134,9 @@ export type AddressesListResult = {
     unverifiedCount: number
     defaultCount: number
     highQualityCount: number
+    activeCount: number
+    savedCount: number
+    totalActiveCustomers: number
   }
   meta: any
 }
@@ -153,9 +180,11 @@ export async function listCustomerAddressesAction(params: AddressesListParams): 
   if (params.coordinate_source?.length) qs.set('coordinate_source', params.coordinate_source.join(','))
   if (params.is_verified !== null && params.is_verified !== undefined) qs.set('is_verified', String(params.is_verified))
   if (params.is_default !== null && params.is_default !== undefined) qs.set('is_default', String(params.is_default))
+  if (params.is_active !== null && params.is_active !== undefined) qs.set('is_active', String(params.is_active))
   if (params.locality) qs.set('locality', params.locality)
   if (params.sort) qs.set('sort', params.sort)
   if (params.userId) qs.set('userId', params.userId)
+  if (params.customerId) qs.set('customerId', params.customerId)
   const res = await fetch(`${API_BASE_URL}/admin/customers/addresses?${qs.toString()}`, {
     headers: { Authorization: `JWT ${token}` },
     cache: 'no-store',
@@ -165,7 +194,14 @@ export async function listCustomerAddressesAction(params: AddressesListParams): 
   return data as unknown as AddressesListResult
 }
 
-export async function getCustomerAddressAction(id: number | string): Promise<{ doc: AddressDoc; customer?: any; linkedMerchants?: any[] }> {
+export async function getCustomerAddressAction(id: number | string): Promise<{
+  doc: AddressDoc
+  customer?: any
+  isActiveAddress?: boolean
+  customerActiveAddressId?: number | null
+  customerActiveAddress?: any
+  linkedMerchants?: any[]
+}> {
   const token = await getAuthToken()
   if (!token) throw new Error('Not authenticated')
   const res = await fetch(`${API_BASE_URL}/admin/customers/addresses/${id}`, {

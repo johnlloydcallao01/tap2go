@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load analytics' }, { status: res.status })
     }
     const data = await res.json()
-    return NextResponse.json(data)
+    const response = NextResponse.json(data)
+    const cacheStatus = res.headers.get('X-Analytics-Cache')
+    if (cacheStatus) response.headers.set('X-Analytics-Cache', cacheStatus)
+    return response
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
   }

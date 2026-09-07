@@ -11,6 +11,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getCached, setCached } from '@/utils/redisCache'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -81,6 +82,14 @@ export async function GET(request: NextRequest) {
     if(!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=10&sort=-createdAt'
+    const cacheKey = `admin:merchants:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Merchants-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page')||'1',10)||1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit')||'10',10)||10))
     const search = searchParams.get('search')?.trim() || ''
@@ -240,7 +249,7 @@ export async function GET(request: NextRequest) {
     const totalVendors = vendorStats[0].totalDocs || 0
     const activeVendors = vendorStats[1].totalDocs || 0
 
-    return NextResponse.json({
+    const response = {
       docs,
       pagination: {
         page: (paginated as any).page || page,
@@ -260,7 +269,9 @@ export async function GET(request: NextRequest) {
         filteredCount: (paginated as any).totalDocs ?? docs.length,
       },
       meta: { generatedAt: new Date().toISOString(), sort, search }
-    })
+    }
+    await setCached(cacheKey, response, 20)
+    return NextResponse.json(response, { headers: { 'X-Merchants-Cache': 'MISS' } })
     }catch(err:any){
       console.error('[admin/merchants] GET error:', err)
       return NextResponse.json({ error: err?.message || 'Failed to load merchants' }, { status: 500 })
