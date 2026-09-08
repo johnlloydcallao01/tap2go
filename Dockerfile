@@ -22,10 +22,9 @@ RUN addgroup --system --gid 1001 nodejs \
 	&& adduser --system --uid 1001 nextjs
 
 COPY --from=builder --chown=nextjs:nodejs /app/apps/cms/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/cms/scripts/validate-runtime-env.mjs ./apps/cms/scripts/validate-runtime-env.mjs
 
 USER nextjs
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "node apps/cms/scripts/validate-runtime-env.mjs && exec node apps/cms/server.js"]
+CMD ["node", "apps/cms/server.js"]
