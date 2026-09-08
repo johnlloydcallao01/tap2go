@@ -19,4 +19,4 @@ Please ask your friend for the following information:
 Along with the keystore file, we need the exact credentials used to unlock it:
 - **Store Password:** `Tap2Go2026!Secure`
 - **Key Alias:** `upload`
-- **Key Password:** `Tap2Go2026!Secure`.
+- **Key Password:** `Tap2Go2026!Secure`
