@@ -4,7 +4,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY . .
-RUN corepack enable pnpm && pnpm install --frozen-lockfile
+RUN npm install --global pnpm@9.12.3 && pnpm install --frozen-lockfile
 
 FROM dependencies AS builder
 
