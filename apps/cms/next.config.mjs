@@ -1,8 +1,22 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { withPayload } from '@payloadcms/next/withPayload'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // Monorepo: trace from repo root so pnpm hoisted deps resolve deterministically.
+  outputFileTracingRoot: path.join(__dirname, '..', '..'),
+  // Force-trace the SWC runtime helpers. They are required by compiled
+  // next/dist server chunks (e.g. require('@swc/helpers/_/_interop_require_default'))
+  // but are only a transitive dep of `next`, so @vercel/nft intermittently
+  // omits them from the standalone tree on fresh pnpm installs (Next 16.3.x
+  // pnpm regression). Declared explicitly in package.json + included here.
+  outputFileTracingIncludes: {
+    '/*': ['../../node_modules/@swc/helpers/**/*', './node_modules/@swc/helpers/**/*'],
+  },
   allowedDevOrigins: [
     'localhost',
     'localhost:3001',

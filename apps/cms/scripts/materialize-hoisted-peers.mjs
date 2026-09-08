@@ -20,7 +20,7 @@ const cmsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const localModules = path.join(cmsDir, 'node_modules')
 const requireFromCms = createRequire(path.join(cmsDir, 'package.json'))
 
-const PEERS = ['react', 'react-dom', 'scheduler', 'use-sync-external-store']
+const PEERS = ['react', 'react-dom', 'scheduler', 'use-sync-external-store', '@swc/helpers']
 
 for (const name of PEERS) {
   let resolved
@@ -32,6 +32,7 @@ for (const name of PEERS) {
   }
   const realDir = path.dirname(fs.realpathSync(resolved))
   const destDir = path.join(localModules, name)
+  fs.mkdirSync(path.dirname(destDir), { recursive: true })
   let alreadyReal = false
   try {
     alreadyReal = !fs.lstatSync(destDir).isSymbolicLink() && fs.realpathSync(destDir) === realDir

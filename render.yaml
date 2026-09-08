@@ -6,7 +6,7 @@ services:
     region: singapore
     branch: main
     autoDeploy: true
-    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @encreasl/cms build
+    buildCommand: corepack enable && corepack prepare pnpm@9.12.3 --activate && pnpm install --frozen-lockfile --prod=false && pnpm --filter @encreasl/cms build
     startCommand: pnpm --filter @encreasl/cms start
     healthCheckPath: /api/health
     envVars:
