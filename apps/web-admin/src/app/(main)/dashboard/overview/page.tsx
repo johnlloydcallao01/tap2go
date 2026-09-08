@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import type { DashboardData } from '@/lib/dashboard-types';
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@encreasl/client-services';
+import { useDashboard } from '@/hooks/useDashboard';
 import { ClientOnly } from '@/components/ClientOnly';
 import {
   MetricCard,
@@ -121,38 +123,35 @@ function DashboardSkeleton() {
 }
 
 function DashboardPageContent() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [hardRefreshing, setHardRefreshing] = useState(false);
+  const { data, isLoading, isFetching, isError, error, refetch } = useDashboard();
+  const errorMessage = isError && !data && !hardRefreshing ? (error instanceof Error ? error.message : 'Failed to load dashboard') : null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/dashboard');
-      if (!res.ok) throw new Error('Failed to load dashboard');
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return;
+    setHardRefreshing(true);
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminDashboard });
+        await refetch({ cancelRefetch: true });
+      } finally {
+        setHardRefreshing(false);
+      }
+    })();
+  };
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (error && !data) {
+  if (isError && !data && !hardRefreshing) {
     return (
       <div className="p-4 sm:p-6">
-        <DashboardError message={error} onRetry={load} />
+        <DashboardError message={errorMessage ?? 'Failed to load dashboard'} onRetry={handleHardRefresh} />
       </div>
     );
   }
 
-  if (loading) {
+  // Skeleton on first load or during explicit hard refresh.
+  // Back-nav within 3-min staleTime hits TanStack cache -> instant render, no skeleton.
+  if ((isLoading && !data) || hardRefreshing) {
     return <DashboardSkeleton />;
   }
 
@@ -163,9 +162,22 @@ function DashboardPageContent() {
   return (
     <div className="space-y-6 py-5 px-2.5">
       {/* Page Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Dashboard</h1>
-        <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Overview of your platform performance</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
+            Overview of your platform performance
+            {isFetching && data && !hardRefreshing ? <span className="ml-2 text-xs text-gray-400">Updating…</span> : null}
+          </p>
+        </div>
+        <button
+          onClick={handleHardRefresh}
+          disabled={isFetching || hardRefreshing}
+          title="Refresh fresh data"
+          className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${isFetching || hardRefreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* Metric Cards */}

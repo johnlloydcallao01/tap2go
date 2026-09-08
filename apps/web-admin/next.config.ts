@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@encreasl/ui",
     "@encreasl/auth",
+    "@encreasl/client-services",
     "@encreasl/env",
     "@payloadcms/ui",
     "@payloadcms/richtext-lexical",

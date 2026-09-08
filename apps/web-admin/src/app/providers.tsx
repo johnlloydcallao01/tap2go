@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { AppQueryProvider } from '@encreasl/client-services';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AuthErrorBoundary } from '@/components/auth';
@@ -15,11 +16,13 @@ interface ProvidersProps {
 export function Providers({ children, initialUser, initialToken }: ProvidersProps) {
   return (
     <AuthErrorBoundary>
-      <AuthProvider initialUser={initialUser} initialToken={initialToken}>
-        <ThemeProvider>
-          <LoadingScreenWrapper>{children}</LoadingScreenWrapper>
-        </ThemeProvider>
-      </AuthProvider>
+      <AppQueryProvider>
+        <AuthProvider initialUser={initialUser} initialToken={initialToken}>
+          <ThemeProvider>
+            <LoadingScreenWrapper>{children}</LoadingScreenWrapper>
+          </ThemeProvider>
+        </AuthProvider>
+      </AppQueryProvider>
     </AuthErrorBoundary>
   );
 }

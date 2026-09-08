@@ -1,6 +1,9 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useReports } from '@/hooks/useReports'
 import type { ReportsData } from '@/lib/reports-types'
 import { ClientOnly } from '@/components/ClientOnly'
 import { FileText, Download, Clock, ShieldCheck, DollarSign, Store, ShoppingCart, Truck, Package, Award, AlertCircle, RefreshCw, FileSpreadsheet } from '@/components/ui/IconWrapper'
@@ -51,40 +54,40 @@ function ReportsSkeleton(){
 
 function ReportsPageContent() {
   const [range, setRange] = useState<Range>('30d')
-  const [data, setData] = useState<ReportsData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useReports(range)
 
-  const load = useCallback(async (r: Range) => {
-    setLoading(true); setError(null)
-    try {
-      const res = await fetch(`/api/reports?range=${r}`, { cache: 'no-store' })
-      if (!res.ok) throw new Error('Failed to load reports')
-      setData(await res.json())
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed') }
-    finally { setLoading(false) }
-  }, [])
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load reports') : null
 
-  useEffect(() => { void load(range) }, [load, range])
-
-  if (loading && !data) {
-    return (
-      <div className="space-y-[10px] py-5 px-2.5 animate-pulse">
-        <div className="h-7 bg-gray-100 dark:bg-[#171717] rounded w-40" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-[10px]">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}</div>
-        <div className="h-64 bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
-      </div>
-    )
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminReports(range) })
+        await refetch({ cancelRefetch: true })
+      } finally {
+        setHardRefreshing(false)
+      }
+    })()
   }
+
+  if (isInitialLoading) {
+    return <ReportsSkeleton />
+  }
+
   if (error && !data) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
         <AlertCircle className="w-10 h-10 text-red-500 mb-3" />
         <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{error}</p>
-        <button onClick={() => load(range)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2"><RefreshCw className="w-4 h-4" />Retry</button>
+        <button onClick={handleHardRefresh} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2"><RefreshCw className="w-4 h-4" />Retry</button>
       </div>
     )
   }
+
   if (!data) return null
 
   const period = `${fmtDate(data.meta.periodStart)} — ${fmtDate(data.meta.periodEnd)}`
@@ -104,7 +107,7 @@ function ReportsPageContent() {
               <button key={o.value} onClick={() => setRange(o.value)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${range === o.value ? 'bg-white dark:bg-[#262626] text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-[#333]' : 'text-gray-600 dark:text-[#a1a1aa]'}`}>{o.label}</button>
             ))}
           </div>
-          <button onClick={() => load(range)} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full"><RefreshCw className="w-4 h-4 text-gray-600 dark:text-[#a1a1aa]" /></button>
+          <button onClick={handleHardRefresh} disabled={isFetching || hardRefreshing} title="Refresh fresh data" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"><RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${isFetching || hardRefreshing ? 'animate-spin' : ''}`} /></button>
         </div>
       </div>
 

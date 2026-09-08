@@ -1,49 +1,17 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useVendors, type VendorDoc, type Pagination, type Stats } from '@/hooks/useVendors'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
-  Store, Star, ShieldCheck, ShieldAlert, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2,
-  Mail, Phone, Globe, Award, Users, TrendingUp, Filter, CalendarDays
+  Store, Star, ShieldCheck, ShieldAlert, Clock, CheckCircle, Eye, Pencil, Trash2,
+  Mail, Phone, CalendarDays
 } from '@/components/ui/IconWrapper'
-
-// Types matching BFF
-type VendorDoc = {
-  id: number
-  businessName: string
-  legalName: string
-  businessRegistrationNumber: string
-  taxIdentificationNumber: string | null
-  primaryContactEmail: string
-  primaryContactPhone: string
-  websiteUrl: string | null
-  businessType: string
-  cuisineTypes: unknown
-  isActive: boolean
-  verificationStatus: string
-  onboardingDate: string | null
-  averageRating: number
-  totalReviews: number
-  totalOrders: number
-  totalMerchants: number
-  storedTotalMerchants: number
-  description: string | null
-  operatingHours: unknown
-  socialMediaLinks: any
-  logo: { id: number; url: string | null; filename: string | null } | null
-  businessLicense: any
-  taxCertificate: any
-  owner: { id: number; email: string; firstName: string; lastName: string; role: string } | null
-  createdAt: string
-  updatedAt: string
-  merchantsPreview?: any[]
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { totalVendors: number; totalAll: number; filteredTotal: number; verificationBreakdown: Record<string, number>; businessTypeBreakdown: Record<string, number>; activeCount: number; inactiveCount: number }
 
 const BUSINESS_OPTS: { value: string; label: string }[] = [
   { value: 'restaurant', label: 'Restaurant' },
@@ -134,13 +102,6 @@ function VendorsPageContent() {
   const limit = 10 // fixed 10 per page as required — pagination must display 10
   const [showFilters, setShowFilters] = useState(false)
 
-  // data
-  const [docs, setDocs] = useState<VendorDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   // delete confirm only — view/edit now dedicated pages
   const [deleting, setDeleting] = useState<VendorDoc | null>(null)
 
@@ -150,10 +111,10 @@ function VendorsPageContent() {
     return verificationFilter.length + businessTypeFilter.length + (isActiveFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [verificationFilter, businessTypeFilter, isActiveFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
-    p.set('limit', String(limit)) // fixed 10 per page
+    p.set('limit', String(limit))
     p.set('sort', sort)
     if (debouncedQ) p.set('search', debouncedQ)
     if (verificationFilter.length) p.set('verificationStatus', verificationFilter.join(','))
@@ -162,33 +123,30 @@ function VendorsPageContent() {
     return p.toString()
   }, [page, limit, sort, debouncedQ, verificationFilter, businessTypeFilter, isActiveFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      // hard refresh — clear to show skeleton proof (user requested)
-      setPagination(null)
-      setStats(null)
-      // keep docs for table skeleton via isInitial, but clear to force empty check not to flash
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      // bust cache with timestamp to guarantee fresh BFF fetch
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/vendors?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load vendors') } catch { throw new Error(text || 'Failed to load vendors') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load vendors') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useVendors(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load vendors') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminVendors(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally {
+        setHardRefreshing(false)
+      }
+    })()
+  }
 
   // reset page when filters change — limit fixed at 10, pagination always 10 per page
   useEffect(() => { setPage(1) }, [debouncedQ, verificationFilter, businessTypeFilter, isActiveFilter, sort])
@@ -217,7 +175,7 @@ function VendorsPageContent() {
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
       setDeleting(null)
-      await load()
+      await refetch()
     } catch (e: any) { alert(e?.message || 'Delete failed') }
   }
 
@@ -236,7 +194,7 @@ function VendorsPageContent() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh vendors"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -329,10 +287,10 @@ function VendorsPageContent() {
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load vendors</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>
@@ -394,11 +352,9 @@ function VendorsPageContent() {
                       </td>
                       <td className="px-4 py-3">
                         <button onClick={async () => {
-                          // optimistic toggle
                           const next = !v.isActive
-                          setDocs((prev) => prev.map((d) => d.id === v.id ? { ...d, isActive: next } : d))
                           const res = await fetch(`/api/vendors/${v.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: next }) })
-                          if (!res.ok) { setDocs((prev) => prev.map((d) => d.id === v.id ? { ...d, isActive: !next } : d)); const j = await res.json().catch(()=>({})); alert(j.error || 'Failed to toggle status') } else { void load() }
+                          if (!res.ok) { const j = await res.json().catch(()=>({})); alert(j.error || 'Failed to toggle status') } else { void refetch() }
                         }} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${v.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'}`}>
                           <span className={`h-2 w-2 rounded-full ${v.isActive ? 'bg-emerald-500' : 'bg-zinc-400'}`} /> {v.isActive ? 'Active' : 'Inactive'}
                         </button>

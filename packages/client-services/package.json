@@ -19,5 +19,9 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
     "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   }
 }

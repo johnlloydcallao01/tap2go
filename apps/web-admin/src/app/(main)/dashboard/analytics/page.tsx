@@ -1,8 +1,10 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import type { AnalyticsData } from '@/lib/analytics-types'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useAnalytics } from '@/hooks/useAnalytics'
 import {
   DollarSign, ShoppingCart, Store, TrendingUp, TrendingDown, BarChart3, Package,
   Users, Star, Clock, RefreshCw, AlertCircle, ShoppingBag, CreditCard, Truck, Award, Heart, Activity, Layers,
@@ -105,10 +107,6 @@ export default function AnalyticsPage() {
   const [debouncedQ, setDebouncedQ] = useState('')
   const [filters, setFilters] = useState<Filters>({ status: [], fulfillment: [], businessType: [], paymentMethod: [], vendorStatus: [], deliveryStatus: [] })
   const [showFilters, setShowFilters] = useState(false)
-  const [data, setData] = useState<AnalyticsData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQ(q.trim()), 400)
@@ -121,41 +119,43 @@ export default function AnalyticsPage() {
 
   const hasActiveFilters = activeFilterCount > 0
 
-  const buildQuery = useCallback((r: Range, query: string, f: Filters) => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
-    p.set('range', r)
-    if (query) p.set('q', query)
-    if (f.status.length) p.set('status', f.status.join(','))
-    if (f.fulfillment.length) p.set('fulfillment', f.fulfillment.join(','))
-    if (f.businessType.length) p.set('businessType', f.businessType.join(','))
-    if (f.paymentMethod.length) p.set('paymentMethod', f.paymentMethod.join(','))
-    if (f.vendorStatus.length) p.set('vendorStatus', f.vendorStatus.join(','))
-    if (f.deliveryStatus.length) p.set('deliveryStatus', f.deliveryStatus.join(','))
+    p.set('range', range)
+    if (debouncedQ) p.set('q', debouncedQ)
+    if (filters.status.length) p.set('status', filters.status.join(','))
+    if (filters.fulfillment.length) p.set('fulfillment', filters.fulfillment.join(','))
+    if (filters.businessType.length) p.set('businessType', filters.businessType.join(','))
+    if (filters.paymentMethod.length) p.set('paymentMethod', filters.paymentMethod.join(','))
+    if (filters.vendorStatus.length) p.set('vendorStatus', filters.vendorStatus.join(','))
+    if (filters.deliveryStatus.length) p.set('deliveryStatus', filters.deliveryStatus.join(','))
     return p.toString()
-  }, [])
+  }, [range, debouncedQ, filters])
 
-  useEffect(() => {
-    const controller = new AbortController()
-    const qs = buildQuery(range, debouncedQ, filters)
-    setLoading(true)
-    setError(null)
+  // TanStack cache: back-nav within 3min renders instantly, no skeleton.
+  // Filter/range changes keep previous slice via placeholderData while refetching.
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useAnalytics(qs)
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load analytics') : null
 
-    void fetch(`/api/analytics?${qs}`, { cache: 'no-store', signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Failed to load analytics')
-        return res.json() as Promise<AnalyticsData>
-      })
-      .then(setData)
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        setError(error instanceof Error ? error.message : 'Failed to load analytics')
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-
-    return () => controller.abort()
-  }, [buildQuery, range, debouncedQ, filters, reloadToken])
+  // Hard refresh: force skeleton like first visit, then fetch truly fresh
+  // data from CMS (bypasses 3-min staleTime). NOTE: placeholderData:
+  // keepPreviousData would otherwise keep old data visible and only show
+  // the "Updating results" banner, so an explicit flag is required.
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminAnalytics(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally {
+        setHardRefreshing(false)
+      }
+    })()
+  }
 
   const toggle = (key: keyof Filters, val: string) => {
     setFilters((prev) => {
@@ -300,8 +300,8 @@ export default function AnalyticsPage() {
     }
   }, [data])
 
-  const isInitialLoading = loading && !data
-  const isRefreshing = loading && !!data
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const isRefreshing = isFetching && !!data && !isPending && !hardRefreshing
 
   return (
     <div className="space-y-[10px] py-5 px-2.5">
@@ -317,7 +317,7 @@ export default function AnalyticsPage() {
               <button key={o.value} onClick={() => setRange(o.value)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${range===o.value ? 'bg-white dark:bg-[#262626] text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-[#333]' : 'text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900'}`}>{o.label}</button>
             ))}
           </div>
-          <button onClick={() => setReloadToken((value) => value + 1)} disabled={loading} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"><RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} /></button>
+          <button onClick={handleHardRefresh} disabled={loading} title="Refresh fresh data" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"><RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} /></button>
         </div>
       </div>
 
@@ -392,7 +392,7 @@ export default function AnalyticsPage() {
           <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
           <h2 className="font-semibold text-gray-900 dark:text-white mb-2">Failed to load analytics</h2>
           <p className="text-sm text-gray-500 mb-6">{error}</p>
-          <button onClick={() => setReloadToken((value) => value + 1)} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+          <button onClick={() => void refetch()} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
         </div>
       ) : isInitialLoading ? (
         <div className="space-y-[10px] animate-pulse">

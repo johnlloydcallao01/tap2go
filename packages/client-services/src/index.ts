@@ -17,3 +17,9 @@ export * from './hooks/useActiveAddress';
 export * from './hooks/useMerchantAddresses';
 export * from './hooks/useSearch';
 
+// Shared TanStack foundation (client factory, provider, keys)
+// Reusable by web-admin, web-merchant, web-driver, etc.
+export * from './query/client';
+export * from './query/provider';
+export * from './query/keys';
+
