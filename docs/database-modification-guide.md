@@ -27,7 +27,7 @@ Run this command to generate a migration file:
 - Creates a migration file with the necessary database commands
 - Gives you both forward and backward migration options
 
-### Step 3: Review the Migration
+### Step 3: Review the Migration 
 **ALWAYS check the generated migration file before running it!**
 
 Look for:
