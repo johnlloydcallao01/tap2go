@@ -55,6 +55,11 @@ ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=8080
 ENV NEXT_TELEMETRY_DISABLED=1
+# Keep the V8 heap inside the Cloud Run memory limit (see
+# cloudrun-service.yaml.example: 2Gi). Without this Node sizes the heap from
+# the build/host machine and gets OOM-killed during Payload cold start,
+# which Cloud Run reports as "failed to listen on PORT=8080".
+ENV NODE_OPTIONS=--no-deprecation --max-old-space-size=1536
 
 RUN addgroup --system --gid 1001 nodejs \
 	&& adduser --system --uid 1001 nextjs

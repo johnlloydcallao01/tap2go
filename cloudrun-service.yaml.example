@@ -4,7 +4,20 @@ metadata:
   name: tap2go-git
 spec:
   template:
+    metadata:
+      annotations:
+        # PayloadCMS + Next.js cold start compiles/imports ~50 collections.
+        # Defaults (1 CPU / 512Mi, CPU throttled) OOM or boot so slowly that
+        # Cloud Run reports "failed to start and listen on PORT=8080".
+        # Always allocate CPU during boot + give the revision room + a
+        # startup probe window against the static /api/health endpoint.
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
     spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
       # Per Google docs, grant this account roles/secretmanager.secretAccessor
       # on every secret below, otherwise the revision fails to start:
       #   gcloud projects describe grandline-508001 --format='value(projectNumber)'
@@ -17,6 +30,25 @@ spec:
         - image: asia-southeast1-docker.pkg.dev/grandline-508001/cloud-run-source-deploy/johnlloydcallao01-tap2go/tap2go-git:latest
           ports:
             - containerPort: 8080
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           env:
             # -----------------------------------------------------------------
             # Plain (non-sensitive) config.
