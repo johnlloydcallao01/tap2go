@@ -1,4 +1,7 @@
-# Exclude ONLY sensitive environment files
+# Exclude sensitive environment files
+.env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 
