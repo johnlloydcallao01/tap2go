@@ -48,6 +48,14 @@ if (fs.existsSync(parentModules)) {
     if (name === '.bin') continue
     copyIfMissing(name, parentModules)
   }
+
+  const swcHelpers = path.join(parentModules, '@swc', 'helpers')
+  const stagedSwcHelpers = path.join(appModules, '@swc', 'helpers')
+  if (fs.existsSync(swcHelpers)) {
+    fs.mkdirSync(path.dirname(stagedSwcHelpers), { recursive: true })
+    fs.cpSync(swcHelpers, stagedSwcHelpers, { recursive: true, dereference: true, force: true })
+    console.log('self-contain: repaired @swc/helpers')
+  }
 }
 
 // Some hosts flatten or regenerate the standalone tree and omit modules that
@@ -90,7 +98,7 @@ for (const f of fs.readdirSync(appDir)) {
 
 // Fail fast with a clear message instead of a 503 at boot.
 const requireFromApp = createRequire(serverFile)
-for (const mod of ['react', 'react-dom', 'next']) {
+for (const mod of ['react', 'react-dom', 'next', '@swc/helpers/_/_interop_require_default']) {
   requireFromApp.resolve(mod)
 }
-console.log('self-contain: standalone resolve ok (react, react-dom, next)')
+console.log('self-contain: standalone resolve ok (react, react-dom, next, @swc/helpers)')
