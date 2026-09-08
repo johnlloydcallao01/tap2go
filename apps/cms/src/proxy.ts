@@ -2,15 +2,15 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 const allowedOrigins = [
-  process.env.ADMIN_PROD_URL!,
-  process.env.ADMIN_LOCAL_URL!,
-  process.env.WEB_PROD_URL!,
-  process.env.WEB_LOCAL_URL!,
-  process.env.WEB_DRIVER_LOCAL_URL!,
-  process.env.MOBILE_CUSTOMER_LOCAL_URL!,
-  process.env.CMS_PROD_URL!,
-  process.env.CMS_LOCAL_URL!,
-]
+  process.env.ADMIN_PROD_URL,
+  process.env.ADMIN_LOCAL_URL,
+  process.env.WEB_PROD_URL,
+  process.env.WEB_LOCAL_URL,
+  process.env.WEB_DRIVER_LOCAL_URL,
+  process.env.MOBILE_CUSTOMER_LOCAL_URL,
+  process.env.CMS_PROD_URL,
+  process.env.CMS_LOCAL_URL,
+].filter((v): v is string => typeof v === 'string' && v.length > 0)
 
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/api/')) {
