@@ -11,9 +11,19 @@ FROM dependencies AS builder
 # Dummy build-time env so `next build` succeeds in Cloud Build without real
 # secrets (.env is excluded from the build context via .dockerignore).
 # Real values are injected at runtime via Cloud Run Variables & Secrets.
+# Per Google docs (run/docs/configuring/services/environment-variables):
+# - Dockerfile ENV sets defaults; service-level vars override them at runtime.
+# - Service env vars are NOT visible during `docker build`.
+# - Next.js inlines NEXT_PUBLIC_* at build time, so a change to any
+#   NEXT_PUBLIC_* value requires a rebuild to reach the browser bundle.
+#   Keep dummy defaults here; pass real public values via --build-arg in a
+#   Cloud Build trigger (see docs/cloud-run-cms-deployment.md) or update the
+#   defaults when rotating public endpoints. Never bake real secrets here.
 ARG DATABASE_URI=postgresql://build:build@localhost:5432/build
 ARG PAYLOAD_SECRET=build-placeholder-secret-min-32-chars-long-0000
 ARG NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=build-placeholder
+ARG NEXT_PUBLIC_SUPABASE_URL=https://build-placeholder.supabase.co
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=build-placeholder-anon-key
 ARG CLOUDINARY_API_KEY=build-placeholder
 ARG CLOUDINARY_API_SECRET=build-placeholder
 ARG ADMIN_PROD_URL=https://admin.tap2goph.com
@@ -23,6 +33,8 @@ ARG COOKIE_DOMAIN=.tap2goph.com
 ENV DATABASE_URI=$DATABASE_URI \
   PAYLOAD_SECRET=$PAYLOAD_SECRET \
   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=$NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME \
+  NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
   CLOUDINARY_API_KEY=$CLOUDINARY_API_KEY \
   CLOUDINARY_API_SECRET=$CLOUDINARY_API_SECRET \
   ADMIN_PROD_URL=$ADMIN_PROD_URL \
