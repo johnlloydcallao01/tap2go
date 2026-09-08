@@ -8,15 +8,33 @@ RUN npm install --global pnpm@9.12.3 && pnpm install --frozen-lockfile
 
 FROM dependencies AS builder
 
+# Dummy build-time env so `next build` succeeds in Cloud Build without real
+# secrets (.env is excluded from the build context via .dockerignore).
+# Real values are injected at runtime via Cloud Run Variables & Secrets.
+ARG DATABASE_URI=postgresql://build:build@localhost:5432/build
+ARG PAYLOAD_SECRET=build-placeholder-secret-min-32-chars-long-0000
+ARG NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=build-placeholder
+ARG CLOUDINARY_API_KEY=build-placeholder
+ARG CLOUDINARY_API_SECRET=build-placeholder
+ENV DATABASE_URI=$DATABASE_URI \
+  PAYLOAD_SECRET=$PAYLOAD_SECRET \
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=$NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME \
+  CLOUDINARY_API_KEY=$CLOUDINARY_API_KEY \
+  CLOUDINARY_API_SECRET=$CLOUDINARY_API_SECRET \
+  NEXT_TELEMETRY_DISABLED=1 \
+  NODE_ENV=production
+
 RUN pnpm --filter @encreasl/cms build
 
 FROM node:22.12.0-alpine AS runner
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat libgcc libstdc++ vips-dev
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
+ENV PORT=8080
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs \
 	&& adduser --system --uid 1001 nextjs
@@ -27,4 +45,4 @@ USER nextjs
 
 EXPOSE 8080
 
-CMD ["node", "apps/cms/server.js"]
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} exec node apps/cms/server.js"]
