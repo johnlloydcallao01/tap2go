@@ -20,7 +20,7 @@ const cmsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const localModules = path.join(cmsDir, 'node_modules')
 const requireFromCms = createRequire(path.join(cmsDir, 'package.json'))
 
-const PEERS = ['react', 'react-dom', 'scheduler', 'use-sync-external-store', '@swc/helpers']
+const PEERS = ['react', 'react-dom', 'scheduler', 'use-sync-external-store', '@swc/helpers', '@next/env', 'styled-jsx']
 
 for (const name of PEERS) {
   let resolved

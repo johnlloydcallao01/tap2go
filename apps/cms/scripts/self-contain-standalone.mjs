@@ -107,11 +107,11 @@ if (fs.existsSync(parentModules)) {
   }
 }
 
-// Resolve the canonical @swc/helpers source across every supported install
-// layout (hoisted flat, app-local, pnpm isolated .pnpm virtual store, npm
-// flat). require.resolve follows symlinks, so it works regardless of
-// node-linker and pnpm version drift between local dev and Render.
-const resolveSwcHelpersDir = () => {
+// Resolve any package dir across every supported install layout (hoisted
+// flat, app-local, pnpm isolated .pnpm virtual store, npm flat).
+// require.resolve follows symlinks, so it works regardless of node-linker
+// and pnpm version drift between local dev and Cloud Run / Render.
+const resolvePackageDir = (name) => {
   const candidates = []
   const requirers = []
   try {
@@ -126,15 +126,15 @@ const resolveSwcHelpersDir = () => {
   } catch {}
   for (const req of requirers) {
     try {
-      const pkgFile = req.resolve('@swc/helpers/package.json')
+      const pkgFile = req.resolve(`${name}/package.json`)
       candidates.push(path.dirname(fs.realpathSync(pkgFile)))
     } catch {}
   }
   // Hard-path fallbacks (hoisted root, app-local, traced parent).
   for (const dir of [
-    path.join(workspaceModules, '@swc', 'helpers'),
-    path.join(installedModules, '@swc', 'helpers'),
-    path.join(parentModules, '@swc', 'helpers'),
+    path.join(workspaceModules, name),
+    path.join(installedModules, name),
+    path.join(parentModules, name),
   ]) {
     candidates.push(dir)
   }
@@ -148,6 +148,10 @@ const resolveSwcHelpersDir = () => {
   }
   return null
 }
+
+// Resolve the canonical @swc/helpers source (kept as a named wrapper for
+// log continuity; delegates to the generic resolver).
+const resolveSwcHelpersDir = () => resolvePackageDir('@swc/helpers')
 
 const stagedSwcHelpers = path.join(appModules, '@swc', 'helpers')
 const swcSource = resolveSwcHelpersDir()
@@ -219,6 +223,83 @@ const materialize = (dir) => {
 }
 materialize(appModules)
 
+// Next's own runtime deps (@next/env, styled-jsx, ...) are required by
+// next/dist server chunks at boot (e.g. config.js requires @next/env) but
+// file-tracing intermittently drops them from fresh-install standalone trees
+// (seen on Cloud Run: MODULE_NOT_FOUND @next/env from server.js). The staged
+// `next` dir exists so the generic merge above skips it — ensure each of its
+// dependencies is physically present in the staged tree, repairing best-effort
+// from any install layout.
+//
+// NOTE: presence is checked ONLY inside the standalone subtree. A bare
+// require.resolve from server.js also sees ancestor node_modules
+// (apps/cms/node_modules, repo root), which do NOT ship in the container —
+// trusting it is exactly how @next/env passed build validation locally but
+// crashed Cloud Run.
+const stagedHas = (rel) => {
+  try {
+    return fs.existsSync(path.join(appModules, rel))
+  } catch {
+    return false
+  }
+}
+
+// Huge staged dirs must never be deep-merged from the full source (that
+// would bloat standalone with the entire next/react payloads). Only presence
+// is repaired for them; missing files inside them mean a broken trace.
+const NEVER_MERGE = new Set(['next', 'react', 'react-dom'])
+
+const ensureStagedDep = (name, seen = new Set(), merge = true) => {
+  if (seen.has(name)) return true
+  seen.add(name)
+  const dest = path.join(appModules, name)
+  const hasStaged = stagedHas(path.join(name, 'package.json'))
+  const src = resolvePackageDir(name)
+  if (!hasStaged && src) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.cpSync(src, dest, { recursive: true, dereference: true })
+    console.log(`self-contain: repaired ${name} from ${path.relative(cmsDir, src)}`)
+  } else if (hasStaged && src && merge && !NEVER_MERGE.has(name)) {
+    const n = copyMissingRecursive(src, dest)
+    if (n > 0) {
+      console.log(`self-contain: repaired ${name} (${n} missing file(s) from ${path.relative(cmsDir, src)})`)
+    }
+  } else if (!hasStaged) {
+    console.log(`self-contain: WARNING no source found for ${name}, skipping`)
+    return false
+  }
+  // Recurse into required deps to close the runtime loop (e.g. postcss ->
+  // nanoid/picocolors). Peer/optional gaps are tolerated by the libs.
+  let deps = {}
+  const readDeps = (pkgFile) => {
+    try {
+      return JSON.parse(fs.readFileSync(pkgFile, 'utf8')).dependencies ?? {}
+    } catch {
+      return null
+    }
+  }
+  deps = readDeps(path.join(dest, 'package.json')) ?? (src ? readDeps(path.join(src, 'package.json')) : null) ?? {}
+  for (const sub of Object.keys(deps)) {
+    ensureStagedDep(sub, seen, !NEVER_MERGE.has(sub))
+  }
+  return true
+}
+
+let nextDirectDeps = []
+try {
+  nextDirectDeps = Object.keys(
+    JSON.parse(fs.readFileSync(path.join(appModules, 'next', 'package.json'), 'utf8')).dependencies ?? {},
+  )
+} catch {
+  console.log('self-contain: WARNING staged next/package.json unreadable, skipping dep repair')
+}
+{
+  const seen = new Set()
+  for (const dep of nextDirectDeps) {
+    ensureStagedDep(dep, seen, !NEVER_MERGE.has(dep))
+  }
+}
+
 // Never ship local secrets: a staged .env would shadow Hostinger panel env
 // vars at runtime (dotenv loads .env from CWD) and leak credentials.
 for (const f of fs.readdirSync(appDir)) {
@@ -228,29 +309,32 @@ for (const f of fs.readdirSync(appDir)) {
   }
 }
 
-// Fail fast with a clear message instead of a 503 at boot.
-const requireFromApp = createRequire(serverFile)
-try {
-  for (const mod of ['react', 'react-dom', 'next', '@swc/helpers/_/_interop_require_default']) {
-    requireFromApp.resolve(mod)
-  }
-} catch (err) {
-  const stagedPkg = path.join(stagedSwcHelpers, 'package.json')
-  let stagedVersion = 'missing'
+// Fail fast with a clear message instead of a crash-loop at boot.
+// Scoped to the staged subtree ONLY (see NOTE above): ancestor leakage made
+// the old bare-resolve check pass at build time while the container crashed.
+const missing = []
+for (const mod of ['react', 'react-dom', 'next', '@next/env', 'styled-jsx']) {
+  if (!stagedHas(path.join(mod, 'package.json'))) missing.push(mod)
+}
+for (const dep of nextDirectDeps) {
+  if (!stagedHas(path.join(dep, 'package.json'))) missing.push(dep)
+}
+// Pinned @swc/helpers@0.5.23 layout: CJS (used by server.js require) + ESM.
+for (const f of ['cjs/_interop_require_default.cjs', 'esm/_interop_require_default.js']) {
+  if (!stagedHas(path.join('@swc/helpers', f))) missing.push(`@swc/helpers/${f}`)
+}
+if (missing.length > 0) {
+  const uniq = [...new Set(missing)]
+  let stagedNextVersion = 'missing'
   try {
-    stagedVersion = JSON.parse(fs.readFileSync(stagedPkg, 'utf8')).version
-  } catch {}
-  let stagedFiles = []
-  try {
-    stagedFiles = fs.readdirSync(path.join(stagedSwcHelpers, 'esm')).slice(0, 8)
+    stagedNextVersion = JSON.parse(fs.readFileSync(path.join(appModules, 'next', 'package.json'), 'utf8')).version
   } catch {}
   throw new Error(
-    `self-contain: standalone validation failed: ${err?.message ?? err}\n` +
-      `  server: ${serverFile}\n` +
-      `  swc source tried: ${swcSource ?? '(none found)'}\n` +
-      `  staged @swc/helpers: ${stagedSwcHelpers} (version ${stagedVersion}, esm sample: ${stagedFiles.join(',') || 'n/a'})\n` +
-      `  hint: ensure @swc/helpers is a direct dependency and reinstall with the pinned pnpm (${'`'}pnpm install --frozen-lockfile${'`'}).`,
-    { cause: err },
+    `self-contain: standalone validation failed, ${uniq.length} file(s) missing from the staged subtree:\n` +
+      uniq.map((m) => `  - node_modules/${m}`).join('\n') +
+      `\n  server: ${serverFile}\n` +
+      `  staged next version: ${stagedNextVersion}\n` +
+      `  hint: ensure dependencies are installed with the pinned pnpm (\`pnpm install --frozen-lockfile\`) and that postinstall materialized peers.`,
   )
 }
-console.log('self-contain: standalone resolve ok (react, react-dom, next, @swc/helpers)')
+console.log('self-contain: standalone resolve ok (react, react-dom, next, @swc/helpers, @next/env, styled-jsx)')
