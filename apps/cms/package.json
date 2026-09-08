@@ -15,7 +15,7 @@
     "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
     "lint": "eslint .",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
-    "start": "cross-env NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0 NODE_OPTIONS=--no-deprecation node .next/standalone/apps/cms/server.js",
+    "start": "cross-env NODE_ENV=production HOSTNAME=0.0.0.0 NODE_OPTIONS=--no-deprecation node .next/standalone/apps/cms/server.js",
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-strip-types\" pnpm exec playwright test",
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
