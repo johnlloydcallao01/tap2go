@@ -33,6 +33,7 @@ if (!fs.existsSync(serverFile)) {
 
 const appModules = path.join(appDir, 'node_modules')
 const installedModules = path.join(cmsDir, 'node_modules')
+const workspaceModules = path.resolve(cmsDir, '..', '..', 'node_modules')
 fs.mkdirSync(appModules, { recursive: true })
 
 const copyIfMissing = (name, sourceRoot) => {
@@ -49,13 +50,15 @@ if (fs.existsSync(parentModules)) {
     copyIfMissing(name, parentModules)
   }
 
-  const swcHelpers = path.join(parentModules, '@swc', 'helpers')
-  const stagedSwcHelpers = path.join(appModules, '@swc', 'helpers')
-  if (fs.existsSync(swcHelpers)) {
-    fs.mkdirSync(path.dirname(stagedSwcHelpers), { recursive: true })
-    fs.cpSync(swcHelpers, stagedSwcHelpers, { recursive: true, dereference: true, force: true })
-    console.log('self-contain: repaired @swc/helpers')
-  }
+}
+
+const swcHelpers = path.join(workspaceModules, '@swc', 'helpers')
+const stagedSwcHelpers = path.join(appModules, '@swc', 'helpers')
+if (fs.existsSync(swcHelpers)) {
+  fs.mkdirSync(path.dirname(stagedSwcHelpers), { recursive: true })
+  fs.rmSync(stagedSwcHelpers, { recursive: true, force: true })
+  fs.cpSync(swcHelpers, stagedSwcHelpers, { recursive: true, dereference: true, force: true })
+  console.log('self-contain: repaired @swc/helpers')
 }
 
 // Some hosts flatten or regenerate the standalone tree and omit modules that
