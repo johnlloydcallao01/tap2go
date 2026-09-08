@@ -27,4 +27,4 @@ USER nextjs
 
 EXPOSE 8080
 
-CMD ["node", "apps/cms/server.js"]
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} exec node apps/cms/server.js"]
