@@ -171,21 +171,21 @@ export default buildConfig({
   secret: process.env.PAYLOAD_SECRET || '',
   cors: [
     // Production web-admin
-    process.env.ADMIN_PROD_URL!,
+    process.env.ADMIN_PROD_URL,
     // Local development
-    process.env.ADMIN_LOCAL_URL!,
+    process.env.ADMIN_LOCAL_URL,
     // Production web app (for trainee registration)
-    process.env.WEB_PROD_URL!,
+    process.env.WEB_PROD_URL,
     // Local web app development
-    process.env.WEB_LOCAL_URL!,
+    process.env.WEB_LOCAL_URL,
     // Local driver app development
-    process.env.WEB_DRIVER_LOCAL_URL!,
+    process.env.WEB_DRIVER_LOCAL_URL,
     // Local mobile customer app development
-    process.env.MOBILE_CUSTOMER_LOCAL_URL!,
+    process.env.MOBILE_CUSTOMER_LOCAL_URL,
     // CMS admin panel itself
-    process.env.CMS_PROD_URL!,
-    process.env.CMS_LOCAL_URL!,
-  ],
+    process.env.CMS_PROD_URL,
+    process.env.CMS_LOCAL_URL,
+  ].filter((v): v is string => typeof v === 'string' && v.length > 0),
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
