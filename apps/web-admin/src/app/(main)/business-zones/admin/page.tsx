@@ -1,7 +1,10 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useBusinessZones, useBusinessZoneOverview, type BusinessZoneDoc } from '@/hooks/useBusinessZones'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Globe, MapPin, Store, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
@@ -9,7 +12,6 @@ import {
 } from '@/components/ui/IconWrapper'
 import { BusinessZoneOverviewMap } from '../_components/ZoneMaps'
 import { BusinessZoneFormModal } from '../_components/BusinessZoneFormModal'
-import type { BusinessZoneDoc, MerchantZoneDoc, Pagination, Stats } from '../_components/types'
 import { initials, fmtDate } from '../_components/types'
 
 function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: string; sub?: string; icon: React.ReactNode; iconBg: string }){
@@ -48,22 +50,15 @@ function AdminBusinessZonesPageContent(){
   const [page,setPage]=useState(1)
   const limit=10
   const [sort,setSort]=useState('-createdAt')
-  const [docs,setDocs]=useState<BusinessZoneDoc[]>([])
-  const [pagination,setPagination]=useState<Pagination|null>(null)
-  const [stats,setStats]=useState<Stats|null>(null)
-  const [loading,setLoading]=useState(true)
-  const [error,setError]=useState<string|null>(null)
   const [deleting,setDeleting]=useState<BusinessZoneDoc|null>(null)
   const [editing,setEditing]=useState<BusinessZoneDoc|null>(null)
   const [showForm,setShowForm]=useState(false)
   const [formMode,setFormMode]=useState<'create'|'edit'>('create')
   const [mapZone,setMapZone]=useState<BusinessZoneDoc|null>(null)
-  const [merchantZones,setMerchantZones]=useState<MerchantZoneDoc[]>([])
-  const [overviewLoading,setOverviewLoading]=useState(false)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
 
-  const buildQuery=useCallback(()=>{
+  const qs=useMemo(()=>{
     const p=new URLSearchParams()
     p.set('page',String(page)); p.set('limit',String(limit)); p.set('sort',sort)
     if(debouncedQ) p.set('search',debouncedQ)
@@ -71,32 +66,39 @@ function AdminBusinessZonesPageContent(){
     return p.toString()
   },[page,limit,sort,debouncedQ,isActiveFilter])
 
-  const load=useCallback(async (opts?:{hard?:boolean})=>{
-    if(opts?.hard){ setPagination(null); setDocs([]) }
-    setLoading(true); setError(null)
-    try{
-      const qs=buildQuery()
-      const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/business-zones?${bust}`,{cache:'no-store'})
-      if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
-      const j=await res.json()
-      setDocs(j.docs||[]); setPagination(j.pagination||null); setStats(j.stats||null)
-    }catch(e:any){ setError(e.message||'Failed') } finally{ setLoading(false) }
-  },[buildQuery])
+  const queryClient=useQueryClient()
+  const [hardRefreshing,setHardRefreshing]=useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useBusinessZones(qs)
+  const overview = useBusinessZoneOverview()
 
-  const loadOverview=useCallback(async()=>{
-    setOverviewLoading(true)
-    try{
-      const res=await fetch(`/api/business-zones/overview`,{cache:'no-store'})
-      if(!res.ok){ const t=await res.text(); throw new Error(t)}
-      const j=await res.json()
-      setMerchantZones(j.merchantZones||[])
-      if(!stats) setStats(j.stats)
-    }catch(e:any){ console.error(e)} finally{ setOverviewLoading(false)}
-  },[stats])
+  const docs=data?.docs||[]
+  const pagination=data?.pagination||null
+  const stats=data?.stats||null
+  const merchantZones=overview.data?.merchantZones||[]
 
-  useEffect(()=>{void load()},[load])
-  useEffect(()=>{void loadOverview()},[loadOverview])
+  const isInitialLoading=(isPending&&!data)||hardRefreshing
+  const loading=isFetching||hardRefreshing
+  const overviewLoading=overview.isFetching
+  const error=isError&&!data&&!hardRefreshing?(queryError instanceof Error?queryError.message:'Failed to load business zones'):null
+
+  const refetchAll=()=>{
+    void refetch()
+    void overview.refetch()
+  }
+
+  const handleHardRefresh=()=>{
+    if(hardRefreshing) return
+    setHardRefreshing(true)
+    void (async()=>{
+      try{
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminBusinessZones(qs) })
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminBusinessZoneOverview() })
+        await refetch({ cancelRefetch: true })
+        await overview.refetch({ cancelRefetch: true })
+      }finally{ setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(()=>{setPage(1)},[debouncedQ,isActiveFilter,sort])
   useEffect(()=>{
     const isOpen=!!deleting || !!mapZone || showForm
@@ -110,7 +112,7 @@ function AdminBusinessZonesPageContent(){
       const res=await fetch(`/api/business-zones/${deleting.id}`,{method:'DELETE'})
       const j=await res.json().catch(()=>({}))
       if(!res.ok) throw new Error(j.error||'Failed to delete')
-      setDeleting(null); await load(); await loadOverview()
+      setDeleting(null); refetchAll()
     }catch(e:any){ alert(e.message||'Delete failed') }
   }
 
@@ -118,7 +120,7 @@ function AdminBusinessZonesPageContent(){
     try{
       const res=await fetch(`/api/business-zones/${zone.id}`,{method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ isActive: !zone.isActive, disabledReason: !zone.isActive ? null : zone.disabledReason || 'Disabled via toggle' })})
       if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||'Failed')}
-      await load(); await loadOverview()
+      refetchAll()
     }catch(e:any){ alert(e.message)}
   }
 
@@ -137,7 +139,7 @@ function AdminBusinessZonesPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Admin-drawn operational areas — draw the polygon on Google Maps, toggle kill-switch, and track merchant assignment.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>{void load({hard:true}); void loadOverview()}} disabled={loading||overviewLoading} aria-label="Refresh zones" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading||overviewLoading} aria-label="Refresh zones" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading||overviewLoading?'animate-spin':''}`} />
           </button>
           <button onClick={openCreate} className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
@@ -218,7 +220,7 @@ function AdminBusinessZonesPageContent(){
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load zones</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={()=>void load({hard:true})} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
           </div>
         )}
         {loading ? (
@@ -352,7 +354,7 @@ function AdminBusinessZonesPageContent(){
             mode={formMode}
             initial={editing}
             onClose={()=>setShowForm(false)}
-            onSuccess={async()=>{ setShowForm(false); await load(); await loadOverview()}}
+            onSuccess={async()=>{ setShowForm(false); refetchAll()}}
           />,
           document.body
         )}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCached, getCached, setCached } from '@/utils/redisCache'
 
 function maskKey(key: string | null | undefined): string | null {
   if (!key || typeof key !== 'string') return null
@@ -26,6 +27,10 @@ export async function GET(request: NextRequest) {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
+
+    const cacheKey = `admin:configuration:${admin.id}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Configuration-Cache': 'HIT' } })
 
     const sys: any = await payload.findGlobal({ slug: 'system-settings', depth: 0, overrideAccess: true } as any).catch(() => null)
 
@@ -87,7 +92,7 @@ export async function GET(request: NextRequest) {
       sandboxMismatch: systemSettings.lalamove.sandbox !== runtimeEnv.lalamove.sandbox ? `DB sandbox ${systemSettings.lalamove.sandbox} vs ENV ${runtimeEnv.lalamove.sandbox} (runtime ENV wins, restart required)` : null,
     }
 
-    return NextResponse.json({
+    const responseBody = {
       systemSettings,
       runtimeEnv,
       divergence,
@@ -98,7 +103,9 @@ export async function GET(request: NextRequest) {
         lockTimeMinutes: 10,
       },
       meta: { generatedAt: new Date().toISOString() },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-Configuration-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/configuration] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load configuration' }, { status: 500 })
@@ -195,6 +202,7 @@ export async function PATCH(request: NextRequest) {
 
     const updated: any = await payload.updateGlobal({ slug: 'system-settings', data: merged as any, overrideAccess: true, depth: 0 } as any)
 
+    await deleteCached(`admin:configuration:${admin.id}`)
     return NextResponse.json({ success: true, message: 'Configuration updated successfully', systemSettings: updated })
   } catch (err: any) {
     console.error('[admin/configuration] PATCH error:', err)

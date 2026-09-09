@@ -1,37 +1,16 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useVendors, type VendorDoc, type Pagination, type Stats } from '@/hooks/useVendors'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
   ShieldCheck, ShieldAlert, Clock, CheckCircle, Eye, Pencil, FileText, Image as ImageIcon, CalendarDays, Ban, XCircle
 } from '@/components/ui/IconWrapper'
-
-type VendorDoc = {
-  id: number
-  businessName: string
-  legalName: string
-  businessRegistrationNumber: string
-  taxIdentificationNumber: string | null
-  primaryContactEmail: string
-  primaryContactPhone: string
-  businessType: string
-  isActive: boolean
-  verificationStatus: string
-  onboardingDate: string | null
-  logo: { id: number; url: string | null } | null
-  businessLicense: { id: number; url: string | null } | null
-  taxCertificate: { id: number; url: string | null } | null
-  owner: { id: number; email: string; firstName: string; lastName: string } | null
-  createdAt: string
-  updatedAt: string
-  totalMerchants: number
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { verificationBreakdown: Record<string, number>; totalAll: number; filteredTotal: number; activeCount: number }
 
 const VERIFICATION_OPTS = [
   { value: 'pending', label: 'Pending' },
@@ -91,40 +70,48 @@ function VerificationPageContent() {
   const [page, setPage] = useState(1)
   const limit = 10
   const [sort] = useState('-createdAt')
-  const [docs, setDocs] = useState<VendorDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [actioningId, setActioningId] = useState<number | null>(null)
   const [confirm, setConfirm] = useState<{ id: number; businessName: string; next: string } | null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount = useMemo(()=> verificationFilter.length + businessTypeFilter.length + (debouncedQ?1:0),[verificationFilter,businessTypeFilter,debouncedQ])
 
-  const buildQuery = useCallback(()=>{
-    const p=new URLSearchParams()
-    p.set('page',String(page)); p.set('limit',String(limit)); p.set('sort',sort)
-    if(debouncedQ) p.set('search',debouncedQ)
-    if(verificationFilter.length) p.set('verificationStatus',verificationFilter.join(','))
-    if(businessTypeFilter.length) p.set('businessType',businessTypeFilter.join(','))
+  const qs = useMemo(() => {
+    const p = new URLSearchParams()
+    p.set('page', String(page))
+    p.set('limit', String(limit))
+    p.set('sort', sort)
+    if (debouncedQ) p.set('search', debouncedQ)
+    if (verificationFilter.length) p.set('verificationStatus', verificationFilter.join(','))
+    if (businessTypeFilter.length) p.set('businessType', businessTypeFilter.join(','))
     return p.toString()
-  },[page,limit,sort,debouncedQ,verificationFilter,businessTypeFilter])
+  }, [page, limit, sort, debouncedQ, verificationFilter, businessTypeFilter])
 
-  const load = useCallback(async (opts?:{hard?:boolean})=>{
-    if(opts?.hard){ setPagination(null); setStats(null); setDocs([]) }
-    setLoading(true); setError(null)
-    try{
-      const qs=buildQuery()
-      const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/vendors?${bust}`,{cache:'no-store'})
-      if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
-      const j=await res.json()
-      setDocs(j.docs||[]); setPagination(j.pagination||null); setStats(j.stats||null)
-    }catch(e:any){ setError(e.message||'Failed') } finally{ setLoading(false) }
-  },[buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useVendors(qs)
 
-  useEffect(()=>{void load()},[load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminVendors(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally {
+        setHardRefreshing(false)
+      }
+    })()
+  }
+
   useEffect(()=>{setPage(1)},[debouncedQ,verificationFilter,businessTypeFilter])
   useEffect(()=>{
     const isOpen=!!confirm
@@ -143,7 +130,7 @@ function VerificationPageContent() {
       const j=await res.json().catch(()=>({}))
       if(!res.ok) throw new Error(j.error||'Failed to update')
       setConfirm(null)
-      await load()
+      await refetch()
     }catch(e:any){ alert(e.message||'Update failed') } finally{ setActioningId(null) }
   }
 
@@ -160,7 +147,7 @@ function VerificationPageContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Review business documents, approve or reject vendors, and track compliance.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>void load({hard:true})} disabled={loading} aria-label="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading?'animate-spin':''}`} />
           </button>
           <Link href="/vendors" className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl text-sm font-medium text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-50">Back to vendors</Link>
@@ -227,10 +214,10 @@ function VerificationPageContent() {
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={()=>void load({hard:true})} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
         ) : !error && docs.length===0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${CMS_BASE}/admin/vendors/payouts${qs ? `?${qs}` : ''}`, {
       headers: { Authorization: `JWT ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(30000),
     })
     const data = await res.text()
     return new NextResponse(data, { status: res.status, headers: { 'Content-Type': res.headers.get('content-type') || 'application/json' } })

@@ -1,39 +1,16 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useTagGroups, type TagGroupDoc } from '@/hooks/useTagGroups'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Tag, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Store, Eye, Pencil, Trash2, Building, Palette, ToggleLeft, Hash,
 } from '@/components/ui/IconWrapper'
-
-type TagGroupDoc = {
-  id: number
-  name: string
-  slug: string
-  description: string | null
-  color: string | null
-  icon: string | null
-  is_filterable: boolean
-  is_searchable: boolean
-  display_order: number
-  is_active: boolean
-  tagCount: number
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = {
-  total: number
-  activeCount: number
-  inactiveCount: number
-  filterableCount: number
-  searchableCount: number
-  filteredCount: number
-}
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
@@ -91,12 +68,6 @@ function TagGroupsPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [docs, setDocs] = useState<TagGroupDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   const [deleting, setDeleting] = useState<TagGroupDoc | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -106,7 +77,7 @@ function TagGroupsPageContent(){
     return (isActiveFilter !== null ? 1 : 0) + (isFilterableFilter !== null ? 1 : 0) + (isSearchableFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [isActiveFilter, isFilterableFilter, isSearchableFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -118,25 +89,29 @@ function TagGroupsPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, isActiveFilter, isFilterableFilter, isSearchableFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) { setPagination(null); setStats(null); setDocs([]) }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/catalog/tag-groups?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load tag groups') } catch { throw new Error(text || 'Failed to load tag groups') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load tag groups') } finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useTagGroups(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load tag groups') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCatalogTagGroups(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, isActiveFilter, isFilterableFilter, isSearchableFilter, sort])
 
   useEffect(() => {
@@ -157,7 +132,7 @@ function TagGroupsPageContent(){
         if (j.code === 'IN_USE') { setDeleteError(j.error || 'Tag group is in use'); return }
         throw new Error(j.error || 'Failed to delete')
       }
-      setDeleting(null); await load()
+      setDeleting(null); await refetch()
     } catch (e: any) { setDeleteError(e?.message || 'Delete failed') }
   }
 
@@ -173,7 +148,7 @@ function TagGroupsPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Manage tag groups — color, filterable/searchable flags, and membership.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => void load({ hard: true })} disabled={loading} aria-label="Refresh tag groups" title="Refresh — re-fetch from BFF and show skeleton" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh tag groups" title="Refresh — re-fetch from BFF and show skeleton" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Link href="/catalog/tag-groups/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
@@ -190,7 +165,7 @@ function TagGroupsPageContent(){
           <KpiCard title="Filterable" value={String(stats.filterableCount)} sub={`${stats.total - stats.filterableCount} not filterable`} icon={<SlidersHorizontal className="w-5 h-5 text-white" />} iconBg="bg-sky-600" />
           <KpiCard title="Searchable" value={String(stats.searchableCount)} sub={`${stats.total - stats.searchableCount} not searchable`} icon={<Search className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
         </div>
@@ -275,10 +250,10 @@ function TagGroupsPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load tag groups</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>

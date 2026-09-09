@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function getNum(v: unknown, fb = 0): number {
   if (typeof v === 'number' && Number.isFinite(v)) return v
@@ -71,6 +72,15 @@ export async function GET(request: NextRequest) {
     const businessTypeFilter = parseCsv(searchParams, 'businessType')
     const isActiveParam = searchParams.get('isActive')
     const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
+
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'range=30d'
+    const cacheKey = `admin:payouts:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Payouts-Cache': 'HIT' } })
 
     const now = new Date()
     const periodStart = days === 0 ? null : new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
@@ -251,7 +261,7 @@ export async function GET(request: NextRequest) {
       verificationBreakdown[s] = (verificationBreakdown[s] || 0) + 1
     }
 
-    return NextResponse.json({
+    const respBody = {
       meta: {
         range: label,
         days,
@@ -277,7 +287,10 @@ export async function GET(request: NextRequest) {
       },
       daily,
       verificationBreakdown,
-    })
+    }
+
+    await setCached(cacheKey, respBody, 30)
+    return NextResponse.json(respBody, { headers: { 'X-Payouts-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/vendors/payouts] error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load payouts' }, { status: 500 })

@@ -3,6 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useConfiguration } from '@/hooks/useConfiguration'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Settings,
@@ -24,26 +27,6 @@ import {
   ExternalLink,
   Activity,
 } from '@/components/ui/IconWrapper'
-
-type ConfigData = {
-  systemSettings: {
-    maintenanceMode: boolean
-    deliveryProvider: 'lalamove' | 'native'
-    lalamove: { apiKeyMasked: string | null; hasApiKey: boolean; apiSecretMasked: string | null; hasApiSecret: boolean; market: string; sandbox: boolean }
-    native: { riderAppUrl: string | null }
-    hasSystemSettings: boolean
-    updatedAt: string | null
-    createdAt: string | null
-  }
-  runtimeEnv: {
-    lalamove: { sandbox: boolean; hasApiKey: boolean; hasApiSecret: boolean; market: string; baseUrl: string; priorityFee: string; hasEnvKeys: boolean }
-    paymongo: { sandbox: boolean; hasPublicKey: boolean; hasSecretKey: boolean; hasWebhookSecret: boolean; publicKeyMasked: string | null; secretKeyMasked: string | null; webhookSecretMasked: string | null; webhookUrl: string }
-    cors: { hasSecret: boolean; secretLength: number }
-  }
-  divergence: { lalamoveApiKeyMismatch: string | null; marketMismatch: string | null; sandboxMismatch: string | null }
-  authPolicy: { tokenExpirationDays: number; tokenExpirationSeconds?: number; maxLoginAttempts: number; lockTimeMinutes: number }
-  meta: { generatedAt: string }
-}
 
 type Tab = 'general' | 'delivery' | 'payments'
 
@@ -104,9 +87,6 @@ function ConfigurationPageContent(){
   const initialTab = (searchParams.get('tab') as Tab) || 'general'
   const [activeTab, setActiveTab] = useState<Tab>(['general', 'delivery', 'payments'].includes(initialTab) ? initialTab : 'general')
 
-  const [data, setData] = useState<ConfigData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
 
   // form states
@@ -127,41 +107,36 @@ function ConfigurationPageContent(){
     setTimeout(() => setToast(null), 4200)
   }, [])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) setData(null)
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/configuration?_t=${Date.now()}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try {
-          const j = JSON.parse(text)
-          throw new Error(j.error || 'Failed to load configuration')
-        } catch {
-          throw new Error(text || 'Failed to load configuration')
-        }
-      }
-      const json = (await res.json()) as ConfigData
-      setData(json)
-      // sync form states
-      setDeliveryProvider(json.systemSettings.deliveryProvider)
-      setLalamoveMarket(json.systemSettings.lalamove.market || 'PH')
-      setLalamoveSandbox(json.systemSettings.lalamove.sandbox)
-      setNativeRiderAppUrl(json.systemSettings.native.riderAppUrl || '')
-      // keep apiKey/secret inputs empty (masked) unless user wants to overwrite
-      setLalamoveApiKey('')
-      setLalamoveApiSecret('')
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load configuration')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useConfiguration()
 
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load configuration') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminConfiguration() })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
+  // sync form states from fresh data (runs on initial fetch + post-mutation refetch)
   useEffect(() => {
-    void load()
-  }, [load])
+    if (!data) return
+    setDeliveryProvider(data.systemSettings.deliveryProvider)
+    setLalamoveMarket(data.systemSettings.lalamove.market || 'PH')
+    setLalamoveSandbox(data.systemSettings.lalamove.sandbox)
+    setNativeRiderAppUrl(data.systemSettings.native.riderAppUrl || '')
+    // keep apiKey/secret inputs empty (masked) unless user wants to overwrite
+    setLalamoveApiKey('')
+    setLalamoveApiSecret('')
+  }, [data])
 
   useEffect(() => {
     const tab = searchParams.get('tab') as Tab | null
@@ -184,7 +159,7 @@ function ConfigurationPageContent(){
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to update')
       showToast({ type: 'success', message: j.message || `Maintenance ${next ? 'enabled' : 'disabled'}` })
-      await load()
+      await refetch()
     } catch (e: any) {
       showToast({ type: 'error', message: e?.message || 'Update failed' })
     } finally {
@@ -213,7 +188,7 @@ function ConfigurationPageContent(){
       showToast({ type: 'success', message: 'Delivery provider updated' })
       setLalamoveApiKey('')
       setLalamoveApiSecret('')
-      await load()
+      await refetch()
     } catch (e: any) {
       showToast({ type: 'error', message: e?.message || 'Save failed' })
     } finally {
@@ -241,7 +216,7 @@ function ConfigurationPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Platform Configuration — maintenance, delivery provider, and payment gateway. Single unified page.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => void load({ hard: true })} disabled={loading} aria-label="Refresh configuration" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh configuration" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -255,7 +230,7 @@ function ConfigurationPageContent(){
           <KpiCard title="Payment Gateway" value={data.runtimeEnv.paymongo.sandbox ? 'PayMongo Sandbox' : 'PayMongo Live'} sub={`${data.runtimeEnv.paymongo.hasSecretKey ? 'Secrets set ✓' : 'Secrets missing'} • ${data.runtimeEnv.paymongo.hasWebhookSecret ? 'Webhook ✓' : 'Webhook ✕'}`} icon={<CreditCard className="w-5 h-5 text-white" />} iconBg={data.runtimeEnv.paymongo.hasSecretKey ? 'bg-emerald-500' : 'bg-red-500'} />
           <KpiCard title="System Settings" value={data.systemSettings.hasSystemSettings ? 'Persisted' : 'Defaults'} sub={data.systemSettings.updatedAt ? `Updated ${fmtDate(data.systemSettings.updatedAt)}` : 'No row yet'} icon={<Activity className="w-5 h-5 text-white" />} iconBg="bg-[#eba236]" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -326,7 +301,7 @@ function ConfigurationPageContent(){
           </div>
           <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load configuration</h3>
           <p className="text-sm text-gray-500 mt-1 mb-4 text-center max-w-md">{error}</p>
-          <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium">
+          <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium">
             <RefreshCw className="h-4 w-4 mr-2" />Retry
           </button>
         </div>

@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
       cache: 'no-store',
     })
     const data = await res.text()
-    return new NextResponse(data, { status: res.status, headers: { 'Content-Type': res.headers.get('content-type') || 'application/json' } })
+    const headers = new Headers({ 'Content-Type': res.headers.get('content-type') || 'application/json' })
+    const cacheStatus = res.headers.get('X-EmergencyContacts-Cache')
+    if (cacheStatus) headers.set('X-EmergencyContacts-Cache', cacheStatus)
+    return new NextResponse(data, { status: res.status, headers })
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
   }

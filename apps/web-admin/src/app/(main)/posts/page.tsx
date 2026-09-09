@@ -1,7 +1,10 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { usePosts } from '@/hooks/usePosts'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Plus, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
@@ -75,18 +78,13 @@ function PostsPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [posts, setPosts] = useState<Post[]>([])
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalDocs, setTotalDocs] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<Post | null>(null)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
 
   const activeFilterCount = useMemo(() => statusFilter.length + (debouncedQ ? 1 : 0), [statusFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -96,26 +94,29 @@ function PostsPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, statusFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) { setPosts([]); setTotalDocs(0); setTotalPages(1) }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`${API_BASE_URL}/posts?${bust}`, { credentials: 'include', cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load posts') } catch { throw new Error(text || 'Failed to load posts') }
-      }
-      const json = await res.json()
-      setPosts(json.docs || [])
-      setTotalPages(json.totalPages || 1)
-      setTotalDocs(json.totalDocs || 0)
-    } catch (e: any) { setError(e?.message || 'Failed to load posts') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = usePosts(qs)
 
-  useEffect(() => { void load() }, [load])
+  const posts = data?.docs || []
+  const totalPages = data?.totalPages || 1
+  const totalDocs = data?.totalDocs || 0
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load posts') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminPosts(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, statusFilter, sort])
 
   useEffect(() => {
@@ -137,7 +138,7 @@ function PostsPageContent(){
         try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to delete post') } catch { throw new Error(text || 'Failed to delete post') }
       }
       setDeleting(null)
-      await load()
+      await refetch()
     } catch (e: any) { alert(e?.message || 'Delete failed') }
   }
 
@@ -160,7 +161,7 @@ function PostsPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Manage your blog content — create, edit, publish posts.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => void load({ hard: true })} disabled={loading} aria-label="Refresh posts" title="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh posts" title="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Link href="/posts/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
@@ -170,12 +171,12 @@ function PostsPageContent(){
       </div>
 
       {/* KPIs */}
-      {posts.length > 0 || !loading ? (
+      {posts.length > 0 || !isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <KpiCard title="Total Posts" value={String(totalDocs)} icon={<FileText className="w-5 h-5 text-white" />} iconBg="bg-[#eba236]" />
           <KpiCard title="Page" value={`${page} of ${totalPages}`} sub={`${limit} per page`} icon={<Calendar className="w-5 h-5 text-white" />} iconBg="bg-sky-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 animate-pulse">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -227,7 +228,7 @@ function PostsPageContent(){
 
       {/* Table */}
       <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>
@@ -236,7 +237,7 @@ function PostsPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load posts</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

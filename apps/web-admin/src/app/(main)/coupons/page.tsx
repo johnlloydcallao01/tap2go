@@ -1,57 +1,18 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useCoupons } from '@/hooks/useCoupons'
+import type { CouponDoc } from '@/hooks/useCoupons'
+export type { CouponDoc } from '@/hooks/useCoupons'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Ticket, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Store, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2, TrendingUp, CalendarDays, Ban, Check
 } from '@/components/ui/IconWrapper'
-
-// Types matching BFF (apps/cms/src/app/api/admin/coupons/route.ts sanitizeCoupon)
-export type CouponDoc = {
-  id: number
-  code: string
-  description: string | null
-  status: string
-  discount_type: string
-  amount: number
-  max_discount_amount: number | null
-  applies_to: string
-  free_delivery: boolean
-  delivery_discount_cap: number | null
-  vendor: { id: number; businessName: string } | number | null
-  merchant_scope: string
-  merchants: unknown[]
-  menu_items: unknown[]
-  excluded_menu_items: unknown[]
-  menu_categories: unknown[]
-  excluded_menu_categories: unknown[]
-  exclude_promo_items: boolean
-  minimum_basket: number | null
-  maximum_basket: number | null
-  limit_per_order_items: number | null
-  individual_use: boolean
-  max_coupons_per_order: number
-  starts_at: string | null
-  expires_at: string | null
-  usage_limit: number
-  usage_limit_per_user: number
-  usage_count: number
-  email_restrictions: string[]
-  phone_restrictions: string[]
-  first_order_only: boolean
-  allowed_payment_methods: string[]
-  time_windows: unknown[]
-  funded_by: string
-  vendor_share_pct: number
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { totalAll: number; filteredTotal: number; statusBreakdown: Record<string, number>; totalUsage: number }
 
 const STATUS_OPTS: { value: string; label: string }[] = [
   { value: 'draft', label: 'Draft' },
@@ -155,13 +116,6 @@ function CouponsPageContent(){
   const limit = 10 // fixed 10 per page as required — pagination must display 10
   const [showFilters, setShowFilters] = useState(false)
 
-  // data
-  const [docs, setDocs] = useState<CouponDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   // delete confirm only — view/edit now dedicated pages
   const [deleting, setDeleting] = useState<CouponDoc | null>(null)
 
@@ -171,7 +125,7 @@ function CouponsPageContent(){
     return statusFilter.length + typeFilter.length + (debouncedQ ? 1 : 0)
   }, [statusFilter, typeFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit)) // fixed 10 per page
@@ -182,33 +136,28 @@ function CouponsPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, statusFilter, typeFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      // hard refresh — clear to show skeleton proof (user requested)
-      setPagination(null)
-      setStats(null)
-      // keep docs for table skeleton via isInitial, but clear to force empty check not to flash
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      // bust cache with timestamp to guarantee fresh BFF fetch
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/coupons?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load coupons') } catch { throw new Error(text || 'Failed to load coupons') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load coupons') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useCoupons(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load coupons') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCoupons(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
 
   // reset page when filters change — limit fixed at 10, pagination always 10 per page
   useEffect(() => { setPage(1) }, [debouncedQ, statusFilter, typeFilter, sort])
@@ -229,16 +178,15 @@ function CouponsPageContent(){
   const toggleType = (v: string) => setTypeFilter((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])
   const clearAll = () => { setQ(''); setDebouncedQ(''); setStatusFilter([]); setTypeFilter([]) }
 
-  // publish/pause quick toggle (optimistic)
+  // publish/pause quick toggle
   const togglePublish = async (c: CouponDoc) => {
     const next = c.status === 'published' ? 'paused' : 'published'
-    setDocs((prev) => prev.map((d) => d.id === c.id ? { ...d, status: next } : d))
     const res = await fetch(`/api/coupons/${c.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) })
     if (!res.ok) {
-      setDocs((prev) => prev.map((d) => d.id === c.id ? { ...d, status: c.status } : d))
       const j = await res.json().catch(() => ({}))
       alert(j.error || 'Failed to update status')
-    } else { void load() }
+    }
+    void refetch()
   }
 
   // delete handler
@@ -249,11 +197,11 @@ function CouponsPageContent(){
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
       setDeleting(null)
-      await load()
+      await refetch()
     } catch (e: any) { alert(e?.message || 'Delete failed') }
   }
 
-  const showTableSkeleton = loading // professional: skeleton on any loading, not just initial
+  const showTableSkeleton = isInitialLoading
 
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -268,7 +216,7 @@ function CouponsPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh coupons"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -291,7 +239,7 @@ function CouponsPageContent(){
           <KpiCard title="Paused / Archived" value={String((stats.statusBreakdown.paused || 0) + (stats.statusBreakdown.archived || 0))} sub="taken offline" icon={<XCircle className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
           <KpiCard title="Redemptions" value={String(stats.totalUsage)} sub="successful uses" icon={<TrendingUp className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -352,10 +300,10 @@ function CouponsPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load coupons</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>

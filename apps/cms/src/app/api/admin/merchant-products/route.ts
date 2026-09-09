@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -32,6 +33,15 @@ export async function GET(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=10'
+    const cacheKey = `admin:merchant-products:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-MerchantProducts-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
     const search = searchParams.get('search')?.trim().toLowerCase() || ''
@@ -317,7 +327,7 @@ export async function GET(request: NextRequest) {
     const totalMerchantProductsAll = totalMerchantProductsCount ?? merchantProductsDocs.length
     const activeMerchantsAll = activeMerchantsCount ?? merchantsDocs.filter((m: any) => m.isActive).length
 
-    return NextResponse.json({
+    const responseBody = {
       vendors: finalVendors,
       pagination: {
         page,
@@ -336,7 +346,10 @@ export async function GET(request: NextRequest) {
         totalProducts: totalMerchantProductsAll,
       },
       meta: { generatedAt: new Date().toISOString(), search, vendorFilter: vendorFilter ? String(vendorFilter) : null },
-    })
+    }
+
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-MerchantProducts-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/merchant-products] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load merchant products' }, { status: 500 })

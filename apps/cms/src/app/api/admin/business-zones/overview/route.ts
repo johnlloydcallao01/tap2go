@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
 
@@ -28,6 +29,15 @@ export async function GET(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'default'
+    const cacheKey = `admin:business-zones-overview:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-BusinessZonesOverview-Cache': 'HIT' } })
+
     const zoneIdParam = searchParams.get('zoneId') || searchParams.get('businessZoneId')
     const zoneId = zoneIdParam ? Number(zoneIdParam) : null
     const includeMerchants = searchParams.get('includeMerchants') !== 'false'
@@ -108,7 +118,7 @@ export async function GET(request: NextRequest) {
     const totalZones = zones.length
     const activeZones = zones.filter((z: any) => z.isActive !== false).length
 
-    return NextResponse.json({
+    const responseBody = {
       zones: zonesWithCounts,
       merchantZones,
       stats: {
@@ -121,7 +131,10 @@ export async function GET(request: NextRequest) {
         merchantCountByZone: Object.fromEntries(merchantCountByZone),
       },
       meta: { generatedAt: new Date().toISOString(), zoneId: zoneId ?? null },
-    })
+    }
+
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-BusinessZonesOverview-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/business-zones/overview] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load overview' }, { status: 500 })

@@ -1,26 +1,16 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useCatalogAttributes, type AttributeDoc } from '@/hooks/useCatalogAttributes'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   CheckCircle, XCircle, Eye, Pencil, Trash2, CalendarDays, Tag, Palette, ToggleLeft
 } from '@/components/ui/IconWrapper'
-
-type AttributeDoc = {
-  id: number
-  name: string
-  slug: string
-  type: string
-  is_active: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { total: number; totalAll: number; filteredTotal: number; typeBreakdown: Record<string, number>; activeCount: number; inactiveCount: number }
 
 const TYPE_OPTS: { value: string; label: string }[] = [
   { value: 'select', label: 'Select' },
@@ -93,12 +83,6 @@ function AttributesPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [docs, setDocs] = useState<AttributeDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   const [deleting, setDeleting] = useState<AttributeDoc | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -108,7 +92,7 @@ function AttributesPageContent(){
     return typeFilter.length + (isActiveFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [typeFilter, isActiveFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -119,30 +103,29 @@ function AttributesPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, typeFilter, isActiveFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      setPagination(null)
-      setStats(null)
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/catalog/attributes?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load attributes') } catch { throw new Error(text || 'Failed to load attributes') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load attributes') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useCatalogAttributes(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load attributes') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCatalogAttributes(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, typeFilter, isActiveFilter, sort])
 
   useEffect(() => {
@@ -175,7 +158,7 @@ function AttributesPageContent(){
       }
       setDeleting(null)
       setDeleteError(null)
-      await load()
+      await refetch()
     } catch (e: any) {
       setDeleteError(e?.message || 'Delete failed')
     }
@@ -193,7 +176,7 @@ function AttributesPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh attributes"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -214,7 +197,7 @@ function AttributesPageContent(){
           <KpiCard title="Inactive" value={String(stats.inactiveCount)} sub="hidden from catalog" icon={<XCircle className="w-5 h-5 text-white" />} iconBg="bg-zinc-500" />
           <KpiCard title="By Type" value={`${stats.typeBreakdown.select || 0} sel`} sub={`${stats.typeBreakdown.color || 0} color • ${stats.typeBreakdown.button || 0} btn • ${stats.typeBreakdown.radio || 0} radio`} icon={<Palette className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -279,10 +262,10 @@ function AttributesPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load attributes</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 const TAG_TYPES = new Set(['general', 'dietary', 'cuisine', 'promotion', 'feature', 'allergen', 'spice_level', 'temperature', 'size_category'])
 
@@ -56,6 +57,15 @@ export async function GET(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=20'
+    const cacheKey = `admin:catalog-tags:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Tags-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(10, parseInt(searchParams.get('limit') || '10', 10) || 10))
     const search = searchParams.get('search')?.trim() || ''
@@ -137,7 +147,7 @@ export async function GET(request: NextRequest) {
       tagTypeBreakdown[t] = (tagTypeBreakdown[t] || 0) + 1
     }
 
-    return NextResponse.json({
+    const responseBody = {
       docs,
       pagination: {
         page: (paginated as any).page || page,
@@ -157,7 +167,9 @@ export async function GET(request: NextRequest) {
         tagTypeBreakdown,
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-Tags-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/catalog/tags] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load tags' }, { status: 500 })

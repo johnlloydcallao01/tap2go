@@ -1,0 +1,75 @@
+'use client';
+
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@encreasl/client-services';
+
+export type PayoutRow = {
+  vendorId: string;
+  businessName: string;
+  legalName: string;
+  businessType: string;
+  verificationStatus: string;
+  isActive: boolean;
+  logo: { id: number; url: string | null } | null;
+  totalMerchants: number;
+  averageRating: number;
+  orders: number;
+  gross: number;
+  platformFees: number;
+  deliveryFees: number;
+  net: number;
+  refunded: number;
+  avgOrder: number;
+  avgNet: number;
+};
+
+export type Summary = {
+  totalGross: number;
+  totalNet: number;
+  totalPlatformFees: number;
+  totalDeliveryFees: number;
+  totalRefunded: number;
+  totalOrders: number;
+  totalVendors: number;
+  activeVendors: number;
+  avgPayout: number;
+  avgOrder: number;
+};
+
+export type PayoutResponse = {
+  meta: { range: string; days: number; generatedAt: string; periodStart: string | null; periodEnd: string };
+  summary: Summary;
+  vendorPayouts: { rows: PayoutRow[]; count: number };
+  daily: { date: string; gross: number; net: number; orders: number }[];
+  verificationBreakdown: Record<string, number>;
+};
+
+async function fetchVendorPayouts(qs: string, signal?: AbortSignal): Promise<PayoutResponse> {
+  const res = await fetch(`/api/vendors/payouts?${qs}`, { signal });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const j = JSON.parse(text);
+      throw new Error(j.error || 'Failed to load vendor payouts');
+    } catch {
+      throw new Error(text || 'Failed to load vendor payouts');
+    }
+  }
+  return res.json() as Promise<PayoutResponse>;
+}
+
+/**
+ * Vendor Payouts query — 3-min instant-back.
+ * Range and filter changes keep previous slice via placeholderData while refetching.
+ */
+export function useVendorPayouts(qs: string) {
+  return useQuery({
+    queryKey: QUERY_KEYS.adminVendorPayouts(qs),
+    queryFn: ({ signal }) => fetchVendorPayouts(qs, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+}

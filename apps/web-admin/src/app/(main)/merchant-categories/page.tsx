@@ -1,29 +1,16 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useMerchantCategories, type MerchantCategoryDoc, type MerchantCategoryPagination, type MerchantCategoryStats } from '@/hooks/useMerchantCategories'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Tag, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Building, Star, Eye, Pencil, Trash2, Hash, Layers, Sparkles, CheckCircle
 } from '@/components/ui/IconWrapper'
-
-type Doc = {
-  id: number
-  name: string
-  slug: string
-  description: string | null
-  displayOrder: number
-  isActive: boolean
-  isFeatured: boolean
-  icon: { id: number; url: string | null } | null
-  merchantCount: number
-  createdAt: string
-  updatedAt: string
-}
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { total: number; activeCount: number; featuredCount: number; inactiveCount: number; filteredCount: number }
 
 function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'C' }
@@ -64,17 +51,12 @@ function MerchantCategoriesPageContent(){
   const [sort,setSort]=useState('displayOrder')
   const [page,setPage]=useState(1)
   const limit=10
-  const [docs,setDocs]=useState<Doc[]>([])
-  const [pagination,setPagination]=useState<Pagination|null>(null)
-  const [stats,setStats]=useState<Stats|null>(null)
-  const [loading,setLoading]=useState(true)
-  const [error,setError]=useState<string|null>(null)
-  const [deleting,setDeleting]=useState<Doc|null>(null)
+  const [deleting,setDeleting]=useState<MerchantCategoryDoc|null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount=useMemo(()=> (isActiveFilter!==null?1:0)+(isFeaturedFilter!==null?1:0)+(debouncedQ?1:0),[isActiveFilter,isFeaturedFilter,debouncedQ])
 
-  const buildQuery=useCallback(()=>{
+  const qs=useMemo(()=>{
     const p=new URLSearchParams()
     p.set('page',String(page)); p.set('limit',String(limit)); p.set('sort',sort)
     if(debouncedQ) p.set('search',debouncedQ)
@@ -83,20 +65,29 @@ function MerchantCategoriesPageContent(){
     return p.toString()
   },[page,limit,sort,debouncedQ,isActiveFilter,isFeaturedFilter])
 
-  const load=useCallback(async (opts?:{hard?:boolean})=>{
-    if(opts?.hard){ setPagination(null); setStats(null); setDocs([]) }
-    setLoading(true); setError(null)
-    try{
-      const qs=buildQuery()
-      const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/merchant-categories?${bust}`,{cache:'no-store'})
-      if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
-      const j=await res.json()
-      setDocs(j.docs||[]); setPagination(j.pagination||null); setStats(j.stats||null)
-    }catch(e:any){ setError(e.message||'Failed') } finally{ setLoading(false) }
-  },[buildQuery])
+  const queryClient=useQueryClient()
+  const [hardRefreshing,setHardRefreshing]=useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useMerchantCategories(qs)
 
-  useEffect(()=>{void load()},[load])
+  const docs=data?.docs||[]
+  const pagination=data?.pagination||null
+  const stats=data?.stats||null
+
+  const isInitialLoading=(isPending&&!data)||hardRefreshing
+  const loading=isFetching||hardRefreshing
+  const error=isError&&!data&&!hardRefreshing?(queryError instanceof Error?queryError.message:'Failed to load merchant categories'):null
+
+  const handleHardRefresh=()=>{
+    if(hardRefreshing) return
+    setHardRefreshing(true)
+    void (async()=>{
+      try{
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminMerchantCategories(qs) })
+        await refetch({ cancelRefetch: true })
+      }finally{ setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(()=>{setPage(1)},[debouncedQ,isActiveFilter,isFeaturedFilter,sort])
   useEffect(()=>{
     const isOpen=!!deleting
@@ -110,11 +101,11 @@ function MerchantCategoriesPageContent(){
       const res=await fetch(`/api/merchant-categories/${deleting.id}`,{method:'DELETE'})
       const j=await res.json().catch(()=>({}))
       if(!res.ok) throw new Error(j.error||'Failed to delete')
-      setDeleting(null); await load()
+      setDeleting(null); await refetch()
     }catch(e:any){ alert(e.message||'Delete failed') }
   }
 
-  const isInitial=loading && !pagination
+  const isInitial=isInitialLoading
 
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -127,7 +118,7 @@ function MerchantCategoriesPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Organize outlets by category — cuisine, store type, and featured placement.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>void load({hard:true})} disabled={loading} aria-label="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading?'animate-spin':''}`} />
           </button>
           <Link href="/merchant-categories/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
@@ -143,7 +134,7 @@ function MerchantCategoriesPageContent(){
           <KpiCard title="Featured" value={String(stats.featuredCount)} sub={`${stats.total - stats.featuredCount} standard`} icon={<Star className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
           <KpiCard title="Display Order" value={docs.length?String(Math.min(...docs.map(d=>d.displayOrder))):'—'} sub="lowest first" icon={<Hash className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
         </div>
@@ -215,10 +206,10 @@ function MerchantCategoriesPageContent(){
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load categories</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={()=>void load({hard:true})} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
         ) : !error && docs.length===0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

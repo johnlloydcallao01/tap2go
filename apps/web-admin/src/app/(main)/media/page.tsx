@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ClientOnly } from '@/components/ClientOnly';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@encreasl/client-services';
+import { useMediaLibrary, type MediaItem } from '@/hooks/useMediaLibrary';
 import {
   Upload,
   Search,
@@ -28,40 +31,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { getStoredToken } from '@/lib/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api';
-
-interface MediaUsageEntry {
-  collection: string;
-  label: string;
-  count: number;
-}
-
-interface MediaItem {
-  id: number | string;
-  filename: string;
-  alt: string;
-  url: string | null;
-  cloudinaryPublicId: string | null;
-  mimeType: string;
-  type: 'image' | 'video' | 'other';
-  filesize: number;
-  width: number | null;
-  height: number | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-  usage: {
-    total: number;
-    references: MediaUsageEntry[];
-  };
-}
-
-interface LibraryResponse {
-  docs: MediaItem[];
-  totalDocs: number;
-  totalPages: number;
-  page: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
-}
 
 function formatFileSize(bytes: number): string {
   if (!bytes) return '0 B';
@@ -95,13 +64,10 @@ function MediaLibraryPageContent() {
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalDocs, setTotalDocs] = useState(0);
+  const limit = 24;
 
   // Upload state
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -130,46 +96,37 @@ function MediaLibraryPageContent() {
     return headers;
   }, []);
 
-  const fetchMedia = useCallback(async (page: number, searchTerm: string, type: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '24',
-      });
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
-      }
-      if (type !== 'all') {
-        params.append('type', type);
-      }
+  useEffect(() => { const id = setTimeout(() => setDebouncedSearch(search.trim()), 400); return () => clearTimeout(id) }, [search]);
 
-      const response = await fetch(`${API_BASE_URL}/media/library?${params}`, {
-        credentials: 'include',
-        headers: authHeaders(),
-      });
+  const qs = useMemo(() => {
+    const params = new URLSearchParams({ page: String(currentPage), limit: String(limit) });
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    if (typeFilter !== 'all') params.set('type', typeFilter);
+    return params.toString();
+  }, [currentPage, debouncedSearch, typeFilter]);
 
-      if (!response.ok) {
-        throw new Error(`Failed to load media (${response.status})`);
-      }
+  const queryClient = useQueryClient();
+  const [hardRefreshing, setHardRefreshing] = useState(false);
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useMediaLibrary(qs, isAuthenticated && !authLoading);
 
-      const data: LibraryResponse = await response.json();
-      setMediaItems(data.docs || []);
-      setTotalPages(data.totalPages || 1);
-      setTotalDocs(data.totalDocs || 0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load media');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [authHeaders]);
+  const mediaItems = data?.docs || [];
+  const totalPages = data?.totalPages || 1;
+  const totalDocs = data?.totalDocs || 0;
 
-  useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      fetchMedia(currentPage, search, typeFilter);
-    }
-  }, [isAuthenticated, authLoading, currentPage, search, typeFilter, fetchMedia]);
+  const isInitialLoading = (isPending && !data) || hardRefreshing;
+  const isLoading = isFetching || hardRefreshing;
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load media') : null;
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return;
+    setHardRefreshing(true);
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminMediaLibrary(qs) });
+        await refetch({ cancelRefetch: true });
+      } finally { setHardRefreshing(false) }
+    })();
+  };
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -236,7 +193,7 @@ function MediaLibraryPageContent() {
       await uploadPromise;
       setUploadSuccess(true);
       // Refresh the list to include the new item
-      fetchMedia(currentPage, search, typeFilter);
+      void refetch();
       setTimeout(() => {
         setIsUploadOpen(false);
         setUploadSuccess(false);
@@ -289,9 +246,9 @@ function MediaLibraryPageContent() {
         throw new Error(data?.error || 'Failed to update media');
       }
 
-      const { doc } = await response.json();
-      setMediaItems((prev) => prev.map((m) => (m.id === editingItem.id ? { ...m, alt: doc.alt || '' } : m)));
+      await response.json();
       setEditingItem(null);
+      void refetch();
     } catch (err) {
       setEditError(err instanceof Error ? err.message : 'Failed to update media');
     } finally {
@@ -321,8 +278,7 @@ function MediaLibraryPageContent() {
         throw new Error(data?.error || 'Failed to delete media');
       }
 
-      setMediaItems((prev) => prev.filter((m) => m.id !== item.id));
-      setTotalDocs((prev) => Math.max(0, prev - 1));
+      void refetch();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete media');
     } finally {
@@ -561,13 +517,24 @@ function MediaLibraryPageContent() {
             {totalDocs > 0 ? `${totalDocs} media file${totalDocs === 1 ? '' : 's'} in the library` : 'Manage your images and videos'}
           </p>
         </div>
-        <button
-          onClick={() => setIsUploadOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition"
-        >
-          <Upload className="w-4 h-4" />
-          Upload Media
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleHardRefresh}
+            disabled={isLoading}
+            aria-label="Refresh media"
+            title="Refresh — re-fetch from CMS and show skeleton"
+            className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => setIsUploadOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition"
+          >
+            <Upload className="w-4 h-4" />
+            Upload Media
+          </button>
+        </div>
       </div>
 
       {/* Upload Modal */}
@@ -771,7 +738,7 @@ function MediaLibraryPageContent() {
 
         {/* Content & Pagination card */}
       <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
-        {isLoading ? (
+        {isInitialLoading ? (
           <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 animate-pulse">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="rounded-xl border border-gray-200 dark:border-[#262626] bg-gray-100 dark:bg-[#171717] overflow-hidden">
@@ -791,7 +758,7 @@ function MediaLibraryPageContent() {
             </div>
             <p className="text-red-600 dark:text-red-400 mb-3">{error}</p>
             <button
-              onClick={() => fetchMedia(currentPage, search, typeFilter)}
+              onClick={handleHardRefresh}
               className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"
             >
               <RefreshCw className="w-4 h-4 mr-2" />Try again

@@ -1,32 +1,18 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useVariationValues, type VariationValueDoc } from '@/hooks/useVariationValues'
+import { useCatalogAttributes } from '@/hooks/useCatalogAttributes'
+import { useVariations } from '@/hooks/useVariations'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Eye, Pencil, Trash2, CalendarDays, Palette, Tag, Layers, Hash
 } from '@/components/ui/IconWrapper'
-
-type VariationValueDoc = {
-  id: number
-  variation_id: number | null
-  variation: { id: number; sku: string; name: string | null; product: { id: number; name: string; slug: string; productType: string } | number | null } | null
-  variationBrief?: { id: number; sku: string; name: string | null; product: any } | null
-  attribute_id: number | null
-  attribute: { id: number; name: string; slug: string; type: string } | null
-  term_id: number | null
-  term: { id: number; name: string; slug: string; value: string | null } | null
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { total: number; totalAll: number; filteredTotal: number; perVariation: Record<string, number>; perAttribute: Record<string, number>; perTerm: Record<string, number> }
-
-type VariationOption = { id: number; sku: string; name: string | null; product?: any }
-type AttributeOption = { id: number; name: string; slug: string; type: string }
 
 function typeBadge(type: string) {
   const t = (type || '').toLowerCase()
@@ -82,48 +68,22 @@ function VariationValuesPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [docs, setDocs] = useState<VariationValueDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   const [deleting, setDeleting] = useState<VariationValueDoc | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [variations, setVariations] = useState<VariationOption[]>([])
-  const [attributes, setAttributes] = useState<AttributeOption[]>([])
-
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
 
-  // fetch variations & attributes for filters
-  useEffect(() => {
-    let cancelled = false
-    async function loadVars() {
-      try {
-        const res = await fetch(`/api/catalog/variations?limit=100&_t=${Date.now()}`, { cache: 'no-store' })
-        if (!res.ok) return
-        const j = await res.json()
-        if (!cancelled) setVariations(((j.docs || []) as any[]).map((d) => ({ id: d.id, sku: d.sku || '', name: d.name ?? null, product: d.product_id || d.product })))
-      } catch {}
-    }
-    async function loadAttrs() {
-      try {
-        const res = await fetch(`/api/catalog/attributes?limit=100&_t=${Date.now()}`, { cache: 'no-store' })
-        if (!res.ok) return
-        const j = await res.json()
-        if (!cancelled) setAttributes((j.docs || []) as AttributeOption[])
-      } catch {}
-    }
-    void loadVars(); void loadAttrs()
-    return () => { cancelled = true }
-  }, [])
+  // dropdown data — reused cached hooks
+  const { data: variationsData } = useVariations('limit=100')
+  const { data: attributesData } = useCatalogAttributes('limit=100')
+  const variations = (variationsData?.docs || []).map((d) => ({ id: d.id, sku: d.sku || '', name: d.name ?? null, product: d.product_id || d.product }))
+  const attributes = attributesData?.docs || []
 
   const activeFilterCount = useMemo(() => {
     return (variationFilter ? 1 : 0) + (attributeFilter ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [variationFilter, attributeFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -134,30 +94,29 @@ function VariationValuesPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, variationFilter, attributeFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      setPagination(null)
-      setStats(null)
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/catalog/variation-values?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load variation values') } catch { throw new Error(text || 'Failed to load variation values') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load variation values') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useVariationValues(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load variation values') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCatalogVariationValues(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, variationFilter, attributeFilter, sort])
 
   useEffect(() => {
@@ -182,7 +141,7 @@ function VariationValuesPageContent(){
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
       setDeleting(null)
       setDeleteError(null)
-      await load()
+      await refetch()
     } catch (e: any) {
       setDeleteError(e?.message || 'Delete failed')
     }
@@ -220,7 +179,7 @@ function VariationValuesPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh variation values"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -241,7 +200,7 @@ function VariationValuesPageContent(){
           <KpiCard title="Per Variation" value={perVariationTop[0] ? `${perVariationTop[0].count} vals` : '—'} sub={perVariationTop[0]?.label || perVariationTop.map((p) => `${p.label}:${p.count}`).join(' • ') || 'no breakdown'} icon={<Building className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
           <KpiCard title="Per Term" value={String(Object.keys(stats.perTerm || {}).length)} sub={`${Object.values(stats.perTerm || {}).reduce((a,b)=>a+(b as number),0)} links`} icon={<Palette className="w-5 h-5 text-white" />} iconBg="bg-zinc-500" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -339,10 +298,10 @@ function VariationValuesPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load variation values</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>

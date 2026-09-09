@@ -3,10 +3,12 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ClientOnly } from '@/components/ClientOnly';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@encreasl/client-services';
+import { useProfile } from '@/hooks/useProfile';
 import { useAuth, getFullName, getUserInitials } from '@/hooks/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
-  getProfileData,
   updateProfileAction,
   changePasswordAction,
   uploadAvatarAction,
@@ -316,8 +318,55 @@ function ProfileInner() {
   const [rawUser, setRawUser] = useState<RawUser | null>(null);
   const [adminRecord, setAdminRecord] = useState<AdminRecord | null>(null);
   const [activities, setActivities] = useState<UserEventItem[]>([]);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [profileError, setProfileError] = useState<string | null>(null);
+
+  // hydrate personal form from a user record (instant-back: reuses cached query data)
+  const hydrateForm = useCallback((u: User) => {
+  setForm({
+  firstName: u.firstName || '',
+  lastName: u.lastName || '',
+  middleName: (u as unknown as { middleName?: string }).middleName || '',
+  nameExtension: (u as unknown as { nameExtension?: string }).nameExtension || '',
+  username: (u as unknown as { username?: string }).username || '',
+  email: u.email || '',
+  phone: (u as unknown as { phone?: string }).phone || '',
+  gender: (u as unknown as { gender?: string }).gender || '',
+  civilStatus: (u as unknown as { civilStatus?: string }).civilStatus || '',
+  nationality: (u as unknown as { nationality?: string }).nationality || '',
+  birthDate: (u as unknown as { birthDate?: string }).birthDate
+  ? new Date((u as unknown as { birthDate: string }).birthDate).toISOString().slice(0, 10)
+  : '',
+  placeOfBirth: (u as unknown as { placeOfBirth?: string }).placeOfBirth || '',
+  completeAddress: (u as unknown as { completeAddress?: string }).completeAddress || '',
+  });
+  }, []);
+
+  const queryClient = useQueryClient();
+  const [hardRefreshing, setHardRefreshing] = useState(false);
+  const { data: profileData, isPending, isError, error: queryError, refetch } = useProfile(isInitialized && !authLoading && !!authUser);
+
+  const isInitialLoading = (isPending && !profileData) || hardRefreshing;
+  const profileError = isError && !profileData && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load profile') : null;
+
+  const handleHardRefresh = () => {
+  if (hardRefreshing) return;
+  setHardRefreshing(true);
+  void (async () => {
+  try {
+  queryClient.removeQueries({ queryKey: QUERY_KEYS.adminProfile() });
+  await refetch({ cancelRefetch: true });
+  } finally { setHardRefreshing(false) }
+  })();
+  };
+
+  // sync query data into local state + hydrate form (runs on fresh fetch, incl. post-mutation refetch)
+  useEffect(() => {
+  if (!profileData) return;
+  setProfileUser(profileData.user);
+  setRawUser(profileData.raw);
+  setAdminRecord(profileData.admin);
+  setActivities(profileData.activities);
+  hydrateForm(profileData.user);
+  }, [profileData, hydrateForm]);
 
   // toasts
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -370,48 +419,6 @@ function ProfileInner() {
   const initials = displayUser ? getUserInitials(displayUser) : '??';
   const pc = completeness(displayUser as User);
   const adminBadge = adminLevelBadge(adminRecord?.adminLevel);
-
-  // load profile data
-  const load = useCallback(async () => {
-  setLoadingProfile(true);
-  setProfileError(null);
-  try {
-  const data = await getProfileData();
-  setProfileUser(data.user);
-  setRawUser(data.raw);
-  setAdminRecord(data.admin);
-  setActivities(data.activities);
-  // hydrate form
-  const u = data.user;
-  setForm({
-  firstName: u.firstName || '',
-  lastName: u.lastName || '',
-  middleName: (u as unknown as { middleName?: string }).middleName || '',
-  nameExtension: (u as unknown as { nameExtension?: string }).nameExtension || '',
-  username: (u as unknown as { username?: string }).username || '',
-  email: u.email || '',
-  phone: (u as unknown as { phone?: string }).phone || '',
-  gender: (u as unknown as { gender?: string }).gender || '',
-  civilStatus: (u as unknown as { civilStatus?: string }).civilStatus || '',
-  nationality: (u as unknown as { nationality?: string }).nationality || '',
-  birthDate: (u as unknown as { birthDate?: string }).birthDate
-  ? new Date((u as unknown as { birthDate: string }).birthDate).toISOString().slice(0, 10)
-  : '',
-  placeOfBirth: (u as unknown as { placeOfBirth?: string }).placeOfBirth || '',
-  completeAddress: (u as unknown as { completeAddress?: string }).completeAddress || '',
-  });
-  } catch (e: unknown) {
-  setProfileError(e instanceof Error ? e.message : 'Failed to load profile');
-  } finally {
-  setLoadingProfile(false);
-  }
-  }, []);
-
-  useEffect(() => {
-  if (!isInitialized || authLoading) return;
-  if (!authUser) return;
-  load();
-  }, [isInitialized, authLoading, authUser, load]);
 
   useEffect(() => {
     try {
@@ -485,7 +492,7 @@ function ProfileInner() {
   } catch {}
   }
   showToast({ type: 'success', message: res.message });
-  await load();
+  await refetch();
   } catch (err: unknown) {
   const msg = err instanceof Error ? err.message : 'Update failed';
   setFormError(msg);
@@ -545,7 +552,7 @@ function ProfileInner() {
   try { updateUser(res.user as User); } catch {}
   }
   showToast({ type: 'success', message: res.message });
-  await load();
+  await refetch();
   } catch (err: unknown) {
   showToast({ type: 'error', message: err instanceof Error ? err.message : 'Upload failed' });
   } finally {
@@ -568,7 +575,7 @@ function ProfileInner() {
   try { updateUser(res.user as User); } catch {}
   }
   showToast({ type: 'success', message: res.message });
-  await load();
+  await refetch();
   } catch (err: unknown) {
   showToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to remove' });
   } finally {
@@ -578,7 +585,7 @@ function ProfileInner() {
 
   const pwdNextScore = passwordScore(pwd.next);
 
-  if (!isInitialized || authLoading || loadingProfile) {
+  if (!isInitialized || authLoading || isInitialLoading) {
     return <ProfileSkeleton />;
   }
 
@@ -590,7 +597,7 @@ function ProfileInner() {
   <h3 className="font-semibold text-red-800">Failed to load profile</h3>
   <p className="text-sm text-red-600 dark:text-red-400 mt-1">{profileError}</p>
   <button
-  onClick={load}
+  onClick={handleHardRefresh}
   className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
   >
   <RefreshCw className="w-4 h-4" /> Retry
@@ -1284,7 +1291,7 @@ function ProfileInner() {
   <div className="px-6 py-4 bg-slate-50 dark:bg-[#171717] border-t border-gray-200 dark:border-[#262626] flex items-center justify-between">
   <button
   type="button"
-  onClick={load}
+  onClick={() => { if (profileData?.user) hydrateForm(profileData.user); }}
   disabled={formSaving}
   className="px-4 py-2 rounded-xl border border-gray-300 dark:border-[#262626] bg-white dark:bg-[#171717] text-sm font-semibold text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 transition-colors"
   >

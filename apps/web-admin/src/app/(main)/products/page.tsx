@@ -1,21 +1,15 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useMerchantProducts } from '@/hooks/useMerchantProducts'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Package, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Building, Store, ChevronRight, Layers, Tag, Eye
 } from '@/components/ui/IconWrapper'
-
-type VendorGroup = {
-  vendor: { id: number; businessName: string; legalName: string; businessType: string; verificationStatus: string; isActive: boolean; logo: { id: number; url: string | null } | null }
-  totalMerchants: number
-  totalProducts: number
-  totalProductsFiltered: number
-}
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { totalVendors: number; totalMerchants: number; totalMerchantProducts: number; activeMerchants: number; filteredVendors: number }
 
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'V' }
 
@@ -52,42 +46,41 @@ function ProductsPageContent(){
   const [showFilters,setShowFilters]=useState(false)
   const [page,setPage]=useState(1)
   const limit=10
-  const [vendors,setVendors]=useState<VendorGroup[]>([])
-  const [pagination,setPagination]=useState<Pagination|null>(null)
-  const [stats,setStats]=useState<Stats|null>(null)
-  const [loading,setLoading]=useState(true)
-  const [error,setError]=useState<string|null>(null)
-  const requestController=useRef<AbortController|null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount=useMemo(()=> debouncedQ?1:0,[debouncedQ])
 
-  const buildQuery=useCallback(()=>{
+  const qs=useMemo(()=>{
     const p=new URLSearchParams()
     p.set('page',String(page)); p.set('limit',String(limit))
     if(debouncedQ) p.set('search',debouncedQ)
     return p.toString()
   },[page,limit,debouncedQ])
 
-  const load=useCallback(async (opts?:{hard?:boolean})=>{
-    requestController.current?.abort()
-    const controller=new AbortController()
-    requestController.current=controller
-    if(opts?.hard){ setPagination(null); setStats(null); setVendors([]) }
-    setLoading(true); setError(null)
-    try{
-      const qs=buildQuery()
-      const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/merchant-products?${bust}`,{cache:'no-store',signal:controller.signal})
-      if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
-      const j=await res.json()
-      setVendors(j.vendors||[]); setPagination(j.pagination||null); setStats(j.stats||null)
-    }catch(e:any){ if(e?.name!=='AbortError' && !controller.signal.aborted) setError(e.message||'Failed') } finally{ if(!controller.signal.aborted) setLoading(false) }
-  },[buildQuery])
+  const queryClient=useQueryClient()
+  const [hardRefreshing,setHardRefreshing]=useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useMerchantProducts(qs)
 
-  useEffect(()=>{void load()},[load])
+  const vendors=data?.vendors||[]
+  const pagination=data?.pagination||null
+  const stats=data?.stats||null
 
-  const isInitial=loading && !pagination
+  const isInitialLoading=(isPending&&!data)||hardRefreshing
+  const loading=isFetching||hardRefreshing
+  const error=isError&&!data&&!hardRefreshing?(queryError instanceof Error?queryError.message:'Failed to load merchant products'):null
+
+  const handleHardRefresh=()=>{
+    if(hardRefreshing) return
+    setHardRefreshing(true)
+    void (async()=>{
+      try{
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminMerchantProducts(qs) })
+        await refetch({ cancelRefetch: true })
+      }finally{ setHardRefreshing(false) }
+    })()
+  }
+
+  const isInitial=isInitialLoading
 
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -100,7 +93,7 @@ function ProductsPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Vendors → Outlets → Merchant Products. Select a vendor to view its outlets.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>void load({hard:true})} disabled={loading} aria-label="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading?'animate-spin':''}`} />
           </button>
           <Link href="/products/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
@@ -116,7 +109,7 @@ function ProductsPageContent(){
           <KpiCard title="Merchant Products" value={String(stats.totalMerchantProducts)} sub={`${vendors.reduce((s,v)=>s+v.totalProductsFiltered,0)} filtered`} icon={<Layers className="w-5 h-5 text-white" />} iconBg="bg-blue-500" />
           <KpiCard title="Avg per Vendor" value={String(stats.totalVendors? Math.round(stats.totalMerchantProducts / stats.totalVendors):0)} sub="products / vendor" icon={<Tag className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
         </div>
@@ -140,10 +133,10 @@ function ProductsPageContent(){
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load vendors</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={()=>void load({hard:true})} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>

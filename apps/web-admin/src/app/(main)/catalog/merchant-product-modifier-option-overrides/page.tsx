@@ -1,33 +1,16 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ClientOnly } from '@/components/ClientOnly'
+import { useMerchantProductModifierOptionOverrides, type OverrideDoc } from '@/hooks/useMerchantProductModifierOptionOverrides'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Package, CheckCircle, Eye, Pencil, Trash2, Layers, ToggleLeft, Coins, Tag
 } from '@/components/ui/IconWrapper'
-
-type OverrideDoc = {
-  id: number
-  merchant_product_id: { id: number; display_title: string | null } | number | null
-  merchant_product: { id: number; display_title: string | null } | number | null
-  base_modifier_option_id: { id: number; name: string } | number | null
-  base_modifier_option: { id: number; name: string } | number | null
-  mode: string
-  name_override: string | null
-  price_adjustment_override: number | null
-  default_behavior: string
-  availability_behavior: string
-  sort_order_override: number | null
-  is_active: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { total: number; totalAll: number; filteredTotal: number; modeBreakdown: Record<string, number>; defaultBehaviorBreakdown: Record<string, number>; availabilityBreakdown: Record<string, number>; activeCount: number; inactiveCount: number }
 
 const MODE_OPTS: { value: string; label: string }[] = [
   { value: 'inherit', label: 'Inherit' },
@@ -120,12 +103,6 @@ function MerchantProductModifierOptionOverridesPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [docs, setDocs] = useState<OverrideDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   const [deleting, setDeleting] = useState<OverrideDoc | null>(null)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
@@ -190,7 +167,7 @@ function MerchantProductModifierOptionOverridesPageContent(){
     return modeFilter.length + availabilityFilter.length + (isActiveFilter !== null ? 1 : 0) + (merchantProductFilter.trim() ? 1 : 0) + (baseOptionFilter.trim() ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [modeFilter, availabilityFilter, isActiveFilter, merchantProductFilter, baseOptionFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -204,30 +181,29 @@ function MerchantProductModifierOptionOverridesPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, modeFilter, availabilityFilter, isActiveFilter, merchantProductFilter, baseOptionFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      setPagination(null)
-      setStats(null)
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/catalog/merchant-product-modifier-option-overrides?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load overrides') } catch { throw new Error(text || 'Failed to load overrides') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load overrides') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useMerchantProductModifierOptionOverrides(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load overrides') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCatalogMerchantProductModifierOptionOverrides(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, modeFilter, availabilityFilter, isActiveFilter, merchantProductFilter, baseOptionFilter, sort])
 
   useEffect(() => {
@@ -252,7 +228,7 @@ function MerchantProductModifierOptionOverridesPageContent(){
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
       setDeleting(null)
-      await load()
+      await refetch()
     } catch (e: any) { alert(e?.message || 'Delete failed') }
   }
 
@@ -268,7 +244,7 @@ function MerchantProductModifierOptionOverridesPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh overrides"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -289,7 +265,7 @@ function MerchantProductModifierOptionOverridesPageContent(){
           <KpiCard title="Override" value={String(stats.modeBreakdown.override || 0)} sub={`${Math.round(((stats.modeBreakdown.override||0)/Math.max(1,stats.totalAll))*100)}%`} icon={<Tag className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
           <KpiCard title="Active" value={String(stats.activeCount)} sub={`${stats.inactiveCount} inactive`} icon={<CheckCircle className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -379,10 +355,10 @@ function MerchantProductModifierOptionOverridesPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load overrides</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>
@@ -427,9 +403,9 @@ function MerchantProductModifierOptionOverridesPageContent(){
                       <td className="px-4 py-3">
                         <button onClick={async () => {
                           const next = !d.is_active
-                          setDocs((prev) => prev.map((x) => x.id === d.id ? { ...x, is_active: next } : x))
                           const res = await fetch(`/api/catalog/merchant-product-modifier-option-overrides/${d.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: next }) })
-                          if (!res.ok) { setDocs((prev) => prev.map((x) => x.id === d.id ? { ...x, is_active: !next } : x)); const j = await res.json().catch(()=>({})); alert(j.error || 'Failed to toggle') } else { void load() }
+                          if (!res.ok) { const j = await res.json().catch(()=>({})); alert(j.error || 'Failed to toggle') }
+                          void refetch()
                         }} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${d.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'}`}>
                           <span className={`h-2 w-2 rounded-full ${d.is_active ? 'bg-emerald-500' : 'bg-zinc-400'}`} /> {d.is_active ? 'Active' : 'Inactive'}
                         </button>

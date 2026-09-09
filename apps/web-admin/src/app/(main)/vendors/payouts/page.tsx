@@ -1,44 +1,15 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useVendorPayouts, type PayoutResponse, type PayoutRow, type Summary } from '@/hooks/useVendorPayouts'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
   DollarSign, CreditCard, Truck, TrendingUp, TrendingDown, Receipt, Coins, Store, Eye, Pencil, FileText, CalendarDays
 } from '@/components/ui/IconWrapper'
-
-type PayoutRow = {
-  vendorId: string
-  businessName: string
-  legalName: string
-  businessType: string
-  verificationStatus: string
-  isActive: boolean
-  logo: { id: number; url: string | null } | null
-  totalMerchants: number
-  averageRating: number
-  orders: number
-  gross: number
-  platformFees: number
-  deliveryFees: number
-  net: number
-  refunded: number
-  avgOrder: number
-  avgNet: number
-}
-type Summary = {
-  totalGross: number; totalNet: number; totalPlatformFees: number; totalDeliveryFees: number
-  totalRefunded: number; totalOrders: number; totalVendors: number; activeVendors: number
-  avgPayout: number; avgOrder: number
-}
-type PayoutResponse = {
-  meta: { range: string; days: number; generatedAt: string; periodStart: string | null; periodEnd: string }
-  summary: Summary
-  vendorPayouts: { rows: PayoutRow[]; count: number }
-  daily: { date: string; gross: number; net: number; orders: number }[]
-  verificationBreakdown: Record<string, number>
-}
 
 const RANGE_OPTS: { value: string; label: string }[] = [
   { value: '7d', label: '7 days' },
@@ -114,36 +85,40 @@ function PayoutsPageContent() {
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
   const limit = 10
-  const [data, setData] = useState<PayoutResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount = useMemo(()=> verificationFilter.length + businessTypeFilter.length + (debouncedQ?1:0),[verificationFilter,businessTypeFilter,debouncedQ])
 
-  const buildQuery = useCallback(()=>{
-    const p=new URLSearchParams()
+  const qs = useMemo(() => {
+    const p = new URLSearchParams()
     p.set('range', range)
-    if(debouncedQ) p.set('search', debouncedQ)
-    if(verificationFilter.length) p.set('verificationStatus', verificationFilter.join(','))
-    if(businessTypeFilter.length) p.set('businessType', businessTypeFilter.join(','))
+    if (debouncedQ) p.set('search', debouncedQ)
+    if (verificationFilter.length) p.set('verificationStatus', verificationFilter.join(','))
+    if (businessTypeFilter.length) p.set('businessType', businessTypeFilter.join(','))
     return p.toString()
-  },[range,debouncedQ,verificationFilter,businessTypeFilter])
+  }, [range, debouncedQ, verificationFilter, businessTypeFilter])
 
-  const load = useCallback(async (opts?:{hard?:boolean})=>{
-    if(opts?.hard) setData(null)
-    setLoading(true); setError(null)
-    try{
-      const qs=buildQuery()
-      const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/vendors/payouts?${bust}`,{cache:'no-store'})
-      if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
-      const j=await res.json()
-      setData(j)
-    }catch(e:any){ setError(e.message||'Failed to load payouts') } finally{ setLoading(false) }
-  },[buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useVendorPayouts(qs)
 
-  useEffect(()=>{ void load() },[load])
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load payouts') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminVendorPayouts(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally {
+        setHardRefreshing(false)
+      }
+    })()
+  }
+
   useEffect(()=>{ setPage(1) },[debouncedQ,verificationFilter,businessTypeFilter,range])
 
   const toggleVerification=(v:string)=> setVerificationFilter(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v])
@@ -153,7 +128,6 @@ function PayoutsPageContent() {
   const rows = data?.vendorPayouts.rows || []
   const totalPages = Math.max(1, Math.ceil(rows.length / limit))
   const pagedRows = useMemo(()=> rows.slice((page-1)*limit, page*limit),[rows,page,limit])
-  const showTableSkeleton = loading
 
   const handleExport = () => {
     if(!rows.length) return
@@ -187,7 +161,7 @@ function PayoutsPageContent() {
               <button key={o.value} onClick={()=>setRange(o.value)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${range===o.value?'bg-white dark:bg-[#171717] text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-[#333]':'text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900'}`}>{o.label}</button>
             ))}
           </div>
-          <button onClick={()=>void load({hard:true})} disabled={loading} aria-label="Refresh payouts" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh payouts" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading?'animate-spin':''}`} />
           </button>
           <button onClick={handleExport} disabled={!rows.length} className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl text-sm font-medium text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"><FileText className="w-4 h-4" /> Export CSV</button>
@@ -202,7 +176,7 @@ function PayoutsPageContent() {
           <KpiCard title="Platform + Delivery Fees" value={fmtCompact(data.summary.totalPlatformFees + data.summary.totalDeliveryFees)} sub={`Platform ${fmtCompact(data.summary.totalPlatformFees)} • Delivery ${fmtCompact(data.summary.totalDeliveryFees)}`} icon={<Receipt className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
           <KpiCard title="Refunded" value={fmtCompact(data.summary.totalRefunded)} sub={`${((data.summary.totalRefunded/Math.max(1,data.summary.totalGross))*100).toFixed(1)}% of gross`} icon={<TrendingDown className="w-5 h-5 text-white" />} iconBg="bg-red-500" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
         </div>
@@ -266,10 +240,10 @@ function PayoutsPageContent() {
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load payouts</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={()=>void load({hard:true})} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
         ) : !error && pagedRows.length===0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

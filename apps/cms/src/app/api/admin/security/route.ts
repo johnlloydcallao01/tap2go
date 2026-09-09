@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCached, getCached, setCached } from '@/utils/redisCache'
 
 function str(v: unknown, fb = ''): string {
   return typeof v === 'string' ? v : fb
@@ -12,6 +13,10 @@ export async function GET(request: NextRequest) {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
+
+    const cacheKey = `admin:security:${admin.id}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-Security-Cache': 'HIT' } })
 
     // parallel aggregation: users stats + locked + audit stats + system settings
     const now = new Date()
@@ -144,7 +149,7 @@ export async function GET(request: NextRequest) {
       }))
     } catch {}
 
-    return NextResponse.json({
+    const responseBody = {
       stats: {
         totalUsers,
         activeCount,
@@ -172,7 +177,9 @@ export async function GET(request: NextRequest) {
       meta: {
         generatedAt: new Date().toISOString(),
       },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-Security-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/security] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load security overview' }, { status: 500 })
@@ -203,6 +210,7 @@ export async function PATCH(request: NextRequest) {
 
       try {
         const updated = await payload.updateGlobal({ slug: 'system-settings', data: { maintenanceMode: bool }, overrideAccess: true, depth: 0 } as any)
+        await deleteCached(`admin:security:${admin.id}`)
         return NextResponse.json({ success: true, message: `Maintenance mode ${bool ? 'enabled' : 'disabled'}`, systemSettings: updated })
       } catch (e: any) {
         return NextResponse.json({ error: e?.message || 'Failed to update system settings' }, { status: 400 })
@@ -215,6 +223,7 @@ export async function PATCH(request: NextRequest) {
       if (Number.isNaN(uid)) return NextResponse.json({ error: 'unlockUserId must be numeric' }, { status: 400 })
       try {
         const updated = await payload.update({ collection: 'users', id: uid, data: { loginAttempts: 0, lockUntil: null } as any, overrideAccess: true, depth: 0 })
+        await deleteCached(`admin:security:${admin.id}`)
         return NextResponse.json({ success: true, message: 'User unlocked', user: { id: updated.id, email: (updated as any).email } })
       } catch (e: any) {
         return NextResponse.json({ error: e?.message || 'Failed to unlock user' }, { status: 400 })

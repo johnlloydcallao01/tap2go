@@ -1,32 +1,16 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useMerchants, type MerchantDoc, type MerchantPagination, type MerchantStats } from '@/hooks/useMerchants'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Store, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Building, Clock, CheckCircle, Eye, Pencil, Trash2, MapPin, Phone, Mail, Tag
 } from '@/components/ui/IconWrapper'
-
-type MerchantDoc = {
-  id: number
-  outletName: string
-  outletCode: string
-  vendor: { id: number; businessName: string; verificationStatus: string; businessType: string; isActive: boolean; logo: { id: number; url: string | null } | null } | null
-  contactInfo: { phone?: string; email?: string; managerName?: string; managerPhone?: string } | null
-  isActive: boolean
-  isAcceptingOrders: boolean
-  operationalStatus: string
-  timezone: string
-  merchant_categories: { id: number; name: string }[]
-  activeAddress: { id: number; formatted_address: string } | null
-  media: { thumbnail: { id: number; url: string | null } | null; storeFrontImage: any } | null
-  createdAt: string
-  updatedAt: string
-}
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { totalMerchants: number; totalVendors: number; activeMerchants: number; acceptingOrders: number; activeVendors: number; operationalBreakdown: Record<string, number>; filteredCount: number }
 
 const OPERATIONAL_OPTS = [
   { value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' },
@@ -110,19 +94,13 @@ function MerchantsPageContent(){
   const [showFilters,setShowFilters]=useState(false)
   const [page,setPage]=useState(1)
   const limit=10
-  const [sort,setSort]=useState('-createdAt')
-  const [docs,setDocs]=useState<MerchantDoc[]>([])
-  const [pagination,setPagination]=useState<Pagination|null>(null)
-  const [stats,setStats]=useState<Stats|null>(null)
-  const [loading,setLoading]=useState(true)
-  const [error,setError]=useState<string|null>(null)
+const [sort,setSort]=useState('-createdAt')
   const [deleting,setDeleting]=useState<MerchantDoc|null>(null)
-  const requestController=useRef<AbortController|null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount=useMemo(()=> operationalFilter.length + verificationFilter.length + (isActiveFilter!==null?1:0) + (isAcceptingFilter!==null?1:0) + (debouncedQ?1:0),[operationalFilter,verificationFilter,isActiveFilter,isAcceptingFilter,debouncedQ])
 
-  const buildQuery=useCallback(()=>{
+  const qs=useMemo(()=>{
     const p=new URLSearchParams()
     p.set('page',String(page)); p.set('limit',String(limit)); p.set('sort',sort)
     if(debouncedQ) p.set('search',debouncedQ)
@@ -133,23 +111,29 @@ function MerchantsPageContent(){
     return p.toString()
   },[page,limit,sort,debouncedQ,operationalFilter,isActiveFilter,isAcceptingFilter,verificationFilter])
 
-  const load=useCallback(async (opts?:{hard?:boolean})=>{
-    requestController.current?.abort()
-    const controller=new AbortController()
-    requestController.current=controller
-    if(opts?.hard){ setPagination(null); setStats(null); setDocs([]) }
-    setLoading(true); setError(null)
-    try{
-      const qs=buildQuery()
-      const bust=`${qs}${qs?'&':''}_t=${Date.now()}`
-      const res=await fetch(`/api/merchants?${bust}`,{cache:'no-store',signal:controller.signal})
-      if(!res.ok){ const t=await res.text(); try{const j=JSON.parse(t); throw new Error(j.error||'Failed')}catch{throw new Error(t||'Failed')} }
-      const j=await res.json()
-      setDocs(j.docs||[]); setPagination(j.pagination||null); setStats(j.stats||null)
-    }catch(e:any){ if(e?.name!=='AbortError' && !controller.signal.aborted) setError(e.message||'Failed') } finally{ if(!controller.signal.aborted) setLoading(false) }
-  },[buildQuery])
+  const queryClient=useQueryClient()
+  const [hardRefreshing,setHardRefreshing]=useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useMerchants(qs)
 
-  useEffect(()=>{void load()},[load])
+  const docs=data?.docs||[]
+  const pagination=data?.pagination||null
+  const stats=data?.stats||null
+
+  const isInitialLoading=(isPending&&!data)||hardRefreshing
+  const loading=isFetching||hardRefreshing
+  const error=isError&&!data&&!hardRefreshing?(queryError instanceof Error?queryError.message:'Failed to load merchants'):null
+
+  const handleHardRefresh=()=>{
+    if(hardRefreshing) return
+    setHardRefreshing(true)
+    void (async()=>{
+      try{
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminMerchants(qs) })
+        await refetch({ cancelRefetch: true })
+      }finally{ setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(()=>{
     const isOpen=!!deleting
     if(isOpen){ const prev=document.body.style.overflow; document.body.style.overflow='hidden'; return()=>{document.body.style.overflow=prev} }
@@ -162,11 +146,11 @@ function MerchantsPageContent(){
       const res=await fetch(`/api/merchants/${deleting.id}`,{method:'DELETE'})
       const j=await res.json().catch(()=>({}))
       if(!res.ok) throw new Error(j.error||'Failed to delete')
-      setDeleting(null); await load()
-    }catch(e:any){ alert(e.message||'Delete failed') }
+      setDeleting(null); await refetch()
+    }catch(e:any){ alert(e.message||'') }
   }
 
-  const isInitial=loading && !pagination
+  const isInitial=isInitialLoading
 
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -179,7 +163,7 @@ function MerchantsPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Manage outlets per vendor — status, location, categories, and delivery readiness.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>void load({hard:true})} disabled={loading} aria-label="Refresh merchants" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh merchants" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading?'animate-spin':''}`} />
           </button>
           <Link href="/merchants/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
@@ -195,7 +179,7 @@ function MerchantsPageContent(){
           <KpiCard title="Open Now" value={String(stats.operationalBreakdown.open||0)} sub={`${stats.operationalBreakdown.busy||0} busy • ${stats.operationalBreakdown.closed||0} closed`} icon={<Clock className="w-5 h-5 text-white" />} iconBg="bg-blue-500" />
           <KpiCard title="Vendors" value={String(stats.totalVendors)} sub={`${stats.activeVendors} active`} icon={<Building className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
         </div>
@@ -258,10 +242,10 @@ function MerchantsPageContent(){
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load merchants</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={()=>void load({hard:true})} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
         ) : !error && docs.length===0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

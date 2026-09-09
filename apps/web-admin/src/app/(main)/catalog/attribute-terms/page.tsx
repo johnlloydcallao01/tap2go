@@ -1,31 +1,17 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useAttributeTerms, type AttributeTermDoc } from '@/hooks/useAttributeTerms'
+import { useCatalogAttributes } from '@/hooks/useCatalogAttributes'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   CheckCircle, XCircle, Eye, Pencil, Trash2, CalendarDays, Tag, Palette, Hash
 } from '@/components/ui/IconWrapper'
-
-type AttributeTermDoc = {
-  id: number
-  attribute_id: number | null
-  attribute: { id: number; name: string; slug: string; type: string } | null
-  name: string
-  slug: string
-  value: string | null
-  sort_order: number
-  is_active: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-type AttributeOption = { id: number; name: string; slug: string; type: string }
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = { total: number; totalAll: number; filteredTotal: number; perAttribute: Record<string, number>; activeCount: number; inactiveCount: number; globalActive?: number; globalInactive?: number }
 
 function typeBadge(type: string) {
   const t = type.toLowerCase()
@@ -76,39 +62,20 @@ function AttributeTermsPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [docs, setDocs] = useState<AttributeTermDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   const [deleting, setDeleting] = useState<AttributeTermDoc | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [attributes, setAttributes] = useState<AttributeOption[]>([])
-
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
 
-  // fetch attributes for filter pills/dropdown
-  useEffect(() => {
-    let cancelled = false
-    async function loadAttrs() {
-      try {
-        const res = await fetch(`/api/catalog/attributes?limit=100&_t=${Date.now()}`, { cache: 'no-store' })
-        if (!res.ok) return
-        const j = await res.json()
-        if (!cancelled) setAttributes((j.docs || []) as AttributeOption[])
-      } catch {}
-    }
-    void loadAttrs()
-    return () => { cancelled = true }
-  }, [])
+  // attributes for filter pills/dropdown — cached via the shared attributes query
+  const { data: attributesData } = useCatalogAttributes('limit=100')
+  const attributes = attributesData?.docs || []
 
   const activeFilterCount = useMemo(() => {
     return (attributeFilter ? 1 : 0) + (isActiveFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [attributeFilter, isActiveFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -119,30 +86,29 @@ function AttributeTermsPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, attributeFilter, isActiveFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      setPagination(null)
-      setStats(null)
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/catalog/attribute-terms?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load attribute terms') } catch { throw new Error(text || 'Failed to load attribute terms') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load attribute terms') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useAttributeTerms(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load attribute terms') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCatalogAttributeTerms(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, attributeFilter, isActiveFilter, sort])
 
   useEffect(() => {
@@ -174,7 +140,7 @@ function AttributeTermsPageContent(){
       }
       setDeleting(null)
       setDeleteError(null)
-      await load()
+      await refetch()
     } catch (e: any) {
       setDeleteError(e?.message || 'Delete failed')
     }
@@ -203,7 +169,7 @@ function AttributeTermsPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh attribute terms"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -224,7 +190,7 @@ function AttributeTermsPageContent(){
           <KpiCard title="Inactive" value={String(stats.inactiveCount)} sub="hidden from catalog" icon={<XCircle className="w-5 h-5 text-white" />} iconBg="bg-zinc-500" />
           <KpiCard title="Top Attribute" value={perAttrTop[0] ? `${perAttrTop[0].count} terms` : '—'} sub={perAttrTop[0]?.label || perAttrTop.map((p) => `${p.label}:${p.count}`).join(' • ') || 'no breakdown'} icon={<Palette className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -311,10 +277,10 @@ function AttributeTermsPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load attribute terms</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>
@@ -388,9 +354,8 @@ function AttributeTermsPageContent(){
                           <button
                             onClick={async () => {
                               const next = !t.is_active
-                              setDocs((prev) => prev.map((d) => d.id === t.id ? { ...d, is_active: next } : d))
                               const res = await fetch(`/api/catalog/attribute-terms/${t.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: next }) })
-                              if (!res.ok) { setDocs((prev) => prev.map((d) => d.id === t.id ? { ...d, is_active: !next } : d)); const j = await res.json().catch(()=>({})); alert(j.error || 'Failed to toggle status') } else { void load() }
+                              if (!res.ok) { const j = await res.json().catch(()=>({})); alert(j.error || 'Failed to toggle status') } else { void refetch() }
                             }}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${t.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'}`}
                           >

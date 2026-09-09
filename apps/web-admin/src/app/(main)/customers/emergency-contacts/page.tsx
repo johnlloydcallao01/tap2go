@@ -1,40 +1,17 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useEmergencyContacts, type EmergencyContactDoc } from '@/hooks/useEmergencyContacts'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Users, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   Heart, ShieldCheck, ShieldAlert, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2,
   Mail, Phone, CalendarDays, MapPin, AlertTriangle, Layers,
 } from '@/components/ui/IconWrapper'
-
-// Types matching BFF (CMS /api/admin/emergency-contacts)
-type EmergencyContactDoc = {
-  id: number
-  user: { id: number; email: string; firstName: string; lastName: string; middleName: string | null; phone: string | null; username: string | null; role: string; isActive: boolean; profilePicture: { id: number; url: string | null; filename: string | null } | null; createdAt: string } | null
-  userId: number | null
-  firstName: string
-  middleName: string | null
-  lastName: string
-  contactNumber: string
-  relationship: string
-  completeAddress: string
-  isPrimary: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = {
-  totalEmergencyContacts: number
-  totalAll: number
-  filteredTotal: number
-  relationshipBreakdown: Record<string, number>
-  primaryCount: number
-  nonPrimaryCount: number
-}
 
 const RELATIONSHIP_OPTS: { value: string; label: string }[] = [
   { value: 'parent', label: 'Parent' },
@@ -370,13 +347,6 @@ function EmergencyContactsPageContent() {
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  // data
-  const [docs, setDocs] = useState<EmergencyContactDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   // modals
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<EmergencyContactDoc | null>(null)
@@ -390,7 +360,7 @@ function EmergencyContactsPageContent() {
     return relationshipFilter.length + (isPrimaryFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [relationshipFilter, isPrimaryFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -401,30 +371,29 @@ function EmergencyContactsPageContent() {
     return p.toString()
   }, [page, limit, sort, debouncedQ, relationshipFilter, isPrimaryFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      setPagination(null)
-      setStats(null)
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/emergency-contacts?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load emergency contacts') } catch { throw new Error(text || 'Failed to load emergency contacts') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load emergency contacts') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useEmergencyContacts(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load emergency contacts') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminEmergencyContacts(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, relationshipFilter, isPrimaryFilter, sort])
 
   useEffect(() => {
@@ -459,14 +428,13 @@ function EmergencyContactsPageContent() {
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
       setDeleting(null)
-      await load()
+      await refetch()
     } catch (e: any) { setActionError(e?.message || 'Delete failed') }
     finally { setIsDeleting(false) }
   }
 
   const handleTogglePrimary = async (doc: EmergencyContactDoc) => {
     const next = !doc.isPrimary
-    setDocs((prev) => prev.map((d) => d.id === doc.id ? { ...d, isPrimary: next } : d))
     try {
       const res = await fetch(`/api/emergency-contacts/${doc.id}`, {
         method: 'PATCH',
@@ -475,9 +443,8 @@ function EmergencyContactsPageContent() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to toggle primary')
-      await load()
+      void refetch()
     } catch (e: any) {
-      setDocs((prev) => prev.map((d) => d.id === doc.id ? { ...d, isPrimary: !next } : d))
       setActionError(e?.message || 'Failed to toggle primary')
     }
   }
@@ -510,7 +477,7 @@ function EmergencyContactsPageContent() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh emergency contacts"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -536,7 +503,7 @@ function EmergencyContactsPageContent() {
           <KpiCard title="Family Ties" value={String(familyCount)} sub={`top: ${topRelationship}`} icon={<Users className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
           <KpiCard title="Non-Family" value={String((stats.relationshipBreakdown.friend||0)+(stats.relationshipBreakdown.other||0))} sub={`${stats.relationshipBreakdown.friend||0} friend • ${stats.relationshipBreakdown.other||0} other`} icon={<ShieldAlert className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -609,10 +576,10 @@ function EmergencyContactsPageContent() {
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load emergency contacts</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>
@@ -732,7 +699,7 @@ function EmergencyContactsPageContent() {
         open={showForm}
         initial={editing}
         onClose={() => { setShowForm(false); setEditing(null) }}
-        onSuccess={() => void load()}
+        onSuccess={() => void refetch()}
       />
 
       {/* Delete confirm */}

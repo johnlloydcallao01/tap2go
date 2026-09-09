@@ -1,72 +1,17 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useTransactions, type TransactionDoc } from '@/hooks/useTransactions'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Receipt, DollarSign, CreditCard, Banknote, TrendingUp, ShoppingBag, Store, Users, Mail, Phone,
   CheckCircle, XCircle, Clock, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   ShieldAlert, Building, CalendarDays, Filter, Star, Award, Eye, Pencil, Trash2, ShieldCheck, Package
 } from '@/components/ui/IconWrapper'
-
-// Types matching CMS BFF sanitized shape
-type TransactionDoc = {
-  id: number
-  payment_intent_id: string | null
-  payment_method: string | null
-  amount: number
-  currency: string
-  status: string
-  paid_at: string | null
-  createdAt: string
-  updatedAt: string
-  isPaid: boolean
-  order: {
-    id: number
-    status: string
-    total: number
-    subtotal: number
-    delivery_fee: number
-    platform_fee: number
-    fulfillment_type: string
-    placed_at: string | null
-    lalamove_order_id: string | null
-    delivery_status: string
-    merchant: {
-      id: number
-      outletName: string
-      outletCode: string
-      isActive: boolean | null
-      vendor: { id: number; businessName: string; logo: { id: number; url: string | null; filename: string | null } | null } | null
-    } | null
-    customer: {
-      id: number
-      email: string
-      user: { id: number; email: string; firstName: string; lastName: string; phone: string | null } | null
-    } | null
-    createdAt: string
-    updatedAt: string
-  } | null
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = {
-  totalAll: number
-  filteredTotal: number
-  statusBreakdown: Record<string, number>
-  paymentMethodBreakdown: Record<string, number>
-  totalRevenue: number
-  totalRefunded: number
-  totalFailed: number
-  totalPendingAmount: number
-  netRevenue: number
-  avgTransactionAmount: number
-  paidCount: number
-  pendingCount: number
-  failedCount: number
-  refundedCount: number
-}
 
 const STATUS_OPTS: { value: string; label: string }[] = [
   { value: 'paid', label: 'Paid' },
@@ -169,14 +114,6 @@ function TransactionsPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  // data
-  const [docs, setDocs] = useState<TransactionDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
-
   // refund/delete confirm - transactions are read-only, keep for UX parity
   const [deleting, setDeleting] = useState<TransactionDoc | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -187,7 +124,7 @@ function TransactionsPageContent(){
     return statusFilter.length + paymentMethodFilter.length + (debouncedQ ? 1 : 0)
   }, [statusFilter, paymentMethodFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -198,30 +135,30 @@ function TransactionsPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, statusFilter, paymentMethodFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      setPagination(null)
-      setStats(null)
-      setDocs([])
-    }
-    setLoading(true); setError(null); setActionError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/transactions?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load transactions') } catch { throw new Error(text || 'Failed to load transactions') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load transactions') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useTransactions(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load transactions') : null
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminTransactions(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, statusFilter, paymentMethodFilter, sort])
 
   // Prevent page scroll when delete confirm is open
@@ -248,11 +185,11 @@ function TransactionsPageContent(){
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete transaction')
       setDeleting(null)
-      await load()
+      await refetch()
     } catch (e: any) { setDeleteError(e?.message || 'Delete failed') }
   }
 
-  const showTableSkeleton = loading
+  const showTableSkeleton = isInitialLoading
 
   // derived KPI values
   const totalRevenueDisplay = stats ? fmtCurrency(stats.totalRevenue, 'PHP') : '—'
@@ -271,7 +208,7 @@ function TransactionsPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh transactions"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -291,7 +228,7 @@ function TransactionsPageContent(){
           <KpiCard title="Refunded / Failed" value={String((stats.statusBreakdown.refunded || 0) + (stats.statusBreakdown.failed || 0))} sub={`${stats.statusBreakdown.refunded || 0} refunded • ${stats.statusBreakdown.failed || 0} failed`} icon={<ShieldAlert className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
           <KpiCard title="Revenue" value={totalRevenueDisplay} sub={`Net ${fmtCurrency(stats.netRevenue || 0)} • Refunded ${fmtCurrency(stats.totalRefunded || 0)}`} icon={<Banknote className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -366,7 +303,7 @@ function TransactionsPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load transactions</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4 text-center max-w-md">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
         {showTableSkeleton ? (

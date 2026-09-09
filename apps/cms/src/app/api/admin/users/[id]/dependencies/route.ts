@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function str(v: unknown, fb = ''): string {
   return typeof v === 'string' ? v : fb
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
+
+    const cacheKey = `admin:user-dependencies:${admin.id}:${docId}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-UserDependencies-Cache': 'HIT' } })
 
     // Ensure user exists
     let userDoc: Record<string, any>
@@ -276,7 +281,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const totalDirect = Object.values(counts).reduce((a, b) => a + (b as number), 0)
     const totalLinked = totalDirect + merchantsCount + ordersCount
 
-    return NextResponse.json({
+    const responseBody = {
       user: {
         id: userDoc.id,
         email: str(userDoc.email, ''),
@@ -297,7 +302,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         content: ['posts'],
         activity: ['userEvents', 'userEventsTriggered', 'userNotifications', 'recentSearches', 'recentViews', 'notificationEventsTriggered', 'notificationTemplatesCreated', 'notificationTemplatesUpdated', 'orderTrackingActor'],
       },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-UserDependencies-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/users/[id]/dependencies] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load dependencies' }, { status: 500 })

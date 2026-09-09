@@ -1,50 +1,17 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useUsers, useUserDependencies, type UserDoc } from '@/hooks/useUsers'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Users, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   ShieldCheck, ShieldAlert, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2,
   Mail, Phone, CalendarDays, Loader2, Layers, Building, Store, ShoppingBag, ShoppingCart, Package, FileText, MapPin, Bell, History, Heart, AlertTriangle, Link as LinkIcon, Info, Truck,
 } from '@/components/ui/IconWrapper'
-
-// Types matching BFF (CMS /api/admin/users)
-type UserDoc = {
-  id: number
-  email: string
-  firstName: string
-  lastName: string
-  middleName: string | null
-  nameExtension: string | null
-  phone: string | null
-  username: string | null
-  gender: string | null
-  civilStatus: string | null
-  nationality: string | null
-  birthDate: string | null
-  placeOfBirth: string | null
-  completeAddress: string | null
-  role: string
-  isActive: boolean
-  lastLogin: string | null
-  profilePicture: { id: number; url: string | null; filename: string | null } | null
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = {
-  totalUsers: number
-  totalAll: number
-  filteredTotal: number
-  roleBreakdown: Record<string, number>
-  genderBreakdown: Record<string, number>
-  civilBreakdown: Record<string, number>
-  activeCount: number
-  inactiveCount: number
-}
 
 const ROLE_OPTS: { value: string; label: string }[] = [
   { value: 'admin', label: 'Admin' },
@@ -142,13 +109,6 @@ function UsersPageContent(){
   const limit = 10 // fixed 10 per page as required — pagination must display 10
   const [showFilters, setShowFilters] = useState(false)
 
-  // data
-  const [docs, setDocs] = useState<UserDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   // delete confirm — WordPress-style: offer Delete all content vs Attribute to another user
   const [deleting, setDeleting] = useState<UserDoc | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -156,14 +116,9 @@ function UsersPageContent(){
   const [actionError, setActionError] = useState<string | null>(null)
   const [reassignMode, setReassignMode] = useState<'delete' | 'reassign'>('reassign')
   const [reassignTo, setReassignTo] = useState<string>('')
-  const [reassignCandidates, setReassignCandidates] = useState<UserDoc[]>([])
-  const [loadingCandidates, setLoadingCandidates] = useState(false)
 
   // view dependencies — enterprise inspection before delete (read-only)
   const [viewingDeps, setViewingDeps] = useState<UserDoc | null>(null)
-  const [depsData, setDepsData] = useState<any>(null)
-  const [depsLoading, setDepsLoading] = useState(false)
-  const [depsError, setDepsError] = useState<string | null>(null)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
 
@@ -171,7 +126,7 @@ function UsersPageContent(){
     return roleFilter.length + genderFilter.length + civilFilter.length + (isActiveFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
   }, [roleFilter, genderFilter, civilFilter, isActiveFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -184,30 +139,30 @@ function UsersPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, roleFilter, genderFilter, civilFilter, isActiveFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) {
-      setPagination(null)
-      setStats(null)
-      setDocs([])
-    }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/users?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load users') } catch { throw new Error(text || 'Failed to load users') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load users') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useUsers(qs)
+  const candidatesQuery = useUsers('limit=100&isActive=true')
+  const depsQuery = useUserDependencies(viewingDeps?.id ?? null)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load users') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminUsers(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
 
   useEffect(() => { setPage(1) }, [debouncedQ, roleFilter, genderFilter, civilFilter, isActiveFilter, sort])
 
@@ -223,65 +178,34 @@ function UsersPageContent(){
     return () => { document.body.style.overflow = '' }
   }, [deleting, deleteError, viewingDeps])
 
-  // WordPress: when delete modal opens, load reassignment candidates (active users excluding target)
+  // WordPress: reassignment candidates (active users excluding target) — cached via shared hook
+  const reassignCandidates = useMemo(() => {
+    const all = candidatesQuery.data?.docs || []
+    if (!deleting) return []
+    return all.filter((u) => String(u.id) !== String(deleting.id))
+  }, [candidatesQuery.data, deleting])
+  const loadingCandidates = candidatesQuery.isFetching
+
   useEffect(() => {
     if (!deleting) {
       setReassignMode('reassign')
       setReassignTo('')
-      setReassignCandidates([])
       return
     }
     // default to reassign to encourage safe choice (WordPress safe default is Attribute)
     setReassignMode('reassign')
-    setReassignTo('')
-    const loadCandidates = async () => {
-      setLoadingCandidates(true)
-      try {
-        const res = await fetch(`/api/users?limit=100&isActive=true&_t=${Date.now()}`, { cache: 'no-store' })
-        const j = await res.json().catch(() => ({}))
-        const docs: UserDoc[] = j.docs || []
-        // exclude self, keep active, sort by name
-        const filtered = docs.filter((u) => String(u.id) !== String(deleting.id))
-        setReassignCandidates(filtered)
-        // auto-select first candidate if available
-        if (filtered.length > 0) setReassignTo(String(filtered[0].id))
-      } catch {
-        setReassignCandidates([])
-      } finally {
-        setLoadingCandidates(false)
-      }
-    }
-    void loadCandidates()
-  }, [deleting])
+    setReassignTo((prev) => {
+      if (prev) return prev
+      return reassignCandidates.length > 0 ? String(reassignCandidates[0].id) : ''
+    })
+  }, [deleting, reassignCandidates])
 
-  // View dependencies — fetch non-destructive preview when modal opens
-  useEffect(() => {
-    if (!viewingDeps) {
-      setDepsData(null)
-      setDepsError(null)
-      setDepsLoading(false)
-      return
-    }
-    let cancelled = false
-    const fetchDeps = async () => {
-      setDepsLoading(true)
-      setDepsError(null)
-      try {
-        const res = await fetch(`/api/users/${viewingDeps.id}/dependencies?_t=${Date.now()}`, { cache: 'no-store' })
-        const text = await res.text()
-        let j: any = {}
-        try { j = JSON.parse(text) } catch { throw new Error(text || 'Failed to load dependencies') }
-        if (!res.ok) throw new Error(j.error || j.details || 'Failed to load dependencies')
-        if (!cancelled) setDepsData(j)
-      } catch (e: any) {
-        if (!cancelled) setDepsError(e?.message || 'Failed to load dependencies')
-      } finally {
-        if (!cancelled) setDepsLoading(false)
-      }
-    }
-    void fetchDeps()
-    return () => { cancelled = true }
-  }, [viewingDeps])
+  // View dependencies — cached query, runs only while the modal is open
+  const depsData = depsQuery.data || null
+  const depsLoading = depsQuery.isFetching
+  const depsError = depsQuery.isError && !depsQuery.data
+    ? (depsQuery.error instanceof Error ? depsQuery.error.message : 'Failed to load dependencies')
+    : null
 
   // Auto-dismiss action error toast (professional, non-blocking)
   useEffect(() => {
@@ -331,7 +255,9 @@ function UsersPageContent(){
         throw new Error(errMsg)
       }
       setDeleting(null)
-      await load()
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.adminUserDependencies(deleting.id) })
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers('limit=100&isActive=true') })
+      await refetch()
     } catch (e: any) { setDeleteError(toFriendlyDeleteError(e?.message || 'Delete failed')) }
     finally { setIsDeleting(false) }
   }
@@ -349,7 +275,7 @@ function UsersPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh users"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -372,7 +298,7 @@ function UsersPageContent(){
           <KpiCard title="Admins" value={String(stats.roleBreakdown.admin || 0)} sub={`${stats.roleBreakdown.customer || 0} customers`} icon={<ShieldCheck className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
           <KpiCard title="Vendors / Drivers" value={String((stats.roleBreakdown.vendor || 0) + (stats.roleBreakdown.driver || 0))} sub={`${stats.roleBreakdown.vendor || 0} vendors • ${stats.roleBreakdown.driver || 0} drivers`} icon={<ShieldAlert className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -447,10 +373,10 @@ function UsersPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load users</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>
@@ -507,9 +433,9 @@ function UsersPageContent(){
                       <td className="px-4 py-3">
                         <button onClick={async () => {
                           const next = !u.isActive
-                          setDocs((prev) => prev.map((d) => d.id === u.id ? { ...d, isActive: next } : d))
                           const res = await fetch(`/api/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: next }) })
-                          if (!res.ok) { setDocs((prev) => prev.map((d) => d.id === u.id ? { ...d, isActive: !next } : d)); const j = await res.json().catch(()=>({})); setActionError(j.error || j.details || 'Failed to toggle status') } else { void load() }
+                          if (!res.ok) { const j = await res.json().catch(()=>({})); setActionError(j.error || j.details || 'Failed to toggle status') }
+                          void refetch()
                         }} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${u.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'}`}>
                           <span className={`h-2 w-2 rounded-full ${u.isActive ? 'bg-emerald-500' : 'bg-zinc-400'}`} /> {u.isActive ? 'Active' : 'Inactive'}
                         </button>
@@ -807,10 +733,10 @@ function UsersPageContent(){
               {/* footer */}
               <div className="px-6 py-4 border-t border-gray-100 dark:border-[#262626] bg-gray-50 dark:bg-[#0a0a0a] flex gap-2 shrink-0">
                 <button onClick={() => setViewingDeps(null)} className="flex-1 px-4 py-2.5 rounded-xl bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-[#262626] transition">Close</button>
-                {depsData?.totalLinked > 0 && deleting && (
+                {(depsData?.totalLinked ?? 0) > 0 && deleting && (
                   <button onClick={() => setViewingDeps(null)} className="flex-1 px-4 py-2.5 rounded-xl bg-[#eba236] hover:bg-[#c88a20] text-white text-sm font-semibold shadow-sm transition">Back to delete options</button>
                 )}
-                {depsData?.totalLinked > 0 && !deleting && (
+                {(depsData?.totalLinked ?? 0) > 0 && !deleting && (
                   <button onClick={() => { const u = viewingDeps; setViewingDeps(null); if (u) setDeleting(u) }} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition"><Trash2 className="w-4 h-4" /> Delete user</button>
                 )}
               </div>

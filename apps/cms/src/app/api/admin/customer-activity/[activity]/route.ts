@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 type ActivityKey = 'wishlists' | 'carts' | 'searches' | 'views'
 
@@ -88,6 +89,15 @@ export async function GET(request: NextRequest, context: { params: Promise<{ act
     if (!activity) return NextResponse.json({ error: 'Unknown customer activity type' }, { status: 404 })
     const definition = CONFIG[activity]
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=20'
+    const cacheKey = `admin:customer-activity:${activity}:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-CustomerActivity-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
     const search = searchParams.get('search')?.trim() || ''
@@ -107,12 +117,14 @@ export async function GET(request: NextRequest, context: { params: Promise<{ act
       overrideAccess: true,
     })
     const docs = (result.docs as unknown as Record<string, any>[]).map((doc) => sanitize(doc, activity))
-    return NextResponse.json({
+    const responseBody = {
       docs,
       pagination: { page: result.page, limit: result.limit, totalDocs: result.totalDocs, totalPages: result.totalPages, hasNextPage: result.hasNextPage, hasPrevPage: result.hasPrevPage },
       stats: { total: result.totalDocs, returned: docs.length },
       meta: { activity, title: definition.title, search, sort, generatedAt: new Date().toISOString() },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-CustomerActivity-Cache': 'MISS' } })
   } catch (error: any) {
     console.error('[admin/customer-activity] GET error:', error)
     return NextResponse.json({ error: error?.message || 'Failed to load customer activity' }, { status: 500 })

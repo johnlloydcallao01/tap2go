@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -162,6 +163,15 @@ export async function GET(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=20'
+    const cacheKey = `admin:customer-addresses:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-CustomerAddresses-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
     const search = searchParams.get('search')?.trim() || ''
@@ -457,7 +467,7 @@ export async function GET(request: NextRequest) {
       .slice(0, 5)
       .map(([name, count]) => ({ name, count }))
 
-    return NextResponse.json({
+    const responseBody = {
       docs,
       pagination: {
         page: paginated.page,
@@ -486,7 +496,9 @@ export async function GET(request: NextRequest) {
         totalActiveCustomers: activeIdSet.size,
       },
       meta: { generatedAt: new Date().toISOString(), sort, search, isActiveFilter },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-CustomerAddresses-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/customers/addresses] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load addresses' }, { status: 500 })

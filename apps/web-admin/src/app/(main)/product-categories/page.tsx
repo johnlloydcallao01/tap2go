@@ -1,8 +1,11 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useProductCategories, type ProductCategoryDoc } from '@/hooks/useProductCategories'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Tag,
@@ -25,37 +28,6 @@ import {
   Pencil,
   CalendarDays,
 } from '@/components/ui/IconWrapper'
-
-type ProductCategoryDoc = {
-  id: number
-  name: string
-  slug: string
-  description: string | null
-  parentCategory: { id: number; name: string; slug: string; categoryPath: string | null } | null
-  categoryLevel: number | null
-  categoryPath: string | null
-  displayOrder: number
-  isActive: boolean
-  isFeatured: boolean
-  media: { icon: { id: number; url: string | null } | null; bannerImage: { id: number; url: string | null } | null; thumbnailImage: { id: number; url: string | null } | null }
-  attributes: { categoryType: string | null; dietaryTags: any; ageRestriction: string | null; requiresPrescription: boolean | null }
-  seo: { metaTitle: string | null; metaDescription: string | null; keywords: any; canonicalUrl: string | null }
-  productCount: number
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type Stats = {
-  total: number
-  activeCount: number
-  featuredCount: number
-  inactiveCount: number
-  topLevelCount: number
-  filteredCount: number
-  levelBreakdown: Record<string, number>
-  categoryTypeBreakdown: Record<string, number>
-}
 
 const CATEGORY_TYPE_OPTS: { value: string; label: string }[] = [
   { value: 'food', label: 'Food' },
@@ -131,13 +103,7 @@ function ProductCategoriesPageContent(){
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [docs, setDocs] = useState<ProductCategoryDoc[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [deleting, setDeleting] = useState<ProductCategoryDoc | null>(null)
+const [deleting, setDeleting] = useState<ProductCategoryDoc | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
@@ -146,7 +112,7 @@ function ProductCategoriesPageContent(){
     return (isActiveFilter !== null ? 1 : 0) + (isFeaturedFilter !== null ? 1 : 0) + typeFilter.length + ageFilter.length + (debouncedQ ? 1 : 0)
   }, [isActiveFilter, isFeaturedFilter, typeFilter, ageFilter, debouncedQ])
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -159,25 +125,29 @@ function ProductCategoriesPageContent(){
     return p.toString()
   }, [page, limit, sort, debouncedQ, isActiveFilter, isFeaturedFilter, typeFilter, ageFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) { setPagination(null); setStats(null); setDocs([]) }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const res = await fetch(`/api/product-categories?${bust}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try { const j = JSON.parse(text); throw new Error(j.error || 'Failed to load product categories') } catch { throw new Error(text || 'Failed to load product categories') }
-      }
-      const json = await res.json()
-      setDocs(json.docs || [])
-      setPagination(json.pagination || null)
-      setStats(json.stats || null)
-    } catch (e: any) { setError(e?.message || 'Failed to load product categories') } finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useProductCategories(qs)
 
-  useEffect(() => { void load() }, [load])
+  const docs = data?.docs || []
+  const pagination = data?.pagination || null
+  const stats = data?.stats || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load product categories') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminProductCategories(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, isActiveFilter, isFeaturedFilter, typeFilter, ageFilter, sort])
 
   useEffect(() => {
@@ -202,7 +172,7 @@ function ProductCategoriesPageContent(){
         if (j.code === 'HAS_CHILDREN' && !force) { setDeleteError(j.error || 'Category has child categories'); return }
         throw new Error(j.error || 'Failed to delete')
       }
-      setDeleting(null); await load()
+      setDeleting(null); await refetch()
     } catch (e: any) { setDeleteError(e?.message || 'Delete failed') }
   }
 
@@ -218,7 +188,7 @@ function ProductCategoriesPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Organize products into hierarchical categories for easy browsing.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => void load({ hard: true })} disabled={loading} aria-label="Refresh categories" title="Refresh — re-fetch from BFF and show skeleton" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh categories" title="Refresh — re-fetch from BFF and show skeleton" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Link href="/product-categories/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
@@ -235,7 +205,7 @@ function ProductCategoriesPageContent(){
           <KpiCard title="Featured" value={String(stats.featuredCount)} sub={`${stats.topLevelCount} top-level`} icon={<Sparkles className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
           <KpiCard title="Top-Level" value={String(stats.topLevelCount)} sub={`${Object.keys(stats.levelBreakdown || {}).length} levels`} icon={<Layers className="w-5 h-5 text-white" />} iconBg="bg-sky-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
         </div>
@@ -314,10 +284,10 @@ function ProductCategoriesPageContent(){
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load categories</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+{isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}
           </div>

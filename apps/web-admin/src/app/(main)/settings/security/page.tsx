@@ -1,7 +1,10 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useSecurityOverview } from '@/hooks/useSecurityOverview'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Shield,
@@ -27,28 +30,6 @@ import {
   UserCheck,
   Ban,
 } from '@/components/ui/IconWrapper'
-
-type SecurityData = {
-  stats: {
-    totalUsers: number
-    activeCount: number
-    inactiveCount: number
-    lockedCount: number
-    roleBreakdown: Record<string, number>
-    activeRole: Record<string, number>
-    adminLevelBreakdown: Record<string, number>
-    adminCount: number
-    totalAdmins: number
-  }
-  lockedPreview: Array<{ id: number; email: string; firstName: string; lastName: string; role: string; loginAttempts: number; lockUntil: string | null; isActive: boolean }>
-  auditStats: { totalAll: number; eventTypeBreakdown: Record<string, number>; loginSuccess: number; loginFailed: number; securityEvents: number }
-  authPolicy: { tokenExpirationDays: number; tokenExpirationSeconds: number; maxLoginAttempts: number; lockTimeMinutes: number; lockTimeMs: number; useAPIKey: boolean; cookieSecure: boolean; cookieSameSite: string }
-  passwordPolicy: { minLength: number; maxLength: number; requireUppercase: boolean; requireNumber: boolean; requireSpecial: boolean; description: string }
-  systemSettings: { maintenanceMode: boolean; deliveryProvider: string; hasSystemSettings: boolean }
-  rateLimits: { forgotPasswordIp: string; forgotPasswordEmail: string; resetPasswordIp: string }
-  recentSecurityEvents: Array<{ id: number; eventType: string; timestamp: string; user: { id: number; email: string; firstName: string; lastName: string; role: string } | null; triggeredBy: any; ipAddress: string | null }>
-  meta: { generatedAt: string }
-}
 
 function KpiCard({ title, value, sub, icon, iconBg }: { title: string; value: string; sub?: string; icon: React.ReactNode; iconBg: string }) {
   return (
@@ -111,9 +92,6 @@ function SecuritySkeleton(){
 }
 
 function SecuritySettingsPageContent(){
-  const [data, setData] = useState<SecurityData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
   const [unlockingId, setUnlockingId] = useState<number | null>(null)
@@ -123,33 +101,24 @@ function SecuritySettingsPageContent(){
     setTimeout(() => setToast(null), 4200)
   }, [])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) setData(null)
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/security?_t=${Date.now()}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const text = await res.text()
-        try {
-          const j = JSON.parse(text)
-          throw new Error(j.error || 'Failed to load security overview')
-        } catch {
-          throw new Error(text || 'Failed to load security overview')
-        }
-      }
-      const json = await res.json()
-      setData(json)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load security overview')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useSecurityOverview()
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load security overview') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminSecurity() })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
 
   const handleMaintenanceToggle = async () => {
     if (!data) return
@@ -164,7 +133,7 @@ function SecuritySettingsPageContent(){
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to update maintenance mode')
       showToast({ type: 'success', message: j.message || `Maintenance mode ${next ? 'enabled' : 'disabled'}` })
-      await load()
+      await refetch()
     } catch (e: any) {
       showToast({ type: 'error', message: e?.message || 'Failed to update' })
     } finally {
@@ -183,7 +152,7 @@ function SecuritySettingsPageContent(){
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to unlock')
       showToast({ type: 'success', message: `User #${userId} unlocked` })
-      await load()
+      await refetch()
     } catch (e: any) {
       showToast({ type: 'error', message: e?.message || 'Unlock failed' })
     } finally {
@@ -206,7 +175,7 @@ function SecuritySettingsPageContent(){
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh security"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -229,7 +198,7 @@ function SecuritySettingsPageContent(){
           <KpiCard title="Admins" value={String(data.stats.adminCount)} sub={`${data.stats.roleBreakdown.admin || 0} system: ${data.stats.adminLevelBreakdown.system || 0}`} icon={<Crown className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
           <KpiCard title="API Keys" value={data.authPolicy.useAPIKey ? 'Enabled' : 'Disabled'} sub={`${data.stats.roleBreakdown.service || 0} service accounts`} icon={<KeyRound className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -244,7 +213,7 @@ function SecuritySettingsPageContent(){
           </div>
           <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load security overview</h3>
           <p className="text-sm text-gray-500 mt-1 mb-4 text-center max-w-md">{error}</p>
-          <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium">
+          <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium">
             <RefreshCw className="h-4 w-4 mr-2" />Retry
           </button>
         </div>

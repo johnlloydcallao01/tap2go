@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function str(v: unknown, fallback = ''): string { return typeof v === 'string' ? v : fallback }
 function num(v: unknown, fallback = 0): number { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v === 'string'){const n=Number(v); return Number.isFinite(n)?n:fallback} return fallback }
@@ -40,6 +41,15 @@ export async function GET(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=20'
+    const cacheKey = `admin:catalog-modifier-options:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-ModifierOptions-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
     const search = searchParams.get('search')?.trim() || ''
@@ -74,12 +84,14 @@ export async function GET(request: NextRequest) {
     let availableCount=0, unavailableCount=0, defaultCount=0
     for(const d of statsDocs){ if(d.is_available) availableCount++; else unavailableCount++; if(d.is_default) defaultCount++ }
 
-    return NextResponse.json({
+    const responseBody = {
       docs,
       pagination: { page: paginated.page, limit: paginated.limit, totalDocs: paginated.totalDocs, totalPages: paginated.totalPages, hasNextPage: paginated.hasNextPage, hasPrevPage: paginated.hasPrevPage },
       stats: { total, totalAll, filteredTotal: total, availableCount, unavailableCount, defaultCount },
       meta: { generatedAt: new Date().toISOString(), sort, search },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-ModifierOptions-Cache': 'MISS' } })
   } catch (err:any) { console.error('[admin/catalog/modifier-options] GET error:', err); return NextResponse.json({ error: err?.message||'Failed to load modifier-options' }, { status: 500 }) }
 }
 

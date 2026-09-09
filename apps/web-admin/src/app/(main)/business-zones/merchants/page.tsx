@@ -1,13 +1,15 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useBusinessZones, useBusinessZoneOverview, type MerchantZoneDoc, type BusinessZoneDoc } from '@/hooks/useBusinessZones'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Globe, MapPin, Store, Search, X, RefreshCw, Eye, Pencil, CheckCircle
 } from '@/components/ui/IconWrapper'
 import { BusinessZoneOverviewMap } from '../_components/ZoneMaps'
-import type { BusinessZoneDoc, MerchantZoneDoc, Stats } from '../_components/types'
 import { initials } from '../_components/types'
 
 function MerchantZonesSkeleton(){
@@ -21,56 +23,50 @@ function MerchantZonesSkeleton(){
 }
 
 function MerchantZonesPageContent(){
-  const [merchantZones,setMerchantZones]=useState<MerchantZoneDoc[]>([])
-  const [zones,setZones]=useState<BusinessZoneDoc[]>([])
-  const [stats,setStats]=useState<Stats|null>(null)
-  const [overviewLoading,setOverviewLoading]=useState(true)
   const [zoneFilter,setZoneFilter]=useState<string>('all')
   const [merchantSearch,setMerchantSearch]=useState('')
-  const [error,setError]=useState<string|null>(null)
 
-  const loadOverview=useCallback(async()=>{
-    setOverviewLoading(true); setError(null)
-    try{
-      const qs = zoneFilter!=='all' && zoneFilter!=='unassigned' ? `?zoneId=${zoneFilter}` : ''
-      const res=await fetch(`/api/business-zones/overview${qs}`,{cache:'no-store'})
-      if(!res.ok){ const t=await res.text(); throw new Error(t)}
-      const j=await res.json()
-      let mZones: MerchantZoneDoc[] = j.merchantZones||[]
-      // client filter for unassigned
-      if(zoneFilter==='unassigned'){
-        mZones = mZones.filter((m:any)=> !m.businessZoneId)
-      }
-      setMerchantZones(mZones)
-      setStats(j.stats||null)
-      // also populate zones for filter dropdown if not yet
-      if(j.zones && Array.isArray(j.zones) && j.zones.length){
-        setZones(j.zones)
-      } else {
-        // fallback fetch zones directly
-        const zRes=await fetch(`/api/business-zones?limit=100`,{cache:'no-store'})
-        if(zRes.ok){
-          const zj=await zRes.json()
-          setZones(zj.docs||[])
-        }
-      }
-    }catch(e:any){ setError(e.message||'Failed'); console.error(e)} finally{ setOverviewLoading(false)}
+  const zonesQuery=useBusinessZones('limit=100')
+  const zones=zonesQuery.data?.docs||[]
+
+  const overviewQs=useMemo(()=>{
+    if(zoneFilter!=='all' && zoneFilter!=='unassigned') return `zoneId=${zoneFilter}`
+    return ''
   },[zoneFilter])
 
-  // initial zones load for dropdown
-  useEffect(()=>{
-    fetch(`/api/business-zones?limit=100`,{cache:'no-store'}).then(r=>r.json()).then(j=>setZones(j.docs||[])).catch(()=>{})
-  },[])
-  useEffect(()=>{void loadOverview()},[loadOverview])
+  const queryClient=useQueryClient()
+  const [hardRefreshing,setHardRefreshing]=useState(false)
+  const overview=useBusinessZoneOverview(overviewQs)
 
+  const stats=overview.data?.stats||null
+  const allMerchantZones=overview.data?.merchantZones||[]
+
+  const isInitialLoading=hardRefreshing || (overview.isPending && !overview.data)
+  const overviewLoading=overview.isFetching||hardRefreshing
+  const error=overview.isError&&!overview.data&&!hardRefreshing?(overview.error instanceof Error?overview.error.message:'Failed to load merchant zones'):null
+
+  // client-side filter for unassigned (overview returns all; zoneId filter handled server-side)
   const filteredMerchantZones=useMemo(()=>{
-    let list=merchantZones
+    let list = zoneFilter==='unassigned' ? allMerchantZones.filter(m=>!m.businessZoneId) : allMerchantZones
     if(merchantSearch.trim()){
       const s=merchantSearch.toLowerCase()
       list=list.filter(m=> m.outletName.toLowerCase().includes(s) || m.outletCode.toLowerCase().includes(s) || (m.vendor?.businessName.toLowerCase().includes(s)) )
     }
     return list
-  },[merchantZones,merchantSearch])
+  },[allMerchantZones,merchantSearch,zoneFilter])
+
+  const handleHardRefresh=()=>{
+    if(hardRefreshing) return
+    setHardRefreshing(true)
+    void (async()=>{
+      try{
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminBusinessZoneOverview(overviewQs) })
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminBusinessZones('limit=100') })
+        await overview.refetch({ cancelRefetch: true })
+        await zonesQuery.refetch({ cancelRefetch: true })
+      }finally{ setHardRefreshing(false) }
+    })()
+  }
 
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -84,7 +80,7 @@ function MerchantZonesPageContent(){
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Each outlet&apos;s <code className="px-1 py-0.5 bg-gray-100 dark:bg-[#262626] rounded text-xs">service_area</code> + <code className="px-1 py-0.5 bg-gray-100 dark:bg-[#262626] rounded text-xs">delivery_radius</code> inside its Business Zone. Blue polygons = merchant fences, green/red = Business Zone.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>void loadOverview()} disabled={overviewLoading} aria-label="Refresh merchant zones" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={overviewLoading} aria-label="Refresh merchant zones" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${overviewLoading?'animate-spin':''}`} />
           </button>
           <Link href="/merchants" className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl text-sm font-semibold hover:bg-gray-50">Manage Outlets</Link>
@@ -110,8 +106,8 @@ function MerchantZonesPageContent(){
           </div>
           <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4">
             <p className="text-xs text-gray-500">With Service Area</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{merchantZones.filter(m=>m.service_area).length}</p>
-            <p className="text-xs text-gray-500 mt-1">{merchantZones.filter(m=>!m.service_area).length} need fence</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{allMerchantZones.filter(m=>m.service_area).length}</p>
+            <p className="text-xs text-gray-500 mt-1">{allMerchantZones.filter(m=>!m.service_area).length} need fence</p>
           </div>
         </div>
       )}
@@ -137,7 +133,7 @@ function MerchantZonesPageContent(){
             {zones.map(z=> <option key={z.id} value={String(z.id)}>{z.name} ({(stats?.merchantCountByZone?.[String(z.id)] ?? z.merchantCount ?? 0)} )</option>)}
             <option value="unassigned">Unassigned only</option>
           </select>
-          <button onClick={()=>void loadOverview()} disabled={overviewLoading} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 disabled:opacity-50">
+          <button onClick={handleHardRefresh} disabled={overviewLoading} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 ${overviewLoading?'animate-spin':''}`} />
           </button>
         </div>
@@ -147,10 +143,10 @@ function MerchantZonesPageContent(){
         {error && (
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <p className="text-sm text-red-600">{error}</p>
-            <button onClick={()=>void loadOverview()} className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Retry</button>
+            <button onClick={handleHardRefresh} className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Retry</button>
           </div>
         )}
-        {overviewLoading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
         ) : filteredMerchantZones.length===0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

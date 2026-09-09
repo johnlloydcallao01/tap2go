@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { getCached, setCached } from '@/utils/redisCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -183,6 +184,15 @@ export async function GET(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'page=1&limit=20'
+    const cacheKey = `admin:order-items:${admin.id}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-OrderItems-Cache': 'HIT' } })
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
     const search = searchParams.get('search')?.trim() || ''
@@ -274,7 +284,7 @@ export async function GET(request: NextRequest) {
     const avgUnitPrice = totalQuantity > 0 ? totalRevenue / totalQuantity : 0
     const avgQuantity = statsDocs.length > 0 ? totalQuantity / statsDocs.length : 0
 
-    return NextResponse.json({
+    const responseBody = {
       docs,
       pagination: {
         page: paginated.page,
@@ -296,7 +306,9 @@ export async function GET(request: NextRequest) {
         withModifiersCount,
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-OrderItems-Cache': 'MISS' } })
   } catch (err: any) {
     console.error('[admin/order-items] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load order items' }, { status: 500 })

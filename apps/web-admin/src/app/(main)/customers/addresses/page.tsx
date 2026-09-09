@@ -1,7 +1,11 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useCustomers } from '@/hooks/useCustomers'
+import { useCustomerAddressStats } from '@/hooks/useCustomerAddressStats'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   MapPin, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
@@ -13,68 +17,6 @@ import {
 //   GET /api/customers (customers BFF)
 //   GET /api/customers/addresses?page=1&limit=1 (stats only)
 // Row click navigates to /customers/addresses/[customerId] (dedicated view).
-
-type ActiveBrief = {
-  id: number
-  formatted_address: string
-  locality: string | null
-  administrative_area_level_1: string | null
-  postal_code: string | null
-  address_type: string | null
-  is_default: boolean
-  is_verified: boolean
-  latitude: number | null
-  longitude: number | null
-} | null
-
-type CustomerRow = {
-  id: number
-  customerId: number | null
-  userId: number
-  email: string
-  srn: string | null
-  couponCode: string | null
-  enrollmentDate: string | null
-  currentLevel: string
-  activeAddress: ActiveBrief
-  activeAddressId: number | null
-  user: {
-    id: number
-    email: string
-    firstName: string
-    lastName: string
-    middleName: string | null
-    phone: string | null
-    username: string | null
-    role: string
-    isActive: boolean
-    profilePicture: any
-    createdAt: string
-  } | null
-  isActive: boolean
-  orderCount: number
-  addressCount: number
-  createdAt: string
-  updatedAt: string
-}
-
-type Pagination = { page: number; limit: number; totalDocs: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }
-type CustomerStats = {
-  totalCustomers: number
-  totalAll: number
-  filteredTotal: number
-  withActiveAddressCount: number
-  withoutActiveAddressCount: number
-  activeCount: number
-  inactiveCount: number
-}
-type AddressStats = {
-  totalAll: number
-  activeCount: number
-  savedCount: number
-  verifiedCount: number
-  totalActiveCustomers: number
-}
 
 function initials(first: string, last: string) {
   const a = (first?.[0] || '').toUpperCase()
@@ -120,18 +62,11 @@ function CustomerAddressesPageContent() {
   const limit = 10
   const [showFilters, setShowFilters] = useState(false)
 
-  const [customers, setCustomers] = useState<CustomerRow[]>([])
-  const [custPagination, setCustPagination] = useState<Pagination | null>(null)
-  const [custStats, setCustStats] = useState<CustomerStats | null>(null)
-  const [addrStats, setAddrStats] = useState<AddressStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
 
   const activeFilterCount = (debouncedQ ? 1 : 0) + (hasActiveFilter !== null ? 1 : 0)
 
-  const buildQuery = useCallback(() => {
+  const qs = useMemo(() => {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
@@ -141,32 +76,32 @@ function CustomerAddressesPageContent() {
     return p.toString()
   }, [page, limit, sort, debouncedQ, hasActiveFilter])
 
-  const load = useCallback(async (opts?: { hard?: boolean }) => {
-    if (opts?.hard) { setCustPagination(null); setCustStats(null); setCustomers([]) }
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery()
-      const bust = `${qs}${qs ? '&' : ''}_t=${Date.now()}`
-      const [cRes, aRes] = await Promise.all([
-        fetch(`/api/customers?${bust}`, { cache: 'no-store' }),
-        fetch(`/api/customers/addresses?page=1&limit=1&_t=${Date.now()}`, { cache: 'no-store' }),
-      ])
-      if (!cRes.ok) {
-        const t = await cRes.text()
-        try { const j = JSON.parse(t); throw new Error(j.error || 'Failed to load customers') } catch { throw new Error(t || 'Failed to load customers') }
-      }
-      const cj = await cRes.json()
-      setCustomers(cj.docs || []); setCustPagination(cj.pagination || null); setCustStats(cj.stats || null)
-      if (aRes.ok) {
-        const aj = await aRes.json()
-        const s = aj.stats || {}
-        setAddrStats({ totalAll: s.totalAll ?? 0, activeCount: s.activeCount ?? 0, savedCount: s.savedCount ?? 0, verifiedCount: s.verifiedCount ?? 0, totalActiveCustomers: s.totalActiveCustomers ?? 0 })
-      }
-    } catch (e: any) { setError(e?.message || 'Failed to load customers') }
-    finally { setLoading(false) }
-  }, [buildQuery])
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useCustomers(qs)
+  const addrStatsQuery = useCustomerAddressStats('page=1&limit=1')
 
-  useEffect(() => { void load() }, [load])
+  const customers = data?.docs || []
+  const custPagination = data?.pagination || null
+  const custStats = data?.stats || null
+  const addrStats = addrStatsQuery.data || null
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load customers') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCustomers(qs) })
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminCustomerAddresses('page=1&limit=1') })
+        await Promise.all([refetch({ cancelRefetch: true }), addrStatsQuery.refetch({ cancelRefetch: true })])
+      } finally { setHardRefreshing(false) }
+    })()
+  }
+
   useEffect(() => { setPage(1) }, [debouncedQ, hasActiveFilter, sort])
 
   const clearAll = () => { setQ(''); setDebouncedQ(''); setHasActiveFilter(null) }
@@ -184,7 +119,7 @@ function CustomerAddressesPageContent() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => void load({ hard: true })}
+            onClick={handleHardRefresh}
             disabled={loading}
             aria-label="Refresh customers"
             title="Refresh — re-fetch from BFF and show skeleton"
@@ -207,7 +142,7 @@ function CustomerAddressesPageContent() {
           <KpiCard title="Saved Addresses" value={String(addrStats?.totalAll ?? '—')} sub={`${addrStats?.savedCount ?? 0} saved • ${addrStats?.activeCount ?? 0} active`} icon={<Layers className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
           <KpiCard title="Verified" value={String(addrStats?.verifiedCount ?? '—')} sub="verified addresses" icon={<MapPin className="w-5 h-5 text-white" />} iconBg="bg-violet-600" />
         </div>
-      ) : loading ? (
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />
@@ -272,10 +207,10 @@ function CustomerAddressesPageContent() {
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load customers</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={() => void load({ hard: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
           </div>
         )}
-        {loading ? (
+        {isInitialLoading ? (
           <div className="p-4 space-y-3 animate-pulse">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
         ) : !error && customers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
