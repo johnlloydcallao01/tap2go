@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Coins } from '@/components/ui/IconWrapper'
 import { VariationModifierOptionOverrideForm } from '../_components/VariationModifierOptionOverrideForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewVariationModifierOptionOverrideSkeleton(){
 
 function NewVariationModifierOptionOverrideContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/variation-modifier-option-overrides')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/variation-modifier-option-overrides
+    // remounts with fresh-but-stale data and the new override is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'variation-modifier-option-overrides'] })
+    router.push('/catalog/variation-modifier-option-overrides')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewVariationModifierOptionOverrideContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Create a hybrid rule for an inherited product modifier option per variation.</p>
         </div>
       </div>
-      <VariationModifierOptionOverrideForm onSuccess={() => router.push('/catalog/variation-modifier-option-overrides')} onCancel={handleBack} />
+      <VariationModifierOptionOverrideForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

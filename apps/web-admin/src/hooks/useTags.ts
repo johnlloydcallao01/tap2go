@@ -46,7 +46,7 @@ export type TagsResponse = {
 };
 
 async function fetchTags(qs: string, signal?: AbortSignal): Promise<TagsResponse> {
-  const res = await fetch(`/api/catalog/tags?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/tags?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

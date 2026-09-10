@@ -47,31 +47,22 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const expanded = isDesktop ? isOpen : true;
 
-  const [isOutletsExpanded, setIsOutletsExpanded] = React.useState(false);
-  const [isBusinessProfileExpanded, setIsBusinessProfileExpanded] = React.useState(false);
   const [isProductsExpanded, setIsProductsExpanded] = React.useState(false);
   const [isOutletListingsExpanded, setIsOutletListingsExpanded] = React.useState(false);
   const [isCustomizationsExpanded, setIsCustomizationsExpanded] = React.useState(false);
   const [isOrderQueueExpanded, setIsOrderQueueExpanded] = React.useState(false);
-  const [isFulfillmentExpanded, setIsFulfillmentExpanded] = React.useState(false);
   const [isNotificationsExpanded, setIsNotificationsExpanded] = React.useState(false);
 
-  const hasActiveOutletsChild = dropdownActive(pathname, '/outlets');
-  const hasActiveBusinessProfileChild = dropdownActive(pathname, '/business');
   const hasActiveProductsChild = dropdownActive(pathname, '/products');
   const hasActiveOutletListingsChild = dropdownActive(pathname, '/listings');
   const hasActiveCustomizationsChild = dropdownActive(pathname, '/customizations');
   const hasActiveOrderQueueChild = dropdownActive(pathname, '/orders/active') || dropdownActive(pathname, '/orders/ready') || dropdownActive(pathname, '/orders/on-delivery');
-  const hasActiveFulfillmentChild = dropdownActive(pathname, '/fulfillment');
   const hasActiveNotificationsChild = dropdownActive(pathname, '/notifications');
 
-  React.useEffect(() => { if (hasActiveOutletsChild) setIsOutletsExpanded(true); }, [hasActiveOutletsChild]);
-  React.useEffect(() => { if (hasActiveBusinessProfileChild) setIsBusinessProfileExpanded(true); }, [hasActiveBusinessProfileChild]);
   React.useEffect(() => { if (hasActiveProductsChild) setIsProductsExpanded(true); }, [hasActiveProductsChild]);
   React.useEffect(() => { if (hasActiveOutletListingsChild) setIsOutletListingsExpanded(true); }, [hasActiveOutletListingsChild]);
   React.useEffect(() => { if (hasActiveCustomizationsChild) setIsCustomizationsExpanded(true); }, [hasActiveCustomizationsChild]);
   React.useEffect(() => { if (hasActiveOrderQueueChild) setIsOrderQueueExpanded(true); }, [hasActiveOrderQueueChild]);
-  React.useEffect(() => { if (hasActiveFulfillmentChild) setIsFulfillmentExpanded(true); }, [hasActiveFulfillmentChild]);
   React.useEffect(() => { if (hasActiveNotificationsChild) setIsNotificationsExpanded(true); }, [hasActiveNotificationsChild]);
 
   const accountTab = searchParams.get('tab');
@@ -110,29 +101,10 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
           <div className="space-y-1">
             <SidebarSectionLabel isOpen={expanded}>My Business</SidebarSectionLabel>
 
-            <SidebarDropdownGroup
-              icon="outlets"
-              label="Outlets"
-              isOpen={expanded}
-              isExpanded={isOutletsExpanded}
-              onToggle={() => setIsOutletsExpanded((c) => !c)}
-              active={hasActiveOutletsChild}
-            >
-              {renderChildLink({ label: 'All Outlets', href: '/outlets', isActive: exactActive(pathname, '/outlets') })}
-            </SidebarDropdownGroup>
+            <SidebarItem icon="outlets" label="Outlets" active={dropdownActive(pathname, '/outlets')} collapsed={!expanded} href="/outlets" />
 
-            <SidebarDropdownGroup
-              icon="business"
-              label="Business Profile"
-              isOpen={expanded}
-              isExpanded={isBusinessProfileExpanded}
-              onToggle={() => setIsBusinessProfileExpanded((c) => !c)}
-              active={hasActiveBusinessProfileChild}
-            >
-              {renderChildLink({ label: 'Company Information', href: '/business/profile', isActive: dropdownActive(pathname, '/business/profile') })}
-              {renderChildLink({ label: 'Registration & Verification', href: '/business/verification', isActive: dropdownActive(pathname, '/business/verification') })}
-              {renderChildLink({ label: 'Contacts & Managers', href: '/business/contacts', isActive: dropdownActive(pathname, '/business/contacts') })}
-            </SidebarDropdownGroup>
+            <SidebarItem icon="business" label="Company Information" active={dropdownActive(pathname, '/business/profile')} collapsed={!expanded} href="/business/profile" />
+            <SidebarItem icon="audit" label="Registration & Verification" active={dropdownActive(pathname, '/business/verification')} collapsed={!expanded} href="/business/verification" />
           </div>
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
@@ -207,28 +179,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
             <SidebarItem icon="pages" label="Order History" active={dropdownActive(pathname, '/orders/history')} collapsed={!expanded} href="/orders/history" />
             <SidebarItem icon="audit" label="Cancelled & Issues" active={dropdownActive(pathname, '/orders/cancelled')} collapsed={!expanded} href="/orders/cancelled" />
-          </div>
-
-          {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
-
-          {/* Fulfillment */}
-          <div className="space-y-1">
-            <SidebarSectionLabel isOpen={expanded}>Fulfillment</SidebarSectionLabel>
-
-            <SidebarDropdownGroup
-              icon="fulfillment"
-              label="Deliveries"
-              isOpen={expanded}
-              isExpanded={isFulfillmentExpanded}
-              onToggle={() => setIsFulfillmentExpanded((c) => !c)}
-              active={hasActiveFulfillmentChild}
-            >
-              {renderChildLink({ label: 'Active Bookings', href: '/fulfillment/deliveries', isActive: dropdownActive(pathname, '/fulfillment/deliveries') })}
-              {renderChildLink({ label: 'Booking Issues', href: '/fulfillment/issues', isActive: dropdownActive(pathname, '/fulfillment/issues') })}
-            </SidebarDropdownGroup>
-
-            <SidebarItem icon="integrations" label="Live Tracking" active={dropdownActive(pathname, '/fulfillment/tracking')} collapsed={!expanded} href="/fulfillment/tracking" />
-            <SidebarItem icon="shipping" label="Pickup Handoffs" active={dropdownActive(pathname, '/fulfillment/pickups')} collapsed={!expanded} href="/fulfillment/pickups" />
           </div>
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}

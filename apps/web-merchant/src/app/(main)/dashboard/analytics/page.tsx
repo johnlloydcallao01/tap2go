@@ -1,9 +1,11 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
+import { useMerchantAnalytics } from '@/hooks/useMerchantAnalytics'
 import { ClientOnly } from '@/components/ClientOnly'
-import type { VendorAnalyticsData } from '@/lib/analytics-types'
 import {
   DollarSign, ShoppingCart, Store, TrendingUp, TrendingDown, BarChart3, Package,
   Users, Star, Clock, RefreshCw, AlertCircle, ShoppingBag, CreditCard, Truck, Award, Heart, Activity, Layers,
@@ -78,34 +80,39 @@ function AnalyticsPageContent() {
   const [debouncedQ, setDebouncedQ] = useState('')
   const [filters, setFilters] = useState<Filters>({ status: [], fulfillment: [], deliveryStatus: [], paymentMethod: [], outlet: [] })
   const [showFilters, setShowFilters] = useState(false)
-  const [data, setData] = useState<VendorAnalyticsData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim().toLowerCase()), 400); return () => clearTimeout(id) }, [q])
   const activeCount = useMemo(() => filters.status.length + filters.fulfillment.length + filters.deliveryStatus.length + filters.paymentMethod.length + filters.outlet.length + (debouncedQ ? 1 : 0), [filters, debouncedQ])
   const hasActive = activeCount > 0
-  const buildQuery = useCallback((r: Range, query: string, f: Filters) => {
-    const p = new URLSearchParams(); p.set('range', r)
-    if (query) p.set('q', query)
-    if (f.status.length) p.set('status', f.status.join(','))
-    if (f.fulfillment.length) p.set('fulfillment', f.fulfillment.join(','))
-    if (f.deliveryStatus.length) p.set('deliveryStatus', f.deliveryStatus.join(','))
-    if (f.paymentMethod.length) p.set('paymentMethod', f.paymentMethod.join(','))
-    if (f.outlet.length) p.set('outlet', f.outlet.join(','))
+  const qs = useMemo(() => {
+    const p = new URLSearchParams(); p.set('range', range)
+    if (debouncedQ) p.set('q', debouncedQ)
+    if (filters.status.length) p.set('status', filters.status.join(','))
+    if (filters.fulfillment.length) p.set('fulfillment', filters.fulfillment.join(','))
+    if (filters.deliveryStatus.length) p.set('deliveryStatus', filters.deliveryStatus.join(','))
+    if (filters.paymentMethod.length) p.set('paymentMethod', filters.paymentMethod.join(','))
+    if (filters.outlet.length) p.set('outlet', filters.outlet.join(','))
     return p.toString()
-  }, [])
-  const load = useCallback(async (r: Range, query: string, f: Filters) => {
-    setLoading(true); setError(null)
-    try {
-      const qs = buildQuery(r, query, f)
-      const res = await fetch(`/api/analytics?${qs}`, { cache: 'no-store' })
-      if (!res.ok) throw new Error('Failed to load analytics')
-      setData(await res.json())
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed') }
-    finally { setLoading(false) }
-  }, [buildQuery])
-  useEffect(() => { void load(range, debouncedQ, filters) }, [load, range, debouncedQ, filters])
+  }, [range, debouncedQ, filters])
+
+  const queryClient = useQueryClient()
+  const [hardRefreshing, setHardRefreshing] = useState(false)
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useMerchantAnalytics(qs)
+
+  const isInitialLoading = (isPending && !data) || hardRefreshing
+  const loading = isFetching || hardRefreshing
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load analytics') : null
+
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return
+    setHardRefreshing(true)
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.merchantAnalytics(qs) })
+        await refetch({ cancelRefetch: true })
+      } finally { setHardRefreshing(false) }
+    })()
+  }
   const toggle = (k: keyof Filters, v: string) => setFilters((p) => ({ ...p, [k]: p[k].includes(v) ? p[k].filter((x) => x !== v) : [...p[k], v] }))
   const clearAll = () => { setQ(''); setDebouncedQ(''); setFilters({ status: [], fulfillment: [], deliveryStatus: [], paymentMethod: [], outlet: [] }) }
 
@@ -143,8 +150,8 @@ function AnalyticsPageContent() {
     return { tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}}, grid:{top:10,right:15,bottom:30,left:45}, xAxis:{type:'category' as const, data:data.hourlyDistribution.map(x=>`${String(x.hour).padStart(2,'0')}:00`), axisLabel:{color:'#a1a1aa', fontSize:10}}, yAxis:{type:'value' as const, axisLabel:{color:'#a1a1aa'}}, series:[{name:'Orders',type:'bar' as const, data:data.hourlyDistribution.map(x=>x.orders), itemStyle:{color:'#f59e0b', borderRadius:[4,4,0,0]}}] }
   }, [data])
 
-  const isInitial = loading && !data
-  const isRefreshing = loading && !!data
+  const isInitial = isInitialLoading
+  const isRefreshing = loading && !!data && !hardRefreshing
 
   return (
     <div className="space-y-[10px] py-5 px-2.5">
@@ -157,7 +164,7 @@ function AnalyticsPageContent() {
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#171717] rounded-full border border-gray-200 dark:border-[#262626]">
             {RANGE_OPTS.map((o) => <button key={o.value} onClick={() => setRange(o.value)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${range===o.value ? 'bg-white dark:bg-[#262626] text-gray-900 dark:text-white shadow-sm border border-gray-200' : 'text-gray-600 dark:text-[#a1a1aa]'}`}>{o.label}</button>)}
           </div>
-          <button onClick={() => load(range, debouncedQ, filters)} disabled={loading} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full disabled:opacity-50"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`} /></button>
+          <button onClick={handleHardRefresh} disabled={loading} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-full disabled:opacity-50"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`} /></button>
         </div>
       </div>
 
@@ -198,7 +205,7 @@ function AnalyticsPageContent() {
       </div>
 
       {error && !data ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]"><AlertCircle className="h-7 w-7 text-red-500 mb-2" /><p className="text-sm text-gray-500 mb-4">{error}</p><button onClick={()=>load(range,debouncedQ,filters)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Retry</button></div>
+        <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]"><AlertCircle className="h-7 w-7 text-red-500 mb-2" /><p className="text-sm text-gray-500 mb-4">{error}</p><button onClick={handleHardRefresh} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Retry</button></div>
       ) : isInitial ? (
         <div className="space-y-[10px] animate-pulse"><div className="grid grid-cols-2 lg:grid-cols-4 gap-[10px]">{Array.from({length:8}).map((_,i)=><div key={i} className="h-28 bg-gray-100 dark:bg-[#171717] rounded-xl" />)}</div><div className="grid grid-cols-1 lg:grid-cols-2 gap-[10px]"><div className="h-80 bg-gray-100 dark:bg-[#171717] rounded-xl" /><div className="h-80 bg-gray-100 dark:bg-[#171717] rounded-xl" /></div></div>
       ) : !data ? null : (

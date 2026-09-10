@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -435,6 +435,8 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeDoc(created)
+    // Bust list cache (all admins / query variants) so the new override shows immediately
+    await deleteCachedByPrefix('admin:catalog-merchant-variation-modifier-option-overrides:')
     return NextResponse.json({ success: true, message: 'Merchant variation modifier option override created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/catalog/merchant-variation-modifier-option-overrides] POST error:', err)

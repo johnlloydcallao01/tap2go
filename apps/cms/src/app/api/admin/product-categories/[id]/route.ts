@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -241,6 +242,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(updated, 0)
+    // Bust list cache so the update reflects immediately on /product-categories
+    await deleteCachedByPrefix('admin:product-categories:')
     return NextResponse.json({ success: true, message: 'Product category updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/product-categories/[id]] PATCH error:', err)
@@ -287,6 +290,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted: any
     try { deleted = await payload.delete({ collection: 'product-categories', id: docId as number, overrideAccess: true }) } catch (e: any) { return NextResponse.json({ error: e?.message || 'Failed to delete product category' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Product category not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /product-categories
+    await deleteCachedByPrefix('admin:product-categories:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Product category deleted successfully' })
   } catch (err: any) {
     console.error('[admin/product-categories/[id]] DELETE error:', err)

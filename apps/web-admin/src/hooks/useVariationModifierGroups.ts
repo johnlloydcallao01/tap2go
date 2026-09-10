@@ -45,7 +45,7 @@ export type VariationModifierGroupsResponse = {
 };
 
 async function fetchVariationModifierGroups(qs: string, signal?: AbortSignal): Promise<VariationModifierGroupsResponse> {
-  const res = await fetch(`/api/catalog/variation-modifier-groups?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/variation-modifier-groups?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback=''): string { return typeof v==='string'?v:fallback }
 function num(v: unknown, fallback=0): number { if(typeof v==='number'&&Number.isFinite(v)) return v; if(typeof v==='string'){const n=Number(v); return Number.isFinite(n)?n:fallback} return fallback }
@@ -92,6 +93,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     let updated: Record<string, any>
     try { updated = await payload.update({ collection: 'modifier-options', id: docId as number, data: patch as any, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch(e:any){ const msg=e?.message||'Failed to update modifier option'; const lower=String(msg).toLowerCase(); if(lower.includes('unique')||lower.includes('duplicate')) return NextResponse.json({ error: 'Duplicate value violates unique constraint', details: msg }, { status:409 }); return NextResponse.json({ error: msg, details: e?.data||e?.errors }, { status:400 }) }
     const sanitized=sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /catalog/modifier-options
+    await deleteCachedByPrefix('admin:catalog-modifier-options:')
     return NextResponse.json({ success: true, message: 'Modifier option updated successfully', doc: sanitized })
   } catch(err:any){ console.error('[admin/catalog/modifier-options/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message||'Update failed' }, { status:500 }) }
 }
@@ -107,6 +110,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted:any
     try { deleted = await payload.delete({ collection: 'modifier-options', id: docId as number, overrideAccess: true }) } catch(e:any){ return NextResponse.json({ error: e?.message||'Failed to delete modifier option' }, { status:400 }) }
     if(!deleted) return NextResponse.json({ error: 'Modifier option not found' }, { status:404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/modifier-options
+    await deleteCachedByPrefix('admin:catalog-modifier-options:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Modifier option deleted successfully' })
   } catch(err:any){ console.error('[admin/catalog/modifier-options/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message||'Delete failed' }, { status:500 }) }
 }

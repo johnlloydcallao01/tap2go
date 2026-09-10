@@ -69,7 +69,7 @@ export type OrdersResponse = {
 };
 
 async function fetchOrders(qs: string, signal?: AbortSignal): Promise<OrdersResponse> {
-  const res = await fetch(`/api/orders?${qs}`, { signal });
+  const res = await fetch(`/api/orders?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

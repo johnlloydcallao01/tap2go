@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -319,6 +319,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(created, 0)
+    // Bust list cache (all admins / query variants) so the new category shows immediately
+    await deleteCachedByPrefix('admin:product-categories:')
     return NextResponse.json({ success: true, message: 'Product category created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/product-categories] POST error:', err)

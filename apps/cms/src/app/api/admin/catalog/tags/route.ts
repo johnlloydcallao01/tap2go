@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 const TAG_TYPES = new Set(['general', 'dietary', 'cuisine', 'promotion', 'feature', 'allergen', 'spice_level', 'temperature', 'size_category'])
 
@@ -253,6 +253,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(created, 0, 0)
+    // Bust list cache (all admins / query variants) so the new tag shows immediately
+    await deleteCachedByPrefix('admin:catalog-tags:')
     return NextResponse.json({ success: true, message: 'Tag created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/catalog/tags] POST error:', err)

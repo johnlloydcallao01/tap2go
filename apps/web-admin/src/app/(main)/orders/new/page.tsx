@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Receipt } from '@/components/ui/IconWrapper'
 import { OrderForm } from '../_components/OrderForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewOrderSkeleton(){
 
 function NewOrderContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/orders')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /orders
+    // remounts with fresh-but-stale data and the new order is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] })
+    router.push('/orders')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewOrderContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Manually create an order — customer, outlet, and totals.</p>
         </div>
       </div>
-      <OrderForm onSuccess={() => router.push('/orders')} onCancel={handleBack} />
+      <OrderForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

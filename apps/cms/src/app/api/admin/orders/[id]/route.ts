@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -528,6 +529,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const agg = await fetchAggregates(payload, updated.id)
     const sanitized = buildAggregatedDoc(updated, agg)
+    // Bust list cache so the update reflects immediately on /orders
+    await deleteCachedByPrefix('admin:orders:')
     return NextResponse.json({ success: true, message: 'Order updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/orders/[id]] PATCH error:', err)

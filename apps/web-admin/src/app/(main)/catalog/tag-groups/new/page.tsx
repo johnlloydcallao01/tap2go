@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Tag } from '@/components/ui/IconWrapper'
 import { TagGroupForm } from '../_components/TagGroupForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewTagGroupSkeleton(){
 
 function NewTagGroupContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/tag-groups')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/tag-groups
+    // remounts with fresh-but-stale data and the new group is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'tag-groups'] })
+    router.push('/catalog/tag-groups')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewTagGroupContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Add a new tag group with color and filter settings.</p>
         </div>
       </div>
-      <TagGroupForm onSuccess={() => router.push('/catalog/tag-groups')} onCancel={handleBack} />
+      <TagGroupForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

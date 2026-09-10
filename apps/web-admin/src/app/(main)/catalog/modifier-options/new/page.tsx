@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Coins } from '@/components/ui/IconWrapper'
 import { ModifierOptionForm } from '../_components/ModifierOptionForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewModifierOptionSkeleton(){
 
 function NewModifierOptionContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/modifier-options')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/modifier-options
+    // remounts with fresh-but-stale data and the new option is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'modifier-options'] })
+    router.push('/catalog/modifier-options')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewModifierOptionContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Create a modifier option for a group.</p>
         </div>
       </div>
-      <ModifierOptionForm onSuccess={() => router.push('/catalog/modifier-options')} onCancel={handleBack} />
+      <ModifierOptionForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

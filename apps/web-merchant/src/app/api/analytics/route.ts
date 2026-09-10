@@ -28,7 +28,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load vendor analytics' }, { status: res.status })
     }
     const data = await res.json()
-    return NextResponse.json(data)
+    const headers = new Headers({ 'Content-Type': 'application/json' })
+    const cacheStatus = res.headers.get('X-VendorAnalytics-Cache')
+    if (cacheStatus) headers.set('X-VendorAnalytics-Cache', cacheStatus)
+    return NextResponse.json(data, { headers })
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
   }

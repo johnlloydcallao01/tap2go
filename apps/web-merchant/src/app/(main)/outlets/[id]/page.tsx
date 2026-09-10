@@ -43,7 +43,9 @@ type Outlet = {
     maxDeliveryRadiusMeters: number;
     deliveryFeePerKm: number;
   };
-  address: { formattedAddress: string; street: string; locality: string; province: string; postalCode: string; country: string; latitude: number; longitude: number } | null;
+  address: { id?: string | number | null; formattedAddress: string; street: string; locality: string; province: string; postalCode: string; country: string; latitude: number; longitude: number } | null;
+  activeAddress?: { id?: string | number | null; formattedAddress?: string } | null;
+  activeAddressId?: string | number | null;
   coordinates: { latitude: number; longitude: number };
   media: { thumbnail: { url: string } | null; storeFrontImage: { url: string } | null };
   createdAt: string;
@@ -187,6 +189,7 @@ function OutletViewContent() {
             <Row label="Manager phone" value={doc.contactInfo.managerPhone || '—'} icon={<Phone className="w-3 h-3" />} />
           </Section>
           <Section title="Address & Location">
+            <Row label="Active Address ID" value={(doc.activeAddressId ?? doc.activeAddress?.id ?? doc.address?.id) != null ? `#${doc.activeAddressId ?? doc.activeAddress?.id ?? doc.address?.id}` : '—'} mono icon={<MapPin className="w-3 h-3" />} />
             <Row label="Formatted" value={doc.address?.formattedAddress || '—'} icon={<MapPin className="w-3 h-3" />} />
             <Row label="Street" value={doc.address?.street || '—'} />
             <Row label="City" value={doc.address?.locality || '—'} />

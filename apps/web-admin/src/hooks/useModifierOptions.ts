@@ -41,7 +41,7 @@ export type ModifierOptionsResponse = {
 };
 
 async function fetchModifierOptions(qs: string, signal?: AbortSignal): Promise<ModifierOptionsResponse> {
-  const res = await fetch(`/api/catalog/modifier-options?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/modifier-options?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

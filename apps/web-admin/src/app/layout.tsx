@@ -22,6 +22,10 @@ export const metadata: Metadata = {
   keywords: "admin dashboard, platform management, user management, Tap2Go",
   authors: [{ name: "Tap2Go Admin Team" }],
   robots: "noindex, nofollow",
+  icons: {
+    icon: [{ url: "/favicon.ico" }, { url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png" }],
+  },
   openGraph: {
     title: "Tap2Go Admin Dashboard",
     description: "Admin dashboard for managing the Tap2Go platform.",
@@ -103,10 +107,9 @@ export default async function RootLayout({ children }: LayoutProps) {
           </div>
         </div>
 
-        {/* Client-side loading screen controller */}
-        <InstantLoadingController />
-
         <Providers initialUser={initialUser} initialToken={initialToken}>
+          {/* Inside Providers so it can never throw "No QueryClient set" */}
+          <InstantLoadingController />
           {children}
         </Providers>
       </body>

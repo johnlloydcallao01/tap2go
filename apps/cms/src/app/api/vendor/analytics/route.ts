@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { getCached, setCached } from '@encreasl/cache'
 
 function getNum(val: unknown, fallback = 0): number {
   if (typeof val === 'number' && Number.isFinite(val)) return val
@@ -65,6 +66,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
     if (!userId) return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'range=30d'
+    const cacheKey = `vendor:analytics:${userId}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-VendorAnalytics-Cache': 'HIT' } })
+
     const { days, label } = parseRange(searchParams)
     const q = (searchParams.get('q') || '').trim().toLowerCase()
     const statusFilter = parseCsvParam(searchParams, 'status')
@@ -105,7 +116,7 @@ export async function GET(request: NextRequest) {
     merchantsDocs.forEach((m: any) => merchantMap.set(String(m.id), m as Record<string, unknown>))
 
     if (merchantIds.size === 0) {
-      return NextResponse.json({
+      const emptyBody = {
         meta: { range: label, days, generatedAt: now.toISOString(), vendorId, vendorName, totalOrdersAllTime: 0 },
         kpis: {
           totalRevenue: 0, revenueChange: 0, todayRevenue: 0,
@@ -126,7 +137,9 @@ export async function GET(request: NextRequest) {
         hourlyDistribution: [],
         weekdayDistribution: [],
         ratingDistribution: [],
-      })
+      }
+      await setCached(cacheKey, emptyBody, 20)
+      return NextResponse.json(emptyBody, { headers: { 'X-VendorAnalytics-Cache': 'MISS' } })
     }
 
     // 3. Orders scoped to vendor merchants
@@ -512,7 +525,7 @@ export async function GET(request: NextRequest) {
     })
     const avgRating = periodReviews.length ? periodReviews.reduce((s, r) => s + getNum(r.merchant_rating), 0) / periodReviews.length : 0
 
-    return NextResponse.json({
+    const responseBody = {
       meta: { range: label, days, generatedAt: now.toISOString(), vendorId, vendorName, totalOrdersAllTime: ordersDocs.length, periodStart: periodStart ? periodStart.toISOString() : null, periodEnd: now.toISOString() },
       kpis: {
         totalRevenue: totalRevenueCurrent,
@@ -544,7 +557,9 @@ export async function GET(request: NextRequest) {
       hourlyDistribution: hourly,
       weekdayDistribution: weekday,
       ratingDistribution: ratingBuckets,
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-VendorAnalytics-Cache': 'MISS' } })
   } catch (error) {
     console.error('Vendor analytics error:', error)
     return NextResponse.json({ error: 'Failed to load vendor analytics' }, { status: 500 })

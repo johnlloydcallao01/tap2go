@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { getCached, setCached } from '@encreasl/cache'
 
 function getNum(v: unknown, fb = 0): number { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v === 'string') return parseFloat(v) || fb; return fb }
 function getStr(v: unknown, fb = ''): string {
@@ -23,6 +24,16 @@ export async function GET(request: NextRequest){
     const {searchParams}=new URL(request.url)
     const userId=searchParams.get('userId')
     if(!userId) return NextResponse.json({error:'userId required'},{status:400})
+
+    const cacheQuery = Array.from(searchParams.entries())
+      .filter(([key]) => key !== '_t')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&') || 'range=30d'
+    const cacheKey = `vendor:reports:${userId}:${cacheQuery}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-VendorReports-Cache': 'HIT' } })
+
     const {days,label}=parseRange(searchParams)
     const now=new Date()
     const periodStart=days===0?null:new Date(now.getTime()-days*24*60*60*1000)
@@ -39,7 +50,7 @@ export async function GET(request: NextRequest){
     merchantsDocs.forEach((m:any)=>merchantMap.set(String(m.id),m as Record<string,unknown>))
     const merchantIds=new Set(merchantsDocs.map((m)=>String(m.id)))
     if(merchantIds.size===0){
-      return NextResponse.json({
+      const emptyBody = {
         meta:{range:label, days, generatedAt: now.toISOString(), vendorId, vendorName, periodStart: periodStart?periodStart.toISOString():null, periodEnd: now.toISOString()},
         summary:{totalRevenue:0,totalRefunded:0,netRevenue:0,totalOrders:0,avgOrder:0, paidCount:0, refundedCount:0, failedCount:0, totalOutlets:0},
         financialReconciliation:{rows:[], totals:{gross:0,platformFees:0,deliveryFees:0}, count:0},
@@ -48,7 +59,9 @@ export async function GET(request: NextRequest){
         refundsFailures:{rows:[], count:0},
         productPerformance:{rows:[], count:0},
         deliveryLogistics:{totalBookings:0, byStatus:[], sampleRows:[]},
-      })
+      }
+      await setCached(cacheKey, emptyBody, 20)
+      return NextResponse.json(emptyBody, { headers: { 'X-VendorReports-Cache': 'MISS' } })
     }
     const ordersRes=await payload.find({collection:'orders', where:{merchant:{in:Array.from(merchantIds)}}, limit:3000, sort:'-createdAt', depth:1, overrideAccess:true})
     const ordersDocs=ordersRes.docs as unknown as Record<string,unknown>[]
@@ -125,7 +138,7 @@ export async function GET(request: NextRequest){
     const deliveryByStatus=new Map<string,number>()
     bookingsPeriod.forEach(b=>{const s=getStr(b.status,'unknown'); deliveryByStatus.set(s,(deliveryByStatus.get(s)||0)+1)})
 
-    return NextResponse.json({
+    const responseBody = {
       meta:{range:label, days, generatedAt: now.toISOString(), vendorId, vendorName, periodStart: periodStart?periodStart.toISOString():null, periodEnd: now.toISOString(), totalOrders: ordersDocs.length},
       summary:{totalRevenue,totalRefunded,netRevenue,totalOrders,avgOrder, paidCount:paidTxPeriod.length, refundedCount:refundedTxPeriod.length, failedCount:failedTxPeriod.length, totalOutlets: merchantsDocs.length},
       financialReconciliation:{rows:financialRows, totals:{gross:totalRevenue, platformFees: financialRows.reduce((s,r)=>s+r.platformFee,0), deliveryFees: financialRows.reduce((s,r)=>s+r.deliveryFee,0)}, count: financialRows.length, totalCount: paidTxPeriod.length},
@@ -134,7 +147,9 @@ export async function GET(request: NextRequest){
       refundsFailures:{rows:refundsRows, count: refundsRows.length},
       productPerformance:{rows:productPerformance, count: productPerformance.length},
       deliveryLogistics:{totalBookings: bookingsPeriod.length, byStatus: Array.from(deliveryByStatus.entries()).map(([status,count])=>({status,count})), sampleRows: bookingsPeriod.slice(0,20).map((b:any)=>({orderId:resolveId(b.order), status:getStr(b.status), deliveryFee:getNum(b.delivery_fee), serviceType:getStr(b.service_type,'MOTORCYCLE'), driverName:getStr(b.driver_name,'—')}))},
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-VendorReports-Cache': 'MISS' } })
   }catch(e){
     console.error('Vendor reports error:',e)
     return NextResponse.json({error:'Failed to load vendor reports'},{status:500})

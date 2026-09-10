@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, notFound } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ClientOnly } from '@/components/ClientOnly'
 import { Receipt, ArrowLeft, AlertCircle, CheckCircle } from '@/components/ui/IconWrapper'
 
@@ -30,6 +31,7 @@ function EditOrderContent(){
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   if (!/^\d+$/.test(id)) {
     notFound()
   }
@@ -156,6 +158,8 @@ function EditOrderContent(){
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to update order')
       setSaveSuccess(true)
+      // Keep the list fresh for when the user navigates back to /orders.
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] })
       setTimeout(() => router.push(`/orders/${id}`), 900)
     }catch(e:any){ setSaveError(e.message || 'Save failed') } finally{ setSaving(false) }
   }

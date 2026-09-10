@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback = ''): string { return typeof v === 'string' ? v : fallback }
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -267,6 +267,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data||e?.errors }, { status: 400 })
     }
     const sanitized=sanitizeDoc(created)
+    // Bust list cache (all admins / query variants) so the new override shows immediately
+    await deleteCachedByPrefix('admin:catalog-merchant-product-modifier-option-overrides:')
     return NextResponse.json({ success: true, message: 'Merchant product modifier option override created successfully', doc: sanitized }, { status: 201 })
   } catch (err:any) { console.error('[admin/catalog/merchant-product-modifier-option-overrides] POST error:', err); return NextResponse.json({ error: err?.message||'Internal Server Error' }, { status: 500 }) }
 }

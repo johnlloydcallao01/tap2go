@@ -51,7 +51,7 @@ export type MerchantVariationModifierOptionOverridesResponse = {
 };
 
 async function fetchMerchantVariationModifierOptionOverrides(qs: string, signal?: AbortSignal): Promise<MerchantVariationModifierOptionOverridesResponse> {
-  const res = await fetch(`/api/catalog/merchant-variation-modifier-option-overrides?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/merchant-variation-modifier-option-overrides?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

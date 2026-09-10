@@ -102,9 +102,11 @@ function PayoutsPageContent() {
   const [hardRefreshing, setHardRefreshing] = useState(false)
   const { data, isPending, isFetching, isError, error: queryError, refetch } = useVendorPayouts(qs)
 
-  const isInitialLoading = (isPending && !data) || hardRefreshing
+  // Range switches (7d/30d/90d/1y/all) reuse the skeleton screen while fetching
+  // instead of keeping the previous range's numbers on screen.
+  const isInitialLoading = isPending || isFetching || hardRefreshing
   const loading = isFetching || hardRefreshing
-  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load payouts') : null
+  const error = isError && !isInitialLoading ? (queryError instanceof Error ? queryError.message : 'Failed to load payouts') : null
 
   const handleHardRefresh = () => {
     if (hardRefreshing) return
@@ -158,7 +160,7 @@ function PayoutsPageContent() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#0a0a0a] rounded-full border border-gray-200 dark:border-[#262626]">
             {RANGE_OPTS.map(o=>(
-              <button key={o.value} onClick={()=>setRange(o.value)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${range===o.value?'bg-white dark:bg-[#171717] text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-[#333]':'text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900'}`}>{o.label}</button>
+              <button key={o.value} onClick={()=>setRange(o.value)} disabled={loading} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition disabled:opacity-50 disabled:cursor-wait ${range===o.value?'bg-white dark:bg-[#171717] text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-[#333]':'text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900'}`}>{o.label}</button>
             ))}
           </div>
           <button onClick={handleHardRefresh} disabled={loading} aria-label="Refresh payouts" className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50">
@@ -169,20 +171,24 @@ function PayoutsPageContent() {
         </div>
       </div>
 
-      {data ? (
+      {isInitialLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+          {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+        </div>
+      ) : data ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard title="Total Net Payout" value={fmtCompact(data.summary.totalNet)} sub={`${data.summary.totalVendors} vendors • ${data.summary.totalOrders} orders`} icon={<Coins className="w-5 h-5 text-white" />} iconBg="bg-[#eba236]" />
           <KpiCard title="Total Gross" value={fmtCompact(data.summary.totalGross)} sub={`Avg order ${fmtPHP(data.summary.avgOrder)}`} icon={<DollarSign className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
           <KpiCard title="Platform + Delivery Fees" value={fmtCompact(data.summary.totalPlatformFees + data.summary.totalDeliveryFees)} sub={`Platform ${fmtCompact(data.summary.totalPlatformFees)} • Delivery ${fmtCompact(data.summary.totalDeliveryFees)}`} icon={<Receipt className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
           <KpiCard title="Refunded" value={fmtCompact(data.summary.totalRefunded)} sub={`${((data.summary.totalRefunded/Math.max(1,data.summary.totalGross))*100).toFixed(1)}% of gross`} icon={<TrendingDown className="w-5 h-5 text-white" />} iconBg="bg-red-500" />
         </div>
-      ) : isInitialLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
-          {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
-        </div>
       ) : null}
 
-      {data && (
+      {isInitialLoading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 animate-pulse">
+          {Array.from({length:3}).map((_,i)=><div key={i} className="h-[76px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
+        </div>
+      ) : data && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4 flex items-center justify-between">
             <div>
@@ -236,7 +242,7 @@ function PayoutsPageContent() {
       </div>
 
       <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
-        {error && (
+        {error && !isInitialLoading && (
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load payouts</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
@@ -316,7 +322,7 @@ function PayoutsPageContent() {
         )}
       </div>
 
-      {data && data.daily.length>0 && (
+      {!isInitialLoading && data && data.daily.length>0 && (
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-[#eba236]" /> Daily Net Payout Trend</h3>
           <div className="overflow-x-auto">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Layers } from '@/components/ui/IconWrapper'
 import { MerchantVariationModifierGroupOverrideForm } from '../_components/MerchantVariationModifierGroupOverrideForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewMerchantVariationModifierGroupOverrideSkeleton(){
 
 function NewMerchantVariationModifierGroupOverrideContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/merchant-variation-modifier-group-overrides')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/merchant-variation-modifier-group-overrides
+    // remounts with fresh-but-stale data and the new override is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'merchant-variation-modifier-group-overrides'] })
+    router.push('/catalog/merchant-variation-modifier-group-overrides')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewMerchantVariationModifierGroupOverrideContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Create a merchant-level variation override for a modifier group.</p>
         </div>
       </div>
-      <MerchantVariationModifierGroupOverrideForm onSuccess={() => router.push('/catalog/merchant-variation-modifier-group-overrides')} onCancel={handleBack} />
+      <MerchantVariationModifierGroupOverrideForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

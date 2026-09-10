@@ -47,7 +47,7 @@ export type VariationModifierGroupOverridesResponse = {
 };
 
 async function fetchVariationModifierGroupOverrides(qs: string, signal?: AbortSignal): Promise<VariationModifierGroupOverridesResponse> {
-  const res = await fetch(`/api/catalog/variation-modifier-group-overrides?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/variation-modifier-group-overrides?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

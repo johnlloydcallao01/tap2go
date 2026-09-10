@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Tag } from '@/components/ui/IconWrapper'
 import { ProductCategoryForm } from '../_components/ProductCategoryForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewProductCategorySkeleton(){
 
 function NewProductCategoryContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/product-categories')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /product-categories
+    // remounts with fresh-but-stale data and the new category is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'product-categories'] })
+    router.push('/product-categories')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -29,7 +38,7 @@ function NewProductCategoryContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Add a new hierarchical category for products.</p>
         </div>
       </div>
-      <ProductCategoryForm onSuccess={() => router.push('/product-categories')} onCancel={handleBack} />
+      <ProductCategoryForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

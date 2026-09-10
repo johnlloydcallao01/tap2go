@@ -44,7 +44,7 @@ export type TagGroupsResponse = {
 };
 
 async function fetchTagGroups(qs: string, signal?: AbortSignal): Promise<TagGroupsResponse> {
-  const res = await fetch(`/api/catalog/tag-groups?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/tag-groups?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

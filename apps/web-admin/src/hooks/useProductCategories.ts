@@ -58,7 +58,7 @@ export type ProductCategoriesResponse = {
 };
 
 async function fetchProductCategories(qs: string, signal?: AbortSignal): Promise<ProductCategoriesResponse> {
-  const res = await fetch(`/api/product-categories?${qs}`, { signal });
+  const res = await fetch(`/api/product-categories?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

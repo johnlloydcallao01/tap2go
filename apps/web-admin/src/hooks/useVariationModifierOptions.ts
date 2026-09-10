@@ -41,7 +41,7 @@ export type VariationModifierOptionsResponse = {
 };
 
 async function fetchVariationModifierOptions(qs: string, signal?: AbortSignal): Promise<VariationModifierOptionsResponse> {
-  const res = await fetch(`/api/catalog/variation-modifier-options?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/variation-modifier-options?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

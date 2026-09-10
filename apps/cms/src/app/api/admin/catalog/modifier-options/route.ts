@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback = ''): string { return typeof v === 'string' ? v : fallback }
 function num(v: unknown, fallback = 0): number { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v === 'string'){const n=Number(v); return Number.isFinite(n)?n:fallback} return fallback }
@@ -165,6 +165,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data||e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(created)
+    // Bust list cache (all admins / query variants) so the new option shows immediately
+    await deleteCachedByPrefix('admin:catalog-modifier-options:')
     return NextResponse.json({ success: true, message: 'Modifier option created successfully', doc: sanitized }, { status: 201 })
   } catch (err:any) { console.error('[admin/catalog/modifier-options] POST error:', err); return NextResponse.json({ error: err?.message||'Internal Server Error' }, { status: 500 }) }
 }

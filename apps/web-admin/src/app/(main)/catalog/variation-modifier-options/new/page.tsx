@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Coins } from '@/components/ui/IconWrapper'
 import { VariationModifierOptionForm } from '../_components/VariationModifierOptionForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewVariationModifierOptionSkeleton(){
 
 function NewVariationModifierOptionContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/variation-modifier-options')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/variation-modifier-options
+    // remounts with fresh-but-stale data and the new option is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'variation-modifier-options'] })
+    router.push('/catalog/variation-modifier-options')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewVariationModifierOptionContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Create a variation modifier option for a group.</p>
         </div>
       </div>
-      <VariationModifierOptionForm onSuccess={() => router.push('/catalog/variation-modifier-options')} onCancel={handleBack} />
+      <VariationModifierOptionForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

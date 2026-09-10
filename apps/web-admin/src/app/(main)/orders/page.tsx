@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
-import { useOrders, type OrderDoc } from '@/hooks/useOrders'
+import { useOrders, type OrderDoc, type OrdersResponse } from '@/hooks/useOrders'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   ShoppingBag, Receipt, Package, Truck, Store, Users, Mail, Phone, CheckCircle, XCircle, Clock,
@@ -224,7 +224,7 @@ function OrdersPageContent() {
   const clearAll = () => { setQ(''); setDebouncedQ(''); setStatusFilter([]); setFulfillmentFilter([]); setDeliveryStatusFilter([]) }
 
   const handleCancel = async () => {
-    if (!deleting) return
+    if (!deleting || isDeleting) return
     const st = (deleting.status || '').toLowerCase()
     if (st === 'delivered' || st === 'cancelled') {
       setDeleteError('Order already finalized — cannot cancel')
@@ -235,7 +235,42 @@ function OrdersPageContent() {
       const res = await fetch(`/api/orders/${deleting.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelled' }) })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to cancel order')
+      const cancelledId = deleting.id
+      const prevStatus = st
+      // Optimistic status flip across every cached orders list (all pages/filters).
+      // The row shows Cancelled instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<OrdersResponse>(
+        {
+          queryKey: ['admin', 'orders'],
+          predicate: (q) => q.queryKey.length === 3 && typeof q.queryKey[2] === 'string',
+        },
+        (old) => {
+          if (!old || !Array.isArray(old.docs)) return old
+          let flipped = false
+          const docs = old.docs.map((d) => {
+            if (String(d.id) !== String(cancelledId)) return d
+            flipped = true
+            return { ...d, status: 'cancelled' }
+          })
+          if (!flipped) return old
+          const stats = old.stats && old.stats.statusBreakdown
+            ? {
+                ...old.stats,
+                statusBreakdown: {
+                  ...old.stats.statusBreakdown,
+                  [prevStatus]: Math.max(0, (old.stats.statusBreakdown[prevStatus] ?? 1) - 1),
+                  cancelled: (old.stats.statusBreakdown['cancelled'] ?? 0) + 1,
+                },
+              }
+            : old.stats
+          return { ...old, docs, stats }
+        }
+      )
       setDeleting(null)
+      // Bust every cached orders list (all pages/filters) so the cancellation
+      // reconciles with the server instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] })
       await refetch()
     } catch (e: any) {
       const msg = e?.message || 'Cancel failed'
@@ -487,7 +522,7 @@ function OrdersPageContent() {
       {/* Delete/Cancel portal */}
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) setDeleting(null) }}>
             <div
               className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95"
               onClick={(e) => e.stopPropagation()}
@@ -497,8 +532,11 @@ function OrdersPageContent() {
               <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">This will cancel order <span className="font-semibold text-gray-900 dark:text-white">{orderNumber(deleting)}</span> ({deleting.status}). {['delivered','cancelled'].includes((deleting.status||'').toLowerCase()) ? 'This order is already finalized and cannot be cancelled.' : 'This action cannot be undone.'}</p>
               {deleteError && <p className="text-sm text-red-600 dark:text-red-400 mt-3">{deleteError}</p>}
               <div className="flex gap-2 mt-6">
-                <button onClick={() => setDeleting(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626]">Cancel</button>
-                <button onClick={handleCancel} disabled={isDeleting || ['delivered','cancelled'].includes((deleting.status||'').toLowerCase())} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">{isDeleting ? 'Cancelling…' : 'Confirm cancel'}</button>
+                <button onClick={() => setDeleting(null)} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleCancel} disabled={isDeleting || ['delivered','cancelled'].includes((deleting.status||'').toLowerCase())} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Cancelling…' : 'Confirm cancel'}
+                </button>
               </div>
               {['delivered','cancelled'].includes((deleting.status||'').toLowerCase()) && <p className="text-xs text-amber-600 mt-3">Blocked: order already {deleting.status}. Finalized orders cannot be cancelled.</p>}
             </div>

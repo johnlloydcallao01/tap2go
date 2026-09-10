@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Coins, AlertCircle, CheckCircle } from '@/components/ui/IconWrapper'
 import { ModifierOptionForm } from '../../_components/ModifierOptionForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -15,6 +16,7 @@ function EditModifierOptionContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [doc, setDoc] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,6 +37,8 @@ function EditModifierOptionContent() {
 
   const handleSaveSuccess = async () => {
     setSaveSuccess(true)
+    // Keep the list fresh for when the user navigates back to /catalog/modifier-options.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'modifier-options'] })
     try {
       const res = await fetch(`/api/catalog/modifier-options/${id}`, { cache: 'no-store' })
       const j = await res.json()

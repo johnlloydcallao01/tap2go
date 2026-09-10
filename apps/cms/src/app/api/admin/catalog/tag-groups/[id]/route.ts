@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 const HEX_REGEX = /^#([0-9a-fA-F]{6})$/
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -185,6 +186,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     } catch {}
     const sanitized = sanitizeDoc(updated, tagCount)
+    // Bust list cache so the update reflects immediately on /catalog/tag-groups
+    await deleteCachedByPrefix('admin:catalog-tag-groups:')
     return NextResponse.json({ success: true, message: 'Tag group updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/catalog/tag-groups/[id]] PATCH error:', err)
@@ -224,6 +227,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: e?.message || 'Failed to delete tag group' }, { status: 400 })
     }
     if (!deleted) return NextResponse.json({ error: 'Tag group not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/tag-groups
+    await deleteCachedByPrefix('admin:catalog-tag-groups:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Tag group deleted successfully' })
   } catch (err: any) {
     console.error('[admin/catalog/tag-groups/[id]] DELETE error:', err)

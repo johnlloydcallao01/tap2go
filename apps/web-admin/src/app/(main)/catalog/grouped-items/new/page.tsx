@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Layers } from '@/components/ui/IconWrapper'
 import { GroupedItemForm } from '../_components/GroupedItemForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewGroupedItemSkeleton(){
 
 function NewGroupedItemContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/grouped-items')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/grouped-items
+    // remounts with fresh-but-stale data and the new item is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'grouped-items'] })
+    router.push('/catalog/grouped-items')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -29,7 +38,7 @@ function NewGroupedItemContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Add a child product to a grouped product bundle with quantity.</p>
         </div>
       </div>
-      <GroupedItemForm onSuccess={() => router.push('/catalog/grouped-items')} onCancel={handleBack} />
+      <GroupedItemForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

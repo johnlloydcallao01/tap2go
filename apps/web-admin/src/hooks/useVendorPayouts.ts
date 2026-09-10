@@ -1,6 +1,6 @@
 'use client';
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type PayoutRow = {
@@ -59,14 +59,14 @@ async function fetchVendorPayouts(qs: string, signal?: AbortSignal): Promise<Pay
 }
 
 /**
- * Vendor Payouts query — 3-min instant-back.
- * Range and filter changes keep previous slice via placeholderData while refetching.
+ * Vendor Payouts query — 3-min instant-back for cached ranges.
+ * Range / filter switches must show the skeleton screen while fetching
+ * (no placeholderData), so 7d/30d/90d/1y/all stay consistent with first load.
  */
 export function useVendorPayouts(qs: string) {
   return useQuery({
     queryKey: QUERY_KEYS.adminVendorPayouts(qs),
     queryFn: ({ signal }) => fetchVendorPayouts(qs, signal),
-    placeholderData: keepPreviousData,
     ...SHARED_QUERY_DEFAULTS,
   });
 }

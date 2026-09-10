@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Building2, Mail, Store, MapPin, Clock, Truck, AlertCircle, RefreshCw, Phone, DollarSign, Tag, Image as ImageIcon, Globe, Layers, Timer, Zap } from '@/components/ui/IconWrapper';
+import React, { useState, useEffect, useRef } from 'react';
+import { Building2, Mail, Store, MapPin, Clock, Truck, AlertCircle, RefreshCw, Phone, DollarSign, Tag, Image as ImageIcon, Globe, Layers, Timer, Zap, ChevronDown } from '@/components/ui/IconWrapper';
 import { MediaUploader } from '@/components/cms/MediaUploader';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
@@ -36,6 +36,10 @@ type OutletDoc = {
   peak_hours_multiplier?: number | null;
   avg_delivery_time_minutes?: number | null;
   merchant_categories?: Array<{ id: number; name: string } | number> | null;
+  // CMS `merchants.activeAddress` relationship (same as /admin/collections/merchants/:id).
+  // BFF returns both `address` (sanitized) and `activeAddress`/`activeAddressId`.
+  activeAddress?: { id?: string | number; formattedAddress?: string; formatted_address?: string } | string | number | null;
+  activeAddressId?: string | number | null;
   contactInfo: { phone: string; email: string; managerName: string; managerPhone: string };
   deliverySettings: {
     minimumOrderAmount: number;
@@ -48,6 +52,7 @@ type OutletDoc = {
     deliveryFeePerKm: number;
   };
   address: {
+    id?: string | number | null;
     street: string;
     locality: string;
     province: string;
@@ -62,6 +67,8 @@ type OutletDoc = {
     floorUnitRoom?: string | null;
     deliveryInstructions?: string | null;
     landmarkDescription?: string | null;
+    formattedAddress?: string | null;
+    formatted_address?: string | null;
   } | null;
   media?: {
     thumbnail?: { id?: string | number; url?: string } | null;
@@ -71,9 +78,131 @@ type OutletDoc = {
   } | null;
 };
 
+type VendorAddressOption = {
+  id: number;
+  formatted_address: string;
+  formattedAddress: string;
+  street: string;
+  locality: string;
+  province: string;
+  postal_code: string;
+};
+
+function getInitialActiveAddressId(doc: OutletDoc | null | undefined): string {
+  if (!doc) return '';
+  const raw = (doc as Record<string, unknown>).activeAddressId ?? (doc as Record<string, unknown>).activeAddress ?? (doc.address as Record<string, unknown> | null)?.id;
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && raw !== null && 'id' in (raw as Record<string, unknown>)) {
+    const id = (raw as Record<string, unknown>).id;
+    return id != null ? String(id) : '';
+  }
+  return String(raw);
+}
+
 const inputCls = 'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236]';
 const labelCls = 'text-xs font-medium text-gray-700 dark:text-[#a1a1aa]';
 const textareaCls = 'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm text-gray-900 dark:text-white font-mono placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236]';
+
+// Facebook-style dropdown: the field itself is always visible; skeleton rows render
+// INSIDE the opened options panel while vendor-owned addresses load — never in place of the field.
+function ActiveAddressDropdown({
+  value,
+  options,
+  loading,
+  error,
+  onChange,
+}: {
+  value: string;
+  options: VendorAddressOption[];
+  loading: boolean;
+  error: string | null;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  const trimmed = value.trim();
+  const selected = options.find((a) => String(a.id) === trimmed);
+  const buttonLabel = !trimmed
+    ? '— Select —'
+    : selected
+      ? `#${selected.id} — ${(selected.formatted_address || `${selected.street}, ${selected.locality}`).slice(0, 80)}`
+      : `#${trimmed}`;
+
+  const pick = (v: string) => {
+    onChange(v);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="relative mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm text-left text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236] flex items-center justify-between gap-2"
+      >
+        <span className={`truncate font-mono ${!trimmed ? 'text-gray-400' : ''}`}>{buttonLabel}</span>
+        <ChevronDown className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div role="listbox" className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] shadow-lg overflow-hidden">
+          {loading ? (
+            <div className="p-2 space-y-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-10 rounded-md bg-gray-100 dark:bg-[#262626] animate-pulse" />
+              ))}
+            </div>
+          ) : error && options.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-red-600">{error}</p>
+          ) : options.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-gray-500">No addresses found</p>
+          ) : (
+            <ul className="max-h-60 overflow-auto py-1">
+              <li>
+                <button type="button" onClick={() => pick('')} className="w-full text-left px-3 py-2.5 text-sm text-gray-400 hover:bg-gray-50 dark:hover:bg-[#262626]">
+                  — Select —
+                </button>
+              </li>
+              {options.map((a) => {
+                const active = String(a.id) === trimmed;
+                return (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onClick={() => pick(String(a.id))}
+                      className={`w-full text-left px-3 py-2.5 text-sm font-mono hover:bg-gray-50 dark:hover:bg-[#262626] ${active ? 'text-gray-900 dark:text-white font-semibold bg-[#eba236]/10' : 'text-gray-700 dark:text-[#a1a1aa]'}`}
+                    >
+                      #{a.id} — {(a.formatted_address || `${a.street}, ${a.locality}`).slice(0, 80)}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function buildHours(src: unknown): Record<string, { open: string; close: string; closed: boolean; periods?: { open: string; close: string }[] }> {
   const out: Record<string, { open: string; close: string; closed: boolean; periods?: { open: string; close: string }[] }> = {};
@@ -149,6 +278,45 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
   const [storeFrontImageId, setStoreFrontImageId] = useState<string | number | undefined>(initial?.media?.storeFrontImage?.id);
   const [interiorIds, setInteriorIds] = useState<(string | number)[]>(() => extractMediaIds((initial?.media as any)?.interiorImages ?? (initial as any)?.interiorImages));
   const [menuIds, setMenuIds] = useState<(string | number)[]>(() => extractMediaIds((initial?.media as any)?.menuImages ?? (initial as any)?.menuImages));
+  // Active Address picker — strict parity with CMS /admin/collections/merchants/:id.
+  // Rule (Merchants.activeAddress.filterOptions): merchant.vendor -> vendors.user
+  // -> only addresses where { user equals vendorUserId }.
+  const [vendorAddresses, setVendorAddresses] = useState<VendorAddressOption[]>([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [addressesError, setAddressesError] = useState<string | null>(null);
+
+  const loadVendorAddresses = async (outletId?: string | number) => {
+    setAddressesLoading(true);
+    setAddressesError(null);
+    try {
+      // Edit: pass outlet context so the BFF resolves via THAT outlet's vendor
+      // (mirrors filterOptions `data.vendor`). Create: no outlet yet, BFF resolves
+      // via the logged-in vendor (vendors where user == authUser.id).
+      // Source is ONLY collection 'addresses' (see CMS vendor/addresses route).
+      const qs = outletId != null && String(outletId).trim() !== '' ? `?outletId=${encodeURIComponent(String(outletId))}` : '';
+      const res = await fetch(`/api/addresses${qs}`, { cache: 'no-store' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Failed to load addresses');
+      const arr = Array.isArray(j.addresses) ? j.addresses : [];
+      setVendorAddresses(arr.map((a: Record<string, unknown>) => ({
+        id: Number(a.id),
+        formatted_address: String((a.formatted_address ?? a.formattedAddress ?? '') as string),
+        formattedAddress: String((a.formattedAddress ?? a.formatted_address ?? '') as string),
+        street: String((a.street ?? '') as string),
+        locality: String((a.locality ?? '') as string),
+        province: String((a.province ?? '') as string),
+        postal_code: String(((a.postal_code ?? a.postalCode) ?? '') as string),
+      })).filter((a: VendorAddressOption) => Number.isFinite(a.id)));
+    } catch (e: unknown) {
+      setAddressesError(e instanceof Error ? e.message : 'Failed to load addresses');
+    } finally {
+      setAddressesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadVendorAddresses((initial as OutletDoc | null | undefined)?.id);
+  }, [(initial as OutletDoc | null | undefined)?.id]);
 
   const [form, setForm] = useState({
     outletName: initial?.outletName || '',
@@ -161,17 +329,7 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
     isCurrentlyDelivering: (initial as any)?.is_currently_delivering ?? (initial as any)?.isCurrentlyDelivering ?? true,
     operationalStatus: initial?.operationalStatus || 'open',
     timezone: (initial as any)?.timezone || 'Asia/Manila',
-    street: initial?.address?.street || '',
-    locality: initial?.address?.locality || '',
-    province: initial?.address?.province || '',
-    postalCode: initial?.address?.postalCode || '',
-    country: initial?.address?.country || 'PH',
-    barangay: (initial?.address as any)?.barangay || '',
-    floorUnitRoom: (initial?.address as any)?.floor_unit_room || (initial?.address as any)?.floorUnitRoom || '',
-    deliveryInstructions: (initial?.address as any)?.delivery_instructions || (initial?.address as any)?.deliveryInstructions || '',
-    landmarkDescription: (initial?.address as any)?.landmark_description || (initial?.address as any)?.landmarkDescription || '',
-    latitude: initial?.address?.latitude ? String(initial.address.latitude) : '',
-    longitude: initial?.address?.longitude ? String(initial.address.longitude) : '',
+    activeAddressId: getInitialActiveAddressId(initial as OutletDoc | null | undefined),
     locationAccuracyRadius: (initial as any)?.location_accuracy_radius != null ? String((initial as any).location_accuracy_radius) : (initial as any)?.locationAccuracyRadius != null ? String((initial as any).locationAccuracyRadius) : '',
     peakHoursMultiplier: (initial as any)?.peak_hours_multiplier != null ? String((initial as any).peak_hours_multiplier) : '',
     avgDeliveryTimeMinutes: (initial as any)?.avg_delivery_time_minutes != null ? String((initial as any).avg_delivery_time_minutes) : '',
@@ -229,17 +387,7 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
       isCurrentlyDelivering: (initial as any)?.is_currently_delivering ?? (initial as any)?.isCurrentlyDelivering ?? true,
       operationalStatus: initial.operationalStatus || 'open',
       timezone: (initial as any)?.timezone || 'Asia/Manila',
-      street: initial.address?.street || '',
-      locality: initial.address?.locality || '',
-      province: initial.address?.province || '',
-      postalCode: initial.address?.postalCode || '',
-      country: initial.address?.country || 'PH',
-      barangay: (initial.address as any)?.barangay || '',
-      floorUnitRoom: (initial.address as any)?.floor_unit_room || (initial.address as any)?.floorUnitRoom || '',
-      deliveryInstructions: (initial.address as any)?.delivery_instructions || (initial.address as any)?.deliveryInstructions || '',
-      landmarkDescription: (initial.address as any)?.landmark_description || (initial.address as any)?.landmarkDescription || '',
-      latitude: initial.address?.latitude ? String(initial.address.latitude) : '',
-      longitude: initial.address?.longitude ? String(initial.address.longitude) : '',
+      activeAddressId: getInitialActiveAddressId(initial as OutletDoc | null | undefined),
       locationAccuracyRadius: (initial as any)?.location_accuracy_radius != null ? String((initial as any).location_accuracy_radius) : (initial as any)?.locationAccuracyRadius != null ? String((initial as any).locationAccuracyRadius) : '',
       peakHoursMultiplier: (initial as any)?.peak_hours_multiplier != null ? String((initial as any).peak_hours_multiplier) : '',
       avgDeliveryTimeMinutes: (initial as any)?.avg_delivery_time_minutes != null ? String((initial as any).avg_delivery_time_minutes) : '',
@@ -275,12 +423,15 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
     setError(null);
     if (!form.outletName.trim() || form.outletName.trim().length < 2) return setError('Outlet name is required (min 2 chars)');
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setError('Contact email is invalid');
+    // Active Address is the ONLY address source (same relationship as CMS merchants.activeAddress → addresses).
+    // It must be an address owned by the vendor user owner of this merchant — never manual street/city/province inputs.
+    if (!form.activeAddressId.trim()) return setError('Active Address is required — select an address owned by the vendor user');
+    {
+      const n = Number(form.activeAddressId.trim());
+      if (!Number.isFinite(n) || n <= 0) return setError('Active Address must be a valid address from the dropdown');
+    }
     // IANA timezone validation
     try { Intl.DateTimeFormat(undefined, { timeZone: form.timezone.trim() }); } catch { return setError('Timezone must be a valid IANA identifier (e.g. Asia/Manila)'); }
-    const latNum = form.latitude.trim() ? parseFloat(form.latitude) : null;
-    const lngNum = form.longitude.trim() ? parseFloat(form.longitude) : null;
-    if (form.latitude.trim() && (latNum === null || Number.isNaN(latNum) || latNum < -90 || latNum > 90)) return setError('Latitude must be between -90 and 90');
-    if (form.longitude.trim() && (lngNum === null || Number.isNaN(lngNum) || lngNum < -180 || lngNum > 180)) return setError('Longitude must be between -180 and 180');
     if (form.locationAccuracyRadius.trim()) {
       const n = Number(form.locationAccuracyRadius);
       if (Number.isNaN(n) || n < 0) return setError('Location accuracy radius must be >= 0');
@@ -366,42 +517,9 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
 
     setSaving(true);
     try {
-      // ── Enterprise payload builder: mirror web-admin VendorForm pattern ──
-      // Only include keys that are meaningful/dirty. `undefined` = not touched (CMS ignores),
-      // `null` = explicit clear, string/number = new value. This prevents the destructive
-      // `address: { street: null, locality: null, ...}` that previously wiped the DB address
-      // on every name-only edit and the `media: { thumbnail: 26, storeFrontImage: null }` that
-      // cleared storeFrontImage when user only changed outletName.
-      const initialAddr: any = (initial as any)?.address;
+      // Address source of truth is ONLY merchants.activeAddress (relationship → addresses).
+      // Never send manual address object — the dropdown of vendor-owned addresses is the single source.
       const initialMedia: any = (initial as any)?.media;
-      const isAddrDirty =
-        !isEdit ||
-        form.street.trim() !== (initialAddr?.street || '') ||
-        form.locality.trim() !== (initialAddr?.locality || '') ||
-        form.province.trim() !== (initialAddr?.province || '') ||
-        form.postalCode.trim() !== (initialAddr?.postalCode || '') ||
-        form.country.trim() !== (initialAddr?.country || 'PH') ||
-        (latNum !== null ? String(latNum) : '') !== (initialAddr?.latitude ? String(initialAddr.latitude) : '') ||
-        (lngNum !== null ? String(lngNum) : '') !== (initialAddr?.longitude ? String(initialAddr.longitude) : '') ||
-        form.barangay.trim() !== ((initialAddr?.barangay) || '') ||
-        form.floorUnitRoom.trim() !== ((initialAddr?.floor_unit_room ?? initialAddr?.floorUnitRoom) || '') ||
-        form.deliveryInstructions.trim() !== ((initialAddr?.delivery_instructions ?? initialAddr?.deliveryInstructions) || '') ||
-        form.landmarkDescription.trim() !== ((initialAddr?.landmark_description ?? initialAddr?.landmarkDescription) || '')
-      const addressPayload: Record<string, unknown> | undefined = !isAddrDirty
-        ? undefined
-        : {
-            ...(form.street.trim() ? { street: form.street.trim() } : {}),
-            ...(form.locality.trim() ? { locality: form.locality.trim() } : {}),
-            ...(form.province.trim() ? { province: form.province.trim() } : {}),
-            ...(form.postalCode.trim() ? { postalCode: form.postalCode.trim() } : {}),
-            ...(form.country.trim() && form.country.trim() !== (initialAddr?.country || 'PH') ? { country: form.country.trim() } : isAddrDirty && form.country.trim() ? { country: form.country.trim() } : {}),
-            ...(latNum !== null ? { latitude: latNum } : {}),
-            ...(lngNum !== null ? { longitude: lngNum } : {}),
-            ...(form.barangay.trim() ? { barangay: form.barangay.trim() } : form.barangay !== ((initialAddr?.barangay) || '') && form.barangay.trim() === '' && isEdit ? { barangay: null } : {}),
-            ...(form.floorUnitRoom.trim() ? { floor_unit_room: form.floorUnitRoom.trim() } : form.floorUnitRoom !== ((initialAddr?.floor_unit_room ?? initialAddr?.floorUnitRoom) || '') && form.floorUnitRoom.trim() === '' && isEdit ? { floor_unit_room: null } : {}),
-            ...(form.deliveryInstructions.trim() ? { delivery_instructions: form.deliveryInstructions.trim() } : form.deliveryInstructions !== ((initialAddr?.delivery_instructions ?? initialAddr?.deliveryInstructions) || '') && form.deliveryInstructions.trim() === '' && isEdit ? { delivery_instructions: null } : {}),
-            ...(form.landmarkDescription.trim() ? { landmark_description: form.landmarkDescription.trim() } : form.landmarkDescription !== ((initialAddr?.landmark_description ?? initialAddr?.landmarkDescription) || '') && form.landmarkDescription.trim() === '' && isEdit ? { landmark_description: null } : {}),
-          }
       // Media: only send when id actually changed (like web-admin VendorForm does with `if (logoId)` )
       const initialThumb = initialMedia?.thumbnail?.id != null ? String(initialMedia.thumbnail.id) : ''
       const initialStore = initialMedia?.storeFrontImage?.id != null ? String(initialMedia.storeFrontImage.id) : ''
@@ -428,6 +546,8 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
       // Dirty checks for new top-level fields
       const initialTimezone = (initial as any)?.timezone || 'Asia/Manila';
       const timezoneDirty = !isEdit ? form.timezone.trim() !== 'Asia/Manila' : form.timezone.trim() !== initialTimezone;
+      const initialActiveAddressId = getInitialActiveAddressId(initial as OutletDoc | null | undefined);
+      const activeAddressDirty = form.activeAddressId.trim() !== initialActiveAddressId;
       const initialDelivering = (initial as any)?.is_currently_delivering ?? (initial as any)?.isCurrentlyDelivering ?? true;
       const deliveringDirty = !isEdit ? form.isCurrentlyDelivering !== true : form.isCurrentlyDelivering !== initialDelivering;
       const initialSlot = isoToLocal((initial as any)?.next_available_slot ?? (initial as any)?.nextAvailableSlot);
@@ -477,7 +597,11 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
         ...(larDirty ? { location_accuracy_radius: form.locationAccuracyRadius.trim() ? Number(form.locationAccuracyRadius) : null } : {}),
         ...(peakDirty ? { peak_hours_multiplier: form.peakHoursMultiplier.trim() ? Number(form.peakHoursMultiplier) : null } : {}),
         ...(avgDirty ? { avg_delivery_time_minutes: form.avgDeliveryTimeMinutes.trim() ? Number(form.avgDeliveryTimeMinutes) : null } : {}),
-        ...(addressPayload && Object.keys(addressPayload).length > 0 ? { address: addressPayload } : {}),
+        // Active Address relationship ONLY (parity with CMS /admin/collections/merchants/:id).
+        // Never send `address: {...}` manual object. Create: always link. Edit: link when changed.
+        ...(!isEdit
+          ? { activeAddress: Number(form.activeAddressId.trim()) }
+          : (activeAddressDirty ? { activeAddress: Number(form.activeAddressId.trim()) } : {})),
         ...(mediaPayload && Object.keys(mediaPayload).length > 0 ? { media: mediaPayload } : {}),
       };
 
@@ -511,17 +635,7 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
           isCurrentlyDelivering: (updatedDoc as any).is_currently_delivering ?? (updatedDoc as any).isCurrentlyDelivering ?? prev.isCurrentlyDelivering,
           operationalStatus: updatedDoc.operationalStatus ?? prev.operationalStatus,
           timezone: (updatedDoc as any).timezone ?? prev.timezone,
-          street: updatedDoc.address?.street ?? prev.street,
-          locality: updatedDoc.address?.locality ?? prev.locality,
-          province: updatedDoc.address?.province ?? prev.province,
-          postalCode: updatedDoc.address?.postalCode ?? prev.postalCode,
-          country: updatedDoc.address?.country ?? prev.country,
-          barangay: (updatedDoc.address as any)?.barangay ?? prev.barangay,
-          floorUnitRoom: (updatedDoc.address as any)?.floor_unit_room ?? (updatedDoc.address as any)?.floorUnitRoom ?? prev.floorUnitRoom,
-          deliveryInstructions: (updatedDoc.address as any)?.delivery_instructions ?? (updatedDoc.address as any)?.deliveryInstructions ?? prev.deliveryInstructions,
-          landmarkDescription: (updatedDoc.address as any)?.landmark_description ?? (updatedDoc.address as any)?.landmarkDescription ?? prev.landmarkDescription,
-          latitude: updatedDoc.address?.latitude != null ? String(updatedDoc.address.latitude) : prev.latitude,
-          longitude: updatedDoc.address?.longitude != null ? String(updatedDoc.address.longitude) : prev.longitude,
+          activeAddressId: getInitialActiveAddressId(updatedDoc as OutletDoc),
           locationAccuracyRadius: (updatedDoc as any).location_accuracy_radius != null ? String((updatedDoc as any).location_accuracy_radius) : prev.locationAccuracyRadius,
           peakHoursMultiplier: (updatedDoc as any).peak_hours_multiplier != null ? String((updatedDoc as any).peak_hours_multiplier) : prev.peakHoursMultiplier,
           avgDeliveryTimeMinutes: (updatedDoc as any).avg_delivery_time_minutes != null ? String((updatedDoc as any).avg_delivery_time_minutes) : prev.avgDeliveryTimeMinutes,
@@ -646,22 +760,21 @@ export function OutletForm({ initial, onSuccess, onCancel }: { initial?: OutletD
           <p className="text-xs text-gray-400 mt-2">Arrays stored as JSON via media group. Use Add image to upload.</p>
         </div>
 
-        {/* 3. Address */}
+        {/* 3. Active Address — simple dropdown of vendor-owned addresses. No manual inputs. */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><MapPin className="w-4 h-4 text-[#eba236]" /> Location & address</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="sm:col-span-2"><label className={labelCls}>Street address</label><input value={form.street} onChange={(e) => set('street', e.target.value)} placeholder="28th St cor. 7th Ave, BGC" className={inputCls} /></div>
-            <div><label className={labelCls}>City / Locality</label><input value={form.locality} onChange={(e) => set('locality', e.target.value)} placeholder="Taguig" className={inputCls} /></div>
-            <div><label className={labelCls}>Province / State</label><input value={form.province} onChange={(e) => set('province', e.target.value)} placeholder="Metro Manila" className={inputCls} /></div>
-            <div><label className={labelCls}>Barangay</label><input value={form.barangay} onChange={(e) => set('barangay', e.target.value)} placeholder="Fort Bonifacio" className={inputCls} /></div>
-            <div><label className={labelCls}>Floor / Unit / Room</label><input value={form.floorUnitRoom} onChange={(e) => set('floorUnitRoom', e.target.value)} placeholder="Unit 3A, 2nd Floor" className={inputCls} /></div>
-            <div><label className={labelCls}>Postal code</label><input value={form.postalCode} onChange={(e) => set('postalCode', e.target.value)} placeholder="1634" className={`${inputCls} font-mono`} /></div>
-            <div><label className={labelCls}>Country</label><input value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="PH" className={inputCls} /></div>
-            <div><label className={labelCls}>Latitude</label><input value={form.latitude} onChange={(e) => set('latitude', e.target.value)} placeholder="14.5500" className={`${inputCls} font-mono`} /></div>
-            <div><label className={labelCls}>Longitude</label><input value={form.longitude} onChange={(e) => set('longitude', e.target.value)} placeholder="121.0500" className={`${inputCls} font-mono`} /></div>
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><MapPin className="w-4 h-4 text-[#eba236]" /> Active Address *</h4>
+          <div>
+            <label className={labelCls}>Active Address</label>
+            <ActiveAddressDropdown
+              value={form.activeAddressId}
+              options={vendorAddresses}
+              loading={addressesLoading}
+              error={addressesError}
+              onChange={(v) => set('activeAddressId', v)}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
             <div><label className={labelCls}>Location accuracy radius (m)</label><input type="number" min={0} value={form.locationAccuracyRadius} onChange={(e) => set('locationAccuracyRadius', e.target.value)} placeholder="50" className={`${inputCls} font-mono`} /></div>
-            <div className="sm:col-span-2"><label className={labelCls}>Delivery instructions</label><textarea value={form.deliveryInstructions} onChange={(e) => set('deliveryInstructions', e.target.value)} rows={2} placeholder="Ring doorbell twice, leave at front desk" className={inputCls} /></div>
-            <div className="sm:col-span-2"><label className={labelCls}>Landmark description</label><textarea value={form.landmarkDescription} onChange={(e) => set('landmarkDescription', e.target.value)} rows={2} placeholder="Near Ministop, beside BGC High Street" className={inputCls} /></div>
           </div>
         </div>
 

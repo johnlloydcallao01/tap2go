@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback=''): string { return typeof v==='string'?v:fallback }
 function optionalString(v: unknown): string | null { return typeof v==='string'?v.trim()||null:null }
@@ -159,6 +160,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     let updated: Record<string, any>
     try { updated = await payload.update({ collection: 'variation-modifier-option-overrides', id: docId as number, data: patch as any, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch(e:any){ const msg=e?.message||'Failed to update variation modifier option override'; const lower=String(msg).toLowerCase(); if(lower.includes('unique')||lower.includes('duplicate')) return NextResponse.json({ error: 'Duplicate variation_id + base_modifier_option_id combination', details: msg }, { status:409 }); return NextResponse.json({ error: msg, details: e?.data||e?.errors }, { status:400 }) }
     const sanitized=sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /catalog/variation-modifier-option-overrides
+    await deleteCachedByPrefix('admin:catalog-variation-modifier-option-overrides:')
     return NextResponse.json({ success: true, message: 'Variation modifier option override updated successfully', doc: sanitized })
   } catch(err:any){ console.error('[admin/catalog/variation-modifier-option-overrides/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message||'Update failed' }, { status:500 }) }
 }
@@ -174,6 +177,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted:any
     try { deleted = await payload.delete({ collection: 'variation-modifier-option-overrides', id: docId as number, overrideAccess: true }) } catch(e:any){ return NextResponse.json({ error: e?.message||'Failed to delete variation modifier option override' }, { status:400 }) }
     if(!deleted) return NextResponse.json({ error: 'Variation modifier option override not found' }, { status:404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/variation-modifier-option-overrides
+    await deleteCachedByPrefix('admin:catalog-variation-modifier-option-overrides:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Variation modifier option override deleted successfully' })
   } catch(err:any){ console.error('[admin/catalog/variation-modifier-option-overrides/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message||'Delete failed' }, { status:500 }) }
 }

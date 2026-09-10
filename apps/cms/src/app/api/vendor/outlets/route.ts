@@ -49,6 +49,13 @@ function sanitizeAddress(addr: unknown): Record<string, any> | null {
     country: getStr(obj.country, 'PH'),
     latitude: getNum(obj.latitude),
     longitude: getNum(obj.longitude),
+    barangay: getStr(obj.barangay),
+    floor_unit_room: getStr(obj.floor_unit_room),
+    floorUnitRoom: getStr(obj.floor_unit_room),
+    delivery_instructions: getStr(obj.delivery_instructions),
+    deliveryInstructions: getStr(obj.delivery_instructions),
+    landmark_description: getStr(obj.landmark_description),
+    landmarkDescription: getStr(obj.landmark_description),
   }
 }
 
@@ -69,6 +76,14 @@ function sanitizeMerchant(m: Record<string, any>): Record<string, any> {
   const contactInfo = m.contactInfo && typeof m.contactInfo === 'object' ? m.contactInfo : {}
   const delSettings = m.deliverySettings && typeof m.deliverySettings === 'object' ? m.deliverySettings : {}
   const media = m.media && typeof m.media === 'object' ? m.media : {}
+  // Expose the CMS `merchants.activeAddress` relationship id explicitly so
+  // web-merchant can render the same "Active Address" field as Payload admin.
+  const activeAddressId =
+    m.activeAddress != null && typeof m.activeAddress === 'object' && 'id' in (m.activeAddress as Record<string, unknown>)
+      ? Number((m.activeAddress as Record<string, unknown>).id)
+      : m.activeAddress != null && (typeof m.activeAddress === 'number' || typeof m.activeAddress === 'string')
+        ? Number(m.activeAddress)
+        : null
 
   return {
     id: String(m.id),
@@ -101,6 +116,8 @@ function sanitizeMerchant(m: Record<string, any>): Record<string, any> {
       deliveryFeePerKm: getNum(m.delivery_fee_per_km, 0),
     },
     address: sanitizeAddress(m.activeAddress),
+    activeAddress: sanitizeAddress(m.activeAddress),
+    activeAddressId: Number.isFinite(activeAddressId) ? activeAddressId : null,
     coordinates: {
       latitude: getNum(m.merchant_latitude || (m.activeAddress as any)?.latitude, 0),
       longitude: getNum(m.merchant_longitude || (m.activeAddress as any)?.longitude, 0),
@@ -213,16 +230,43 @@ export async function POST(request: NextRequest) {
       ? body.outletCode.trim().toUpperCase()
       : `OUT-${Date.now().toString(36).toUpperCase()}`
 
-    // Create address doc if structured address is provided
+    // Active Address linking — EXACT mirror of Merchants.activeAddress.filterOptions
+    // (collections/Merchants.ts): allowed ids are addresses where
+    // { user equals vendorUserId }, where vendorUserId = vendors.user for this outlet's vendor.
+    // When provided, we link it directly instead of creating a new addresses doc.
     let addressId: number | null = null
-    if (body.address && typeof body.address === 'object') {
+    const activeLinkRaw = (body as Record<string, any>).activeAddress ?? (body as Record<string, any>).activeAddressId
+    // vendor.user is the owner id the collection filters by (vendors.user required, role=vendor).
+    const vendorOwnerId =
+      (vendor as Record<string, any>).user != null
+        ? typeof (vendor as Record<string, any>).user === 'object'
+          ? Number(((vendor as Record<string, any>).user as Record<string, unknown>).id)
+          : Number((vendor as Record<string, any>).user)
+        : Number(authUser.id)
+    if (activeLinkRaw !== undefined && activeLinkRaw !== null && String(activeLinkRaw).trim() !== '') {
+      const n = Number(activeLinkRaw)
+      if (!Number.isFinite(n) || n <= 0) return badRequest('activeAddress must be a numeric address id')
+      let addrDoc: Record<string, any> | null = null
+      try {
+        addrDoc = (await payload.findByID({ collection: 'addresses', id: n, depth: 0, overrideAccess: true })) as unknown as Record<string, any>
+      } catch {
+        return badRequest('activeAddress not found')
+      }
+      if (!addrDoc) return badRequest('activeAddress not found')
+      const owner = typeof addrDoc.user === 'object' && addrDoc.user !== null ? (addrDoc.user as Record<string, unknown>).id : addrDoc.user
+      if (String(owner) !== String(vendorOwnerId)) {
+        return NextResponse.json({ error: `Forbidden: activeAddress must be owned by the vendor user (#${vendorOwnerId})` }, { status: 403 })
+      }
+      addressId = n
+    } else if (body.address && typeof body.address === 'object') {
       try {
         const addrData = body.address as Record<string, any>
         const formattedAddress = addrData.formattedAddress || `${addrData.street || ''}, ${addrData.locality || ''}, ${addrData.province || ''}`.trim() || outletName
         const newAddr = await payload.create({
           collection: 'addresses',
           data: {
-            user: authUser.id,
+            // New outlet addresses are owned by the vendor user (same owner the picker filters by).
+            user: vendorOwnerId,
             formatted_address: formattedAddress,
             street: addrData.street || null,
             locality: addrData.locality || null,

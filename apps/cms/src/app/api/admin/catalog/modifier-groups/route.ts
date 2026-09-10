@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -266,6 +266,8 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeDoc(created)
+    // Bust list cache (all admins / query variants) so the new group shows immediately
+    await deleteCachedByPrefix('admin:catalog-modifier-groups:')
     return NextResponse.json({ success: true, message: 'Modifier group created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/catalog/modifier-groups] POST error:', err)

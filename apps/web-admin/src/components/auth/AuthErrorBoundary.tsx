@@ -80,6 +80,12 @@ export class AuthErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
+      // Only label genuine auth failures as authentication errors.
+      // Anything else (e.g. "No QueryClient set") is a render bug and
+      // must not masquerade as an auth problem.
+      const message = this.state.error?.message || '';
+      const isAuthError = /auth|session|token|unauthorized|forbidden|sign.?in|login/i.test(message);
+
       return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
           <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
@@ -87,9 +93,9 @@ export class AuthErrorBoundary extends Component<Props, State> {
               <i className="fa fa-exclamation-triangle text-red-600 text-2xl"></i>
             </div>
 
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Authentication Error</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">{isAuthError ? 'Authentication Error' : 'Something went wrong'}</h2>
 
-            <p className="text-gray-600 mb-6">Something went wrong with the authentication system. Please try again.</p>
+            <p className="text-gray-600 mb-6">{isAuthError ? 'Something went wrong with the authentication system. Please try again.' : 'The page failed to render. Please try again.'}</p>
 
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-left">

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback = ''): string { return typeof v === 'string' ? v : fallback }
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -257,6 +258,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const sanitized = sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /catalog/merchant-variation-modifier-option-overrides
+    await deleteCachedByPrefix('admin:catalog-merchant-variation-modifier-option-overrides:')
     return NextResponse.json({ success: true, message: 'Merchant variation modifier option override updated successfully', doc: sanitized })
   } catch (err:any) { console.error('[admin/catalog/merchant-variation-modifier-option-overrides/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message||'Update failed' }, { status: 500 }) }
 }
@@ -273,6 +276,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted: any
     try { deleted = await payload.delete({ collection: 'merchant-variation-modifier-option-overrides', id: docId as number, overrideAccess: true }) } catch (e:any) { return NextResponse.json({ error: e?.message||'Failed to delete merchant variation modifier option override' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Merchant variation modifier option override not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/merchant-variation-modifier-option-overrides
+    await deleteCachedByPrefix('admin:catalog-merchant-variation-modifier-option-overrides:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Merchant variation modifier option override deleted successfully' })
   } catch (err:any) { console.error('[admin/catalog/merchant-variation-modifier-option-overrides/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message||'Delete failed' }, { status: 500 }) }
 }

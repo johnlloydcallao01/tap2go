@@ -96,4 +96,8 @@ export const QUERY_KEYS = {
     ['admin', 'products', params ?? 'default'] as const,
   merchantDashboard: (merchantId?: string) =>
     ['merchant', 'dashboard', merchantId ?? 'me'] as const,
+  merchantAnalytics: (params?: string) =>
+    ['merchant', 'analytics', params ?? 'default'] as const,
+  merchantReports: (params?: string) =>
+    ['merchant', 'reports', params ?? 'default'] as const,
 } as const;

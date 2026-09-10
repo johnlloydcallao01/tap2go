@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fb = ''): string {
   return typeof v === 'string' ? v : fb
@@ -270,6 +270,8 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeDoc(created)
+    // Bust list cache (all admins / query variants) so the new item shows immediately
+    await deleteCachedByPrefix('admin:catalog-grouped-items:')
     return NextResponse.json({ success: true, message: 'Grouped item created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/catalog/grouped-items] POST error:', err)

@@ -16,7 +16,11 @@ export async function GET(request: NextRequest){
     if(!forward.get('range')) forward.set('range','30d')
     const res=await fetch(`${CMS_BASE}/vendor/reports?${forward.toString()}`,{headers:{Authorization:`JWT ${token}`}, cache:'no-store'})
     if(!res.ok) return NextResponse.json({error:'Failed to load vendor reports'},{status:res.status})
-    return NextResponse.json(await res.json())
+    const data=await res.json()
+    const headers=new Headers({'Content-Type':'application/json'})
+    const cacheStatus=res.headers.get('X-VendorReports-Cache')
+    if(cacheStatus) headers.set('X-VendorReports-Cache',cacheStatus)
+    return NextResponse.json(data,{headers})
   }catch{
     return NextResponse.json({error:'Failed to reach CMS'},{status:502})
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Tag } from '@/components/ui/IconWrapper'
 import { TagForm } from '../_components/TagForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewTagSkeleton(){
 
 function NewTagContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/tags')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/tags
+    // remounts with fresh-but-stale data and the new tag is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'tags'] })
+    router.push('/catalog/tags')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewTagContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Add a new product tag with color and hierarchy.</p>
         </div>
       </div>
-      <TagForm onSuccess={() => router.push('/catalog/tags')} onCancel={handleBack} />
+      <TagForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

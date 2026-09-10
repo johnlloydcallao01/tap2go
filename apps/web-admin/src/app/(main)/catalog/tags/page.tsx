@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
-import { useTags, type TagDoc } from '@/hooks/useTags'
+import { useTags, type TagDoc, type TagsResponse } from '@/hooks/useTags'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Tag, Layers, Sparkles, Star, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
@@ -82,6 +82,7 @@ function TagsPageContent(){
   const [showFilters, setShowFilters] = useState(false)
 
   const [deleting, setDeleting] = useState<TagDoc | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
@@ -138,7 +139,8 @@ function TagsPageContent(){
   const clearAll = () => { setQ(''); setDebouncedQ(''); setTagTypeFilter([]); setIsActiveFilter(null); setIsFeaturedFilter(null); setHierarchyFilter(null) }
 
   const handleDelete = async () => {
-    if (!deleting) return
+    if (!deleting || isDeleting) return
+    setIsDeleting(true)
     setDeleteError(null)
     try {
       const res = await fetch(`/api/catalog/tags/${deleting.id}`, { method: 'DELETE' })
@@ -148,8 +150,39 @@ function TagsPageContent(){
         if (j.code === 'HAS_CHILDREN') { setDeleteError(j.error || 'Tag has child tags'); return }
         throw new Error(j.error || 'Failed to delete')
       }
-      setDeleting(null); await refetch()
+      const deletedId = deleting.id
+      // Optimistic removal across every cached tags list (all pages/filters).
+      // Segment-guard keeps sibling catalog queries untouched.
+      // The row vanishes instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<TagsResponse>(
+        {
+          queryKey: ['admin', 'catalog', 'tags'],
+          predicate: (q) => q.queryKey.length === 4 && q.queryKey[2] === 'tags' && typeof q.queryKey[3] === 'string',
+        },
+        (old) => {
+          if (!old || !Array.isArray(old.docs)) return old
+          const docs = old.docs.filter((d) => d.id !== deletedId)
+          const removed = old.docs.length - docs.length
+          if (!removed) return old
+          const limit = Math.max(1, old.pagination?.limit ?? 10)
+          const totalDocs = Math.max(0, (old.pagination?.totalDocs ?? old.docs.length) - removed)
+          const pagination = old.pagination
+            ? { ...old.pagination, totalDocs, totalPages: Math.max(1, Math.ceil(totalDocs / limit)) }
+            : old.pagination
+          const stats = old.stats
+            ? { ...old.stats, total: Math.max(0, old.stats.total - removed), filteredCount: Math.max(0, old.stats.filteredCount - removed) }
+            : old.stats
+          return { ...old, docs, pagination, stats }
+        }
+      )
+      setDeleting(null)
+      // Bust every cached tags list (all pages/filters) so the removal
+      // reconciles with the server instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'tags'] })
+      await refetch()
     } catch (e: any) { setDeleteError(e?.message || 'Delete failed') }
+    finally { setIsDeleting(false) }
   }
 
   return (
@@ -376,15 +409,18 @@ function TagsPageContent(){
 
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) setDeleting(null) }}>
             <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
               <div className="h-12 w-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4"><Trash2 className="w-6 h-6 text-red-600" /></div>
               <h3 className="font-bold text-gray-900 dark:text-white">Delete tag?</h3>
               <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">This will permanently delete <span className="font-semibold text-gray-900 dark:text-white">{deleting.name}</span> ({deleting.slug}). {(deleting.productCount > 0 || deleting.groupCount > 0) ? `It is in use — ${deleting.productCount} product(s), ${deleting.groupCount} group(s) — you must reassign first.` : 'This action cannot be undone.'}</p>
               {deleteError && <p className="text-sm text-red-600 mt-3">{deleteError}</p>}
               <div className="flex gap-2 mt-6">
-                <button onClick={() => setDeleting(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626]">Cancel</button>
-                <button onClick={handleDelete} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">Confirm delete</button>
+                <button onClick={() => setDeleting(null)} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleDelete} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Deleting…' : 'Confirm delete'}
+                </button>
               </div>
               {(deleting.productCount > 0 || deleting.groupCount > 0) && <p className="text-xs text-amber-600 mt-3">Blocked: tag is in use. BFF will reject with 409 IN_USE. Child tags also block with 409 HAS_CHILDREN.</p>}
             </div>

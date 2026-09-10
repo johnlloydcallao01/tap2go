@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fb = ''): string {
   return typeof v === 'string' ? v : fb
@@ -185,6 +186,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const sanitized = sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /catalog/grouped-items
+    await deleteCachedByPrefix('admin:catalog-grouped-items:')
     return NextResponse.json({ success: true, message: 'Grouped item updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/catalog/grouped-items/[id]] PATCH error:', err)
@@ -208,6 +211,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: e?.message || 'Failed to delete grouped item' }, { status: 400 })
     }
     if (!deleted) return NextResponse.json({ error: 'Grouped item not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/grouped-items
+    await deleteCachedByPrefix('admin:catalog-grouped-items:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Grouped item deleted successfully' })
   } catch (err: any) {
     console.error('[admin/catalog/grouped-items/[id]] DELETE error:', err)

@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -403,6 +403,8 @@ export async function POST(request: NextRequest) {
       depth: 2,
       overrideAccess: true,
     })
+    // Bust list cache (all admins / query variants) so the new order shows immediately
+    await deleteCachedByPrefix('admin:orders:')
     return NextResponse.json(
       { success: true, message: 'Order created successfully', doc: sanitizeOrderDoc(created as Record<string, any>) },
       { status: 201 },

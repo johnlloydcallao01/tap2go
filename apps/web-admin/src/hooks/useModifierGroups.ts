@@ -42,7 +42,7 @@ export type ModifierGroupsResponse = {
 };
 
 async function fetchModifierGroups(qs: string, signal?: AbortSignal): Promise<ModifierGroupsResponse> {
-  const res = await fetch(`/api/catalog/modifier-groups?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/modifier-groups?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

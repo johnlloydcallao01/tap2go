@@ -41,7 +41,7 @@ export type GroupedItemsResponse = {
 };
 
 async function fetchGroupedItems(qs: string, signal?: AbortSignal): Promise<GroupedItemsResponse> {
-  const res = await fetch(`/api/catalog/grouped-items?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/grouped-items?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

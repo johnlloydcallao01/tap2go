@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fallback = ''): string { return typeof v === 'string' ? v : fallback }
 function num(v: unknown, fallback = 0): number { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v === 'string'){const n=Number(v); return Number.isFinite(n)?n:fallback} return fallback }
@@ -149,6 +150,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const sanitized = sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /catalog/modifier-groups
+    await deleteCachedByPrefix('admin:catalog-modifier-groups:')
     return NextResponse.json({ success: true, message: 'Modifier group updated successfully', doc: sanitized })
   } catch (err:any) { console.error('[admin/catalog/modifier-groups/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message||'Update failed' }, { status: 500 }) }
 }
@@ -177,6 +180,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted: any
     try { deleted = await payload.delete({ collection: 'modifier-groups', id: docId as number, overrideAccess: true }) } catch (e:any) { return NextResponse.json({ error: e?.message||'Failed to delete modifier group' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Modifier group not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/modifier-groups
+    await deleteCachedByPrefix('admin:catalog-modifier-groups:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Modifier group deleted successfully' })
   } catch (err:any) { console.error('[admin/catalog/modifier-groups/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message||'Delete failed' }, { status: 500 }) }
 }

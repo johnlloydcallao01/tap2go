@@ -77,6 +77,14 @@ function sanitizeMerchant(m: Record<string, any>): Record<string, any> {
   const contactInfo = m.contactInfo && typeof m.contactInfo === 'object' ? m.contactInfo : {}
   const delSettings = m.deliverySettings && typeof m.deliverySettings === 'object' ? m.deliverySettings : {}
   const media = m.media && typeof m.media === 'object' ? m.media : {}
+  // Expose the CMS `merchants.activeAddress` relationship id explicitly so
+  // web-merchant can render the same "Active Address" field as Payload admin.
+  const activeAddressId =
+    m.activeAddress != null && typeof m.activeAddress === 'object' && 'id' in (m.activeAddress as Record<string, unknown>)
+      ? Number((m.activeAddress as Record<string, unknown>).id)
+      : m.activeAddress != null && (typeof m.activeAddress === 'number' || typeof m.activeAddress === 'string')
+        ? Number(m.activeAddress)
+        : null
 
   // merchant_categories may be populated relationships or ids
   const catsRaw = m.merchant_categories
@@ -145,6 +153,8 @@ function sanitizeMerchant(m: Record<string, any>): Record<string, any> {
       deliveryFeePerKm: getNum(m.delivery_fee_per_km, 0),
     },
     address: sanitizeAddress(m.activeAddress),
+    activeAddress: sanitizeAddress(m.activeAddress),
+    activeAddressId: Number.isFinite(activeAddressId) ? activeAddressId : null,
     coordinates: {
       latitude: getNum(m.merchant_latitude || (m.activeAddress as any)?.latitude, 0),
       longitude: getNum(m.merchant_longitude || (m.activeAddress as any)?.longitude, 0),
@@ -462,13 +472,74 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
+    // Active Address linking — EXACT mirror of Merchants.activeAddress.filterOptions
+    // (collections/Merchants.ts): allowed ids are addresses where
+    // { user equals vendorUserId }, where vendorUserId = vendors.user for THIS outlet's vendor
+    // (merchant.vendor -> vendors.user). Manual `address.*` fields below then edit the
+    // newly-linked address (not the old one).
+    // Resolve vendorUserId exactly like the collection does:
+    // vendor as id -> vendors.findByID depth:1 -> vendors.user; vendor as object with .user -> extract.
+    let outletVendorUserId: number | null = null
+    {
+      const mv = (merchant as Record<string, any>).vendor
+      if (mv && typeof mv === 'object' && (mv as Record<string, unknown>).user) {
+        const u = (mv as Record<string, any>).user as unknown
+        outletVendorUserId =
+          typeof u === 'object' && u !== null && 'id' in (u as Record<string, unknown>)
+            ? Number((u as Record<string, unknown>).id)
+            : Number(u as string | number)
+        if (!Number.isFinite(outletVendorUserId)) outletVendorUserId = null
+      } else if (typeof mv === 'string' || typeof mv === 'number') {
+        try {
+          const vDoc = (await payload.findByID({ collection: 'vendors', id: mv as number, depth: 1, overrideAccess: true })) as unknown as Record<string, any>
+          const u = vDoc?.user as unknown
+          outletVendorUserId =
+            typeof u === 'object' && u !== null && 'id' in (u as Record<string, unknown>)
+              ? Number((u as Record<string, unknown>).id)
+              : Number(u as string | number)
+          if (!Number.isFinite(outletVendorUserId)) outletVendorUserId = null
+        } catch (e) {
+          console.error(`[vendor/outlets/[id]] PATCH:${requestId} outlet vendor lookup failed`, e)
+        }
+      }
+      // Fallback: ownership already verified outlet belongs to logged-in vendor.
+      if (outletVendorUserId == null) outletVendorUserId = Number(authUser.id)
+    }
+    const activeLinkRaw = (body as Record<string, any>).activeAddress ?? (body as Record<string, any>).activeAddressId
+    let linkedActiveAddressId: number | null = null
+    let activeAddressCleared = false
+    if (activeLinkRaw !== undefined) {
+      if (activeLinkRaw === null || (typeof activeLinkRaw === 'string' && activeLinkRaw.trim() === '')) {
+        patch.activeAddress = null
+        activeAddressCleared = true
+      } else {
+        const n = Number(activeLinkRaw)
+        if (!Number.isFinite(n) || n <= 0) return NextResponse.json({ error: 'activeAddress must be a numeric address id or null' }, { status: 400 })
+        let addrDoc: Record<string, any> | null = null
+        try {
+          addrDoc = (await payload.findByID({ collection: 'addresses', id: n, depth: 0, overrideAccess: true })) as unknown as Record<string, any>
+        } catch {
+          return NextResponse.json({ error: 'activeAddress not found' }, { status: 400 })
+        }
+        if (!addrDoc) return NextResponse.json({ error: 'activeAddress not found' }, { status: 400 })
+        const owner = typeof addrDoc.user === 'object' && addrDoc.user !== null ? (addrDoc.user as Record<string, unknown>).id : addrDoc.user
+        if (String(owner) !== String(outletVendorUserId)) {
+          return NextResponse.json({ error: `Forbidden: activeAddress must be owned by the vendor user (#${outletVendorUserId})` }, { status: 403 })
+        }
+        patch.activeAddress = n
+        linkedActiveAddressId = n
+        if (typeof addrDoc.latitude === 'number' && Number.isFinite(addrDoc.latitude)) patch.merchant_latitude = Number(addrDoc.latitude)
+        if (typeof addrDoc.longitude === 'number' && Number.isFinite(addrDoc.longitude)) patch.merchant_longitude = Number(addrDoc.longitude)
+      }
+    }
+
     // Address — enterprise-grade: only mutate when caller provides non-null, non-empty values.
     // Mirrors web-admin vendors pattern: never treat `null`/`""` as "provided". Frontend's
     // dirty-tracking already omits unchanged address keys, so `undefined` means "not touched".
     // This prevents the destructive wipe where a name-only edit (address: {street: null, ...})
     // would null out street/locality/province/postal_code and corrupt formatted_address.
     const hasAddressPayload = body.address && typeof body.address === 'object' && Object.keys(body.address).length > 0
-    if (hasAddressPayload) {
+    if (hasAddressPayload && !activeAddressCleared) {
       const addrData = body.address as Record<string, any>
       const isMeaningful = (v: unknown) => v !== undefined && v !== null && String(v).trim() !== ''
       const isAddrFieldProvided = (k: string) => isMeaningful(addrData[k])
@@ -478,8 +549,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const anyAddrFieldProvided =
         ['street', 'locality', 'province', 'postalCode', 'country', 'formattedAddress', 'barangay', 'floor_unit_room', 'floorUnitRoom', 'delivery_instructions', 'deliveryInstructions', 'landmark_description', 'landmarkDescription'].some(isAddrFieldProvided) || latProvided || lngProvided
       if (anyAddrFieldProvided) {
-        let addressId = typeof merchant.activeAddress === 'object' ? (merchant.activeAddress as unknown as Record<string, unknown>)?.id : merchant.activeAddress
-        const curAddr = (typeof merchant.activeAddress === 'object' ? merchant.activeAddress : null) as Record<string, unknown> | null
+        // When the caller just re-linked activeAddress, manual fields apply to the NEW address.
+        let addressId: unknown = linkedActiveAddressId ?? (typeof merchant.activeAddress === 'object' ? (merchant.activeAddress as unknown as Record<string, unknown>)?.id : merchant.activeAddress)
+        let curAddr = (typeof merchant.activeAddress === 'object' ? merchant.activeAddress : null) as Record<string, unknown> | null
+        if (linkedActiveAddressId) {
+          try {
+            const linkedDoc = (await payload.findByID({ collection: 'addresses', id: linkedActiveAddressId, depth: 0, overrideAccess: true })) as unknown as Record<string, unknown>
+            if (linkedDoc) curAddr = linkedDoc
+          } catch {
+            // fall back to merchant's previous address for formatted_address composition
+          }
+        }
         // Build formatted_address only from meaningful provided fields + existing fallbacks
         const streetVal = isAddrFieldProvided('street') ? String(addrData.street).trim() : null
         const localityVal = isAddrFieldProvided('locality') ? String(addrData.locality).trim() : null
@@ -542,7 +622,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             const newAddr = (await payload.create({
               collection: 'addresses',
               data: {
-                user: authUser.id,
+                // Owned by the outlet's vendor user (same owner the picker filters by).
+                user: outletVendorUserId,
                 formatted_address: formattedAddress,
                 street: streetVal ?? null,
                 locality: localityVal ?? null,
@@ -626,6 +707,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const expected = JSON.stringify(patch.delivery_hours)
       const actual = JSON.stringify(sanitized.delivery_hours)
       if (expected !== actual) mismatches.push({ field: 'delivery_hours', expected: patch.delivery_hours, actual: sanitized.delivery_hours })
+    }
+    if (patch.activeAddress !== undefined) {
+      const expected = patch.activeAddress === null ? null : Number(patch.activeAddress)
+      const actual = sanitized.activeAddressId
+      if (expected !== actual) mismatches.push({ field: 'activeAddress', expected, actual })
     }
     if (mismatches.length > 0) {
       console.error(`[vendor/outlets/[id]] PATCH:${requestId} verification failed`, { mismatches, id: merchant.id, patchKeys: Object.keys(patch) })

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 const TAG_TYPES = new Set(['general', 'dietary', 'cuisine', 'promotion', 'feature', 'allergen', 'spice_level', 'temperature', 'size_category'])
 const HEX_REGEX = /^#([0-9a-fA-F]{6})$/
@@ -204,6 +205,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(updated, 0, 0)
+    // Bust list cache so the update reflects immediately on /catalog/tags
+    await deleteCachedByPrefix('admin:catalog-tags:')
     return NextResponse.json({ success: true, message: 'Tag updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/catalog/tags/[id]] PATCH error:', err)
@@ -271,6 +274,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: e?.message || 'Failed to delete tag' }, { status: 400 })
     }
     if (!deleted) return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/tags
+    await deleteCachedByPrefix('admin:catalog-tags:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Tag deleted successfully' })
   } catch (err: any) {
     console.error('[admin/catalog/tags/[id]] DELETE error:', err)

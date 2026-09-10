@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Layers, AlertCircle, CheckCircle } from '@/components/ui/IconWrapper'
 import { GroupedItemForm } from '../../_components/GroupedItemForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -15,6 +16,7 @@ function EditGroupedItemContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [doc, setDoc] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -34,6 +36,8 @@ function EditGroupedItemContent() {
 
   const handleSaveSuccess = async () => {
     setSaveSuccess(true)
+    // Keep the list fresh for when the user navigates back to /catalog/grouped-items.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'grouped-items'] })
     try {
       const res = await fetch(`/api/catalog/grouped-items/${id}`, { cache: 'no-store' })
       const j = await res.json()

@@ -47,7 +47,7 @@ export type MerchantProductModifierGroupOverridesResponse = {
 };
 
 async function fetchMerchantProductModifierGroupOverrides(qs: string, signal?: AbortSignal): Promise<MerchantProductModifierGroupOverridesResponse> {
-  const res = await fetch(`/api/catalog/merchant-product-modifier-group-overrides?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/merchant-product-modifier-group-overrides?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

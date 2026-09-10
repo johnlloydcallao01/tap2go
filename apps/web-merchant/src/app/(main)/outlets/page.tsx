@@ -38,7 +38,9 @@ type Outlet = {
   operatingHours: Record<string, { open: string; close: string; closed: boolean }> | null;
   contactInfo: { phone: string; email: string; managerName: string; managerPhone: string };
   deliverySettings: { deliveryRadiusMeters: number; deliveryFee: number; minimumOrderAmount: number };
-  address: { formattedAddress: string; locality: string; province: string } | null;
+  address: { id?: string | number | null; formattedAddress: string; locality: string; province: string } | null;
+  activeAddress?: { id?: string | number | null } | null;
+  activeAddressId?: string | number | null;
   createdAt: string;
   updatedAt: string;
   media: { thumbnail: { url: string } | null };
@@ -382,7 +384,7 @@ function OutletsPageContent() {
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell">
                         <div className="text-xs text-gray-900 dark:text-white flex items-center gap-1 truncate max-w-[220px]"><MapPin className="w-3 h-3 text-gray-400 shrink-0" /> {o.address?.formattedAddress || '—'}</div>
-                        <div className="text-xs text-gray-500 truncate max-w-[220px]">{o.address?.locality || ''} {o.address?.province ? `• ${o.address.province}` : ''}</div>
+                        <div className="text-xs text-gray-500 truncate max-w-[220px]">{o.address?.locality || ''} {o.address?.province ? `• ${o.address.province}` : ''}{(o.activeAddressId ?? o.activeAddress?.id ?? o.address?.id) != null ? ` • #${o.activeAddressId ?? o.activeAddress?.id ?? o.address?.id}` : ''}</div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border capitalize ${operationalBadge(o.operationalStatus)}`}>{o.operationalStatus.replace('_',' ')}</span>

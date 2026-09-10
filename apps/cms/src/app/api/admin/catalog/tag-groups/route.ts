@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 const HEX_REGEX = /^#([0-9a-fA-F]{6})$/
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -209,6 +209,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(created, 0)
+    // Bust list cache (all admins / query variants) so the new group shows immediately
+    await deleteCachedByPrefix('admin:catalog-tag-groups:')
     return NextResponse.json({ success: true, message: 'Tag group created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/catalog/tag-groups] POST error:', err)

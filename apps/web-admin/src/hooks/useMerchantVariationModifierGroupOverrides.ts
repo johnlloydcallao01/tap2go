@@ -52,7 +52,7 @@ export type MerchantVariationModifierGroupOverridesResponse = {
 };
 
 async function fetchMerchantVariationModifierGroupOverrides(qs: string, signal?: AbortSignal): Promise<MerchantVariationModifierGroupOverridesResponse> {
-  const res = await fetch(`/api/catalog/merchant-variation-modifier-group-overrides?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/merchant-variation-modifier-group-overrides?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {
