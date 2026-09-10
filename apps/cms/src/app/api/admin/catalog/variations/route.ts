@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached, deleteCachedByPrefix } from '@/utils/redisCache'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -351,6 +351,8 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeDoc(created)
+    // Bust list cache (all admins / query variants) so the new variation shows immediately
+    await deleteCachedByPrefix('admin:catalog-variations:')
     return NextResponse.json({ success: true, message: 'Variation created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/catalog/variations] POST error:', err)

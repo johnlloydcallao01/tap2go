@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type VariationDoc = {
   id: number;
@@ -49,7 +49,7 @@ export type VariationsResponse = {
 };
 
 async function fetchVariations(qs: string, signal?: AbortSignal): Promise<VariationsResponse> {
-  const res = await fetch(`/api/catalog/variations?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/variations?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {
@@ -71,10 +71,7 @@ export function useVariations(qs: string) {
     queryKey: QUERY_KEYS.adminCatalogVariations(qs),
     queryFn: ({ signal }) => fetchVariations(qs, signal),
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }
 
@@ -94,9 +91,6 @@ export function useVariationProductOptions() {
   return useQuery({
     queryKey: QUERY_KEYS.adminProducts('variation-options'),
     queryFn: ({ signal }) => fetchProductOptions(signal),
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

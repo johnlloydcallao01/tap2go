@@ -155,7 +155,7 @@ const [sort,setSort]=useState('-createdAt')
       // is still converging; invalidate+refetch below reconciles with the server.
       queryClient.setQueriesData<MerchantsResponse>(
         {
-          queryKey: ['admin','merchants'],
+          queryKey: QUERY_KEYS.adminMerchants().slice(0, 2),
           predicate: (q)=>q.queryKey.length===3&&typeof q.queryKey[2]==='string',
         },
         (old)=>{
@@ -177,7 +177,7 @@ const [sort,setSort]=useState('-createdAt')
       setDeleting(null)
       // Bust every cached merchants list (all pages/filters) so the removal
       // reconciles with the server instead of waiting out the 3-min staleTime.
-      await queryClient.invalidateQueries({ queryKey: ['admin','merchants'] })
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchants().slice(0, 2) })
       await refetch()
     }catch(e:any){ alert(e.message||'') }
     finally{ setIsDeleting(false) }

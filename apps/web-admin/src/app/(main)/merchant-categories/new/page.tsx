@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ArrowLeft, Tag } from '@/components/ui/IconWrapper'
 import { MerchantCategoryForm } from '../_components/MerchantCategoryForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -21,7 +22,7 @@ function NewMerchantCategoryContent() {
     // Bust the 3-min list cache BEFORE navigating back, otherwise /merchant-categories
     // remounts with fresh-but-stale data and the new category is invisible
     // until a manual reload.
-    await queryClient.invalidateQueries({ queryKey: ['admin', 'merchant-categories'] })
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchantCategories().slice(0, 2) })
     router.push('/merchant-categories')
   }
   return (

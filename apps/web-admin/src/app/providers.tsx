@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { getQueryClient } from '@encreasl/client-services';
+import type { ReactNode } from 'react';
+import { AppQueryProvider } from '@encreasl/client-services';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AuthErrorBoundary } from '@/components/auth';
@@ -15,10 +14,8 @@ interface ProvidersProps {
 }
 
 export function Providers({ children, initialUser, initialToken }: ProvidersProps) {
-  const [queryClient] = useState(() => getQueryClient());
-
   return (
-    <QueryClientProvider client={queryClient}>
+    <AppQueryProvider>
       <AuthErrorBoundary>
         <AuthProvider initialUser={initialUser} initialToken={initialToken}>
           <ThemeProvider>
@@ -26,6 +23,6 @@ export function Providers({ children, initialUser, initialToken }: ProvidersProp
           </ThemeProvider>
         </AuthProvider>
       </AuthErrorBoundary>
-    </QueryClientProvider>
+    </AppQueryProvider>
   );
 }

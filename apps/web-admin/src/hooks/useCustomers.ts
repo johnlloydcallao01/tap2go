@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type CustomerDoc = {
   id: number;
@@ -90,9 +90,6 @@ export function useCustomers(qs: string) {
     queryKey: QUERY_KEYS.adminCustomers(qs),
     queryFn: ({ signal }) => fetchCustomers(qs, signal),
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

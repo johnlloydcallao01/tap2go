@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
-import { useVariations, useVariationProductOptions, type VariationDoc } from '@/hooks/useVariations'
+import { useVariations, useVariationProductOptions, type VariationDoc, type VariationsResponse } from '@/hooks/useVariations'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building,
@@ -117,6 +117,7 @@ function VariationsPageContent(){
   const [showFilters, setShowFilters] = useState(false)
 
   const [deleting, setDeleting] = useState<VariationDoc | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -196,18 +197,48 @@ function VariationsPageContent(){
   }
 
   const handleDelete = async () => {
-    if (!deleting) return
+    if (!deleting || isDeleting) return
+    setIsDeleting(true)
     setDeleteError(null)
     try {
       const res = await fetch(`/api/catalog/variations/${deleting.id}`, { method: 'DELETE' })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
+      const deletedId = deleting.id
+      // Optimistic removal across every cached variations list (all pages/filters).
+      // Segment-guard keeps sibling catalog queries untouched.
+      // The row vanishes instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<VariationsResponse>(
+        {
+          queryKey: QUERY_KEYS.adminCatalogVariations().slice(0, 3),
+          predicate: (q) => q.queryKey.length === 4 && q.queryKey[2] === 'variations' && typeof q.queryKey[3] === 'string',
+        },
+        (old) => {
+          if (!old || !Array.isArray(old.docs)) return old
+          const docs = old.docs.filter((d) => d.id !== deletedId)
+          const removed = old.docs.length - docs.length
+          if (!removed) return old
+          const limit = Math.max(1, old.pagination?.limit ?? 10)
+          const totalDocs = Math.max(0, (old.pagination?.totalDocs ?? old.docs.length) - removed)
+          const pagination = old.pagination
+            ? { ...old.pagination, totalDocs, totalPages: Math.max(1, Math.ceil(totalDocs / limit)) }
+            : old.pagination
+          const stats = old.stats
+            ? { ...old.stats, total: Math.max(0, old.stats.total - removed), totalAll: Math.max(0, old.stats.totalAll - removed), filteredTotal: Math.max(0, old.stats.filteredTotal - removed) }
+            : old.stats
+          return { ...old, docs, pagination, stats }
+        }
+      )
       setDeleting(null)
       setDeleteError(null)
+      // Bust every cached variations list (all pages/filters) so the removal
+      // reconciles with the server instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCatalogVariations().slice(0, 3) })
       await refetch()
     } catch (e: any) {
       setDeleteError(e?.message || 'Delete failed')
-    }
+    } finally { setIsDeleting(false) }
   }
 
   return (
@@ -553,7 +584,7 @@ function VariationsPageContent(){
 
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { setDeleting(null); setDeleteError(null) }}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) { setDeleting(null); setDeleteError(null) } }}>
             <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
               <div className="h-12 w-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
                 <Trash2 className="w-6 h-6 text-red-600" />
@@ -569,12 +600,14 @@ function VariationsPageContent(){
                     setDeleting(null)
                     setDeleteError(null)
                   }}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626]"
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
-                <button onClick={() => handleDelete()} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">
-                  Confirm delete
+                <button onClick={() => handleDelete()} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Deleting…' : 'Confirm delete'}
                 </button>
               </div>
             </div>

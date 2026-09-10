@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@encreasl/client-services';
 import { ArrowLeft, CheckCircle, FileText } from '@/components/ui/IconWrapper';
 import { PostEditor } from '@/components/cms/PostEditor';
 import { ClientOnly } from '@/components/ClientOnly';
@@ -33,7 +34,7 @@ function EditPostContent() {
     const title = (post as { title?: string } | null)?.title;
     if (typeof title === 'string' && title) setSavedTitle(title);
     // Keep the list fresh for when the user navigates back to /posts.
-    await queryClient.invalidateQueries({ queryKey: ['admin', 'posts'] });
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminPosts().slice(0, 2) });
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 4000);
   };

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Layers } from '@/components/ui/IconWrapper'
 import { VariationValueForm } from '../_components/VariationValueForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewVariationValueSkeleton(){
 
 function NewVariationValueContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/variation-values')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/variation-values
+    // remounts with fresh-but-stale data and the new value is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'variation-values'] })
+    router.push('/catalog/variation-values')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewVariationValueContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Map a variation to an attribute term — one value per attribute per variation.</p>
         </div>
       </div>
-      <VariationValueForm onSuccess={() => router.push('/catalog/variation-values')} onCancel={handleBack} />
+      <VariationValueForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

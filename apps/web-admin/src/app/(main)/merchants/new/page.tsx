@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ArrowLeft, Store } from '@/components/ui/IconWrapper'
 import { MerchantForm } from '../_components/MerchantForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -21,7 +22,7 @@ function NewMerchantContent() {
     // Bust the 3-min list cache BEFORE navigating back, otherwise /merchants
     // remounts with fresh-but-stale data and the new outlet is invisible
     // until a manual reload.
-    await queryClient.invalidateQueries({ queryKey: ['admin', 'merchants'] })
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchants().slice(0, 2) })
     router.push('/merchants')
   }
   return (

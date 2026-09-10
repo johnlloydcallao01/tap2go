@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type CouponDoc = {
   id: number;
@@ -88,9 +88,6 @@ export function useCoupons(qs: string) {
     queryKey: QUERY_KEYS.adminCoupons(qs),
     queryFn: ({ signal }) => fetchCoupons(qs, signal),
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

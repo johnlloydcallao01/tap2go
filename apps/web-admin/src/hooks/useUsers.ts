@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type UserDoc = {
   id: number;
@@ -75,10 +75,7 @@ export function useUsers(qs: string) {
     queryKey: QUERY_KEYS.adminUsers(qs),
     queryFn: ({ signal }) => fetchUsers(qs, signal),
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }
 
@@ -113,9 +110,6 @@ export function useUserDependencies(userId: string | number | null) {
     queryKey: QUERY_KEYS.adminUserDependencies(userId ?? 'none'),
     queryFn: ({ signal }) => fetchUserDependencies(userId as string | number, signal),
     enabled: userId != null,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import Link from 'next/link'
 import { ArrowLeft, Building, AlertCircle } from '@/components/ui/IconWrapper'
 import { AttributeTermForm, AttributeTermDoc } from '../../_components/AttributeTermForm'
@@ -14,6 +16,7 @@ function EditAttributeTermSkeleton(){
 function EditAttributeTermContent() {
   const params = useParams()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const id = params.id as string
   const [doc, setDoc] = useState<AttributeTermDoc | null>(null)
   const [loading, setLoading] = useState(true)
@@ -74,7 +77,11 @@ function EditAttributeTermContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] font-mono">{doc.slug} {doc.attribute ? `• ${doc.attribute.name}` : ''}</p>
         </div>
       </div>
-      <AttributeTermForm initial={doc} onSuccess={() => router.push(`/catalog/attribute-terms/${doc.id}`)} onCancel={handleBack} />
+      <AttributeTermForm initial={doc} onSuccess={async () => {
+        // Keep the list fresh for when the user navigates back to /catalog/attribute-terms.
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCatalogAttributeTerms().slice(0, 3) })
+        router.push(`/catalog/attribute-terms/${doc.id}`)
+      }} onCancel={handleBack} />
     </div>
   )
 }

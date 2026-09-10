@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ArrowLeft, Building, AlertCircle, Layers } from '@/components/ui/IconWrapper'
 import { VariationValueForm, VariationValueDoc } from '../../_components/VariationValueForm'
@@ -14,6 +15,7 @@ function EditVariationValueSkeleton(){
 function EditVariationValueContent() {
   const params = useParams()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const id = params.id as string
   const [doc, setDoc] = useState<VariationValueDoc | null>(null)
   const [loading, setLoading] = useState(true)
@@ -76,7 +78,11 @@ function EditVariationValueContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] font-mono">{variation?.sku || `#${doc.variation_id}`} {doc.attribute ? `• ${doc.attribute.name}` : ''} {doc.term ? `• ${doc.term.name}` : ''}</p>
         </div>
       </div>
-      <VariationValueForm initial={doc} onSuccess={() => router.push(`/catalog/variation-values/${doc.id}`)} onCancel={handleBack} />
+      <VariationValueForm initial={doc} onSuccess={async () => {
+        // Keep the list fresh for when the user navigates back to /catalog/variation-values.
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'catalog', 'variation-values'] })
+        router.push(`/catalog/variation-values/${doc.id}`)
+      }} onCancel={handleBack} />
     </div>
   )
 }

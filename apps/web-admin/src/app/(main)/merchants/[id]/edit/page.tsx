@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter, notFound } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import Link from 'next/link'
 import { ArrowLeft, Store, AlertCircle } from '@/components/ui/IconWrapper'
 import { MerchantForm } from '../../_components/MerchantForm'
@@ -74,7 +75,7 @@ function EditMerchantContent() {
       </div>
       <MerchantForm initial={doc} onSuccess={async () => {
         // Keep the list fresh for when the user navigates back to /merchants.
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'merchants'] })
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchants().slice(0, 2) })
         router.push(`/merchants/${id}`)
       }} onCancel={handleBack} />
     </div>

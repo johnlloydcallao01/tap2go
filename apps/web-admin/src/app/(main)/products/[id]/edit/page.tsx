@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter, notFound } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import Link from 'next/link'
 import { ArrowLeft, Package, AlertCircle } from '@/components/ui/IconWrapper'
 import { ProductForm } from '../../_components/ProductForm'
@@ -73,8 +74,8 @@ function EditProductContent() {
       <ProductForm initial={doc} onSuccess={async () => {
         // Master names are embedded in the merchant-products aggregate, so bust both.
         // Keeps the list fresh for when the user navigates back to /products.
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'merchant-products'] })
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminProducts().slice(0, 2) })
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchantProducts().slice(0, 2) })
         router.push(`/products/${id}`)
       }} onCancel={handleBack} />
     </div>

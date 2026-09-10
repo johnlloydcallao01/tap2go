@@ -110,7 +110,7 @@ function MerchantCategoriesPageContent(){
       // is still converging; invalidate+refetch below reconciles with the server.
       queryClient.setQueriesData<MerchantCategoriesResponse>(
         {
-          queryKey: ['admin','merchant-categories'],
+          queryKey: QUERY_KEYS.adminMerchantCategories().slice(0, 2),
           predicate: (q)=>q.queryKey.length===3&&typeof q.queryKey[2]==='string',
         },
         (old)=>{
@@ -132,7 +132,7 @@ function MerchantCategoriesPageContent(){
       setDeleting(null)
       // Bust every cached categories list (all pages/filters) so the removal
       // reconciles with the server instead of waiting out the 3-min staleTime.
-      await queryClient.invalidateQueries({ queryKey: ['admin','merchant-categories'] })
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchantCategories().slice(0, 2) })
       await refetch()
     }catch(e:any){ alert(e.message||'Delete failed') }
     finally{ setIsDeleting(false) }

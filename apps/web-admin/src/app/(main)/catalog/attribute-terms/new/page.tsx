@@ -1,6 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ArrowLeft, Building } from '@/components/ui/IconWrapper'
 import { AttributeTermForm } from '../_components/AttributeTermForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +13,17 @@ function NewAttributeTermSkeleton(){
 
 function NewAttributeTermContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/attribute-terms')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/attribute-terms
+    // remounts with fresh-but-stale data and the new term is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCatalogAttributeTerms().slice(0, 3) })
+    router.push('/catalog/attribute-terms')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +37,7 @@ function NewAttributeTermContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Define a new term for a product attribute — color swatch or selectable value.</p>
         </div>
       </div>
-      <AttributeTermForm onSuccess={() => router.push('/catalog/attribute-terms')} onCancel={handleBack} />
+      <AttributeTermForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

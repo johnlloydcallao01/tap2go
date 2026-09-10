@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type VariationValueDoc = {
   id: number;
@@ -41,7 +41,7 @@ export type VariationValuesResponse = {
 };
 
 async function fetchVariationValues(qs: string, signal?: AbortSignal): Promise<VariationValuesResponse> {
-  const res = await fetch(`/api/catalog/variation-values?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/variation-values?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {
@@ -63,9 +63,6 @@ export function useVariationValues(qs: string) {
     queryKey: QUERY_KEYS.adminCatalogVariationValues(qs),
     queryFn: ({ signal }) => fetchVariationValues(qs, signal),
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

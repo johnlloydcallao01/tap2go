@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 import { getProfileData } from '@/app/actions/profile';
 
 /**
@@ -15,9 +15,6 @@ export function useProfile(enabled: boolean) {
     queryKey: QUERY_KEYS.adminProfile(),
     queryFn: () => getProfileData(),
     enabled,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

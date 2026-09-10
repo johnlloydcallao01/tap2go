@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type AttributeDoc = {
   id: number;
@@ -38,7 +38,7 @@ export type CatalogAttributesResponse = {
 };
 
 async function fetchCatalogAttributes(qs: string, signal?: AbortSignal): Promise<CatalogAttributesResponse> {
-  const res = await fetch(`/api/catalog/attributes?${qs}`, { signal });
+  const res = await fetch(`/api/catalog/attributes?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {
@@ -60,9 +60,6 @@ export function useCatalogAttributes(qs: string) {
     queryKey: QUERY_KEYS.adminCatalogAttributes(qs),
     queryFn: ({ signal }) => fetchCatalogAttributes(qs, signal),
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

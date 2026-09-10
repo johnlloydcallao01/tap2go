@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ArrowLeft, Building, AlertCircle, CheckCircle } from '@/components/ui/IconWrapper'
 import { VariationForm } from '../../_components/VariationForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -15,6 +17,7 @@ function EditVariationContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [doc, setDoc] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +44,8 @@ function EditVariationContent() {
 
   const handleSaveSuccess = async () => {
     setSaveSuccess(true)
+    // Keep the list fresh for when the user navigates back to /catalog/variations.
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCatalogVariations().slice(0, 3) })
     try {
       const res = await fetch(`/api/catalog/variations/${id}`, { cache: 'no-store' })
       const j = await res.json()

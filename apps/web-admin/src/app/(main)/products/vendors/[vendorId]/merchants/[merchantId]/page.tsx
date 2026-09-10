@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ClientOnly } from '@/components/ClientOnly'
 import { Package, ArrowLeft, Search, X, Plus, RefreshCw, AlertCircle, Eye, Pencil, Trash2, Store, Tag, DollarSign } from '@/components/ui/IconWrapper'
 
@@ -117,7 +118,7 @@ function MerchantProductsListPageContent(){
       setDeleting(null)
       // Bust the /products aggregates so counts refresh when navigating back up
       // instead of waiting out the 3-min staleTime.
-      await queryClient.invalidateQueries({ queryKey: ['admin','merchant-products'] })
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchantProducts().slice(0, 2) })
       await load()
     }catch(e:any){ alert(e.message||'Delete failed') }
     finally{ setIsDeleting(false) }

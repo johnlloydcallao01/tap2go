@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@/utils/redisCache'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -126,6 +127,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const sanitized = sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /catalog/attributes
+    await deleteCachedByPrefix('admin:catalog-attributes:')
     return NextResponse.json({ success: true, message: 'Attribute updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/catalog/attributes/[id]] PATCH error:', err)
@@ -172,6 +175,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: e?.message || 'Failed to delete attribute' }, { status: 400 })
     }
     if (!deleted) return NextResponse.json({ error: 'Attribute not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/attributes
+    await deleteCachedByPrefix('admin:catalog-attributes:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Attribute deleted successfully' })
   } catch (err: any) {
     console.error('[admin/catalog/attributes/[id]] DELETE error:', err)

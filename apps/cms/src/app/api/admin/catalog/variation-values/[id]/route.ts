@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@/utils/redisCache'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -264,6 +265,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const sanitized = sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /catalog/variation-values
+    await deleteCachedByPrefix('admin:catalog-variation-values:')
     return NextResponse.json({ success: true, message: 'Variation value updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/catalog/variation-values/[id]] PATCH error:', err)
@@ -289,6 +292,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: msg }, { status: 400 })
     }
     if (!deleted) return NextResponse.json({ error: 'Variation value not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /catalog/variation-values
+    await deleteCachedByPrefix('admin:catalog-variation-values:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Variation value deleted successfully' })
   } catch (err: any) {
     console.error('[admin/catalog/variation-values/[id]] DELETE error:', err)

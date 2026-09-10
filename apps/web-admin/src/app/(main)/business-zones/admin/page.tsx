@@ -85,7 +85,7 @@ function AdminBusinessZonesPageContent(){
   const refetchAll=async()=>{
     // Bust every cached zones list + overview (all pages/filters) so mutations
     // reconcile with the server instead of waiting out the 3-min staleTime.
-    await queryClient.invalidateQueries({ queryKey: ['admin','business-zones'] })
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminBusinessZones().slice(0, 2) })
     void refetch()
     void overview.refetch()
   }
@@ -126,7 +126,7 @@ function AdminBusinessZonesPageContent(){
       // is still converging; invalidate+refetch below reconciles with the server.
       queryClient.setQueriesData<BusinessZonesResponse>(
         {
-          queryKey: ['admin','business-zones'],
+          queryKey: QUERY_KEYS.adminBusinessZones().slice(0, 2),
           predicate: (q)=>q.queryKey.length===3&&typeof q.queryKey[2]==='string',
         },
         (old)=>{

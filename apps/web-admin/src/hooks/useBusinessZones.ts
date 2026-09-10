@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type BusinessZoneDoc = {
   id: number;
@@ -105,10 +105,7 @@ export function useBusinessZones(qs: string) {
     queryKey: QUERY_KEYS.adminBusinessZones(qs),
     queryFn: ({ signal }) => fetchBusinessZones(qs, signal),
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }
 
@@ -121,9 +118,6 @@ export function useBusinessZoneOverview(qs = '') {
   return useQuery({
     queryKey: QUERY_KEYS.adminBusinessZoneOverview(qs),
     queryFn: ({ signal }) => fetchBusinessZoneOverview(qs, signal),
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

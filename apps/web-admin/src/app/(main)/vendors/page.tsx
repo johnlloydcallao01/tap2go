@@ -183,7 +183,7 @@ function VendorsPageContent() {
       // is still converging; invalidate+refetch below reconciles with the server.
       queryClient.setQueriesData<VendorsResponse>(
         {
-          queryKey: ['admin', 'vendors'],
+          queryKey: QUERY_KEYS.adminVendors().slice(0, 2),
           predicate: (q) => q.queryKey.length === 3 && typeof q.queryKey[2] === 'string',
         },
         (old) => {
@@ -205,7 +205,7 @@ function VendorsPageContent() {
       setDeleting(null)
       // Bust every cached vendors list (all pages/filters) so the removal
       // reconciles with the server instead of waiting out the 3-min staleTime.
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'vendors'] })
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminVendors().slice(0, 2) })
       await refetch()
     } catch (e: any) { alert(e?.message || 'Delete failed') }
     finally { setIsDeleting(false) }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 import type { DashboardData } from '@/lib/dashboard-types';
 
 async function fetchDashboard(signal?: AbortSignal): Promise<DashboardData> {
@@ -19,9 +19,6 @@ export function useDashboard() {
   return useQuery({
     queryKey: QUERY_KEYS.adminDashboard,
     queryFn: ({ signal }) => fetchDashboard(signal),
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

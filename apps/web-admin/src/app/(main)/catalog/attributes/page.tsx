@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
-import { useCatalogAttributes, type AttributeDoc } from '@/hooks/useCatalogAttributes'
+import { useCatalogAttributes, type AttributeDoc, type CatalogAttributesResponse } from '@/hooks/useCatalogAttributes'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
@@ -84,6 +84,7 @@ function AttributesPageContent(){
   const [showFilters, setShowFilters] = useState(false)
 
   const [deleting, setDeleting] = useState<AttributeDoc | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
@@ -143,7 +144,8 @@ function AttributesPageContent(){
   const clearAll = () => { setQ(''); setDebouncedQ(''); setTypeFilter([]); setIsActiveFilter(null) }
 
   const handleDelete = async (force = false) => {
-    if (!deleting) return
+    if (!deleting || isDeleting) return
+    setIsDeleting(true)
     setDeleteError(null)
     try {
       const qs = force ? '?force=true' : ''
@@ -156,12 +158,41 @@ function AttributesPageContent(){
         }
         throw new Error(j.error || 'Failed to delete')
       }
+      const deletedId = deleting.id
+      // Optimistic removal across every cached attributes list (all pages/filters).
+      // Length-guard keeps sibling queries untouched.
+      // The row vanishes instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<CatalogAttributesResponse>(
+        {
+          queryKey: QUERY_KEYS.adminCatalogAttributes().slice(0, 3),
+          predicate: (q) => q.queryKey.length === 4 && q.queryKey[2] === 'attributes' && typeof q.queryKey[3] === 'string',
+        },
+        (old) => {
+          if (!old || !Array.isArray(old.docs)) return old
+          const docs = old.docs.filter((d) => d.id !== deletedId)
+          const removed = old.docs.length - docs.length
+          if (!removed) return old
+          const limit = Math.max(1, old.pagination?.limit ?? 10)
+          const totalDocs = Math.max(0, (old.pagination?.totalDocs ?? old.docs.length) - removed)
+          const pagination = old.pagination
+            ? { ...old.pagination, totalDocs, totalPages: Math.max(1, Math.ceil(totalDocs / limit)) }
+            : old.pagination
+          const stats = old.stats
+            ? { ...old.stats, total: Math.max(0, old.stats.total - removed), totalAll: Math.max(0, old.stats.totalAll - removed), filteredTotal: Math.max(0, old.stats.filteredTotal - removed) }
+            : old.stats
+          return { ...old, docs, pagination, stats }
+        }
+      )
       setDeleting(null)
       setDeleteError(null)
+      // Bust every cached attributes list (all pages/filters) so the removal
+      // reconciles with the server instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCatalogAttributes().slice(0, 3) })
       await refetch()
     } catch (e: any) {
       setDeleteError(e?.message || 'Delete failed')
-    }
+    } finally { setIsDeleting(false) }
   }
 
   return (
@@ -350,7 +381,7 @@ function AttributesPageContent(){
 
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { setDeleting(null); setDeleteError(null) }}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) { setDeleting(null); setDeleteError(null) } }}>
             <div
               className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95"
               onClick={(e) => e.stopPropagation()}
@@ -360,11 +391,17 @@ function AttributesPageContent(){
               <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">This will permanently delete <span className="font-semibold text-gray-900 dark:text-white">{deleting.name}</span> ({deleting.slug}). This action cannot be undone.</p>
               {deleteError && <div className="mt-3 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">{deleteError} {deleteError.includes('HAS_TERMS') || deleteError.toLowerCase().includes('has terms') ? ' Use force delete to proceed.' : ''}</div>}
               <div className="flex gap-2 mt-6">
-                <button onClick={() => { setDeleting(null); setDeleteError(null) }} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626]">Cancel</button>
+                <button onClick={() => { setDeleting(null); setDeleteError(null) }} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
                 {deleteError ? (
-                  <button onClick={() => handleDelete(true)} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">Force delete</button>
+                  <button onClick={() => handleDelete(true)} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                    {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                    {isDeleting ? 'Deleting…' : 'Force delete'}
+                  </button>
                 ) : (
-                  <button onClick={() => handleDelete(false)} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">Confirm delete</button>
+                  <button onClick={() => handleDelete(false)} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                    {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                    {isDeleting ? 'Deleting…' : 'Confirm delete'}
+                  </button>
                 )}
               </div>
             </div>

@@ -1,6 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ArrowLeft, Building } from '@/components/ui/IconWrapper'
 import { VariationForm } from '../_components/VariationForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +13,17 @@ function NewVariationSkeleton(){
 
 function NewVariationContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/variations')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/variations
+    // remounts with fresh-but-stale data and the new variation is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCatalogVariations().slice(0, 3) })
+    router.push('/catalog/variations')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -29,7 +39,7 @@ function NewVariationContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Add a new sellable variation for a variable product.</p>
         </div>
       </div>
-      <VariationForm onSuccess={() => router.push('/catalog/variations')} onCancel={handleBack} />
+      <VariationForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

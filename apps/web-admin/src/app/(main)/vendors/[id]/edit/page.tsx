@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import Image from '@/components/ui/ImageWrapper'
 import { ArrowLeft, Building, AlertCircle, RefreshCw, CheckCircle } from '@/components/ui/IconWrapper'
 import { VendorForm } from '../../_components/VendorForm'
@@ -46,7 +47,7 @@ function EditVendorContent() {
   const handleSaveSuccess = async () => {
     setSaveSuccess(true)
     // Keep the list fresh for when the user navigates back to /vendors.
-    await queryClient.invalidateQueries({ queryKey: ['admin', 'vendors'] })
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminVendors().slice(0, 2) })
     try {
       const res = await fetch(`/api/vendors/${id}`, { cache: 'no-store' })
       const j = await res.json()

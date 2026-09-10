@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ArrowLeft, Package } from '@/components/ui/IconWrapper'
 import { MerchantProductForm } from '../_components/MerchantProductForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -21,7 +22,7 @@ function NewProductContent() {
     // Bust the 3-min list cache BEFORE navigating back, otherwise /products
     // remounts with fresh-but-stale data and the new merchant product is invisible
     // until a manual reload.
-    await queryClient.invalidateQueries({ queryKey: ['admin', 'merchant-products'] })
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminMerchantProducts().slice(0, 2) })
     router.push('/products')
   }
   return (

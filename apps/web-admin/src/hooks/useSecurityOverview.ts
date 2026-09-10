@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@encreasl/client-services';
+import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type SecurityData = {
   stats: {
@@ -86,9 +86,6 @@ export function useSecurityOverview() {
   return useQuery({
     queryKey: QUERY_KEYS.adminSecurity(),
     queryFn: ({ signal }) => fetchSecurityOverview(signal),
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
+    ...SHARED_QUERY_DEFAULTS,
   });
 }

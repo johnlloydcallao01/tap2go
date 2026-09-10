@@ -1,6 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import { ArrowLeft, Building } from '@/components/ui/IconWrapper'
 import { AttributeForm } from '../_components/AttributeForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +13,17 @@ function NewAttributeSkeleton(){
 
 function NewAttributeContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/catalog/attributes')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /catalog/attributes
+    // remounts with fresh-but-stale data and the new attribute is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCatalogAttributes().slice(0, 3) })
+    router.push('/catalog/attributes')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +37,7 @@ function NewAttributeContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Define a new product attribute for catalog variations.</p>
         </div>
       </div>
-      <AttributeForm onSuccess={() => router.push('/catalog/attributes')} onCancel={handleBack} />
+      <AttributeForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

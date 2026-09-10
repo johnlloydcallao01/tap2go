@@ -142,7 +142,7 @@ function PostsPageContent(){
       setDeleting(null)
       // Bust every cached posts list (all pages/filters) so the removal
       // reflects instantly instead of waiting out the 3-min staleTime.
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'posts'] })
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminPosts().slice(0, 2) })
       await refetch()
     } catch (e: any) { alert(e?.message || 'Delete failed') }
     finally { setIsDeleting(false) }
