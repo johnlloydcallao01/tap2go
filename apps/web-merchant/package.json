@@ -12,8 +12,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@encreasl/client-services": "workspace:*",
     "@encreasl/redux": "workspace:*",
     "@encreasl/ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.21",
     "@lexical/code": "0.28.0",
     "@lexical/link": "0.28.0",
     "@lexical/list": "0.28.0",

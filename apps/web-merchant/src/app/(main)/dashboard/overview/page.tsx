@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import type { MerchantDashboardData } from '@/lib/dashboard-types';
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@encreasl/client-services';
+import { useMerchantDashboard } from '@/hooks/useMerchantDashboard';
 import { ClientOnly } from '@/components/ClientOnly';
 import {
   MetricCard,
@@ -158,38 +160,34 @@ function DashboardSkeleton() {
 }
 
 function DashboardPageContent() {
-  const [data, setData] = useState<MerchantDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [hardRefreshing, setHardRefreshing] = useState(false);
+  const { data, isPending, isFetching, isError, error: queryError, refetch } = useMerchantDashboard();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/merchant-dashboard');
-      if (!res.ok) throw new Error('Failed to load dashboard');
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const isInitialLoading = (isPending && !data) || hardRefreshing;
+  const loading = isFetching || hardRefreshing;
+  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load dashboard') : null;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const handleHardRefresh = () => {
+    if (hardRefreshing) return;
+    setHardRefreshing(true);
+    void (async () => {
+      try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.merchantDashboard() });
+        await refetch({ cancelRefetch: true });
+      } finally { setHardRefreshing(false) }
+    })();
+  };
 
   if (error && !data) {
     return (
       <div className="p-4 sm:p-6">
-        <DashboardError message={error} onRetry={load} />
+        <DashboardError message={error} onRetry={handleHardRefresh} />
       </div>
     );
   }
 
-  if (loading) {
+  if (isInitialLoading) {
     return <DashboardSkeleton />;
   }
 
@@ -200,9 +198,22 @@ function DashboardPageContent() {
   return (
     <div className="space-y-6 py-5 px-2.5">
       {/* Page Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">My Business Overview</h1>
-        <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Performance across all your outlets</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">My Business Overview</h1>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Performance across all your outlets</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleHardRefresh}
+            disabled={loading}
+            aria-label="Refresh dashboard"
+            title="Refresh — re-fetch from BFF and show skeleton"
+            className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-gray-300 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Metric Cards */}

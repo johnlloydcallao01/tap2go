@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached } from '@encreasl/cache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null

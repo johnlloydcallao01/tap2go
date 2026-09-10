@@ -3,7 +3,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached } from '@encreasl/cache'
 
 function getNum(val: unknown, fallback = 0): number {
   if (typeof val === 'number' && Number.isFinite(val)) return val

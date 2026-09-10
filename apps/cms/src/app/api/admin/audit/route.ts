@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached } from '@encreasl/cache'
 
 function str(v: unknown, fb = ''): string {
   return typeof v === 'string' ? v : fb

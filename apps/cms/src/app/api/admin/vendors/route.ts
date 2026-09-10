@@ -16,7 +16,7 @@ import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { validateStoreHoursFields } from '@/utils/storeHours'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached, deleteCachedByPrefix } from '@/utils/redisCache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 import crypto from 'crypto'
 
 function optionalString(v: unknown): string | null {

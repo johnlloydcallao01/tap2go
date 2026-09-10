@@ -8,6 +8,10 @@
 // Core Redis client
 export { RedisClient, createRedisClient } from './redis'
 
+// Fail-open Upstash helpers (getCached/setCached/deleteCached/deleteCachedByPrefix)
+// used by CMS admin BFF routes — same behavior as the former apps/cms/src/utils/redisCache.ts
+export { getCached, setCached, deleteCached, deleteCachedByPrefix } from './redis-cache'
+
 // Specialized cache utilities
 export { GeospatialCache } from './geospatial'
 export { PayloadCache } from './payloadcms'

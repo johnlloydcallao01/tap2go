@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { deleteCachedByPrefix } from '@/utils/redisCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }

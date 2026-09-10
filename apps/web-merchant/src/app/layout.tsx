@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import Script from "next/script";
-import { LoadingScreenWrapper, InstantLoadingController } from "@/components/loading";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { InstantLoadingController } from "@/components/loading";
+import { Providers } from "./providers";
 import { getServerToken, getServerUser } from "@/app/actions/auth";
-import { AuthErrorBoundary } from "@/components/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -120,15 +118,9 @@ export default async function RootLayout({ children }: LayoutProps) {
         {/* Client-side loading screen controller */}
         <InstantLoadingController />
 
-        <AuthErrorBoundary>
-          <AuthProvider initialUser={initialUser} initialToken={initialToken}>
-            <ThemeProvider>
-              <LoadingScreenWrapper>
-                {children}
-              </LoadingScreenWrapper>
-            </ThemeProvider>
-          </AuthProvider>
-        </AuthErrorBoundary>
+        <Providers initialUser={initialUser} initialToken={initialToken}>
+          {children}
+        </Providers>
       </body>
     </html>
   );

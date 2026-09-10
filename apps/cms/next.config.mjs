@@ -7,6 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // Workspace TS package consumed as raw source (main: ./src/index.ts) —
+  // transpile it into the CMS bundle like web-admin does for client-services.
+  transpilePackages: ['@encreasl/cache'],
   // Monorepo: trace from repo root so pnpm hoisted deps resolve deterministically.
   outputFileTracingRoot: path.join(__dirname, '..', '..'),
   // Force-trace the SWC runtime helpers. They are required by compiled

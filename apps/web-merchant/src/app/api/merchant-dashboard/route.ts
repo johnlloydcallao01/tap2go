@@ -70,7 +70,10 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await dashboardRes.json();
-    return NextResponse.json(data);
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const cacheStatus = dashboardRes.headers.get('X-MerchantDashboard-Cache');
+    if (cacheStatus) headers.set('X-MerchantDashboard-Cache', cacheStatus);
+    return new NextResponse(JSON.stringify(data), { status: dashboardRes.status, headers });
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 });
   }

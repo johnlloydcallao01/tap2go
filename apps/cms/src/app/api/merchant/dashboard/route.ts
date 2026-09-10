@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { getCached, setCached } from '@encreasl/cache'
 
 function daysAgo(n: number): string {
   const d = new Date()
@@ -49,6 +50,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
+    const cacheKey = `merchant:dashboard:${userId}`
+    const cached = await getCached<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached, { headers: { 'X-MerchantDashboard-Cache': 'HIT' } })
+
     const payload = await getPayload({ config: configPromise })
 
     // 1. Resolve vendor from user (overrideAccess because vendors collection blocks vendor-role reads)
@@ -77,7 +82,7 @@ export async function GET(request: NextRequest) {
     const merchantIds = new Set(merchantsDocs.map((m) => String(m.id)))
 
     if (merchantIds.size === 0) {
-      return NextResponse.json({
+      const emptyBody = {
         metrics: {
           totalRevenue: 0,
           revenueChange: 0,
@@ -100,7 +105,9 @@ export async function GET(request: NextRequest) {
         activeDeliveries: [],
         pendingOrders: [],
         recentOrders: [],
-      })
+      }
+      await setCached(cacheKey, emptyBody, 20)
+      return NextResponse.json(emptyBody, { headers: { 'X-MerchantDashboard-Cache': 'MISS' } })
     }
 
     // 2. Fetch orders scoped to this vendor's merchants
@@ -387,7 +394,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({
+    const responseBody = {
       metrics,
       outlets,
       revenueChart,
@@ -396,7 +403,9 @@ export async function GET(request: NextRequest) {
       activeDeliveries,
       pendingOrders: pendingOrdersList,
       recentOrders: recentOrdersList,
-    })
+    }
+    await setCached(cacheKey, responseBody, 20)
+    return NextResponse.json(responseBody, { headers: { 'X-MerchantDashboard-Cache': 'MISS' } })
   } catch (error) {
     console.error('Merchant dashboard aggregation error:', error)
     return NextResponse.json({ error: 'Failed to load dashboard data' }, { status: 500 })

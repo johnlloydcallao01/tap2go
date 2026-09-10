@@ -11,7 +11,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin, aggregateMediaUsage, mapMediaDoc, generateUniqueFilename } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached } from '@encreasl/cache'
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50 MB
 const MAX_FILE_SIZE_DB = 1024 * 1024 * 1024 // Payload default cap, defensive

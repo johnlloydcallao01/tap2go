@@ -22,6 +22,7 @@
     "db:test": "node test-db-connection.js"
   },
   "dependencies": {
+    "@encreasl/cache": "workspace:*",
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@next/swc-wasm-nodejs": "16.3.2",
     "@swc/helpers": "0.5.23",

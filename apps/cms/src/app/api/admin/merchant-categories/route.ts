@@ -10,7 +10,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached, deleteCachedByPrefix } from '@/utils/redisCache'
+import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { deleteCached, getCached, setCached } from '@/utils/redisCache'
+import { deleteCached, getCached, setCached } from '@encreasl/cache'
 
 function maskKey(key: string | null | undefined): string | null {
   if (!key || typeof key !== 'string') return null

@@ -84,6 +84,9 @@ importers:
 
   apps/cms:
     dependencies:
+      '@encreasl/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
       '@googlemaps/google-maps-services-js':
         specifier: ^3.4.2
         version: 3.4.2
@@ -933,6 +936,9 @@ importers:
 
   apps/web-merchant:
     dependencies:
+      '@encreasl/client-services':
+        specifier: workspace:*
+        version: link:../../packages/client-services
       '@encreasl/redux':
         specifier: workspace:*
         version: link:../../packages/redux
@@ -966,6 +972,9 @@ importers:
       '@lexical/utils':
         specifier: 0.28.0
         version: 0.28.0
+      '@tanstack/react-query':
+        specifier: ^5.90.21
+        version: 5.90.21(react@19.1.0)
       echarts:
         specifier: 6.1.0
         version: 6.1.0
@@ -19526,7 +19535,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.55.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.55.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
