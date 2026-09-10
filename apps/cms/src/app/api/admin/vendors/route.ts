@@ -16,7 +16,7 @@ import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { validateStoreHoursFields } from '@/utils/storeHours'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached, deleteCachedByPrefix } from '@/utils/redisCache'
 import crypto from 'crypto'
 
 function optionalString(v: unknown): string | null {
@@ -409,6 +409,8 @@ export async function POST(request: NextRequest) {
     const merchantCountMap = new Map<string, number>()
     // compute merchant count for new vendor (0)
     const sanitized = sanitizeVendorDoc(created, merchantCountMap)
+    // Bust list cache (all admins / query variants) so the new vendor shows immediately
+    await deleteCachedByPrefix('admin:vendors:')
     return NextResponse.json({ success: true, message: 'Vendor created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/vendors] POST error:', err)

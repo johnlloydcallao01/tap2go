@@ -56,3 +56,26 @@ export async function deleteCached(key: string): Promise<void> {
   if (!client) return
   await withTimeout(client.del(key))
 }
+
+/**
+ * Best-effort prefix bust (e.g. `admin:vendors:` after a vendor mutation).
+ * SCAN-based so it never blocks Redis like KEYS would; each round-trip is
+ * timeout-guarded and failures are swallowed — worst case the entries
+ * converge when their TTL expires.
+ */
+export async function deleteCachedByPrefix(prefix: string): Promise<void> {
+  const client = getRedis()
+  if (!client) return
+  try {
+    let cursor = '0'
+    do {
+      const scanned = await withTimeout(client.scan(cursor, { match: `${prefix}*`, count: 100 }))
+      if (!scanned) break
+      const [next, keys] = scanned as unknown as [string | number, string[]]
+      cursor = String(next)
+      if (keys.length) await withTimeout(client.del(...keys))
+    } while (cursor !== '0')
+  } catch {
+    // best-effort only
+  }
+}

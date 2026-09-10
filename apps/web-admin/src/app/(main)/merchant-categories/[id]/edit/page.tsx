@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ArrowLeft, Tag, AlertCircle } from '@/components/ui/IconWrapper'
 import { MerchantCategoryForm } from '../../_components/MerchantCategoryForm'
@@ -15,6 +16,7 @@ function EditMerchantCategoryContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [doc, setDoc] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -67,7 +69,11 @@ function EditMerchantCategoryContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">ID #{doc.id} • {doc.name} • /{doc.slug}</p>
         </div>
       </div>
-      <MerchantCategoryForm initial={doc} onSuccess={() => router.push(`/merchant-categories/${id}`)} onCancel={handleBack} />
+      <MerchantCategoryForm initial={doc} onSuccess={async () => {
+        // Keep the list fresh for when the user navigates back to /merchant-categories.
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'merchant-categories'] })
+        router.push(`/merchant-categories/${id}`)
+      }} onCancel={handleBack} />
     </div>
   )
 }

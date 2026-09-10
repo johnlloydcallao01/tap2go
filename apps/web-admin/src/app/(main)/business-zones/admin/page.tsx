@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
-import { useBusinessZones, useBusinessZoneOverview, type BusinessZoneDoc } from '@/hooks/useBusinessZones'
+import { useBusinessZones, useBusinessZoneOverview, type BusinessZoneDoc, type BusinessZonesResponse } from '@/hooks/useBusinessZones'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Globe, MapPin, Store, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
@@ -51,6 +51,7 @@ function AdminBusinessZonesPageContent(){
   const limit=10
   const [sort,setSort]=useState('-createdAt')
   const [deleting,setDeleting]=useState<BusinessZoneDoc|null>(null)
+  const [isDeleting,setIsDeleting]=useState(false)
   const [editing,setEditing]=useState<BusinessZoneDoc|null>(null)
   const [showForm,setShowForm]=useState(false)
   const [formMode,setFormMode]=useState<'create'|'edit'>('create')
@@ -81,7 +82,10 @@ function AdminBusinessZonesPageContent(){
   const overviewLoading=overview.isFetching
   const error=isError&&!data&&!hardRefreshing?(queryError instanceof Error?queryError.message:'Failed to load business zones'):null
 
-  const refetchAll=()=>{
+  const refetchAll=async()=>{
+    // Bust every cached zones list + overview (all pages/filters) so mutations
+    // reconcile with the server instead of waiting out the 3-min staleTime.
+    await queryClient.invalidateQueries({ queryKey: ['admin','business-zones'] })
     void refetch()
     void overview.refetch()
   }
@@ -107,20 +111,53 @@ function AdminBusinessZonesPageContent(){
   },[deleting,mapZone,showForm])
 
   const handleDelete=async()=>{
-    if(!deleting) return
+    if(!deleting||isDeleting) return
+    setIsDeleting(true)
     try{
       const res=await fetch(`/api/business-zones/${deleting.id}`,{method:'DELETE'})
       const j=await res.json().catch(()=>({}))
       if(!res.ok) throw new Error(j.error||'Failed to delete')
-      setDeleting(null); refetchAll()
+      const deletedId=deleting.id
+      const wasActive=deleting.isActive
+      // Optimistic removal across every cached zones list (all pages/filters).
+      // Length-guard keeps the overview query (['admin','business-zones','overview',…]) untouched —
+      // it reconciles via invalidate+refetch below.
+      // The row vanishes instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<BusinessZonesResponse>(
+        {
+          queryKey: ['admin','business-zones'],
+          predicate: (q)=>q.queryKey.length===3&&typeof q.queryKey[2]==='string',
+        },
+        (old)=>{
+          if(!old||!Array.isArray(old.docs)) return old
+          const docs=old.docs.filter((d)=>d.id!==deletedId)
+          const removed=old.docs.length-docs.length
+          if(!removed) return old
+          const limit=Math.max(1,old.pagination?.limit??10)
+          const totalDocs=Math.max(0,(old.pagination?.totalDocs??old.docs.length)-removed)
+          const pagination=old.pagination
+            ? {...old.pagination,totalDocs,totalPages:Math.max(1,Math.ceil(totalDocs/limit))}
+            : old.pagination
+          const stats=old.stats
+            ? {...old.stats,
+               totalZones:Math.max(0,old.stats.totalZones-removed),
+               activeZones:Math.max(0,old.stats.activeZones-(wasActive?removed:0)),
+               inactiveZones:Math.max(0,old.stats.inactiveZones-(wasActive?0:removed))}
+            : old.stats
+          return {...old,docs,pagination,stats}
+        }
+      )
+      setDeleting(null); await refetchAll()
     }catch(e:any){ alert(e.message||'Delete failed') }
+    finally{ setIsDeleting(false) }
   }
 
   const handleToggleActive=async(zone: BusinessZoneDoc)=>{
     try{
       const res=await fetch(`/api/business-zones/${zone.id}`,{method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ isActive: !zone.isActive, disabledReason: !zone.isActive ? null : zone.disabledReason || 'Disabled via toggle' })})
       if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||'Failed')}
-      refetchAll()
+      void refetchAll()
     }catch(e:any){ alert(e.message)}
   }
 
@@ -307,14 +344,17 @@ function AdminBusinessZonesPageContent(){
 
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if(!isDeleting) setDeleting(null) }}>
             <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
               <div className="h-12 w-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4"><Trash2 className="w-6 h-6 text-red-600" /></div>
               <h3 className="font-bold text-gray-900 dark:text-white">Delete zone?</h3>
               <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">Delete <span className="font-semibold text-gray-900 dark:text-white">{deleting.name}</span> ({deleting.slug})? Merchants must be unassigned first.</p>
               <div className="flex gap-2 mt-6">
-                <button onClick={() => setDeleting(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717]">Cancel</button>
-                <button onClick={handleDelete} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">Confirm delete</button>
+                <button onClick={() => setDeleting(null)} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleDelete} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Deleting…' : 'Confirm delete'}
+                </button>
               </div>
             </div>
           </div>,
@@ -354,7 +394,7 @@ function AdminBusinessZonesPageContent(){
             mode={formMode}
             initial={editing}
             onClose={()=>setShowForm(false)}
-            onSuccess={async()=>{ setShowForm(false); refetchAll()}}
+            onSuccess={async()=>{ setShowForm(false); await refetchAll()}}
           />,
           document.body
         )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Package } from '@/components/ui/IconWrapper'
 import { MerchantProductForm } from '../_components/MerchantProductForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewProductSkeleton(){
 
 function NewProductContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/products')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /products
+    // remounts with fresh-but-stale data and the new merchant product is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'merchant-products'] })
+    router.push('/products')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewProductContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Assign a master product to a vendor outlet — vendor → outlet → product.</p>
         </div>
       </div>
-      <MerchantProductForm onSuccess={() => router.push('/products')} onCancel={handleBack} />
+      <MerchantProductForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

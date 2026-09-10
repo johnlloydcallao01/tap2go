@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@/utils/redisCache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -123,6 +124,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(updated)
+    // Bust list cache so the update reflects immediately on /products.
+    // Master names are embedded in the merchant-products aggregate, so bust that too.
+    await deleteCachedByPrefix('admin:products:')
+    await deleteCachedByPrefix('admin:merchant-products:')
     return NextResponse.json({ success: true, message: 'Product updated successfully', doc: sanitized })
   } catch (err: any) { console.error('[admin/products/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message || 'Update failed' }, { status: 500 }) }
 }
@@ -138,6 +143,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted: any
     try { deleted = await payload.delete({ collection: 'products', id: docId as number, overrideAccess: true }) } catch (e: any) { return NextResponse.json({ error: e?.message || 'Failed to delete product' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /products
+    await deleteCachedByPrefix('admin:products:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Product deleted successfully' })
   } catch (err: any) { console.error('[admin/products/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message || 'Delete failed' }, { status: 500 }) }
 }

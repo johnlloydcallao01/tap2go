@@ -210,12 +210,12 @@ export function RichTextEditor({
   }, [onChange]);
 
   return (
-    <div className={`relative border border-gray-300 rounded-lg overflow-hidden ${className}`}>
+    <div className={`relative border border-gray-200 dark:border-[#262626] rounded-lg overflow-hidden bg-white dark:bg-[#0a0a0a] focus-within:ring-2 focus-within:ring-[#eba236]/20 focus-within:border-[#eba236] transition ${className}`}>
       <LexicalComposer initialConfig={EDITOR_CONFIG}>
-        <div className="editor-container relative bg-white">
-        <div className="editor-inner bg-white relative leading-5 font-normal text-left rounded-t-lg">
+        <div className="editor-container relative bg-white dark:bg-[#0a0a0a]">
+        <div className="editor-inner bg-white dark:bg-[#0a0a0a] relative leading-5 font-normal text-left rounded-t-lg">
           <ToolbarPlugin />
-          <div className="editor-content bg-white relative min-h-[300px] text-base outline-none p-2.5">
+          <div className="editor-content bg-white dark:bg-[#0a0a0a] relative min-h-[300px] text-base outline-none p-2.5">
             <style dangerouslySetInnerHTML={{
               __html: `
                 .editor-content .editor-paragraph {
@@ -228,6 +228,9 @@ export function RichTextEditor({
                 }
                 .editor-content .editor-paragraph:hover {
                   background-color: #f9fafb;
+                }
+                .dark .editor-content .editor-paragraph:hover {
+                  background-color: #171717;
                 }
                 .editor-content .editor-heading-h1 {
                   font-size: 2.25em;
@@ -242,6 +245,9 @@ export function RichTextEditor({
                 .editor-content .editor-heading-h1:hover {
                   background-color: #f9fafb;
                 }
+                .dark .editor-content .editor-heading-h1:hover {
+                  background-color: #171717;
+                }
                 .editor-content .editor-heading-h2 {
                   font-size: 1.75em;
                   font-weight: 600;
@@ -254,6 +260,9 @@ export function RichTextEditor({
                 }
                 .editor-content .editor-heading-h2:hover {
                   background-color: #f9fafb;
+                }
+                .dark .editor-content .editor-heading-h2:hover {
+                  background-color: #171717;
                 }
                 .editor-content .editor-heading-h3 {
                   font-size: 1.375em;
@@ -268,8 +277,11 @@ export function RichTextEditor({
                 .editor-content .editor-heading-h3:hover {
                   background-color: #f9fafb;
                 }
+                .dark .editor-content .editor-heading-h3:hover {
+                  background-color: #171717;
+                }
                 .editor-content .editor-quote {
-                  border-left: 4px solid #3b82f6;
+                  border-left: 4px solid #eba236;
                   padding: 16px 20px 16px 24px;
                   margin: 8px 0;
                   font-style: italic;
@@ -278,6 +290,10 @@ export function RichTextEditor({
                   color: #475569;
                   font-size: 1.1em;
                   line-height: 1.6;
+                }
+                .dark .editor-content .editor-quote {
+                  background-color: #171717;
+                  color: #a1a1aa;
                 }
                 .editor-content .editor-list-ol,
                 .editor-content .editor-list-ul {
@@ -303,24 +319,36 @@ export function RichTextEditor({
                   line-height: 1.5;
                   overflow-x: auto;
                 }
+                .dark .editor-content .editor-code {
+                  background-color: #171717;
+                  border-color: #262626;
+                  color: #e4e4e7;
+                }
                 .editor-content [data-lexical-editor] > * {
                   position: relative;
+                  color: inherit;
                 }
                 .editor-content [data-lexical-editor] > *:hover {
                   outline: 1px solid #e5e7eb;
                   outline-offset: -1px;
+                }
+                .dark .editor-content [data-lexical-editor] {
+                  color: #ffffff;
+                }
+                .dark .editor-content [data-lexical-editor] > *:hover {
+                  outline-color: #262626;
                 }
               `
             }} />
             <RichTextPlugin
               contentEditable={
                 React.createElement(ContentEditable, {
-                  className: "editor-input min-h-[300px] outline-none resize-none text-gray-900 leading-relaxed",
-                  style: { caretColor: '#1f2937' }
+                  className: "editor-input min-h-[300px] outline-none resize-none text-gray-900 dark:text-white leading-relaxed caret-[#eba236]",
+                  style: { caretColor: '#eba236' }
                 })
               }
               placeholder={
-                <div className="editor-placeholder absolute text-gray-400 pointer-events-none" style={{ top: '22px', left: '30px', lineHeight: '1.5em' }}>
+                <div className="editor-placeholder absolute text-gray-400 dark:text-[#52525b] pointer-events-none" style={{ top: '22px', left: '30px', lineHeight: '1.5em' }}>
                   <span>{placeholder || "Start writing..."}</span>
                 </div>
               }

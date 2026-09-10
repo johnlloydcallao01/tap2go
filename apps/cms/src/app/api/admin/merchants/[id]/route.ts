@@ -8,6 +8,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
+import { deleteCachedByPrefix } from '@/utils/redisCache'
 
 function str(v: unknown, fb=''): string { return typeof v==='string'?v:fb }
 function num(v: unknown, fb=0): number { if(typeof v==='number'&&Number.isFinite(v)) return v; if(typeof v==='string'){ const n=Number(v); return Number.isFinite(n)?n:fb } return fb }
@@ -214,6 +215,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error:msg, details:e?.data||e?.errors },{status:400})
     }
     const sanitized=sanitizeMerchantDoc(updated)
+    // Bust list cache so the update reflects immediately on /merchants
+    await deleteCachedByPrefix('admin:merchants:')
     return NextResponse.json({ success:true, message:'Merchant updated successfully', doc: sanitized })
   }catch(err:any){ console.error('[admin/merchants/[id]] PATCH error:',err); return NextResponse.json({ error:err?.message||'Update failed' },{status:500})}
 }
@@ -231,6 +234,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted:any
     try{ deleted=await payload.delete({ collection:'merchants', id: docId as number, overrideAccess:true }) }catch(e:any){ return NextResponse.json({ error:e?.message||'Failed to delete merchant' },{status:400})}
     if(!deleted) return NextResponse.json({ error:'Merchant not found' },{status:404})
+    // Bust list cache so the deletion reflects immediately on /merchants
+    await deleteCachedByPrefix('admin:merchants:')
     return NextResponse.json({ success:true, id:deleted.id, message:'Merchant deleted successfully' })
   }catch(err:any){ console.error('[admin/merchants/[id]] DELETE error:',err); return NextResponse.json({ error:err?.message||'Delete failed' },{status:500})}
 }

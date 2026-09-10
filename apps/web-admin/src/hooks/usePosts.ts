@@ -13,7 +13,7 @@ export type PostsResponse = {
 };
 
 async function fetchPosts(qs: string, signal?: AbortSignal): Promise<PostsResponse> {
-  const res = await fetch(`${API_BASE_URL}/posts?${qs}`, { credentials: 'include', signal });
+  const res = await fetch(`${API_BASE_URL}/posts?${qs}`, { credentials: 'include', signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

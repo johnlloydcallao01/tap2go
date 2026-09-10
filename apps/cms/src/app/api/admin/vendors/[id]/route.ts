@@ -8,6 +8,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { validateStoreHoursFields } from '@/utils/storeHours'
+import { deleteCachedByPrefix } from '@/utils/redisCache'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
 function str(v: unknown, fb=''): string { return typeof v === 'string' ? v : fb }
@@ -179,6 +180,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const merchantsRes = await payload.find({ collection: 'merchants', where: { vendor: { equals: updated.id } }, limit: 0, depth: 0, overrideAccess: true, pagination: false } as any).catch(()=>({ totalDocs: 0, docs: [] } as any))
     const count = typeof (merchantsRes as any).totalDocs === 'number' ? (merchantsRes as any).totalDocs : (merchantsRes as any).docs?.length ?? 0
     const sanitized = sanitizeVendorDoc(updated, count, [])
+    // Bust list cache so the update reflects immediately on /vendors
+    await deleteCachedByPrefix('admin:vendors:')
     return NextResponse.json({ success: true, message: 'Vendor updated successfully', doc: sanitized })
   } catch (err:any) { console.error('[admin/vendors/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message||'Update failed' }, { status: 500 }) }
 }
@@ -211,6 +214,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted: any
     try { deleted = await payload.delete({ collection: 'vendors', id: docId as number, overrideAccess: true }) } catch (e:any) { return NextResponse.json({ error: e?.message||'Failed to delete vendor' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Vendor not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /vendors
+    await deleteCachedByPrefix('admin:vendors:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Vendor deleted successfully' })
   } catch (err:any) { console.error('[admin/vendors/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message||'Delete failed' }, { status: 500 }) }
 }

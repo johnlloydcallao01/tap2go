@@ -11,7 +11,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached, deleteCachedByPrefix } from '@/utils/redisCache'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -388,6 +388,8 @@ export async function POST(request: NextRequest){
       return NextResponse.json({ error: msg, details: e?.data||e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeMerchantDoc(created)
+    // Bust list cache (all admins / query variants) so the new outlet shows immediately
+    await deleteCachedByPrefix('admin:merchants:')
     return NextResponse.json({ success: true, message: 'Merchant created successfully', doc: sanitized }, { status: 201 })
   }catch(err:any){
     console.error('[admin/merchants] POST error:', err)

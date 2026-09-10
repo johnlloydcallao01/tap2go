@@ -2,7 +2,19 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useForm, Controller, SubmitHandler } from 'react-hook-form';
-import { Save, Eye, X } from '@/components/ui/IconWrapper';
+import {
+  Save,
+  Eye,
+  X,
+  AlertCircle,
+  RefreshCw,
+  FileText,
+  Tag as TagIcon,
+  Image as ImageIcon,
+  Globe,
+  CheckCircle,
+  Clock,
+} from '@/components/ui/IconWrapper';
 import { PostFormData, validatePostForm, generateSlug } from '@encreasl/cms-types'
 import { useAuth } from '@/hooks/useAuth';
 import { getStoredToken } from '@/lib/auth';
@@ -27,6 +39,37 @@ interface PostEditorProps {
   postId?: string;
   onSave?: (post: unknown) => void;
   onCancel?: () => void;
+}
+
+// ── Vendors page design tokens ──────────────────────────────────────────────
+// Outer page:       space-y-6 py-5 px-2.5  (owned by the route page)
+// Card:             bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm
+// Card body:        p-6 space-y-6  (sidebar cards: p-5)
+// Section title:    text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2
+// Label:            text-xs font-medium text-gray-700 dark:text-[#a1a1aa]
+// Input:            mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626]
+//                   bg-white dark:bg-[#0a0a0a] text-sm text-gray-900 dark:text-white
+//                   placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236]
+// Error banner:     bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-xl
+// Primary btn:      bg-[#eba236] hover:bg-[#c88a20] text-white rounded-lg text-sm font-semibold
+// Secondary btn:    bg-white dark:bg-[#171717] border-gray-300 dark:border-[#262626] text-gray-700 dark:text-[#a1a1aa]
+const inputCls =
+  'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#eba236]/20 focus:border-[#eba236]';
+const labelCls = 'text-xs font-medium text-gray-700 dark:text-[#a1a1aa]';
+const cardCls =
+  'bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden';
+const sectionTitleCls =
+  'text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2';
+const secondaryBtnCls =
+  'inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-[#262626] bg-white dark:bg-[#171717] px-4 py-2 text-sm font-medium text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed transition';
+const primaryBtnCls =
+  'inline-flex items-center gap-2 rounded-lg bg-[#eba236] hover:bg-[#c88a20] px-6 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition';
+
+function statusBadge(status: string) {
+  const s = status?.toLowerCase() || 'draft';
+  if (s === 'published')
+    return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800';
+  return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-[#262626] dark:text-[#a1a1aa] dark:border-[#333]';
 }
 
 export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
@@ -82,6 +125,8 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
   });
 
   const watchedTitle = watch('title');
+  const watchedSlug = watch('slug');
+  const watchedExcerpt = watch('excerpt');
   const watchedStatus = watch('status');
   const watchedAuthor = watch('author');
 
@@ -200,15 +245,11 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
       }
 
       // Validate form data
-      console.log('🔍 Validating form data:', data);
       const validation = validatePostForm(data);
       if (!validation.success) {
-        console.error('❌ Form validation failed:', validation.error);
-        console.error('❌ Validation errors:', validation.error?.issues);
         setError(`Validation failed: ${validation.error?.issues?.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`);
         return;
       }
-      console.log('✅ Form validation passed');
 
       // Transform data for PayloadCMS API
       const payloadData = {
@@ -223,8 +264,6 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
         seo: data.seo && (data.seo.title || data.seo.description || data.seo.focusKeyword) ? data.seo : undefined,
       };
 
-      console.log('📤 Sending data to PayloadCMS:', payloadData);
-
       // Use the JWT token persisted in localStorage (the payload-token cookie is HttpOnly
       // and is therefore NOT readable via document.cookie)
       const storedToken = getStoredToken();
@@ -236,7 +275,6 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
       // Add Authorization header if we have a token
       if (storedToken) {
         headers['Authorization'] = `JWT ${storedToken}`;
-        console.log('🔐 Added Authorization header with JWT token');
       }
 
       let response: { id: string; [key: string]: unknown };
@@ -254,7 +292,6 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
         }
         response = await res.json();
       } else {
-        console.log('📤 Creating post with headers:', headers);
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/posts`, {
           method: 'POST',
           headers,
@@ -264,7 +301,6 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
         if (!res.ok) {
           const errorText = await res.text();
           console.error('❌ Create failed:', res.status, errorText);
-          console.error('❌ Response headers:', Object.fromEntries(res.headers.entries()));
           throw new Error(`Failed to create post: ${res.status}`);
         }
         response = await res.json();
@@ -313,394 +349,428 @@ export function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
     handleSubmit(onSubmit)();
   };
 
+  const authorLabel = (() => {
+    if (!_currentUser) return null;
+    const user = _currentUser as unknown as PayloadUser;
+    const firstName = user.firstName || user.first_name || '';
+    const lastName = user.lastName || user.last_name || '';
+    const email = user.email || '';
+    if (firstName || lastName) return { name: `${firstName} ${lastName}`.trim(), email };
+    if (email) return { name: email, email: '' };
+    return { name: `User #${user.id}`, email: '' };
+  })();
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading post...</p>
+      <div className={cardCls}>
+        <div className="flex flex-col items-center justify-center py-16 px-6">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#eba236] mx-auto mb-4" />
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Loading post…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {postId ? 'Edit Post' : 'Create New Post'}
-          </h1>
-          <p className="text-gray-600 mt-1">
-            {postId ? 'Update your blog post' : 'Write and publish a new blog post'}
-          </p>
+    <div className="space-y-6">
+      {/* Error banner — vendors pattern */}
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>{error}</span>
         </div>
-        
-        <div className="flex items-center space-x-3">
-          <button
-            type="button"
-            onClick={() => setShowPreview(!showPreview)}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      )}
+
+      {/* Meta + secondary actions row — mirrors vendors view action row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border capitalize ${statusBadge(watchedStatus)}`}
           >
-            <Eye className="w-4 h-4 mr-2" />
-            {showPreview ? 'Edit' : 'Preview'}
+            {watchedStatus === 'published' ? (
+              <CheckCircle className="w-3 h-3" />
+            ) : (
+              <Clock className="w-3 h-3" />
+            )}
+            {watchedStatus || 'draft'}
+          </span>
+          {authorLabel && (
+            <span className="text-xs text-gray-500 dark:text-[#a1a1aa]">
+              by <span className="font-medium text-gray-700 dark:text-white">{authorLabel.name}</span>
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setShowPreview((v) => !v)} className={secondaryBtnCls}>
+            <Eye className="w-4 h-4" />
+            {showPreview ? 'Back to edit' : 'Preview'}
           </button>
-          
           {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <X className="w-4 h-4 mr-2" />
+            <button type="button" onClick={onCancel} className={secondaryBtnCls}>
+              <X className="w-4 h-4" />
               Cancel
             </button>
           )}
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-800">{error}</p>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Title */}
-            <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-                Title *
-              </label>
-              <Controller
-                name="title"
-                control={control}
-                rules={{ required: 'Title is required' }}
-                render={({ field }) => (
-                  <input
-                    {...field}
-                    type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                    placeholder="Enter post title..."
-                    style={{ caretColor: '#1f2937' }}
-                  />
-                )}
-              />
-              {errors.title && (
-                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
-              )}
-            </div>
-
-            {/* Slug */}
-            <div>
-              <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-2">
-                URL Slug *
-              </label>
-              <Controller
-                name="slug"
-                control={control}
-                rules={{ required: 'Slug is required' }}
-                render={({ field }) => (
-                  <input
-                    {...field}
-                    type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                    placeholder="url-friendly-slug"
-                    style={{ caretColor: '#1f2937' }}
-                  />
-                )}
-              />
-              {errors.slug && (
-                <p className="mt-1 text-sm text-red-600">{errors.slug.message}</p>
-              )}
-            </div>
-
-            {/* Content Editor */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Content *
-              </label>
-              <RichTextEditor
-                value={contentRef.current}
-                onChange={(value) => {
-                  contentRef.current = value as string;
-                  setValue('content', value, { shouldValidate: false });
-                }}
-                placeholder="Start writing your post..."
-              />
-              {errors.content && (
-                <p className="mt-1 text-sm text-red-600">Content is required</p>
-              )}
-            </div>
-
-            {/* Excerpt */}
-            <div>
-              <label htmlFor="excerpt" className="block text-sm font-medium text-gray-700 mb-2">
-                Excerpt
-              </label>
-              <Controller
-                name="excerpt"
-                control={control}
-                render={({ field }) => (
-                  <textarea
-                    {...field}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                    placeholder="Brief description for previews and SEO..."
-                    style={{ caretColor: '#1f2937' }}
-                  />
-                )}
-              />
-            </div>
+      {showPreview ? (
+        <div className={cardCls}>
+          <div className="p-6 space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#a1a1aa]">
+              Preview
+            </p>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+              {watchedTitle || 'Untitled post'}
+            </h2>
+            {watchedSlug && (
+              <p className="text-xs font-mono text-gray-500 dark:text-[#a1a1aa]">/{watchedSlug}</p>
+            )}
+            {watchedExcerpt && (
+              <p className="text-sm text-gray-600 dark:text-[#a1a1aa] border-l-2 border-[#eba236] pl-3">
+                {watchedExcerpt}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 dark:text-[#a1a1aa]">
+              Body preview renders after publish — the rich-text canvas stays in the editor to avoid
+              Lexical hydration drift.
+            </p>
           </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Main column */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className={cardCls}>
+                <div className="p-6 space-y-6">
+                  {/* Post details */}
+                  <div>
+                    <h4 className={sectionTitleCls}>
+                      <FileText className="w-4 h-4 text-[#eba236]" /> Post Details
+                    </h4>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <label htmlFor="title" className={labelCls}>
+                          Title *
+                        </label>
+                        <Controller
+                          name="title"
+                          control={control}
+                          rules={{ required: 'Title is required' }}
+                          render={({ field }) => (
+                            <input
+                              {...field}
+                              type="text"
+                              className={`${inputCls} caret-[#eba236]`}
+                              placeholder="Enter post title…"
+                            />
+                          )}
+                        />
+                        {errors.title && (
+                          <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                            {errors.title.message}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label htmlFor="slug" className={labelCls}>
+                          URL Slug *{' '}
+                          <span className="text-gray-400 font-normal">(auto-generated, editable)</span>
+                        </label>
+                        <Controller
+                          name="slug"
+                          control={control}
+                          rules={{ required: 'Slug is required' }}
+                          render={({ field }) => (
+                            <input
+                              {...field}
+                              type="text"
+                              className={`${inputCls} font-mono caret-[#eba236]`}
+                              placeholder="url-friendly-slug"
+                            />
+                          )}
+                        />
+                        {errors.slug && (
+                          <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                            {errors.slug.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Publish Actions */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Publish</h3>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <Controller
-                    name="status"
-                    control={control}
-                    render={({ field }) => (
-                      <select
-                        {...field}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
-                      >
-                        <option value="draft">Draft</option>
-                        <option value="published">Published</option>
-                      </select>
-                    )}
-                  />
-                </div>
-
-                {/* Author Field */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Author
-                  </label>
-                  <div className="text-sm text-gray-600 px-2 py-1 bg-gray-50 border border-gray-200 rounded">
-                    {_currentUser ? (
-                      <span>
-                        {(() => {
-                          const user = _currentUser as unknown as PayloadUser;
-                          const firstName = user.firstName || user.first_name || '';
-                          const lastName = user.lastName || user.last_name || '';
-                          const email = user.email || '';
-
-                          // If we have first/last name, show them
-                          if (firstName || lastName) {
-                            return (
-                              <>
-                                {firstName} {lastName}
-                                {email && <span className="text-gray-400 ml-1">({email})</span>}
-                              </>
-                            );
-                          }
-
-                          // If no name, just show email
-                          if (email) {
-                            return (
-                              <span>
-                                {email}
-                              </span>
-                            );
-                          }
-
-                          // Fallback to user ID
-                          return <span>User #{user.id}</span>;
-                        })()}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">
-                        {watchedAuthor && watchedAuthor > 0 ? `Author ID: ${watchedAuthor}` : 'Loading user...'}
-                      </span>
+                  {/* Content */}
+                  <div>
+                    <h4 className={sectionTitleCls}>
+                      <FileText className="w-4 h-4 text-[#eba236]" /> Content *
+                    </h4>
+                    <RichTextEditor
+                      value={contentRef.current}
+                      onChange={(value) => {
+                        contentRef.current = value as string;
+                        setValue('content', value, { shouldValidate: false });
+                      }}
+                      placeholder="Start writing your post…"
+                    />
+                    {errors.content && (
+                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                        Content is required
+                      </p>
                     )}
                   </div>
-                  {/* Hidden field for form submission */}
-                  <Controller
-                    name="author"
-                    control={control}
-                    render={({ field }) => (
-                      <input {...field} type="hidden" />
-                    )}
-                  />
-                </div>
 
-                {watchedStatus === 'published' && (
+                  {/* Excerpt */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Publish Date
-                    </label>
+                    <h4 className={sectionTitleCls}>Excerpt</h4>
                     <Controller
-                      name="publishedAt"
+                      name="excerpt"
                       control={control}
-                      render={({ field }) => {
-                        // Convert ISO string to datetime-local format
-                        const formatForDateTimeLocal = (value: string) => {
-                          if (!value) return '';
-                          try {
-                            // If it's already in the correct format, return as is
-                            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
-                              return value;
-                            }
-                            // Convert ISO string to datetime-local format
-                            const date = new Date(value);
-                            const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-                              .toISOString()
-                              .slice(0, 16);
-                            return localDateTime;
-                          } catch {
-                            return '';
-                          }
-                        };
+                      render={({ field }) => (
+                        <textarea
+                          {...field}
+                          rows={3}
+                          className={`${inputCls} caret-[#eba236]`}
+                          placeholder="Brief description for previews and SEO…"
+                        />
+                      )}
+                    />
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      Shown on cards and used as the SEO fallback.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                        return (
-                          <input
-                            {...field}
-                            value={formatForDateTimeLocal(field.value || '')}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => field.onChange(e.target.value)}
-                            type="datetime-local"
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
-                          />
-                        );
-                      }}
+            {/* Sidebar */}
+            <div className="space-y-5">
+              {/* Publish */}
+              <div className={cardCls}>
+                <div className="p-5 space-y-3">
+                  <h4 className={sectionTitleCls}>
+                    <CheckCircle className="w-4 h-4 text-[#eba236]" /> Publish
+                  </h4>
+                  <div>
+                    <label className={labelCls}>Status</label>
+                    <Controller
+                      name="status"
+                      control={control}
+                      render={({ field }) => (
+                        <select {...field} className={inputCls}>
+                          <option value="draft">Draft</option>
+                          <option value="published">Published</option>
+                        </select>
+                      )}
                     />
                   </div>
-                )}
 
-                <div className="flex space-x-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    disabled={isSaving || !watchedAuthor || watchedAuthor <= 0}
-                    className="flex-1 inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <Save className="w-4 h-4 mr-1" />
-                    {isSaving ? 'Saving...' : (!watchedAuthor || watchedAuthor <= 0) ? 'Loading user...' : 'Save Draft'}
-                  </button>
+                  <div>
+                    <label className={labelCls}>Author</label>
+                    <div className="mt-1 text-sm px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#262626] text-gray-900 dark:text-white">
+                      {authorLabel ? (
+                        <span>
+                          {authorLabel.name}
+                          {authorLabel.email && authorLabel.name !== authorLabel.email && (
+                            <span className="text-gray-400 ml-1 text-xs">
+                              ({authorLabel.email})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">
+                          {watchedAuthor && watchedAuthor > 0
+                            ? `Author ID: ${watchedAuthor}`
+                            : 'Loading user…'}
+                        </span>
+                      )}
+                    </div>
+                    <Controller
+                      name="author"
+                      control={control}
+                      render={({ field }) => <input {...field} type="hidden" />}
+                    />
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={handlePublish}
-                    disabled={isSaving || !watchedAuthor || watchedAuthor <= 0}
-                    className="flex-1 inline-flex items-center justify-center px-3 py-2 bg-blue-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {isSaving ? 'Publishing...' : (!watchedAuthor || watchedAuthor <= 0) ? 'Loading user...' : 'Publish'}
-                  </button>
+                  {watchedStatus === 'published' && (
+                    <div>
+                      <label className={labelCls}>Publish date</label>
+                      <Controller
+                        name="publishedAt"
+                        control={control}
+                        render={({ field }) => {
+                          const formatForDateTimeLocal = (value: string) => {
+                            if (!value) return '';
+                            try {
+                              if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return value;
+                              const date = new Date(value);
+                              return new Date(
+                                date.getTime() - date.getTimezoneOffset() * 60000
+                              )
+                                .toISOString()
+                                .slice(0, 16);
+                            } catch {
+                              return '';
+                            }
+                          };
+                          return (
+                            <input
+                              {...field}
+                              value={formatForDateTimeLocal(field.value || '')}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                field.onChange(e.target.value)
+                              }
+                              type="datetime-local"
+                              className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
+                            />
+                          );
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Featured Image */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Featured Image</h3>
-              <Controller
-                name="featuredImage"
-                control={control}
-                render={({ field }) => (
-                  <MediaUploader
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-            </div>
-
-            {/* Tags */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Tags</h3>
-              <Controller
-                name="tags"
-                control={control}
-                render={({ field }) => (
-                  <TagInput
-                    value={field.value || []}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-            </div>
-
-            {/* SEO */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">SEO</h3>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    SEO Title
-                  </label>
+              {/* Featured image */}
+              <div className={cardCls}>
+                <div className="p-5">
+                  <h4 className={sectionTitleCls}>
+                    <ImageIcon className="w-4 h-4 text-[#eba236]" /> Featured Image
+                  </h4>
                   <Controller
-                    name="seo.title"
+                    name="featuredImage"
                     control={control}
                     render={({ field }) => (
-                      <input
-                        {...field}
-                        type="text"
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
-                        placeholder="Leave empty to use post title"
-                        style={{ caretColor: '#1f2937' }}
-                      />
+                      <MediaUploader value={field.value} onChange={field.onChange} />
                     )}
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    SEO Description
-                  </label>
+              {/* Tags */}
+              <div className={cardCls}>
+                <div className="p-5">
+                  <h4 className={sectionTitleCls}>
+                    <TagIcon className="w-4 h-4 text-[#eba236]" /> Tags
+                  </h4>
                   <Controller
-                    name="seo.description"
+                    name="tags"
                     control={control}
                     render={({ field }) => (
-                      <textarea
-                        {...field}
-                        rows={2}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
-                        placeholder="Leave empty to use excerpt"
-                        style={{ caretColor: '#1f2937' }}
-                      />
+                      <TagInput value={field.value || []} onChange={field.onChange} />
                     )}
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Focus Keyword
-                  </label>
-                  <Controller
-                    name="seo.focusKeyword"
-                    control={control}
-                    render={({ field }) => (
-                      <input
-                        {...field}
-                        type="text"
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
-                        placeholder="Primary keyword for ranking"
-                        style={{ caretColor: '#1f2937' }}
-                      />
-                    )}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    The main keyword you want this post to rank for in search engines
-                  </p>
+              {/* SEO */}
+              <div className={cardCls}>
+                <div className="p-5 space-y-3">
+                  <h4 className={sectionTitleCls}>
+                    <Globe className="w-4 h-4 text-[#eba236]" /> SEO
+                  </h4>
+                  <div>
+                    <label className={labelCls}>SEO title</label>
+                    <Controller
+                      name="seo.title"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="text"
+                          className={`${inputCls} caret-[#eba236]`}
+                          placeholder="Leave empty to use post title"
+                        />
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>SEO description</label>
+                    <Controller
+                      name="seo.description"
+                      control={control}
+                      render={({ field }) => (
+                        <textarea
+                          {...field}
+                          rows={2}
+                          className={`${inputCls} caret-[#eba236]`}
+                          placeholder="Leave empty to use excerpt"
+                        />
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Focus keyword</label>
+                    <Controller
+                      name="seo.focusKeyword"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="text"
+                          className={`${inputCls} caret-[#eba236]`}
+                          placeholder="Primary keyword for ranking"
+                        />
+                      )}
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-[#a1a1aa]">
+                      The main keyword you want this post to rank for in search engines.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </form>
+
+          {/* Footer actions — vendors form pattern */}
+          <div className={`${cardCls} mt-6`}>
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 bg-gray-50 dark:bg-[#0a0a0a] px-6 py-4 border-t border-gray-200 dark:border-[#262626]">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isSaving}
+                  className={`${secondaryBtnCls} justify-center`}
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={isSaving || !watchedAuthor || watchedAuthor <= 0}
+                className={`${secondaryBtnCls} justify-center`}
+              >
+                {isSaving ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {isSaving
+                  ? 'Saving…'
+                  : !watchedAuthor || watchedAuthor <= 0
+                    ? 'Loading user…'
+                    : 'Save draft'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={isSaving || !watchedAuthor || watchedAuthor <= 0}
+                className={`${primaryBtnCls} justify-center`}
+              >
+                {isSaving && <RefreshCw className="h-4 w-4 animate-spin" />}
+                {isSaving
+                  ? 'Publishing…'
+                  : !watchedAuthor || watchedAuthor <= 0
+                    ? 'Loading user…'
+                    : postId
+                      ? 'Update post'
+                      : 'Publish post'}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

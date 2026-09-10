@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter, notFound } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ArrowLeft, Store, AlertCircle } from '@/components/ui/IconWrapper'
 import { MerchantForm } from '../../_components/MerchantForm'
@@ -15,6 +16,7 @@ function EditMerchantContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   if (['operating-hours','order-status','locations'].includes(id) || !/^\d+$/.test(id)) {
     notFound()
   }
@@ -70,7 +72,11 @@ function EditMerchantContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">ID #{doc.id} • {doc.outletName} • {doc.outletCode}</p>
         </div>
       </div>
-      <MerchantForm initial={doc} onSuccess={() => router.push(`/merchants/${id}`)} onCancel={handleBack} />
+      <MerchantForm initial={doc} onSuccess={async () => {
+        // Keep the list fresh for when the user navigates back to /merchants.
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'merchants'] })
+        router.push(`/merchants/${id}`)
+      }} onCancel={handleBack} />
     </div>
   )
 }

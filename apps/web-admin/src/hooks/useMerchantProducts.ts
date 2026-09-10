@@ -35,7 +35,7 @@ export type MerchantProductsResponse = {
 };
 
 async function fetchMerchantProducts(qs: string, signal?: AbortSignal): Promise<MerchantProductsResponse> {
-  const res = await fetch(`/api/merchant-products?${qs}`, { signal });
+  const res = await fetch(`/api/merchant-products?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

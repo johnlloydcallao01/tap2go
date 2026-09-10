@@ -23,7 +23,7 @@ import { Bold,
 const LowPriority = 1;
 
 function Divider() {
-  return <div className="w-px h-6 bg-gray-300 mx-1" />;
+  return <div className="w-px h-6 bg-gray-300 dark:bg-[#333] mx-1" />;
 }
 
 export function ToolbarPlugin() {
@@ -83,7 +83,7 @@ export function ToolbarPlugin() {
 
   return (
     <div
-      className="toolbar flex items-center space-x-1 p-2 border-b border-gray-200 bg-gray-50"
+      className="toolbar flex items-center space-x-1 p-2 border-b border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#0a0a0a]"
       ref={toolbarRef}
     >
       <button
@@ -92,7 +92,7 @@ export function ToolbarPlugin() {
         onClick={() => {
           editor.dispatchCommand(UNDO_COMMAND, undefined);
         }}
-        className="toolbar-item p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900"
+        className="toolbar-item p-2 rounded hover:bg-gray-200 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white"
         aria-label="Undo"
       >
         <Undo className="w-4 h-4" />
@@ -103,7 +103,7 @@ export function ToolbarPlugin() {
         onClick={() => {
           editor.dispatchCommand(REDO_COMMAND, undefined);
         }}
-        className="toolbar-item p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900"
+        className="toolbar-item p-2 rounded hover:bg-gray-200 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white"
         aria-label="Redo"
       >
         <Redo className="w-4 h-4" />
@@ -114,8 +114,8 @@ export function ToolbarPlugin() {
         onClick={() => {
           editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold');
         }}
-        className={`toolbar-item p-2 rounded hover:bg-gray-200 text-gray-900 ${
-          isBold ? 'bg-gray-200' : ''
+        className={`toolbar-item p-2 rounded hover:bg-gray-200 dark:hover:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white ${
+          isBold ? 'bg-gray-200 dark:bg-[#262626] text-gray-900 dark:text-white' : ''
         }`}
         aria-label="Format Bold"
       >
@@ -126,8 +126,8 @@ export function ToolbarPlugin() {
         onClick={() => {
           editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic');
         }}
-        className={`toolbar-item p-2 rounded hover:bg-gray-200 text-gray-900 ${
-          isItalic ? 'bg-gray-200' : ''
+        className={`toolbar-item p-2 rounded hover:bg-gray-200 dark:hover:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white ${
+          isItalic ? 'bg-gray-200 dark:bg-[#262626] text-gray-900 dark:text-white' : ''
         }`}
         aria-label="Format Italics"
       >
@@ -138,8 +138,8 @@ export function ToolbarPlugin() {
         onClick={() => {
           editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline');
         }}
-        className={`toolbar-item p-2 rounded hover:bg-gray-200 text-gray-900 ${
-          isUnderline ? 'bg-gray-200' : ''
+        className={`toolbar-item p-2 rounded hover:bg-gray-200 dark:hover:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white ${
+          isUnderline ? 'bg-gray-200 dark:bg-[#262626] text-gray-900 dark:text-white' : ''
         }`}
         aria-label="Format Underline"
       >

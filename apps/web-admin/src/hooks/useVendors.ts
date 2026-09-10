@@ -58,9 +58,8 @@ export type VendorsResponse = {
   pagination: Pagination | null;
   stats: Stats | null;
 };
-
 async function fetchVendors(qs: string, signal?: AbortSignal): Promise<VendorsResponse> {
-  const res = await fetch(`/api/vendors?${qs}`, { signal });
+  const res = await fetch(`/api/vendors?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ClientOnly } from '@/components/ClientOnly'
 import { Package, ArrowLeft, Search, X, Plus, RefreshCw, AlertCircle, Eye, Pencil, Trash2, Store, Tag, DollarSign } from '@/components/ui/IconWrapper'
 
@@ -25,6 +26,7 @@ function MerchantProductsSkeleton(){
 function MerchantProductsListPageContent(){
   const params=useParams()
   const router=useRouter()
+  const queryClient=useQueryClient()
   const vendorId=params.vendorId as string
   const merchantId=params.merchantId as string
   const [merchant,setMerchant]=useState<any>(null)
@@ -36,6 +38,7 @@ function MerchantProductsListPageContent(){
   const [page,setPage]=useState(1)
   const limit=10
   const [deleting,setDeleting]=useState<{id:number;name:string}|null>(null)
+  const [isDeleting,setIsDeleting]=useState(false)
 
   const load=useCallback(async ()=>{
     setLoading(true); setError(null)
@@ -105,13 +108,19 @@ function MerchantProductsListPageContent(){
   const paged = filtered.slice((page-1)*limit, page*limit)
 
   const handleDelete=async()=>{
-    if(!deleting) return
+    if(!deleting||isDeleting) return
+    setIsDeleting(true)
     try{
       const res=await fetch(`/api/merchant-products/${deleting.id}`,{method:'DELETE'})
       const j=await res.json().catch(()=>({}))
       if(!res.ok) throw new Error(j.error||'Failed')
-      setDeleting(null); await load()
+      setDeleting(null)
+      // Bust the /products aggregates so counts refresh when navigating back up
+      // instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['admin','merchant-products'] })
+      await load()
     }catch(e:any){ alert(e.message||'Delete failed') }
+    finally{ setIsDeleting(false) }
   }
 
   const handleBack = () => {
@@ -245,14 +254,17 @@ function MerchantProductsListPageContent(){
       </div>
 
       {deleting && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={()=>setDeleting(null)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={()=>{ if(!isDeleting) setDeleting(null) }}>
           <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6" onClick={e=>e.stopPropagation()}>
             <div className="h-12 w-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4"><Trash2 className="w-6 h-6 text-red-600" /></div>
             <h3 className="font-bold text-gray-900 dark:text-white">Remove product from outlet?</h3>
             <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">This will remove <span className="font-semibold text-gray-900 dark:text-white">{deleting.name}</span> from this outlet. Master product remains.</p>
             <div className="flex gap-2 mt-6">
-              <button onClick={()=>setDeleting(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717]">Cancel</button>
-              <button onClick={handleDelete} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">Confirm remove</button>
+              <button onClick={()=>setDeleting(null)} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+              <button onClick={handleDelete} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                {isDeleting ? 'Removing…' : 'Confirm remove'}
+              </button>
             </div>
           </div>
         </div>

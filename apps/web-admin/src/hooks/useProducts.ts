@@ -6,7 +6,7 @@ import { QUERY_KEYS } from '@encreasl/client-services';
 export type ProductOption = { id: number; name: string };
 
 async function fetchProducts(qs: string, signal?: AbortSignal): Promise<ProductOption[]> {
-  const res = await fetch(`/api/products?${qs}`, { signal });
+  const res = await fetch(`/api/products?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to load products');
   const j = await res.json();
   const docsArr: any[] = j.docs || [];

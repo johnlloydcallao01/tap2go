@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter, notFound } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ArrowLeft, Package, AlertCircle } from '@/components/ui/IconWrapper'
 import { ProductForm } from '../../_components/ProductForm'
@@ -15,6 +16,7 @@ function EditProductContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   if (!/^\d+$/.test(id)) notFound()
   const [doc, setDoc] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -68,7 +70,13 @@ function EditProductContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">ID #{doc.id} • {doc.name} • {doc.slug}</p>
         </div>
       </div>
-      <ProductForm initial={doc} onSuccess={() => router.push(`/products/${id}`)} onCancel={handleBack} />
+      <ProductForm initial={doc} onSuccess={async () => {
+        // Master names are embedded in the merchant-products aggregate, so bust both.
+        // Keeps the list fresh for when the user navigates back to /products.
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'merchant-products'] })
+        router.push(`/products/${id}`)
+      }} onCancel={handleBack} />
     </div>
   )
 }

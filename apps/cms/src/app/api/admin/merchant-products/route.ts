@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached, deleteCachedByPrefix } from '@/utils/redisCache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -412,6 +412,8 @@ export async function POST(request: NextRequest) {
       const msg = e?.message || 'Failed to create merchant product'
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
+    // Bust list cache (all admins / query variants) so the new merchant product shows immediately
+    await deleteCachedByPrefix('admin:merchant-products:')
     return NextResponse.json({ success: true, message: 'Merchant product created successfully', doc: created }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/merchant-products] POST error:', err)

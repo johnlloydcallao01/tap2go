@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Building } from '@/components/ui/IconWrapper'
 import { VendorForm } from '../_components/VendorForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewVendorSkeleton(){
 
 function NewVendorContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/vendors')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /vendors
+    // remounts with fresh-but-stale data and the new vendor is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'vendors'] })
+    router.push('/vendors')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewVendorContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">Create business + owner account in one step.</p>
         </div>
       </div>
-      <VendorForm onSuccess={() => router.push('/vendors')} onCancel={handleBack} />
+      <VendorForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

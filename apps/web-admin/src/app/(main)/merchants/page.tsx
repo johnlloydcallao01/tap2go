@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
-import { useMerchants, type MerchantDoc, type MerchantPagination, type MerchantStats } from '@/hooks/useMerchants'
+import { useMerchants, type MerchantDoc, type MerchantsResponse, type MerchantPagination, type MerchantStats } from '@/hooks/useMerchants'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Store, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
@@ -96,6 +96,7 @@ function MerchantsPageContent(){
   const limit=10
 const [sort,setSort]=useState('-createdAt')
   const [deleting,setDeleting]=useState<MerchantDoc|null>(null)
+  const [isDeleting,setIsDeleting]=useState(false)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount=useMemo(()=> operationalFilter.length + verificationFilter.length + (isActiveFilter!==null?1:0) + (isAcceptingFilter!==null?1:0) + (debouncedQ?1:0),[operationalFilter,verificationFilter,isActiveFilter,isAcceptingFilter,debouncedQ])
@@ -141,13 +142,45 @@ const [sort,setSort]=useState('-createdAt')
   },[deleting])
 
   const handleDelete=async()=>{
-    if(!deleting) return
+    if(!deleting||isDeleting) return
+    setIsDeleting(true)
     try{
       const res=await fetch(`/api/merchants/${deleting.id}`,{method:'DELETE'})
       const j=await res.json().catch(()=>({}))
       if(!res.ok) throw new Error(j.error||'Failed to delete')
-      setDeleting(null); await refetch()
+      const deletedId=deleting.id
+      // Optimistic removal across every cached merchants list (all pages/filters).
+      // Length-guard keeps sibling queries untouched.
+      // The row vanishes instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<MerchantsResponse>(
+        {
+          queryKey: ['admin','merchants'],
+          predicate: (q)=>q.queryKey.length===3&&typeof q.queryKey[2]==='string',
+        },
+        (old)=>{
+          if(!old||!Array.isArray(old.docs)) return old
+          const docs=old.docs.filter((d)=>d.id!==deletedId)
+          const removed=old.docs.length-docs.length
+          if(!removed) return old
+          const limit=Math.max(1,old.pagination?.limit??10)
+          const totalDocs=Math.max(0,(old.pagination?.totalDocs??old.docs.length)-removed)
+          const pagination=old.pagination
+            ? {...old.pagination,totalDocs,totalPages:Math.max(1,Math.ceil(totalDocs/limit))}
+            : old.pagination
+          const stats=old.stats
+            ? {...old.stats,filteredCount:Math.max(0,old.stats.filteredCount-removed),totalMerchants:Math.max(0,old.stats.totalMerchants-removed)}
+            : old.stats
+          return {...old,docs,pagination,stats}
+        }
+      )
+      setDeleting(null)
+      // Bust every cached merchants list (all pages/filters) so the removal
+      // reconciles with the server instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['admin','merchants'] })
+      await refetch()
     }catch(e:any){ alert(e.message||'') }
+    finally{ setIsDeleting(false) }
   }
 
   const isInitial=isInitialLoading
@@ -334,7 +367,7 @@ const [sort,setSort]=useState('-createdAt')
 
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if(!isDeleting) setDeleting(null) }}>
             <div
               className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95"
               onClick={(e) => e.stopPropagation()}
@@ -343,8 +376,11 @@ const [sort,setSort]=useState('-createdAt')
               <h3 className="font-bold text-gray-900 dark:text-white">Delete outlet?</h3>
               <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">This will permanently delete <span className="font-semibold text-gray-900 dark:text-white">{deleting.outletName}</span> ({deleting.outletCode}). This cannot be undone.</p>
               <div className="flex gap-2 mt-6">
-                <button onClick={() => setDeleting(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626]">Cancel</button>
-                <button onClick={handleDelete} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">Confirm delete</button>
+                <button onClick={() => setDeleting(null)} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleDelete} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Deleting…' : 'Confirm delete'}
+                </button>
               </div>
             </div>
           </div>,

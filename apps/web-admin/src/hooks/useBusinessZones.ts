@@ -69,7 +69,7 @@ export type BusinessZoneOverviewResponse = {
 };
 
 async function fetchBusinessZones(qs: string, signal?: AbortSignal): Promise<BusinessZonesResponse> {
-  const res = await fetch(`/api/business-zones?${qs}`, { signal });
+  const res = await fetch(`/api/business-zones?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {
@@ -83,7 +83,7 @@ async function fetchBusinessZones(qs: string, signal?: AbortSignal): Promise<Bus
 }
 
 async function fetchBusinessZoneOverview(qs: string, signal?: AbortSignal): Promise<BusinessZoneOverviewResponse> {
-  const res = await fetch(`/api/business-zones/overview${qs ? `?${qs}` : ''}`, { signal });
+  const res = await fetch(`/api/business-zones/overview${qs ? `?${qs}` : ''}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

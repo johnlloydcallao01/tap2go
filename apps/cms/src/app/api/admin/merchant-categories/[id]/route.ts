@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { deleteCachedByPrefix } from '@/utils/redisCache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -96,6 +97,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(updated, 0)
+    // Bust list cache so the update reflects immediately on /merchant-categories
+    await deleteCachedByPrefix('admin:merchant-categories:')
     return NextResponse.json({ success: true, message: 'Merchant category updated successfully', doc: sanitized })
   } catch (err: any) { console.error('[admin/merchant-categories/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message || 'Update failed' }, { status: 500 }) }
 }
@@ -120,6 +123,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     let deleted: any
     try { deleted = await payload.delete({ collection: 'merchant-categories', id: docId as number, overrideAccess: true }) } catch (e: any) { return NextResponse.json({ error: e?.message || 'Failed to delete' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Merchant category not found' }, { status: 404 })
+    // Bust list cache so the deletion reflects immediately on /merchant-categories
+    await deleteCachedByPrefix('admin:merchant-categories:')
     return NextResponse.json({ success: true, id: deleted.id, message: 'Merchant category deleted successfully' })
   } catch (err: any) { console.error('[admin/merchant-categories/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message || 'Delete failed' }, { status: 500 }) }
 }

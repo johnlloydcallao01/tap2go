@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@/utils/redisCache'
+import { getCached, setCached, deleteCachedByPrefix } from '@/utils/redisCache'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
@@ -203,6 +203,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeZoneDoc(created)
+    // Bust list + overview caches (all admins / query variants) so the new zone shows immediately
+    await deleteCachedByPrefix('admin:business-zones:')
+    await deleteCachedByPrefix('admin:business-zones-overview:')
     return NextResponse.json({ success: true, message: 'Business zone created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/business-zones] POST error:', err)
