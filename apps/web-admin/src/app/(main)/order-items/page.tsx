@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
-import { useOrderItems, type OrderItemDoc } from '@/hooks/useOrderItems'
+import { useOrderItems, type OrderItemDoc, type OrderItemsResponse } from '@/hooks/useOrderItems'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   ShoppingBag, Receipt, Package, Layers, Store, Truck, Users, Mail, Phone,
@@ -103,6 +103,7 @@ function OrderItemsPageContent(){
 
   // delete confirm
   const [deleting, setDeleting] = useState<OrderItemDoc | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -164,21 +165,53 @@ function OrderItemsPageContent(){
   const clearAll = () => { setQ(''); setDebouncedQ(''); setHasOptionsFilter([]) }
 
   const handleDelete = async () => {
-    if (!deleting) return
+    if (!deleting || isDeleting) return
+    setIsDeleting(true)
     setDeleteError(null)
     // block if order already delivered/cancelled
     const status = (deleting.order as any)?.status?.toLowerCase?.() || ''
     if (status === 'delivered' || status === 'completed' || status === 'cancelled' || status === 'canceled') {
       setDeleteError(`Cannot delete — order #${String((deleting.order as any)?.id ?? deleting.id)} is ${status}.`)
+      setIsDeleting(false)
       return
     }
     try {
       const res = await fetch(`/api/order-items/${deleting.id}`, { method: 'DELETE' })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
+      const deletedId = String(deleting.id)
+      // Optimistic removal across every cached items list (all pages/filters).
+      // The row vanishes instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<OrderItemsResponse>(
+        {
+          queryKey: ['admin', 'order-items'],
+          predicate: (q) => q.queryKey.length === 3 && typeof q.queryKey[2] === 'string',
+        },
+        (old) => {
+          if (!old || !Array.isArray(old.docs)) return old
+          const docs = old.docs.filter((d) => String(d.id) !== deletedId)
+          const removed = old.docs.length - docs.length
+          if (!removed) return old
+          const limit = Math.max(1, old.pagination?.limit ?? 10)
+          const totalDocs = Math.max(0, (old.pagination?.totalDocs ?? old.docs.length) - removed)
+          const pagination = old.pagination
+            ? { ...old.pagination, totalDocs, totalPages: Math.max(1, Math.ceil(totalDocs / limit)) }
+            : old.pagination
+          const dec = (v: number | undefined): number | undefined => (typeof v === 'number' ? Math.max(0, v - removed) : v)
+          const stats = old.stats
+            ? { ...old.stats, filteredTotal: dec(old.stats.filteredTotal), totalAll: dec(old.stats.totalAll), totalDocs: dec(old.stats.totalDocs) }
+            : old.stats
+          return { ...old, docs, pagination, stats }
+        }
+      )
       setDeleting(null)
+      // Bust every cached items list (all pages/filters) so the removal
+      // reconciles with the server instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'order-items'] })
       await refetch()
     } catch (e: any) { setDeleteError(e?.message || 'Delete failed') }
+    finally { setIsDeleting(false) }
   }
 
   const showTableSkeleton = isInitialLoading
@@ -468,7 +501,7 @@ function OrderItemsPageContent(){
       {/* Delete confirm — portal to body for true viewport centering */}
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { setDeleting(null); setDeleteError(null) }}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) { setDeleting(null); setDeleteError(null) } }}>
             <div
               className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95"
               onClick={(e) => e.stopPropagation()}
@@ -478,8 +511,11 @@ function OrderItemsPageContent(){
               <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">This will permanently delete line item <span className="font-semibold text-gray-900 dark:text-white">#{String(deleting.id)}</span> — {deleting.product_name_snapshot || (deleting.product as any)?.name || '—'} × {deleting.quantity}. {(() => { const s=(deleting.order as any)?.status?.toLowerCase?.(); if(s==='delivered'||s==='completed'||s==='cancelled'||s==='canceled') return `Order #${String((deleting.order as any)?.id)} is ${s} — deletion blocked.`; return 'This action cannot be undone.'})()}</p>
               {deleteError && <p className="text-sm text-red-600 mt-3 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> {deleteError}</p>}
               <div className="flex gap-2 mt-6">
-                <button onClick={() => { setDeleting(null); setDeleteError(null) }} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626]">Cancel</button>
-                <button onClick={handleDelete} disabled={(() => { const s=(deleting.order as any)?.status?.toLowerCase?.(); return s==='delivered'||s==='completed'||s==='cancelled'||s==='canceled' })()} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">Confirm delete</button>
+                <button onClick={() => { setDeleting(null); setDeleteError(null) }} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleDelete} disabled={isDeleting || (() => { const s=(deleting.order as any)?.status?.toLowerCase?.(); return s==='delivered'||s==='completed'||s==='cancelled'||s==='canceled' })()} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Deleting…' : 'Confirm delete'}
+                </button>
               </div>
               {(() => { const s=(deleting.order as any)?.status?.toLowerCase?.(); if(s==='delivered'||s==='completed'||s==='cancelled'||s==='canceled') return <p className="text-xs text-amber-600 mt-3">Blocked: order is {s}. Line items of finalized orders cannot be removed.</p>; return null })()}
             </div>

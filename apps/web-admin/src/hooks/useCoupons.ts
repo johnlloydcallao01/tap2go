@@ -66,7 +66,7 @@ export type CouponsResponse = {
 };
 
 async function fetchCoupons(qs: string, signal?: AbortSignal): Promise<CouponsResponse> {
-  const res = await fetch(`/api/coupons?${qs}`, { signal });
+  const res = await fetch(`/api/coupons?${qs}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text();
     try {

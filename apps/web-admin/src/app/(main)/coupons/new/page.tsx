@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Ticket } from '@/components/ui/IconWrapper'
 import { CouponForm } from '../_components/CouponForm'
 import { ClientOnly } from '@/components/ClientOnly'
@@ -11,9 +12,17 @@ function NewCouponSkeleton(){
 
 function NewCouponContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back()
     else router.push('/coupons')
+  }
+  const handleSuccess = async () => {
+    // Bust the 3-min list cache BEFORE navigating back, otherwise /coupons
+    // remounts with fresh-but-stale data and the new coupon is invisible
+    // until a manual reload.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'coupons'] })
+    router.push('/coupons')
   }
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -27,7 +36,7 @@ function NewCouponContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">New promo code for a brand, branch, or the whole platform.</p>
         </div>
       </div>
-      <CouponForm onSuccess={() => router.push('/coupons')} onCancel={handleBack} />
+      <CouponForm onSuccess={handleSuccess} onCancel={handleBack} />
     </div>
   )
 }

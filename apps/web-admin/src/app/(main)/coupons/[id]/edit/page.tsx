@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Ticket, AlertCircle, RefreshCw, CheckCircle } from '@/components/ui/IconWrapper'
 import { CouponForm } from '../../_components/CouponForm'
 import type { CouponDoc } from '../../page'
@@ -16,6 +17,7 @@ function EditCouponContent() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [doc, setDoc] = useState<CouponDoc | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,6 +40,8 @@ function EditCouponContent() {
 
   const handleSaveSuccess = async () => {
     setSaveSuccess(true)
+    // Keep the list fresh for when the user navigates back to /coupons.
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'coupons'] })
     try {
       const res = await fetch(`/api/coupons/${id}`, { cache: 'no-store' })
       const j = await res.json()

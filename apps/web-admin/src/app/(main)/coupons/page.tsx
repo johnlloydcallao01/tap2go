@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
 import { useCoupons } from '@/hooks/useCoupons'
-import type { CouponDoc } from '@/hooks/useCoupons'
+import type { CouponDoc, CouponsResponse } from '@/hooks/useCoupons'
 export type { CouponDoc } from '@/hooks/useCoupons'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
@@ -118,6 +118,7 @@ function CouponsPageContent(){
 
   // delete confirm only — view/edit now dedicated pages
   const [deleting, setDeleting] = useState<CouponDoc | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
 
@@ -191,14 +192,45 @@ function CouponsPageContent(){
 
   // delete handler
   const handleDelete = async () => {
-    if (!deleting) return
+    if (!deleting || isDeleting) return
+    setIsDeleting(true)
     try {
       const res = await fetch(`/api/coupons/${deleting.id}`, { method: 'DELETE' })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Failed to delete')
+      const deletedId = deleting.id
+      // Optimistic removal across every cached coupons list (all pages/filters).
+      // Length-guard keeps sibling queries untouched.
+      // The row vanishes instantly even while the CMS Redis list cache
+      // is still converging; invalidate+refetch below reconciles with the server.
+      queryClient.setQueriesData<CouponsResponse>(
+        {
+          queryKey: ['admin', 'coupons'],
+          predicate: (q) => q.queryKey.length === 3 && typeof q.queryKey[2] === 'string',
+        },
+        (old) => {
+          if (!old || !Array.isArray(old.docs)) return old
+          const docs = old.docs.filter((d) => d.id !== deletedId)
+          const removed = old.docs.length - docs.length
+          if (!removed) return old
+          const limit = Math.max(1, old.pagination?.limit ?? 10)
+          const totalDocs = Math.max(0, (old.pagination?.totalDocs ?? old.docs.length) - removed)
+          const pagination = old.pagination
+            ? { ...old.pagination, totalDocs, totalPages: Math.max(1, Math.ceil(totalDocs / limit)) }
+            : old.pagination
+          const stats = old.stats
+            ? { ...old.stats, totalAll: Math.max(0, old.stats.totalAll - removed), filteredTotal: Math.max(0, old.stats.filteredTotal - removed) }
+            : old.stats
+          return { ...old, docs, pagination, stats }
+        }
+      )
       setDeleting(null)
+      // Bust every cached coupons list (all pages/filters) so the removal
+      // reconciles with the server instead of waiting out the 3-min staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'coupons'] })
       await refetch()
     } catch (e: any) { alert(e?.message || 'Delete failed') }
+    finally { setIsDeleting(false) }
   }
 
   const showTableSkeleton = isInitialLoading
@@ -416,7 +448,7 @@ function CouponsPageContent(){
       {/* Delete confirm — portal to body for true viewport centering (fixes bottom-appearing bug) */}
       {deleting && typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeleting(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) setDeleting(null) }}>
             <div
               className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95"
               onClick={(e) => e.stopPropagation()}
@@ -425,8 +457,11 @@ function CouponsPageContent(){
               <h3 className="font-bold text-gray-900 dark:text-white">Delete coupon?</h3>
               <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">This will permanently delete <span className="font-mono font-semibold text-gray-900 dark:text-white">{deleting.code}</span>. {deleting.usage_count > 0 ? `It has ${deleting.usage_count} redemption(s) — past order history keeps its snapshots, but consider pausing instead.` : 'This action cannot be undone.'}</p>
               <div className="flex gap-2 mt-6">
-                <button onClick={() => setDeleting(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626]">Cancel</button>
-                <button onClick={handleDelete} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">Confirm delete</button>
+                <button onClick={() => setDeleting(null)} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleDelete} disabled={isDeleting} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Deleting…' : 'Confirm delete'}
+                </button>
               </div>
               {deleting.usage_count > 0 && <p className="text-xs text-amber-600 mt-3">Heads-up: redeemed {deleting.usage_count} time(s). Pausing keeps the code resolvable for finance review.</p>}
             </div>
