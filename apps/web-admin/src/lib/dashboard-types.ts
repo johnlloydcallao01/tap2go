@@ -2,13 +2,11 @@ export interface DashboardMetrics {
   totalRevenue: number;
   totalOrders: number;
   activeMerchants: number;
-  activeDrivers: number;
   totalCustomers: number;
   totalVendors: number;
   revenueChange: number;
   ordersChange: number;
   merchantsChange: number;
-  driversChange: number;
 }
 
 export interface DailyMetric {

@@ -1,3 +1,21 @@
+export interface ReportsSummaryGroup {
+  meta: ReportsData['meta']
+  summary: ReportsData['summary']
+}
+
+export interface ReportsFinancialGroup {
+  financialReconciliation: ReportsData['financialReconciliation']
+  vendorPayouts: ReportsData['vendorPayouts']
+  refundsFailures: ReportsData['refundsFailures']
+}
+
+export interface ReportsCatalogGroup {
+  orderVolume: ReportsData['orderVolume']
+  productPerformance: ReportsData['productPerformance']
+  vendorCompliance: ReportsData['vendorCompliance']
+  deliveryLogistics: ReportsData['deliveryLogistics']
+}
+
 export interface ReportsData {
   meta: { range: string; periodLabel: string; days: number; generatedAt: string; periodStart: string; periodEnd: string; totalDocs: { vendors: number; merchants: number; orders: number; transactions: number } }
   summary: { totalRevenue: number; totalRefunded: number; netRevenue: number; totalOrders: number; avgOrder: number; totalVendors: number; activeVendors: number; totalMerchants: number; activeMerchants: number; failedCount: number; refundedCount: number; paidCount: number }

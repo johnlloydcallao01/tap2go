@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useQueryClient } from '@tanstack/react-query'
-import { QUERY_KEYS } from '@encreasl/client-services'
-import { useAnalytics } from '@/hooks/useAnalytics'
+import { useAnalyticsSummary, useAnalyticsCharts, useAnalyticsTops } from '@/hooks/useAnalytics'
 import {
   DollarSign, ShoppingCart, Store, TrendingUp, TrendingDown, BarChart3, Package,
   Users, Star, Clock, RefreshCw, AlertCircle, ShoppingBag, CreditCard, Truck, Award, Heart, Activity, Layers,
@@ -101,6 +100,34 @@ function Skeleton() {
   )
 }
 
+function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="bg-white dark:bg-[#171717] rounded-xl border border-red-200 dark:border-red-900/40 shadow-sm p-6 text-center">
+      <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mb-4">{message}</p>
+      <button onClick={onRetry} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+        <RefreshCw className="h-4 w-4 mr-2" />Retry
+      </button>
+    </div>
+  )
+}
+
+function ChartSkeleton({ height = 300 }: { height?: number }) {
+  return (
+    <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm animate-pulse">
+      <div className="h-4 bg-gray-100 dark:bg-[#262626] rounded w-40 mb-3" />
+      <div className="bg-gray-100 dark:bg-[#262626] rounded" style={{ height }} />
+    </div>
+  )
+}
+
+function KpiSkeletonGrid() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-[10px] animate-pulse">
+      {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-28 bg-gray-100 dark:bg-[#171717] rounded-xl" />)}
+    </div>
+  )
+}
+
 export default function AnalyticsPage() {
   const [range, setRange] = useState<Range>('30d')
   const [q, setQ] = useState('')
@@ -134,14 +161,32 @@ export default function AnalyticsPage() {
 
   // TanStack cache: back-nav within 3min renders instantly, no skeleton.
   // Filter/range changes keep previous slice via placeholderData while refetching.
+  // Three independent queries under the same analytics/ directory — same qs,
+  // fetched in parallel; each section renders as soon as its group resolves.
   const queryClient = useQueryClient()
   const [hardRefreshing, setHardRefreshing] = useState(false)
-  const { data, isPending, isFetching, isError, error: queryError, refetch } = useAnalytics(qs)
+  const summaryQuery = useAnalyticsSummary(qs)
+  const chartsQuery = useAnalyticsCharts(qs)
+  const topsQuery = useAnalyticsTops(qs)
+  const summary = summaryQuery.data
+  const charts = chartsQuery.data
+  const tops = topsQuery.data
+  const hasAnyData = !!summary || !!charts || !!tops
+  const isFetching = summaryQuery.isFetching || chartsQuery.isFetching || topsQuery.isFetching
   const loading = isFetching || hardRefreshing
-  const error = isError && !data && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load analytics') : null
+  const queryError = summaryQuery.error ?? chartsQuery.error ?? topsQuery.error
+  const error = queryError && !hasAnyData && !hardRefreshing ? (queryError instanceof Error ? queryError.message : 'Failed to load analytics') : null
+
+  const refetchAll = () => {
+    void Promise.all([
+      summaryQuery.refetch({ cancelRefetch: true }),
+      chartsQuery.refetch({ cancelRefetch: true }),
+      topsQuery.refetch({ cancelRefetch: true }),
+    ])
+  }
 
   // Hard refresh: force skeleton like first visit, then fetch truly fresh
-  // data from CMS (bypasses 3-min staleTime). NOTE: placeholderData:
+  // data from CMS (bypasses staleTime). NOTE: placeholderData:
   // keepPreviousData would otherwise keep old data visible and only show
   // the "Updating results" banner, so an explicit flag is required.
   const handleHardRefresh = () => {
@@ -149,8 +194,12 @@ export default function AnalyticsPage() {
     setHardRefreshing(true)
     void (async () => {
       try {
-        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminAnalytics(qs) })
-        await refetch({ cancelRefetch: true })
+        queryClient.removeQueries({ queryKey: ['admin', 'dashboard', 'analytics'] })
+        await Promise.all([
+          summaryQuery.refetch({ cancelRefetch: true }),
+          chartsQuery.refetch({ cancelRefetch: true }),
+          topsQuery.refetch({ cancelRefetch: true }),
+        ])
       } finally {
         setHardRefreshing(false)
       }
@@ -172,8 +221,8 @@ export default function AnalyticsPage() {
 
   // Chart options
   const revenueTrendOption = useMemo(() => {
-    if (!data) return {}
-    const d = data.revenueTrend
+    if (!charts) return {}
+    const d = charts.revenueTrend
     return {
       tooltip: { trigger: 'axis' as const, backgroundColor: '#171717', borderColor: '#262626', textStyle: { color: '#ededed', fontSize: 12 } },
       legend: { data: ['Revenue', 'Orders', 'AOV'], textStyle: { color: '#a1a1aa' }, top: 0 },
@@ -189,33 +238,33 @@ export default function AnalyticsPage() {
         { name: 'AOV', type: 'line' as const, data: d.map(x => Number(x.aov.toFixed(0))), yAxisIndex: 0, smooth: true, lineStyle: { color: '#f59e0b', type: 'dashed' as const, width: 1.5 }, symbol: 'none' as const },
       ]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const orderStatusOption = useMemo(() => {
-    if (!data) return {}
-    const total = data.orderStatusBreakdown.reduce((s, x) => s + x.count, 0)
+    if (!charts) return {}
+    const total = charts.orderStatusBreakdown.reduce((s, x) => s + x.count, 0)
     const colors: Record<string,string> = { pending:'#f59e0b', accepted:'#3b82f6', preparing:'#8b5cf6', ready_for_pickup:'#06b6d4', on_delivery:'#10b981', delivered:'#22c55e', cancelled:'#ef4444' }
     const fallback = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4']
     return {
       tooltip: { trigger: 'item' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'} },
       legend: { orient:'vertical' as const, right:10, top:'center', textStyle:{color:'#a1a1aa', fontSize:12}, itemWidth:10, itemHeight:10 },
-      series: [{ type:'pie' as const, radius:['50%','75%'], center:['35%','50%'], label:{show:true, position:'center' as const, formatter:()=>`{t|${total}}\n{l|Orders}`, rich:{t:{fontSize:22,fontWeight:'bold' as const,color:'#ededed'}, l:{fontSize:11,color:'#a1a1aa'}}}, data: data.orderStatusBreakdown.map((d,i)=>({name:d.status.replace(/_/g,' '), value:d.count, itemStyle:{color:colors[d.status]||fallback[i%fallback.length]}})) }]
+      series: [{ type:'pie' as const, radius:['50%','75%'], center:['35%','50%'], label:{show:true, position:'center' as const, formatter:()=>`{t|${total}}\n{l|Orders}`, rich:{t:{fontSize:22,fontWeight:'bold' as const,color:'#ededed'}, l:{fontSize:11,color:'#a1a1aa'}}}, data: charts.orderStatusBreakdown.map((d,i)=>({name:d.status.replace(/_/g,' '), value:d.count, itemStyle:{color:colors[d.status]||fallback[i%fallback.length]}})) }]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const fulfillmentOption = useMemo(() => {
-    if (!data || !data.fulfillmentMix.length) return {}
+    if (!charts || !charts.fulfillmentMix.length) return {}
     const colors: Record<string,string> = { delivery:'#2563eb', pickup:'#10b981', unknown:'#6b7280' }
     return {
       tooltip:{trigger:'item' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       legend:{bottom:0, textStyle:{color:'#a1a1aa'}},
-      series:[{ type:'pie' as const, radius:['45%','70%'], data: data.fulfillmentMix.map(f=>({name:f.type, value:f.count, itemStyle:{color:colors[f.type]||'#8b5cf6'}})), label:{color:'#a1a1aa'} }]
+      series:[{ type:'pie' as const, radius:['45%','70%'], data: charts.fulfillmentMix.map(f=>({name:f.type, value:f.count, itemStyle:{color:colors[f.type]||'#8b5cf6'}})), label:{color:'#a1a1aa'} }]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const paymentMethodOption = useMemo(() => {
-    if (!data) return {}
-    const d = [...data.paymentMethodBreakdown].sort((a,b)=>b.count-a.count)
+    if (!charts) return {}
+    const d = [...charts.paymentMethodBreakdown].sort((a,b)=>b.count-a.count)
     return {
       tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       grid:{top:10, right:20, bottom:20, left:90},
@@ -223,11 +272,11 @@ export default function AnalyticsPage() {
       yAxis:{type:'category' as const, data:d.map(x=>x.method), axisLabel:{color:'#a1a1aa'}, axisTick:{show:false}},
       series:[{type:'bar' as const, data:d.map(x=>x.count), itemStyle:{color:'#6366f1', borderRadius:[0,6,6,0]}, barWidth:18 }]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const businessTypeOption = useMemo(() => {
-    if (!data) return {}
-    const d = [...data.revenueByBusinessType].sort((a,b)=>b.revenue-a.revenue)
+    if (!charts) return {}
+    const d = [...charts.revenueByBusinessType].sort((a,b)=>b.revenue-a.revenue)
     return {
       tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       grid:{top:10, right:20, bottom:30, left:60},
@@ -238,11 +287,11 @@ export default function AnalyticsPage() {
         {name:'Orders', type:'bar' as const, data:d.map(x=>x.orders), itemStyle:{color:'#10b981', borderRadius:[6,6,0,0]}, barWidth:'45%'},
       ]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const categoryOption = useMemo(() => {
-    if (!data) return {}
-    const d = [...data.revenueByCategory].slice(0,8)
+    if (!charts) return {}
+    const d = [...charts.revenueByCategory].slice(0,8)
     return {
       tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       grid:{top:10, right:20, bottom:10, left:120},
@@ -250,47 +299,47 @@ export default function AnalyticsPage() {
       yAxis:{type:'category' as const, data:d.map(x=>x.category), axisLabel:{color:'#a1a1aa', fontSize:11}, axisTick:{show:false}},
       series:[{type:'bar' as const, data:d.map(x=>x.revenue), itemStyle:{color:'#8b5cf6', borderRadius:[0,6,6,0]}, barWidth:16 }]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const hourlyOption = useMemo(() => {
-    if (!data) return {}
+    if (!charts) return {}
     return {
       tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       grid:{top:10, right:15, bottom:30, left:45},
-      xAxis:{type:'category' as const, data:data.hourlyDistribution.map(x=>`${String(x.hour).padStart(2,'0')}:00`), axisLabel:{color:'#a1a1aa', fontSize:10, interval:1}, axisTick:{show:false}},
+      xAxis:{type:'category' as const, data:charts.hourlyDistribution.map(x=>`${String(x.hour).padStart(2,'0')}:00`), axisLabel:{color:'#a1a1aa', fontSize:10, interval:1}, axisTick:{show:false}},
       yAxis:{type:'value' as const, axisLabel:{color:'#a1a1aa'}, splitLine:{lineStyle:{color:'#262626'}}},
       series:[
-        {name:'Orders', type:'bar' as const, data:data.hourlyDistribution.map(x=>x.orders), itemStyle:{color:'#f59e0b', borderRadius:[4,4,0,0]}, barWidth:'60%'},
-        {name:'Revenue', type:'line' as const, data:data.hourlyDistribution.map(x=>x.revenue), smooth:true, lineStyle:{color:'#2563eb', width:2}, symbol:'none' as const}
+        {name:'Orders', type:'bar' as const, data:charts.hourlyDistribution.map(x=>x.orders), itemStyle:{color:'#f59e0b', borderRadius:[4,4,0,0]}, barWidth:'60%'},
+        {name:'Revenue', type:'line' as const, data:charts.hourlyDistribution.map(x=>x.revenue), smooth:true, lineStyle:{color:'#2563eb', width:2}, symbol:'none' as const}
       ]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const weekdayOption = useMemo(() => {
-    if (!data) return {}
+    if (!charts) return {}
     return {
       tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       grid:{top:10, right:15, bottom:20, left:45},
-      xAxis:{type:'category' as const, data:data.weekdayDistribution.map(x=>x.day), axisLabel:{color:'#a1a1aa'}, axisTick:{show:false}},
+      xAxis:{type:'category' as const, data:charts.weekdayDistribution.map(x=>x.day), axisLabel:{color:'#a1a1aa'}, axisTick:{show:false}},
       yAxis:{type:'value' as const, axisLabel:{color:'#a1a1aa'}, splitLine:{lineStyle:{color:'#262626'}}},
-      series:[{type:'bar' as const, data:data.weekdayDistribution.map(x=>x.orders), itemStyle:{color:'#06b6d4', borderRadius:[6,6,0,0]}, barWidth:28 }]
+      series:[{type:'bar' as const, data:charts.weekdayDistribution.map(x=>x.orders), itemStyle:{color:'#06b6d4', borderRadius:[6,6,0,0]}, barWidth:28 }]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const ratingOption = useMemo(() => {
-    if (!data) return {}
+    if (!tops) return {}
     return {
       tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       grid:{top:10, right:20, bottom:20, left:40},
-      xAxis:{type:'category' as const, data:data.ratingDistribution.map(x=>`${x.rating}★`), axisLabel:{color:'#a1a1aa'}, axisTick:{show:false}},
+      xAxis:{type:'category' as const, data:tops.ratingDistribution.map(x=>`${x.rating}★`), axisLabel:{color:'#a1a1aa'}, axisTick:{show:false}},
       yAxis:{type:'value' as const, axisLabel:{color:'#a1a1aa'}, splitLine:{lineStyle:{color:'#262626'}}},
-      series:[{type:'bar' as const, data:data.ratingDistribution.map(x=>x.count), itemStyle:{color:'#f59e0b', borderRadius:[6,6,0,0]}, barWidth:32 }]
+      series:[{type:'bar' as const, data:tops.ratingDistribution.map(x=>x.count), itemStyle:{color:'#f59e0b', borderRadius:[6,6,0,0]}, barWidth:32 }]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
   const topProductsOption = useMemo(() => {
-    if (!data) return {}
-    const d = [...data.topProducts].slice(0,7)
+    if (!tops) return {}
+    const d = [...tops.topProducts].slice(0,7)
     return {
       tooltip:{trigger:'axis' as const, backgroundColor:'#171717', borderColor:'#262626', textStyle:{color:'#ededed'}},
       grid:{top:10, right:15, bottom:10, left:140},
@@ -298,10 +347,10 @@ export default function AnalyticsPage() {
       yAxis:{type:'category' as const, data:d.map(x=>x.name.length>22?x.name.slice(0,22)+'…':x.name), axisLabel:{color:'#a1a1aa', fontSize:11}, axisTick:{show:false}},
       series:[{type:'bar' as const, data:d.map(x=>x.revenue), itemStyle:{color:'#10b981', borderRadius:[0,6,6,0]}, barWidth:14}]
     }
-  }, [data])
+  }, [summary, charts, tops])
 
-  const isInitialLoading = (isPending && !data) || hardRefreshing
-  const isRefreshing = isFetching && !!data && !isPending && !hardRefreshing
+  const isInitialLoading = (!hasAnyData && (summaryQuery.isPending || chartsQuery.isPending || topsQuery.isPending)) || hardRefreshing
+  const isRefreshing = isFetching && hasAnyData && !hardRefreshing
 
   return (
     <div className="space-y-[10px] py-5 px-2.5">
@@ -309,7 +358,7 @@ export default function AnalyticsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2"><BarChart3 className="w-6 h-6 text-blue-600" />Analytics</h1>
-          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Premium business intelligence — real-time aggregated from CMS {data && <span className="hidden sm:inline">• {data.kpis.totalOrdersAllTime.toLocaleString()} orders all time • {fmtCurrency(data.kpis.totalRevenueAllTime)} lifetime</span>}</p>
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Premium business intelligence — real-time aggregated from CMS {summary && <span className="hidden sm:inline">• {summary.kpis.totalOrdersAllTime.toLocaleString()} orders all time • {fmtCurrency(summary.kpis.totalRevenueAllTime)} lifetime</span>}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#171717] rounded-full border border-gray-200 dark:border-[#262626]">
@@ -386,13 +435,13 @@ export default function AnalyticsPage() {
         )}
       </div>
 
-      {/* Data layer: error / initial skeleton / filtered content — search bar above never remounts */}
-      {error && !data ? (
+      {/* Data layer: error / initial skeleton / progressive sections — search bar above never remounts */}
+      {error && !hasAnyData ? (
         <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]">
           <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
           <h2 className="font-semibold text-gray-900 dark:text-white mb-2">Failed to load analytics</h2>
           <p className="text-sm text-gray-500 mb-6">{error}</p>
-          <button onClick={() => void refetch()} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
+          <button onClick={() => refetchAll()} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"><RefreshCw className="h-4 w-4 mr-2" />Retry</button>
         </div>
       ) : isInitialLoading ? (
         <div className="space-y-[10px] animate-pulse">
@@ -400,7 +449,7 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-[10px]"><div className="lg:col-span-2 h-80 bg-gray-100 dark:bg-[#171717] rounded-xl" /><div className="h-80 bg-gray-100 dark:bg-[#171717] rounded-xl" /></div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-[10px]">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-60 bg-gray-100 dark:bg-[#171717] rounded-xl" />)}</div>
         </div>
-      ) : !data ? null : (
+      ) : (
         <>
           {/* live refreshing banner */}
           {isRefreshing && (
@@ -409,29 +458,36 @@ export default function AnalyticsPage() {
             </div>
           )}
           <div className={`space-y-[10px] ${isRefreshing ? 'opacity-60 pointer-events-none' : ''} transition-opacity`}>
-            {hasActiveFilters && (
+            {hasActiveFilters && summary && tops && (
               <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-[#a1a1aa] mb-4">
                 <Filter className="w-3.5 h-3.5" />
-                Filtered view — {fmtNum(data.kpis.totalOrders)} order{data.kpis.totalOrders!==1?'s':''} • {fmtCurrency(data.kpis.totalRevenue)} verified revenue • {data.topMerchants.length} merchants • {data.topVendors.length} vendors in slice
+                Filtered view — {fmtNum(summary.kpis.totalOrders)} order{summary.kpis.totalOrders!==1?'s':''} • {fmtCurrency(summary.kpis.totalRevenue)} verified revenue • {tops.topMerchants.length} merchants • {tops.topVendors.length} vendors in slice
                 {debouncedQ && <span>• search “{debouncedQ}”</span>}
               </div>
             )}
             {/* KPIs — dimmed while refreshing, search input stays mounted */}
+            {summary ? (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-[10px]">
-              <KpiCard title="Revenue" value={fmtCurrency(data.kpis.totalRevenue)} sub={`AOV ${fmtCurrency(data.kpis.aov)}`} change={data.kpis.revenueChange} icon={<DollarSign className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
-              <KpiCard title="Orders" value={fmtNum(data.kpis.totalOrders)} sub={`${data.kpis.paidTransactions} paid • ${data.kpis.refundedTransactions} refunded`} change={data.kpis.ordersChange} icon={<ShoppingCart className="w-5 h-5 text-white" />} iconBg="bg-blue-500" />
-              <KpiCard title="AOV" value={fmtCurrency(data.kpis.aov)} change={data.kpis.aovChange} icon={<Award className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
-              <KpiCard title="New Customers" value={fmtNum(data.kpis.newCustomers)} sub={`${fmtNum(data.kpis.totalCustomers)} total`} change={data.kpis.customersChange} icon={<Users className="w-5 h-5 text-white" />} iconBg="bg-violet-500" />
-              <KpiCard title="Active Merchants" value={fmtNum(data.kpis.activeMerchants)} sub={`${fmtNum(data.kpis.totalVendors)} vendors`} icon={<Store className="w-5 h-5 text-white" />} iconBg="bg-cyan-500" />
-              <KpiCard title="Avg Rating" value={`${data.kpis.avgRating.toFixed(2)} / 5`} sub={`${fmtNum(data.kpis.wishlistCount)} wishlists`} icon={<Star className="w-5 h-5 text-white" />} iconBg="bg-orange-500" />
-              <KpiCard title="Failed Tx" value={fmtNum(data.kpis.failedTransactions)} sub={`${fmtNum(data.kpis.refundedTransactions)} refunded`} icon={<CreditCard className="w-5 h-5 text-white" />} iconBg="bg-red-500" />
-              <KpiCard title="Abandonment" value={`${data.kpis.totalOrders ? ((data.funnel.totalCarts - data.kpis.totalOrders)/Math.max(1,data.funnel.totalCarts)*100).toFixed(1) : '0'}%`} sub={`${fmtNum(data.funnel.totalCarts)} carts`} icon={<ShoppingBag className="w-5 h-5 text-white" />} iconBg="bg-zinc-500" />
+              <KpiCard title="Revenue" value={fmtCurrency(summary.kpis.totalRevenue)} sub={`AOV ${fmtCurrency(summary.kpis.aov)}`} change={summary.kpis.revenueChange} icon={<DollarSign className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
+              <KpiCard title="Orders" value={fmtNum(summary.kpis.totalOrders)} sub={`${summary.kpis.paidTransactions} paid • ${summary.kpis.refundedTransactions} refunded`} change={summary.kpis.ordersChange} icon={<ShoppingCart className="w-5 h-5 text-white" />} iconBg="bg-blue-500" />
+              <KpiCard title="AOV" value={fmtCurrency(summary.kpis.aov)} change={summary.kpis.aovChange} icon={<Award className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
+              <KpiCard title="New Customers" value={fmtNum(summary.kpis.newCustomers)} sub={`${fmtNum(summary.kpis.totalCustomers)} total`} change={summary.kpis.customersChange} icon={<Users className="w-5 h-5 text-white" />} iconBg="bg-violet-500" />
+              <KpiCard title="Active Merchants" value={fmtNum(summary.kpis.activeMerchants)} sub={`${fmtNum(summary.kpis.totalVendors)} vendors`} icon={<Store className="w-5 h-5 text-white" />} iconBg="bg-cyan-500" />
+              <KpiCard title="Avg Rating" value={`${summary.kpis.avgRating.toFixed(2)} / 5`} sub={`${fmtNum(summary.kpis.wishlistCount)} wishlists`} icon={<Star className="w-5 h-5 text-white" />} iconBg="bg-orange-500" />
+              <KpiCard title="Failed Tx" value={fmtNum(summary.kpis.failedTransactions)} sub={`${fmtNum(summary.kpis.refundedTransactions)} refunded`} icon={<CreditCard className="w-5 h-5 text-white" />} iconBg="bg-red-500" />
+              <KpiCard title="Abandonment" value={`${summary.kpis.totalOrders ? ((summary.funnel.totalCarts - summary.kpis.totalOrders)/Math.max(1,summary.funnel.totalCarts)*100).toFixed(1) : '0'}%`} sub={`${fmtNum(summary.funnel.totalCarts)} carts`} icon={<ShoppingBag className="w-5 h-5 text-white" />} iconBg="bg-zinc-500" />
       </div>
+            ) : summaryQuery.isError ? (
+              <SectionError message={summaryQuery.error instanceof Error ? summaryQuery.error.message : 'Failed to load KPIs'} onRetry={() => void summaryQuery.refetch({ cancelRefetch: true })} />
+            ) : (
+              <KpiSkeletonGrid />
+            )}
 
       {/* Trend + Status */}
+      {charts ? (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><h3 className="text-sm font-semibold text-gray-900 dark:text-white">Revenue & Orders Trend</h3><span className="text-xs text-gray-500 dark:text-[#a1a1aa]">{data.meta.range}{hasActiveFilters ? ' • filtered' : ''}</span></div>
+          <div className="flex items-center justify-between mb-2"><h3 className="text-sm font-semibold text-gray-900 dark:text-white">Revenue & Orders Trend</h3><span className="text-xs text-gray-500 dark:text-[#a1a1aa]">{summary?.meta.range ?? ''}{hasActiveFilters ? ' • filtered' : ''}</span></div>
           <ReactECharts option={revenueTrendOption} style={{ height: 300 }} />
         </div>
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
@@ -439,19 +495,28 @@ export default function AnalyticsPage() {
           <ReactECharts option={orderStatusOption} style={{ height: 300 }} />
         </div>
       </div>
+      ) : chartsQuery.isError ? (
+        <SectionError message={chartsQuery.error instanceof Error ? chartsQuery.error.message : 'Failed to load charts'} onRetry={() => void chartsQuery.refetch({ cancelRefetch: true })} />
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2"><ChartSkeleton height={300} /></div>
+        <div><ChartSkeleton height={300} /></div>
+      </div>
+      )}
 
       {/* Fulfillment / Delivery / Payment */}
+      {charts ? (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><Truck className="w-4 h-4" />Fulfillment Mix</h3>
-          {data.fulfillmentMix.length ? <ReactECharts option={fulfillmentOption} style={{ height: 240 }} /> : <p className="text-sm text-gray-500 py-10 text-center">No data in slice</p>}
+          {charts.fulfillmentMix.length ? <ReactECharts option={fulfillmentOption} style={{ height: 240 }} /> : <p className="text-sm text-gray-500 py-10 text-center">No data in slice</p>}
         </div>
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><Activity className="w-4 h-4" />Delivery Status</h3>
-          {data.deliveryStatusBreakdown.length ? (
+          {charts.deliveryStatusBreakdown.length ? (
             <div className="space-y-2 max-h-[240px] overflow-auto pr-1">
-              {data.deliveryStatusBreakdown.sort((a,b)=>b.count-a.count).map(s => {
-                const max = Math.max(...data.deliveryStatusBreakdown.map(x=>x.count))
+              {charts.deliveryStatusBreakdown.sort((a,b)=>b.count-a.count).map(s => {
+                const max = Math.max(...charts.deliveryStatusBreakdown.map(x=>x.count))
                 return (<div key={s.status} className="flex items-center gap-3"><span className="text-xs font-medium text-gray-700 dark:text-[#a1a1aa] w-28 truncate capitalize">{s.status.replace(/_/g,' ')}</span><div className="flex-1 h-2 bg-gray-100 dark:bg-[#262626] rounded-full overflow-hidden"><div className="h-full bg-blue-600 rounded-full" style={{width:`${(s.count/max)*100}%`}} /></div><span className="text-xs font-semibold text-gray-900 dark:text-white w-10 text-right">{s.count}</span></div>)
               })}
             </div>
@@ -459,11 +524,21 @@ export default function AnalyticsPage() {
         </div>
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4" />Payment Methods</h3>
-          {data.paymentMethodBreakdown.length ? <ReactECharts option={paymentMethodOption} style={{ height: 240 }} /> : <p className="text-sm text-gray-500 py-10 text-center">No payments in slice</p>}
+          {charts.paymentMethodBreakdown.length ? <ReactECharts option={paymentMethodOption} style={{ height: 240 }} /> : <p className="text-sm text-gray-500 py-10 text-center">No payments in slice</p>}
         </div>
       </div>
+      ) : chartsQuery.isError ? (
+        <SectionError message={chartsQuery.error instanceof Error ? chartsQuery.error.message : 'Failed to load charts'} onRetry={() => void chartsQuery.refetch({ cancelRefetch: true })} />
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div><ChartSkeleton height={240} /></div>
+        <div><ChartSkeleton height={240} /></div>
+        <div><ChartSkeleton height={240} /></div>
+      </div>
+      )}
 
       {/* Business Type + Category */}
+      {charts ? (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2"><Layers className="w-4 h-4" />Revenue by Business Type</h3>
@@ -474,8 +549,17 @@ export default function AnalyticsPage() {
           <ReactECharts option={categoryOption} style={{ height: 280 }} />
         </div>
       </div>
+      ) : chartsQuery.isError ? (
+        <SectionError message={chartsQuery.error instanceof Error ? chartsQuery.error.message : 'Failed to load charts'} onRetry={() => void chartsQuery.refetch({ cancelRefetch: true })} />
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div><ChartSkeleton height={280} /></div>
+        <div><ChartSkeleton height={280} /></div>
+      </div>
+      )}
 
       {/* Hourly + Weekday */}
+      {charts ? (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2"><Clock className="w-4 h-4" />Orders by Hour (peak demand)</h3>
@@ -486,72 +570,116 @@ export default function AnalyticsPage() {
           <ReactECharts option={weekdayOption} style={{ height: 280 }} />
         </div>
       </div>
+      ) : chartsQuery.isError ? (
+        <SectionError message={chartsQuery.error instanceof Error ? chartsQuery.error.message : 'Failed to load charts'} onRetry={() => void chartsQuery.refetch({ cancelRefetch: true })} />
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div><ChartSkeleton height={280} /></div>
+        <div><ChartSkeleton height={280} /></div>
+      </div>
+      )}
 
       {/* Top Products + Rating */}
+      {tops ? (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Top Products by Revenue</h3>
-          {data.topProducts.length ? <ReactECharts option={topProductsOption} style={{ height: 300 }} /> : <p className="text-sm text-gray-500 py-10 text-center">No products in slice</p>}
+          {tops.topProducts.length ? <ReactECharts option={topProductsOption} style={{ height: 300 }} /> : <p className="text-sm text-gray-500 py-10 text-center">No products in slice</p>}
         </div>
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2"><Star className="w-4 h-4 text-amber-500" />Rating Distribution</h3>
           <ReactECharts option={ratingOption} style={{ height: 300 }} />
         </div>
       </div>
+      ) : topsQuery.isError ? (
+        <SectionError message={topsQuery.error instanceof Error ? topsQuery.error.message : 'Failed to load tops'} onRetry={() => void topsQuery.refetch({ cancelRefetch: true })} />
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2"><ChartSkeleton height={300} /></div>
+        <div><ChartSkeleton height={300} /></div>
+      </div>
+      )}
 
       {/* Tables: merchants / vendors / funnel */}
+      {tops ? (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 dark:border-[#262626] flex items-center justify-between"><h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top Merchants</h3><span className="text-xs text-gray-500">{data.topMerchants.length} in slice</span></div>
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-[#262626] flex items-center justify-between"><h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top Merchants</h3><span className="text-xs text-gray-500">{tops.topMerchants.length} in slice</span></div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-[#0a0a0a] text-xs text-gray-500 dark:text-[#a1a1aa]"><tr><th className="text-left px-4 py-2 font-medium">#</th><th className="text-left px-4 py-2 font-medium">Merchant</th><th className="text-right px-4 py-2 font-medium">Orders</th><th className="text-right px-4 py-2 font-medium">Revenue</th><th className="text-right px-4 py-2 font-medium">Rating</th></tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-[#262626]">
-                {data.topMerchants.map((m,i)=>(<tr key={m.id} className="hover:bg-gray-50 dark:hover:bg-[#262626]/50"><td className="px-4 py-2 text-gray-500">{i+1}</td><td className="px-4 py-2 font-medium text-gray-900 dark:text-white truncate max-w-[160px]">{m.name}</td><td className="px-4 py-2 text-right">{fmtNum(m.orders)}</td><td className="px-4 py-2 text-right font-semibold">{fmtCurrency(m.revenue)}</td><td className="px-4 py-2 text-right">{m.rating ? m.rating.toFixed(1) : '—'}</td></tr>))}
-                {!data.topMerchants.length && <tr><td colSpan={5} className="text-center py-8 text-gray-500">No merchants in slice — adjust search/filters</td></tr>}
+                {tops.topMerchants.map((m,i)=>(<tr key={m.id} className="hover:bg-gray-50 dark:hover:bg-[#262626]/50"><td className="px-4 py-2 text-gray-500">{i+1}</td><td className="px-4 py-2 font-medium text-gray-900 dark:text-white truncate max-w-[160px]">{m.name}</td><td className="px-4 py-2 text-right">{fmtNum(m.orders)}</td><td className="px-4 py-2 text-right font-semibold">{fmtCurrency(m.revenue)}</td><td className="px-4 py-2 text-right">{m.rating ? m.rating.toFixed(1) : '—'}</td></tr>))}
+                {!tops.topMerchants.length && <tr><td colSpan={5} className="text-center py-8 text-gray-500">No merchants in slice — adjust search/filters</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 dark:border-[#262626] flex items-center justify-between"><h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top Vendors</h3><span className="text-xs text-gray-500">{data.topVendors.length} in slice</span></div>
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-[#262626] flex items-center justify-between"><h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top Vendors</h3><span className="text-xs text-gray-500">{tops.topVendors.length} in slice</span></div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-[#0a0a0a] text-xs text-gray-500 dark:text-[#a1a1aa]"><tr><th className="text-left px-4 py-2 font-medium">Vendor</th><th className="text-right px-4 py-2 font-medium">Orders</th><th className="text-right px-4 py-2 font-medium">Revenue</th><th className="text-center px-4 py-2 font-medium">Stores</th></tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-[#262626]">
-                {data.topVendors.map(v=>(<tr key={v.id} className="hover:bg-gray-50 dark:hover:bg-[#262626]/50"><td className="px-4 py-2 font-medium text-gray-900 dark:text-white truncate max-w-[160px]">{v.businessName || '—'}</td><td className="px-4 py-2 text-right">{fmtNum(v.orders)}</td><td className="px-4 py-2 text-right font-semibold">{fmtCurrency(v.revenue)}</td><td className="px-4 py-2 text-center">{v.totalMerchants}</td></tr>))}
-                {!data.topVendors.length && <tr><td colSpan={4} className="text-center py-8 text-gray-500">No vendors in slice</td></tr>}
+                {tops.topVendors.map(v=>(<tr key={v.id} className="hover:bg-gray-50 dark:hover:bg-[#262626]/50"><td className="px-4 py-2 font-medium text-gray-900 dark:text-white truncate max-w-[160px]">{v.businessName || '—'}</td><td className="px-4 py-2 text-right">{fmtNum(v.orders)}</td><td className="px-4 py-2 text-right font-semibold">{fmtCurrency(v.revenue)}</td><td className="px-4 py-2 text-center">{v.totalMerchants}</td></tr>))}
+                {!tops.topVendors.length && <tr><td colSpan={4} className="text-center py-8 text-gray-500">No vendors in slice</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+      ) : topsQuery.isError ? (
+        <SectionError message={topsQuery.error instanceof Error ? topsQuery.error.message : 'Failed to load tops'} onRetry={() => void topsQuery.refetch({ cancelRefetch: true })} />
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div><ChartSkeleton height={280} /></div>
+        <div><ChartSkeleton height={280} /></div>
+      </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {summary ? (
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><Heart className="w-4 h-4 text-pink-500" />Cart Funnel</h3>
           <div className="space-y-2">
-            {data.funnel.cartByStatus.map(s=>{const total=data.funnel.totalCarts||1; return (<div key={s.status} className="flex items-center gap-3"><span className="text-xs font-medium w-24 capitalize text-gray-700 dark:text-[#a1a1aa]">{s.status.replace(/_/g,' ')}</span><div className="flex-1 h-2 bg-gray-100 dark:bg-[#262626] rounded-full overflow-hidden"><div className={`h-full rounded-full ${s.status==='active'?'bg-blue-600':s.status==='ordered'?'bg-emerald-600':s.status==='abandoned'?'bg-amber-500':'bg-gray-400'}`} style={{width:`${(s.count/total)*100}%`}} /></div><span className="text-xs font-semibold w-10 text-right">{s.count}</span></div>)})}
+            {summary.funnel.cartByStatus.map(s=>{const total=summary.funnel.totalCarts||1; return (<div key={s.status} className="flex items-center gap-3"><span className="text-xs font-medium w-24 capitalize text-gray-700 dark:text-[#a1a1aa]">{s.status.replace(/_/g,' ')}</span><div className="flex-1 h-2 bg-gray-100 dark:bg-[#262626] rounded-full overflow-hidden"><div className={`h-full rounded-full ${s.status==='active'?'bg-blue-600':s.status==='ordered'?'bg-emerald-600':s.status==='abandoned'?'bg-amber-500':'bg-gray-400'}`} style={{width:`${(s.count/total)*100}%`}} /></div><span className="text-xs font-semibold w-10 text-right">{s.count}</span></div>)})}
           </div>
-          <p className="text-xs text-gray-500 dark:text-[#a1a1aa] mt-3">In-range carts: {fmtNum(data.funnel.totalCartsCurrent)} • Abandoned {data.funnel.abandonmentRate.toFixed(1)}%</p>
+          <p className="text-xs text-gray-500 dark:text-[#a1a1aa] mt-3">In-range carts: {fmtNum(summary.funnel.totalCartsCurrent)} • Abandoned {summary.funnel.abandonmentRate.toFixed(1)}%</p>
         </div>
+        ) : summaryQuery.isError ? (
+          <SectionError message={summaryQuery.error instanceof Error ? summaryQuery.error.message : 'Failed to load funnel'} onRetry={() => void summaryQuery.refetch({ cancelRefetch: true })} />
+        ) : (
+          <ChartSkeleton height={200} />
+        )}
+        {charts ? (
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Vendor Verification</h3>
           <div className="space-y-2">
-            {data.vendorVerificationBreakdown.map(s=>{const max=Math.max(...data.vendorVerificationBreakdown.map(x=>x.count)); return (<div key={s.status} className="flex items-center gap-3"><span className="text-xs font-medium w-24 capitalize text-gray-700 dark:text-[#a1a1aa]">{s.status}</span><div className="flex-1 h-2 bg-gray-100 dark:bg-[#262626] rounded-full overflow-hidden"><div className="h-full bg-violet-600 rounded-full" style={{width:`${(s.count/max)*100}%`}}/></div><span className="text-xs font-semibold w-8 text-right">{s.count}</span></div>)})}
+            {charts.vendorVerificationBreakdown.map(s=>{const max=Math.max(...charts.vendorVerificationBreakdown.map(x=>x.count)); return (<div key={s.status} className="flex items-center gap-3"><span className="text-xs font-medium w-24 capitalize text-gray-700 dark:text-[#a1a1aa]">{s.status}</span><div className="flex-1 h-2 bg-gray-100 dark:bg-[#262626] rounded-full overflow-hidden"><div className="h-full bg-violet-600 rounded-full" style={{width:`${(s.count/max)*100}%`}}/></div><span className="text-xs font-semibold w-8 text-right">{s.count}</span></div>)})}
           </div>
         </div>
+        ) : chartsQuery.isError ? (
+          <SectionError message={chartsQuery.error instanceof Error ? chartsQuery.error.message : 'Failed to load verification'} onRetry={() => void chartsQuery.refetch({ cancelRefetch: true })} />
+        ) : (
+          <ChartSkeleton height={200} />
+        )}
+        {charts ? (
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Driver Fleet</h3>
           <div className="space-y-2">
-            {data.driverStatusBreakdown.map(s=>{const max=Math.max(...data.driverStatusBreakdown.map(x=>x.count),1); return (<div key={s.status} className="flex items-center gap-3"><span className="text-xs font-medium w-24 capitalize text-gray-700 dark:text-[#a1a1aa]">{s.status.replace(/_/g,' ')}</span><div className="flex-1 h-2 bg-gray-100 dark:bg-[#262626] rounded-full overflow-hidden"><div className="h-full bg-teal-600 rounded-full" style={{width:`${(s.count/max)*100}%`}}/></div><span className="text-xs font-semibold w-8 text-right">{s.count}</span></div>)})}
-            {!data.driverStatusBreakdown.length && <p className="text-sm text-gray-500">No drivers</p>}
+            {charts.driverStatusBreakdown.map(s=>{const max=Math.max(...charts.driverStatusBreakdown.map(x=>x.count),1); return (<div key={s.status} className="flex items-center gap-3"><span className="text-xs font-medium w-24 capitalize text-gray-700 dark:text-[#a1a1aa]">{s.status.replace(/_/g,' ')}</span><div className="flex-1 h-2 bg-gray-100 dark:bg-[#262626] rounded-full overflow-hidden"><div className="h-full bg-teal-600 rounded-full" style={{width:`${(s.count/max)*100}%`}}/></div><span className="text-xs font-semibold w-8 text-right">{s.count}</span></div>)})}
+            {!charts.driverStatusBreakdown.length && <p className="text-sm text-gray-500">No drivers</p>}
           </div>
         </div>
+        ) : chartsQuery.isError ? (
+          <SectionError message={chartsQuery.error instanceof Error ? chartsQuery.error.message : 'Failed to load drivers'} onRetry={() => void chartsQuery.refetch({ cancelRefetch: true })} />
+        ) : (
+          <ChartSkeleton height={200} />
+        )}
       </div>
 
         </div>
-        <p className="text-[11px] text-gray-400 dark:text-[#52525b] text-center">Range: {data.meta.range} • Generated {new Date(data.meta.generatedAt).toLocaleString()} • BFF aggregation via <span className="font-mono">/api/admin/analytics</span>{hasActiveFilters ? ' • filtered' : ''}</p>
+        {summary && <p className="text-[11px] text-gray-400 dark:text-[#52525b] text-center">Range: {summary.meta.range} • Generated {new Date(summary.meta.generatedAt).toLocaleString()} • BFF aggregation via <span className="font-mono">/api/admin/analytics</span>{hasActiveFilters ? ' • filtered' : ''}</p>}
       </>
       )}
     </div>

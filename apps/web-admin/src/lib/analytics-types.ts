@@ -31,6 +31,41 @@ export interface HourlyPoint { hour: number; orders: number; revenue: number }
 export interface WeekdayPoint { day: string; orders: number; revenue: number }
 export interface RatingBucket { rating: number; count: number }
 
+export interface AnalyticsSummaryGroup {
+  meta: { range: string; days: number; generatedAt: string; totalOrdersAllTime: number }
+  kpis: AnalyticsKpis
+  funnel: {
+    cartByStatus: StatusCount[]
+    cartCurrentByStatus: StatusCount[]
+    abandonmentRate: number
+    totalCarts: number
+    totalCartsCurrent: number
+  }
+}
+
+export interface AnalyticsChartsGroup {
+  revenueTrend: RevenueTrendPoint[]
+  orderStatusBreakdown: StatusCount[]
+  fulfillmentMix: FulfillmentMix[]
+  deliveryStatusBreakdown: StatusCount[]
+  bookingStatusBreakdown: StatusCount[]
+  paymentMethodBreakdown: PaymentMethodCount[]
+  transactionStatusBreakdown: StatusCount[]
+  revenueByBusinessType: BusinessTypeRevenue[]
+  revenueByCategory: CategoryRevenue[]
+  hourlyDistribution: HourlyPoint[]
+  weekdayDistribution: WeekdayPoint[]
+  vendorVerificationBreakdown: StatusCount[]
+  driverStatusBreakdown: StatusCount[]
+}
+
+export interface AnalyticsTopsGroup {
+  topProducts: TopProduct[]
+  topMerchants: TopMerchant[]
+  topVendors: TopVendor[]
+  ratingDistribution: RatingBucket[]
+}
+
 export interface AnalyticsData {
   meta: { range: string; days: number; generatedAt: string; totalOrdersAllTime: number }
   kpis: AnalyticsKpis

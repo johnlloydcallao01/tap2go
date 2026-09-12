@@ -3,8 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
-import { QUERY_KEYS } from '@encreasl/client-services'
-import { useVendorPayouts, type PayoutResponse, type PayoutRow, type Summary } from '@/hooks/useVendorPayouts'
+import { usePayoutsSummary, usePayoutsRows, usePayoutsDaily } from '@/hooks/useVendorPayouts'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
@@ -100,21 +99,30 @@ function PayoutsPageContent() {
 
   const queryClient = useQueryClient()
   const [hardRefreshing, setHardRefreshing] = useState(false)
-  const { data, isPending, isFetching, isError, error: queryError, refetch } = useVendorPayouts(qs)
-
-  // Range switches (7d/30d/90d/1y/all) reuse the skeleton screen while fetching
+  // Three independent queries under the same payouts/ directory — same qs,
+  // fetched in parallel; each section renders as soon as its group resolves.
+  // Range switches reuse the skeleton screen per section while fetching
   // instead of keeping the previous range's numbers on screen.
-  const isInitialLoading = isPending || isFetching || hardRefreshing
-  const loading = isFetching || hardRefreshing
-  const error = isError && !isInitialLoading ? (queryError instanceof Error ? queryError.message : 'Failed to load payouts') : null
+  const summaryQuery = usePayoutsSummary(qs)
+  const rowsQuery = usePayoutsRows(qs)
+  const dailyQuery = usePayoutsDaily(qs)
+  const summary = summaryQuery.data
+  const payouts = rowsQuery.data
+  const dailyData = dailyQuery.data
+  const loading = summaryQuery.isFetching || rowsQuery.isFetching || dailyQuery.isFetching || hardRefreshing
+  const busy = (q: { isPending: boolean; isFetching: boolean }) => q.isPending || q.isFetching || hardRefreshing
 
   const handleHardRefresh = () => {
     if (hardRefreshing) return
     setHardRefreshing(true)
     void (async () => {
       try {
-        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminVendorPayouts(qs) })
-        await refetch({ cancelRefetch: true })
+        queryClient.removeQueries({ queryKey: ['admin', 'vendors', 'payouts'] })
+        await Promise.all([
+          summaryQuery.refetch({ cancelRefetch: true }),
+          rowsQuery.refetch({ cancelRefetch: true }),
+          dailyQuery.refetch({ cancelRefetch: true }),
+        ])
       } finally {
         setHardRefreshing(false)
       }
@@ -127,7 +135,7 @@ function PayoutsPageContent() {
   const toggleBusiness=(v:string)=> setBusinessTypeFilter(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v])
   const clearAll=()=>{setQ('');setDebouncedQ('');setVerificationFilter([]);setBusinessTypeFilter([])}
 
-  const rows = data?.vendorPayouts.rows || []
+  const rows = payouts?.vendorPayouts.rows || []
   const totalPages = Math.max(1, Math.ceil(rows.length / limit))
   const pagedRows = useMemo(()=> rows.slice((page-1)*limit, page*limit),[rows,page,limit])
 
@@ -155,7 +163,7 @@ function PayoutsPageContent() {
             <span className="h-8 w-8 rounded-lg bg-[#eba236] text-white flex items-center justify-center"><Coins className="w-4 h-4" /></span>
             Vendor Payouts Overview
           </h1>
-          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Settlements per vendor — gross, platform & delivery fees, refunds, net payout. Period: {data?.meta.range || range} • {data ? fmtDate(data.meta.periodStart) + ' → ' + fmtDate(data.meta.periodEnd) : '—'}</p>
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Settlements per vendor — gross, platform & delivery fees, refunds, net payout. Period: {summary?.meta.range || range} • {summary ? fmtDate(summary.meta.periodStart) + ' → ' + fmtDate(summary.meta.periodEnd) : '—'}{loading && !hardRefreshing ? <span className="ml-2 text-xs text-gray-400">Updating…</span> : null}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#0a0a0a] rounded-full border border-gray-200 dark:border-[#262626]">
@@ -171,49 +179,59 @@ function PayoutsPageContent() {
         </div>
       </div>
 
-      {isInitialLoading ? (
+      {busy(summaryQuery) ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
           {Array.from({length:4}).map((_,i)=><div key={i} className="h-[86px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
         </div>
-      ) : data ? (
+      ) : summary ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard title="Total Net Payout" value={fmtCompact(data.summary.totalNet)} sub={`${data.summary.totalVendors} vendors • ${data.summary.totalOrders} orders`} icon={<Coins className="w-5 h-5 text-white" />} iconBg="bg-[#eba236]" />
-          <KpiCard title="Total Gross" value={fmtCompact(data.summary.totalGross)} sub={`Avg order ${fmtPHP(data.summary.avgOrder)}`} icon={<DollarSign className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
-          <KpiCard title="Platform + Delivery Fees" value={fmtCompact(data.summary.totalPlatformFees + data.summary.totalDeliveryFees)} sub={`Platform ${fmtCompact(data.summary.totalPlatformFees)} • Delivery ${fmtCompact(data.summary.totalDeliveryFees)}`} icon={<Receipt className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
-          <KpiCard title="Refunded" value={fmtCompact(data.summary.totalRefunded)} sub={`${((data.summary.totalRefunded/Math.max(1,data.summary.totalGross))*100).toFixed(1)}% of gross`} icon={<TrendingDown className="w-5 h-5 text-white" />} iconBg="bg-red-500" />
+          <KpiCard title="Total Net Payout" value={fmtCompact(summary.summary.totalNet)} sub={`${summary.summary.totalVendors} vendors • ${summary.summary.totalOrders} orders`} icon={<Coins className="w-5 h-5 text-white" />} iconBg="bg-[#eba236]" />
+          <KpiCard title="Total Gross" value={fmtCompact(summary.summary.totalGross)} sub={`Avg order ${fmtPHP(summary.summary.avgOrder)}`} icon={<DollarSign className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
+          <KpiCard title="Platform + Delivery Fees" value={fmtCompact(summary.summary.totalPlatformFees + summary.summary.totalDeliveryFees)} sub={`Platform ${fmtCompact(summary.summary.totalPlatformFees)} • Delivery ${fmtCompact(summary.summary.totalDeliveryFees)}`} icon={<Receipt className="w-5 h-5 text-white" />} iconBg="bg-zinc-600" />
+          <KpiCard title="Refunded" value={fmtCompact(summary.summary.totalRefunded)} sub={`${((summary.summary.totalRefunded/Math.max(1,summary.summary.totalGross))*100).toFixed(1)}% of gross`} icon={<TrendingDown className="w-5 h-5 text-white" />} iconBg="bg-red-500" />
         </div>
-      ) : null}
+      ) : (
+        <div className="bg-white dark:bg-[#171717] rounded-xl border border-red-200 dark:border-red-900/40 p-4 text-center">
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">{summaryQuery.error instanceof Error ? summaryQuery.error.message : 'Failed to load summary'} <button onClick={() => void summaryQuery.refetch({ cancelRefetch: true })} className="ml-2 text-sm font-semibold text-[#eba236]">Retry</button></p>
+        </div>
+      )}
 
-      {isInitialLoading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 animate-pulse">
-          {Array.from({length:3}).map((_,i)=><div key={i} className="h-[76px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626]" />)}
-        </div>
-      ) : data && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {summary ? (
           <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-[#a1a1aa]">Avg Net per Vendor</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{fmtPHP(data.summary.avgPayout)}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{fmtPHP(summary.summary.avgPayout)}</p>
             </div>
             <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-amber-600" /></div>
           </div>
+        ) : (
+          <div className="h-[76px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] animate-pulse" />
+        )}
+        {summary ? (
           <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-[#a1a1aa]">Active Vendors</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{data.summary.activeVendors} / {data.summary.totalVendors}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{summary.summary.activeVendors} / {summary.summary.totalVendors}</p>
             </div>
             <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center"><Store className="w-5 h-5 text-emerald-600" /></div>
           </div>
+        ) : (
+          <div className="h-[76px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] animate-pulse" />
+        )}
+        {dailyData ? (
           <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-[#a1a1aa]">Daily Net (last point)</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{data.daily.length ? fmtPHP(data.daily[data.daily.length-1].net) : '—'}</p>
-              <p className="text-xs text-gray-500 dark:text-[#a1a1aa]">{data.daily.length ? data.daily[data.daily.length-1].date : 'no data'}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{dailyData.daily.length ? fmtPHP(dailyData.daily[dailyData.daily.length-1].net) : '—'}</p>
+              <p className="text-xs text-gray-500 dark:text-[#a1a1aa]">{dailyData.daily.length ? dailyData.daily[dailyData.daily.length-1].date : 'no data'}</p>
             </div>
             <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center"><CalendarDays className="w-5 h-5 text-blue-600" /></div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="h-[76px] bg-gray-100 dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] animate-pulse" />
+        )}
+      </div>
 
       <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-3 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -242,22 +260,22 @@ function PayoutsPageContent() {
       </div>
 
       <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
-        {error && !isInitialLoading && (
+        {rowsQuery.isError && !busy(rowsQuery) && (
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="h-14 w-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-7 w-7 text-red-500" /></div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load payouts</h3><p className="text-sm text-gray-500 mt-1 mb-4">{error}</p>
-            <button onClick={handleHardRefresh} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
+            <h3 className="font-semibold text-gray-900 dark:text-white">Failed to load payouts</h3><p className="text-sm text-gray-500 mt-1 mb-4">{rowsQuery.error instanceof Error ? rowsQuery.error.message : 'Failed to load payouts'}</p>
+            <button onClick={() => void rowsQuery.refetch({ cancelRefetch: true })} className="inline-flex items-center px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-medium"><RefreshCw className="w-4 h-4 mr-2" />Retry</button>
           </div>
         )}
-        {isInitialLoading ? (
+        {busy(rowsQuery) ? (
           <div className="p-4 space-y-3 animate-pulse">{Array.from({length:6}).map((_,i)=><div key={i} className="h-16 bg-gray-100 dark:bg-[#0a0a0a] rounded-lg" />)}</div>
-        ) : !error && pagedRows.length===0 ? (
+        ) : !rowsQuery.isError && pagedRows.length===0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="h-16 w-16 bg-[#eba236]/10 dark:bg-[#eba236]/15 rounded-2xl flex items-center justify-center mb-4"><Coins className="w-8 h-8 text-[#eba236]" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">No payouts in this period</h3>
             <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Try a larger range (90d / All) or clear filters.</p>
           </div>
-        ) : !error && (
+        ) : !rowsQuery.isError && payouts && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -308,7 +326,7 @@ function PayoutsPageContent() {
               </table>
             </div>
             <div className="px-4 py-3 border-t border-gray-200 dark:border-[#262626] flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
-              <div className="text-gray-600 dark:text-[#a1a1aa]">Page {page} of {totalPages} • {rows.length} vendors • 10 per page • {data?.meta.range} • {fmtDate(data?.meta.periodStart ?? null)} → {fmtDate(data?.meta.periodEnd ?? null)}</div>
+              <div className="text-gray-600 dark:text-[#a1a1aa]">Page {page} of {totalPages} • {rows.length} vendors • 10 per page • {summary?.meta.range ?? range} • {fmtDate(summary?.meta.periodStart ?? null)} → {fmtDate(summary?.meta.periodEnd ?? null)}</div>
               <div className="flex items-center gap-1">
                 <button disabled={loading || page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] disabled:opacity-50 text-sm">Prev</button>
                 {Array.from({length:Math.min(5,totalPages)}).map((_,i)=>{
@@ -322,13 +340,13 @@ function PayoutsPageContent() {
         )}
       </div>
 
-      {!isInitialLoading && data && data.daily.length>0 && (
+      {dailyData && dailyData.daily.length>0 ? (
         <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-[#eba236]" /> Daily Net Payout Trend</h3>
           <div className="overflow-x-auto">
             <div className="flex items-end gap-1 h-24">
-              {data.daily.slice(-14).map(d=>{
-                const max=Math.max(...data.daily.slice(-14).map(x=>x.net),1)
+              {dailyData.daily.slice(-14).map(d=>{
+                const max=Math.max(...dailyData.daily.slice(-14).map(x=>x.net),1)
                 const h=Math.max(4, (d.net/max)*80)
                 return <div key={d.date} className="flex-1 flex flex-col items-center gap-1" title={`${d.date}: ${fmtPHP(d.net)} (${d.orders} orders)`}>
                   <div className="w-full bg-[#eba236] rounded-t" style={{height:`${h}px`}} />
@@ -338,7 +356,16 @@ function PayoutsPageContent() {
             </div>
           </div>
         </div>
-      )}
+      ) : busy(dailyQuery) ? (
+        <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] p-4 animate-pulse">
+          <div className="h-4 bg-gray-100 dark:bg-[#262626] rounded w-48 mb-3" />
+          <div className="h-24 bg-gray-100 dark:bg-[#262626] rounded" />
+        </div>
+      ) : dailyQuery.isError ? (
+        <div className="bg-white dark:bg-[#171717] rounded-xl border border-red-200 dark:border-red-900/40 p-4 text-center">
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">{dailyQuery.error instanceof Error ? dailyQuery.error.message : 'Failed to load daily trend'} <button onClick={() => void dailyQuery.refetch({ cancelRefetch: true })} className="ml-2 text-sm font-semibold text-[#eba236]">Retry</button></p>
+        </div>
+      ) : null}
     </div>
   )
 }
