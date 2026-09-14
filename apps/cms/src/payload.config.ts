@@ -1312,7 +1312,7 @@ export default buildConfig({
       collections: {
         media: {
           adapter: cloudinaryAdapter({
-            cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!,
+            cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
             apiKey: process.env.CLOUDINARY_API_KEY!,
             apiSecret: process.env.CLOUDINARY_API_SECRET!,
             folder: 'main-uploads',

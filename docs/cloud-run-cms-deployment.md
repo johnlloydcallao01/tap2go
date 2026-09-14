@@ -63,8 +63,11 @@ What it does (without ever printing values):
 
 After it prints `Done`, server-only vars are live immediately. If you changed
 any `NEXT_PUBLIC_*` (`NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`), trigger
-a rebuild (`git push` / Console redeploy) so the client bundle picks them up.
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`), trigger a rebuild (`git push` / Console
+redeploy) so the client bundle picks them up. `CLOUDINARY_CLOUD_NAME` is
+NOT `NEXT_PUBLIC_`: it is read at runtime by the Cloudinary storage adapter
+(`apps/cms/src/payload.config.ts`), so a runtime var update takes effect
+without a rebuild.
 
 ## Manual alternative (Console / gcloud / YAML)
 

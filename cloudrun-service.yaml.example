@@ -84,8 +84,12 @@ spec:
               value: REPLACE_WITH_NEXT_PUBLIC_SUPABASE_URL
             - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
               value: REPLACE_WITH_NEXT_PUBLIC_SUPABASE_ANON_KEY
-            - name: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-              value: REPLACE_WITH_NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+            # Public Cloudinary identifier, read at RUNTIME (server-only; NOT
+            # NEXT_PUBLIC_, so no rebuild is needed when this changes). The
+            # Dockerfile runner stage already sets a default (dpekh75yi); this
+            # plain var overrides it. See apps/cms/src/payload.config.ts.
+            - name: CLOUDINARY_CLOUD_NAME
+              value: REPLACE_WITH_CLOUDINARY_CLOUD_NAME
             - name: ADMIN_LOCAL_URL
               value: http://localhost:3002
             - name: WEB_LOCAL_URL
