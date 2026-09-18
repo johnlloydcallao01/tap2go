@@ -9,7 +9,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustOrderItemsCache, bustOrdersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -334,23 +335,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
 
-    let doc: Record<string, any>
-    try {
-      doc = (await payload.findByID({
-        collection: 'orders',
-        id: docId as number,
-        depth: 2,
-        overrideAccess: true,
-      })) as unknown as Record<string, any>
-    } catch (e: any) {
-      return NextResponse.json({ error: 'Order not found', details: e?.message }, { status: 404 })
-    }
-    if (!doc) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    const cacheKey = `admin:orders:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try {
+          doc = (await payload.findByID({
+            collection: 'orders',
+            id: docId as number,
+            depth: 2,
+            overrideAccess: true,
+          })) as unknown as Record<string, any>
+        } catch (e: any) {
+          throw Object.assign(new Error('Order not found'), { status: 404, details: e?.message })
+        }
+        if (!doc) throw Object.assign(new Error('Order not found'), { status: 404 })
 
-    const agg = await fetchAggregates(payload, doc.id)
-    const sanitized = buildAggregatedDoc(doc, agg)
-    return NextResponse.json({ doc: sanitized })
+        const agg = await fetchAggregates(payload, doc.id)
+        return { doc: buildAggregatedDoc(doc, agg) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-Orders-Cache': status } })
   } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Order not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
     console.error('[admin/orders/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load order' }, { status: 500 })
   }
@@ -531,8 +540,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const sanitized = buildAggregatedDoc(updated, agg)
     // Bust list cache so the update reflects immediately on /orders.
     // Order items embed order data, so bust that aggregate too.
-    await deleteCachedByPrefix('admin:orders:')
-    await deleteCachedByPrefix('admin:order-items:')
+    await bustOrdersCache()
+    await bustOrderItemsCache()
     return NextResponse.json({ success: true, message: 'Order updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/orders/[id]] PATCH error:', err)

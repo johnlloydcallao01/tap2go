@@ -6,11 +6,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { bustProductsCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -52,8 +53,7 @@ const PRODUCT_TYPES = new Set(['simple', 'variable', 'grouped'])
 const VISIBILITY = new Set(['visible', 'catalog', 'search', 'hidden'])
 
 export async function GET(request: NextRequest) {
-  return withAdminRequestSlot(async () => {
-    try {
+  try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
@@ -63,9 +63,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=10&sort=-createdAt'
-    const cacheKey = `admin:products:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Products-Cache': 'HIT' } })
+    const cacheKey = `admin:products:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildProductsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Products-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load products'
+    console.error('[admin/products] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function pRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildProductsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
@@ -103,17 +121,19 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const [paginated, allForStats] = await Promise.all([
+    // Paginated display (correct) + SQL stats (no 2000-doc hydration).
+    const [paginated, statRows] = await Promise.all([
       payload.find({ collection: 'products', where: Object.keys(finalWhere).length ? finalWhere : undefined, page, limit, sort, depth: 2, overrideAccess: true }),
-      payload.find({ collection: 'products', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any),
+      pRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE product_type='simple')::int AS simple,
+        COUNT(*) FILTER (WHERE product_type='variable')::int AS variable,
+        COUNT(*) FILTER (WHERE product_type='grouped')::int AS grouped,
+        COUNT(*) FILTER (WHERE is_active = true)::int AS active FROM products`),
     ])
 
-    const allDocs = (allForStats.docs as any[]) || []
-    const total = allDocs.length
-    const simple = allDocs.filter((d: any) => d.productType === 'simple').length
-    const variable = allDocs.filter((d: any) => d.productType === 'variable').length
-    const grouped = allDocs.filter((d: any) => d.productType === 'grouped').length
-    const activeCount = allDocs.filter((d: any) => d.isActive).length
+    const stats = statRows[0] ?? {}
+    const total = Number(stats.total ?? 0)
+    const activeCount = Number(stats.active ?? 0)
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map(sanitizeDoc)
 
@@ -129,22 +149,20 @@ export async function GET(request: NextRequest) {
       },
       stats: {
         total,
-        simple,
-        variable,
-        grouped,
+        simple: Number(stats.simple ?? 0),
+        variable: Number(stats.variable ?? 0),
+        grouped: Number(stats.grouped ?? 0),
         activeCount,
         inactiveCount: total - activeCount,
         filteredCount: (paginated as any).totalDocs ?? docs.length,
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, response, 20)
-    return NextResponse.json(response, { headers: { 'X-Products-Cache': 'MISS' } })
-    } catch (err: any) {
-      console.error('[admin/products] GET error:', err)
-      return NextResponse.json({ error: err?.message || 'Failed to load products' }, { status: 500 })
-    }
-  })
+    return response
+  } catch (err: unknown) {
+    console.error('[admin/products] list build error:', err)
+    throw err
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -233,7 +251,7 @@ export async function POST(request: NextRequest) {
     }
     const sanitized = sanitizeDoc(created)
     // Bust list cache (all admins / query variants) so the new product shows immediately
-    await deleteCachedByPrefix('admin:products:')
+    await bustProductsCache()
     return NextResponse.json({ success: true, message: 'Product created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/products] POST error:', err)

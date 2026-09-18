@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { ModifierResolverService } from '../services/ModifierResolverService'
+import { bustProductsCache } from '../utils/dashboardCache'
 
 export const MerchantProducts: CollectionConfig = {
   slug: 'merchant-products',
@@ -108,6 +109,24 @@ export const MerchantProducts: CollectionConfig = {
         } catch {}
 
         return doc
+      },
+    ],
+    afterChange: [
+      async () => {
+        try {
+          await bustProductsCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustProductsCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },

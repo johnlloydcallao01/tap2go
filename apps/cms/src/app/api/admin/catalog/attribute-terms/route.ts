@@ -7,10 +7,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -92,10 +95,31 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:catalog-attribute-terms:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-AttributeTerms-Cache': 'HIT' } })
+    const cacheKey = `admin:catalog-attribute-terms:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildAttributeTermsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-AttributeTerms-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load attribute terms'
+    console.error('[admin/catalog/attribute-terms] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
 
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function tRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+function escLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+async function buildAttributeTermsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
     const search = searchParams.get('search')?.trim() || ''
@@ -129,7 +153,23 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const [paginated, statsAll] = await Promise.all([
+    // Filtered WHERE fragment (mirrors finalWhere semantics) for exact filtered KPIs.
+    const filterConds: SQL[] = []
+    if (search) {
+      const like = `%${escLike(search)}%`
+      filterConds.push(sql`(name ILIKE ${like} OR slug ILIKE ${like} OR value ILIKE ${like})`)
+    }
+    const attrNum = attributeIdRaw ? Number(attributeIdRaw) : NaN
+    if (attributeIdRaw && Number.isFinite(attrNum)) filterConds.push(sql`attribute_id_id = ${attrNum}`)
+    if (isActiveFilter !== null) filterConds.push(isActiveFilter ? sql`is_active = true` : sql`is_active = false`)
+    let filterWhere: SQL | null = null
+    if (filterConds.length) {
+      filterWhere = filterConds[0]
+      for (let i = 1; i < filterConds.length; i++) filterWhere = sql`${filterWhere} AND ${filterConds[i]}`
+    }
+
+    // Paginated display (correct) + SQL stats (no 2000-doc hydration, no re-fetch).
+    const [paginated, statRows, perAttrRows] = await Promise.all([
       payload.find({
         collection: 'prod-attribute-terms',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -139,63 +179,33 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'prod-attribute-terms',
-        limit: 2000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
+      tRows(payload, sql`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE is_active = true)::int AS active FROM prod_attribute_terms`),
+      tRows(payload, sql`SELECT attribute_id_id::text AS aid, COUNT(*)::int AS c FROM prod_attribute_terms GROUP BY attribute_id_id`),
     ])
-
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeDoc(d))
 
     const total = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
+    const totalAll = Number(statRows[0]?.total ?? 0)
 
-    // per-attribute breakdown + active/inactive
+    // per-attribute breakdown + active/inactive (global, SQL GROUP BY)
     const perAttribute: Record<string, number> = {}
-    let activeCount = 0
-    let inactiveCount = 0
-    for (const doc of statsDocs) {
-      const rawAttr = (doc as any).attribute_id
-      const key =
-        rawAttr && typeof rawAttr === 'object' && 'id' in rawAttr
-          ? String((rawAttr as any).id)
-          : String(rawAttr ?? 'unknown')
-      perAttribute[key] = (perAttribute[key] || 0) + 1
-      if (doc.is_active) activeCount++
-      else inactiveCount++
-    }
+    for (const r of perAttrRows) perAttribute[String(r.aid ?? 'unknown')] = Number(r.c ?? 0)
+    const activeCount = Number(statRows[0]?.active ?? 0)
+    const inactiveCount = totalAll - activeCount
 
-    // filtered breakdown for current where scope (optional: paginated docs not enough, do a second find for filtered)
+    // filtered KPIs exact via SQL (replaces bounded-2000 re-fetch + cap fallback)
     let filteredTotal = total
     let activeFiltered = docs.filter((d) => d.is_active).length
     let inactiveFiltered = docs.filter((d) => !d.is_active).length
-    // if paginated total != docs.length due to pagination we still have total; for KPIs use total docs filtered
-    // Do an extra lightweight count for active/inactive filtered if needed — reuse paginated.totalDocs but we can approximate
-    // Better: if filtered where not empty, fetch again without pagination for exact filtered stats (bounded 2000)
-    if (Object.keys(finalWhere).length) {
-      try {
-        const filteredAll = await payload.find({
-          collection: 'prod-attribute-terms',
-          where: finalWhere as any,
-          limit: 2000,
-          depth: 0,
-          overrideAccess: true,
-          pagination: false,
-        } as any)
-        const fdocs = (filteredAll as any).docs as Record<string, any>[] ?? []
-        activeFiltered = fdocs.filter((d: any) => d.is_active).length
-        inactiveFiltered = fdocs.filter((d: any) => !d.is_active).length
-        filteredTotal = fdocs.length
-        // capped case: if totalDocs > 2000 we fall back to paginated total
-        if (typeof paginated.totalDocs === 'number' && paginated.totalDocs > 2000) {
-          filteredTotal = paginated.totalDocs
-        }
-      } catch {}
+    if (filterWhere) {
+      const fRows = await tRows(
+        payload,
+        sql`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE is_active = true)::int AS active FROM prod_attribute_terms WHERE ${filterWhere}`,
+      )
+      filteredTotal = Number(fRows[0]?.total ?? total)
+      activeFiltered = Number(fRows[0]?.active ?? 0)
+      inactiveFiltered = filteredTotal - activeFiltered
     } else {
       activeFiltered = activeCount
       inactiveFiltered = inactiveCount
@@ -225,11 +235,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search, attributeId: attributeIdRaw || null },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-AttributeTerms-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/catalog/attribute-terms] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load attribute terms' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/catalog/attribute-terms] list build error:', err)
+    throw err
   }
 }
 

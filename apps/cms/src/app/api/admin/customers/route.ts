@@ -12,11 +12,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached } from '@encreasl/cache'
+import { bustCustomersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 import crypto from 'crypto'
 
 function optionalString(v: unknown): string | null {
@@ -130,8 +131,7 @@ function badRequest(message: string, details?: unknown) {
 const LEVEL_SET = new Set(['beginner', 'intermediate', 'advanced'])
 
 export async function GET(request: NextRequest) {
-  return withAdminRequestSlot(async () => {
-    try {
+  try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
@@ -141,9 +141,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20&sort=-createdAt'
-    const cacheKey = `admin:customers:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Customers-Cache': 'HIT' } })
+    const cacheKey = `admin:customers:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildCustomersList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Customers-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load customers'
+    console.error('[admin/customers] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function cRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildCustomersList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
@@ -162,40 +180,20 @@ export async function GET(request: NextRequest) {
     if (levelCsv.length) {
       const filtered = levelCsv.filter((v) => LEVEL_SET.has(v))
       if (filtered.length) {
-        try {
-          const profileRes = await payload.find({
-            collection: 'customers',
-            where: { currentLevel: { in: filtered } },
-            limit: 5000,
-            depth: 0,
-            overrideAccess: true,
-            pagination: false,
-          } as any)
-          const userIds = (profileRes.docs as any[])
-            .map((doc) => (doc.user && typeof doc.user === 'object' ? Number(doc.user.id) : Number(doc.user)))
-            .filter((n) => Number.isFinite(n))
-          if (userIds.length) {
-            and.push({ id: { in: userIds } })
-          } else {
-            return NextResponse.json({
-              docs: [],
-              pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
-              stats: {
-                totalCustomers: 0,
-                totalAll: 0,
-                filteredTotal: 0,
-                levelBreakdown: { beginner: 0, intermediate: 0, advanced: 0 },
-                activeCount: 0,
-                inactiveCount: 0,
-                enrollmentThisMonth: 0,
-                withActiveAddressCount: 0,
-                withoutActiveAddressCount: 0,
-              },
-              meta: { generatedAt: new Date().toISOString(), sort, search },
-            })
-          }
-        } catch {
-          return NextResponse.json({
+        // Level lives on customers profiles; resolve matching user ids in SQL
+        // (bounded 10000, indexed current_level) instead of hydrating 5000 docs.
+        const levelRows = await cRows(
+          payload,
+          sql`SELECT user_id FROM customers WHERE LOWER(current_level::text) IN (${sql.join(
+            filtered.map((v) => sql`${v}`),
+            sql`, `,
+          )}) LIMIT 10000`,
+        )
+        const userIds = levelRows.map((r) => Number(r.user_id)).filter((n) => Number.isFinite(n))
+        if (userIds.length) {
+          and.push({ id: { in: userIds } })
+        } else {
+          return {
             docs: [],
             pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
             stats: {
@@ -206,9 +204,11 @@ export async function GET(request: NextRequest) {
               activeCount: 0,
               inactiveCount: 0,
               enrollmentThisMonth: 0,
+              withActiveAddressCount: 0,
+              withoutActiveAddressCount: 0,
             },
             meta: { generatedAt: new Date().toISOString(), sort, search },
-          })
+          }
         }
       }
     }
@@ -232,64 +232,53 @@ export async function GET(request: NextRequest) {
 
     // Customer-first address management: filter by whether customers.activeAddress is set.
     // Backend resolves this so the page stays thin per docs/BFF-pattern.md.
+    // Active-address user ids resolved in SQL (id pairs only, no hydration).
     if (hasActiveFilter !== null) {
-      try {
-        const activeProbe = await payload.find({
-          collection: 'customers',
-          limit: 5000,
-          depth: 0,
-          overrideAccess: true,
-          pagination: false,
-        } as any)
-        const withActive: number[] = []
-        const withoutActive: number[] = []
-        // Build userId sets; need all customer users to compute withoutActive correctly.
-        const activeUserSet = new Set<number>()
-        for (const c of ((activeProbe as any).docs as any[] ?? [])) {
-          const rawUser = (c as any).user
-          const uid = rawUser && typeof rawUser === 'object' ? Number((rawUser as any).id) : Number(rawUser)
-          if (!Number.isFinite(uid)) continue
-          const rawActive = (c as any).activeAddress
-          const aid = rawActive && typeof rawActive === 'object' ? Number((rawActive as any).id) : Number(rawActive)
-          if (Number.isFinite(aid) && aid > 0) {
-            activeUserSet.add(uid)
-            withActive.push(uid)
+      const activeRows = await cRows(
+        payload,
+        sql`SELECT user_id FROM customers WHERE active_address_id IS NOT NULL`,
+      )
+      const withActive: number[] = []
+      const activeUserSet = new Set<number>()
+      for (const r of activeRows) {
+        const uid = Number(r.user_id)
+        if (!Number.isFinite(uid)) continue
+        activeUserSet.add(uid)
+        withActive.push(uid)
+      }
+      if (hasActiveFilter === true) {
+        if (!withActive.length) {
+          return {
+            docs: [],
+            pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
+            stats: {
+              totalCustomers: 0,
+              totalAll: 0,
+              filteredTotal: 0,
+              levelBreakdown: { beginner: 0, intermediate: 0, advanced: 0 },
+              activeCount: 0,
+              inactiveCount: 0,
+              enrollmentThisMonth: 0,
+              withActiveAddressCount: 0,
+              withoutActiveAddressCount: 0,
+            },
+            meta: { generatedAt: new Date().toISOString(), sort, search, hasActiveFilter },
           }
         }
-        if (hasActiveFilter === true) {
-          if (!withActive.length) {
-            return NextResponse.json({
-              docs: [],
-              pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
-              stats: {
-                totalCustomers: 0,
-                totalAll: 0,
-                filteredTotal: 0,
-                levelBreakdown: { beginner: 0, intermediate: 0, advanced: 0 },
-                activeCount: 0,
-                inactiveCount: 0,
-                enrollmentThisMonth: 0,
-                withActiveAddressCount: 0,
-                withoutActiveAddressCount: 0,
-              },
-              meta: { generatedAt: new Date().toISOString(), sort, search, hasActiveFilter },
-            })
-          }
-          and.push({ id: { in: withActive } })
-        } else {
-          // without active = all customer users minus withActive. Resolve via users query below
-          // by excluding active ids; if no active at all, no extra filter needed.
-          if (activeUserSet.size) {
-            and.push({ id: { not_in: Array.from(activeUserSet) } })
-          }
+        and.push({ id: { in: withActive } })
+      } else {
+        // without active = all customer users minus withActive. Resolve via users query below
+        // by excluding active ids; if no active at all, no extra filter needed.
+        if (activeUserSet.size) {
+          and.push({ id: { not_in: Array.from(activeUserSet) } })
         }
-      } catch {}
+      }
     }
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // parallel: paginated list + stats + profile map
-    const [paginated, statsAll, profileRes] = await Promise.all([
+    // parallel: paginated list (correct, bounded ≤100) + page profiles (bounded by page ids)
+    const [paginated] = await Promise.all([
       payload.find({
         collection: 'users',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -299,29 +288,21 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload
-        .find({
-          collection: 'users',
-          where: { role: { equals: 'customer' } },
-          limit: 0,
-          pagination: false,
-          depth: 0,
-          overrideAccess: true,
-        } as any)
-        .catch(() => ({ docs: [], totalDocs: 0 } as any)),
-      payload.find({
-        collection: 'customers',
-        limit: 5000,
-        depth: 2,
-        overrideAccess: true,
-        pagination: false,
-      } as any).catch(() => ({ docs: [] } as any)),
     ])
-
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
     const paginatedDocs = (paginated.docs as unknown as Record<string, any>[]) ?? []
+    const pageUserIds = paginatedDocs.map((d) => Number(d.id)).filter((n) => Number.isFinite(n))
+    const profileRows = pageUserIds.length
+      ? ((await payload.find({
+          collection: 'customers',
+          where: { user: { in: pageUserIds } },
+          limit: pageUserIds.length,
+          depth: 1,
+          overrideAccess: true,
+          pagination: false,
+        } as any).catch(() => ({ docs: [] } as any))).docs as Record<string, any>[] ?? [])
+      : []
     const profileByUserId = new Map<number, Record<string, any>>()
-    for (const customerDoc of ((profileRes as any).docs as Record<string, any>[] ?? [])) {
+    for (const customerDoc of profileRows) {
       const userVal = customerDoc.user
       const userId = userVal && typeof userVal === 'object' ? Number(userVal.id) : Number(userVal)
       if (Number.isFinite(userId)) profileByUserId.set(userId, customerDoc)
@@ -377,31 +358,28 @@ export async function GET(request: NextRequest) {
 
     const docs = paginatedDocs.map((d) => sanitizeCustomerDoc(d, profileByUserId.get(Number(d.id)) ?? null, orderCountMap, addressCountMap))
 
-    let activeCount = 0
-    let inactiveCount = 0
-    const levelBreakdown: Record<string, number> = { beginner: 0, intermediate: 0, advanced: 0 }
-    let enrollmentThisMonth = 0
-    let withActiveAddressCount = 0
+    // Global stats via SQL (no 5000-doc hydration; previously returned zeros via limit:0 docs).
     const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-    for (const userDoc of statsDocs) {
-      const profile = profileByUserId.get(Number(userDoc.id))
-      const lvl = String(profile?.currentLevel || 'beginner').toLowerCase()
-      if (levelBreakdown[lvl] !== undefined) levelBreakdown[lvl]++
-      else levelBreakdown[lvl] = 1
-      if (profile?.enrollmentDate) {
-        const t = new Date(String(profile.enrollmentDate)).getTime()
-        if (!Number.isNaN(t) && t >= monthStart) enrollmentThisMonth++
-      }
-      if (userDoc.isActive === false) inactiveCount++
-      else activeCount++
-      const rawActive = (profile as any)?.activeAddress
-      const aid = rawActive && typeof rawActive === 'object' ? Number((rawActive as any).id) : Number(rawActive)
-      if (Number.isFinite(aid) && aid > 0) withActiveAddressCount++
+    const monthStartISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const [custCount, levelRows, userActiveRows, enrollRows, addrRows] = await Promise.all([
+      cRows(payload, sql`SELECT COUNT(*)::int AS total FROM customers`),
+      cRows(payload, sql`SELECT LOWER(current_level::text) AS lvl, COUNT(*)::int AS c FROM customers GROUP BY LOWER(current_level::text)`),
+      cRows(payload, sql`SELECT COUNT(*) FILTER (WHERE is_active IS NOT false)::int AS active, COUNT(*) FILTER (WHERE is_active = false)::int AS inactive, COUNT(*)::int AS total FROM users WHERE role = 'customer'`),
+      cRows(payload, sql`SELECT COUNT(*)::int AS c FROM customers WHERE enrollment_date >= ${monthStartISO}`),
+      cRows(payload, sql`SELECT COUNT(*) FILTER (WHERE active_address_id IS NOT NULL)::int AS with_a, COUNT(*)::int AS total FROM customers`),
+    ])
+    const levelBreakdown: Record<string, number> = { beginner: 0, intermediate: 0, advanced: 0 }
+    for (const r of levelRows) {
+      const lvl = String(r.lvl || 'beginner').toLowerCase()
+      levelBreakdown[lvl] = (levelBreakdown[lvl] || 0) + Number(r.c ?? 0)
     }
+    const activeCount = Number(userActiveRows[0]?.active ?? 0)
+    const inactiveCount = Number(userActiveRows[0]?.inactive ?? 0)
+    const enrollmentThisMonth = Number(enrollRows[0]?.c ?? 0)
+    const withActiveAddressCount = Number(addrRows[0]?.with_a ?? 0)
 
     const totalCustomers = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
+    const totalAll = Number(custCount[0]?.total ?? 0)
 
     const response = {
       docs,
@@ -426,13 +404,11 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search, hasActiveFilter },
     }
-    await setCached(cacheKey, response, 20)
-    return NextResponse.json(response, { headers: { 'X-Customers-Cache': 'MISS' } })
-    } catch (err: any) {
-      console.error('[admin/customers] GET error:', err)
-      return NextResponse.json({ error: err?.message || 'Failed to load customers' }, { status: 500 })
-    }
-  })
+    return response
+  } catch (err: unknown) {
+    console.error('[admin/customers] list build error:', err)
+    throw err
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -585,6 +561,7 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeCustomerDoc(created, created, new Map(), new Map())
+    try { await bustCustomersCache() } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: 'Customer created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/customers] POST error:', err)

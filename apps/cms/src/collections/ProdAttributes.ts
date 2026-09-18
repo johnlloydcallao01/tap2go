@@ -1,4 +1,5 @@
 import { CollectionConfig } from 'payload'
+import { bustCatalogCache } from '../utils/dashboardCache'
 
 export const ProdAttributes: CollectionConfig = {
   slug: 'prod-attributes',
@@ -80,6 +81,24 @@ export const ProdAttributes: CollectionConfig = {
           ;(rec['slug'] as unknown) = base
         }
         return data
+      },
+    ],
+    afterChange: [
+      async () => {
+        try {
+          await bustCatalogCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCatalogCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },

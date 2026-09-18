@@ -8,6 +8,8 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { validateStoreHoursFields } from '@/utils/storeHours'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
 import { deleteCachedByPrefix } from '@encreasl/cache'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -69,31 +71,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
-    let doc: Record<string, any>
-    try { doc = await payload.findByID({ collection: 'vendors', id: docId as number, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch (e:any) { return NextResponse.json({ error: 'Vendor not found', details: e?.message }, { status: 404 }) }
-    if (!doc) return NextResponse.json({ error: 'Vendor not found' }, { status: 404 })
+    const cacheKey = `admin:vendors:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try { doc = await payload.findByID({ collection: 'vendors', id: docId as number, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch (e:any) { throw Object.assign(new Error('Vendor not found'), { status: 404, details: e?.message }) }
+        if (!doc) throw Object.assign(new Error('Vendor not found'), { status: 404 })
 
-    // merchant aggregation for this vendor
-    const [merchantsRes, ordersRes] = await Promise.all([
-      payload.find({ collection: 'merchants', where: { vendor: { equals: doc.id } }, limit: 50, sort: '-createdAt', depth: 0, overrideAccess: true }),
-      payload.find({ collection: 'orders', limit: 0, depth: 0, overrideAccess: true, pagination: false } as any).catch(()=>({ docs: [] } as any)),
-    ])
+        // merchant aggregation for this vendor (bounded, indexed vendor filter)
+        const merchantsRes = await payload.find({ collection: 'merchants', where: { vendor: { equals: doc.id } }, limit: 50, sort: '-createdAt', depth: 0, overrideAccess: true })
 
-    const merchantsPreview = (merchantsRes.docs as any[]).map((m) => ({
-      id: m.id,
-      outletName: String(m.outletName ?? `Outlet #${m.id}`),
-      outletCode: String(m.outletCode ?? ''),
-      isActive: !!m.isActive,
-      isAcceptingOrders: !!m.isAcceptingOrders,
-      operationalStatus: String(m.operationalStatus ?? 'closed'),
-      averageRating: num((m as any).averageRating, 0),
-      createdAt: String(m.createdAt ?? ''),
-    }))
-    const merchantCount = typeof merchantsRes.totalDocs === 'number' ? merchantsRes.totalDocs : merchantsPreview.length
+        const merchantsPreview = (merchantsRes.docs as any[]).map((m) => ({
+          id: m.id,
+          outletName: String(m.outletName ?? `Outlet #${m.id}`),
+          outletCode: String(m.outletCode ?? ''),
+          isActive: !!m.isActive,
+          isAcceptingOrders: !!m.isAcceptingOrders,
+          operationalStatus: String(m.operationalStatus ?? 'closed'),
+          averageRating: num((m as any).averageRating, 0),
+          createdAt: String(m.createdAt ?? ''),
+        }))
+        const merchantCount = typeof merchantsRes.totalDocs === 'number' ? merchantsRes.totalDocs : merchantsPreview.length
 
-    const sanitized = sanitizeVendorDoc(doc, merchantCount, merchantsPreview)
-    return NextResponse.json({ doc: sanitized })
-  } catch (err:any) { console.error('[admin/vendors/[id]] GET error:', err); return NextResponse.json({ error: err?.message||'Failed to load vendor' }, { status: 500 }) }
+        return { doc: sanitizeVendorDoc(doc, merchantCount, merchantsPreview) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-Vendors-Cache': status } })
+  } catch (err:any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Vendor not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
+    console.error('[admin/vendors/[id]] GET error:', err); return NextResponse.json({ error: err?.message||'Failed to load vendor' }, { status: 500 }) }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -9,6 +9,18 @@ import type {
   AnalyticsTopsGroup,
 } from '@/lib/analytics-types';
 
+export interface AnalyticsOverviewData {
+  summary: AnalyticsSummaryGroup;
+  charts: AnalyticsChartsGroup;
+  tops: AnalyticsTopsGroup;
+}
+
+async function fetchAnalyticsOverview(qs: string, signal?: AbortSignal): Promise<AnalyticsOverviewData> {
+  const res = await fetch(`/api/analytics/overview?${qs}`, { signal });
+  if (!res.ok) throw new Error('Failed to load analytics overview');
+  return res.json() as Promise<AnalyticsOverviewData>;
+}
+
 async function fetchAnalytics(qs: string, signal?: AbortSignal): Promise<AnalyticsData> {
   const res = await fetch(`/api/analytics?${qs}`, { signal });
   if (!res.ok) throw new Error('Failed to load analytics');
@@ -81,6 +93,21 @@ export function useAnalyticsTops(qs: string) {
   return useQuery({
     queryKey: QUERY_KEYS.adminAnalyticsTops(qs),
     queryFn: ({ signal }) => fetchAnalyticsTops(qs, signal),
+    placeholderData: keepPreviousData,
+    ...SHARED_QUERY_DEFAULTS,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Deduped analytics overview — single BFF call replacing 3-way
+ * summary/charts/tops fan-out (was ~25 finds + 3 auth, 31k docs JS-aggregated).
+ * Same qs, same shapes sliced from one CMS buildOverview().
+ */
+export function useAnalyticsOverview(qs: string) {
+  return useQuery({
+    queryKey: QUERY_KEYS.adminAnalyticsOverview(qs),
+    queryFn: ({ signal }) => fetchAnalyticsOverview(qs, signal),
     placeholderData: keepPreviousData,
     ...SHARED_QUERY_DEFAULTS,
     staleTime: 60 * 1000,

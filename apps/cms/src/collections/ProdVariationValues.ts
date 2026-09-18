@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import type { PayloadRequest } from 'payload'
+import { bustCatalogCache } from '../utils/dashboardCache'
 
 export const ProdVariationValues: CollectionConfig = {
   slug: 'prod-variation-values',
@@ -110,6 +111,24 @@ export const ProdVariationValues: CollectionConfig = {
         const termAttrId = typeof term?.attribute_id === 'object' ? term?.attribute_id?.id : term?.attribute_id
         if (term && termAttrId !== selectedAttrId) throw new Error('Selected term does not belong to the selected attribute')
         return d
+      },
+    ],
+    afterChange: [
+      async () => {
+        try {
+          await bustCatalogCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCatalogCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },

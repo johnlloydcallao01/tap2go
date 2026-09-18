@@ -7,10 +7,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -183,9 +186,31 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:catalog-variation-values:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-VariationValues-Cache': 'HIT' } })
+    const cacheKey = `admin:catalog-variation-values:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildVariationValuesList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-VariationValues-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load variation values'
+    console.error('[admin/catalog/variation-values] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function vvRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+function escLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+async function buildVariationValuesList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
@@ -211,28 +236,18 @@ export async function GET(request: NextRequest) {
       if (!Number.isNaN(n) && Number.isFinite(n)) where.term_id = { equals: n }
     }
 
-    // search: via related term name (and fallback attribute/variation names)
-    // If search provided, resolve term ids that match term name/slug/value contains search
+    // search: via related term name (SQL term-id pre-pass, bounded 200)
+    // If search provided, resolve term ids that match term name/slug/value ILIKE search
     let searchTermIds: number[] | null = null
     let searchNoMatch = false
     if (search) {
       try {
-        const termRes = await payload.find({
-          collection: 'prod-attribute-terms',
-          where: {
-            or: [
-              { name: { contains: search } },
-              { slug: { contains: search } },
-              { value: { contains: search } },
-            ],
-          },
-          limit: 200,
-          depth: 0,
-          overrideAccess: true,
-          pagination: false,
-        } as any)
-        const termDocs = (termRes as any).docs as Record<string, any>[] ?? []
-        const ids = termDocs.map((d) => Number(d.id)).filter((n) => !Number.isNaN(n))
+        const like = `%${escLike(search)}%`
+        const termRows = await vvRows(
+          payload,
+          sql`SELECT id FROM prod_attribute_terms WHERE name ILIKE ${like} OR slug ILIKE ${like} OR value ILIKE ${like} LIMIT 200`,
+        )
+        const ids = termRows.map((d) => Number(d.id)).filter((n) => !Number.isNaN(n))
         if (ids.length === 0) {
           searchNoMatch = true
         } else {
@@ -253,19 +268,36 @@ export async function GET(request: NextRequest) {
 
     if (searchNoMatch) {
       // early empty result
-      const responseBody = {
+      return {
         docs: [],
         pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
         stats: { total: 0, totalAll: 0, filteredTotal: 0, perVariation: {}, perAttribute: {}, perTerm: {} },
         meta: { generatedAt: new Date().toISOString(), sort, search, variationId: variationIdRaw || null, attributeId: attributeIdRaw || null, termId: termIdRaw || null },
       }
-      await setCached(cacheKey, responseBody, 20)
-      return NextResponse.json(responseBody, { headers: { 'X-VariationValues-Cache': 'MISS' } })
     }
 
     const finalWhere = Object.keys(where).length ? where : undefined
 
-    const [paginated, statsAll] = await Promise.all([
+    // Filtered WHERE fragment (mirrors finalWhere FK semantics) for exact filtered KPIs.
+    const fConds: SQL[] = []
+    const varNum = variationIdRaw && Number.isFinite(Number(variationIdRaw)) ? Number(variationIdRaw) : null
+    const attrNum = attributeIdRaw && Number.isFinite(Number(attributeIdRaw)) ? Number(attributeIdRaw) : null
+    if (varNum !== null) fConds.push(sql`variation_id_id = ${varNum}`)
+    if (attrNum !== null) fConds.push(sql`attribute_id_id = ${attrNum}`)
+    const finalTermIds = searchTermIds ?? (termIdRaw && Number.isFinite(Number(termIdRaw)) ? [Number(termIdRaw)] : null)
+    if (finalTermIds && finalTermIds.length) {
+      fConds.push(sql`term_id_id IN (${sql.join(finalTermIds.map((n) => sql`${n}`), sql`, `)})`)
+    } else if (termIdRaw && !finalTermIds) {
+      // explicit term filter handled via where; fallback keeps parity
+    }
+    let filterWhere: SQL | null = null
+    if (fConds.length) {
+      filterWhere = fConds[0]
+      for (let i = 1; i < fConds.length; i++) filterWhere = sql`${filterWhere} AND ${fConds[i]}`
+    }
+
+    // Paginated display (correct) + SQL stats (no 2000-doc hydration, no re-fetch).
+    const [paginated, statRows, perVarRows, perAttrRows, perTermRows] = await Promise.all([
       payload.find({
         collection: 'prod-variation-values',
         where: finalWhere as any,
@@ -275,74 +307,47 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'prod-variation-values',
-        limit: 2000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
+      vvRows(payload, sql`SELECT COUNT(*)::int AS total FROM prod_variation_values`),
+      vvRows(payload, sql`SELECT variation_id_id::text AS k, COUNT(*)::int AS c FROM prod_variation_values GROUP BY variation_id_id`),
+      vvRows(payload, sql`SELECT attribute_id_id::text AS k, COUNT(*)::int AS c FROM prod_variation_values GROUP BY attribute_id_id`),
+      vvRows(payload, sql`SELECT term_id_id::text AS k, COUNT(*)::int AS c FROM prod_variation_values GROUP BY term_id_id`),
     ])
 
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeDoc(d))
 
     const total = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
+    const totalAll = Number(statRows[0]?.total ?? 0)
 
-    // per- counts
+    // per- counts (global, SQL GROUP BY)
     const perVariation: Record<string, number> = {}
+    for (const r of perVarRows) perVariation[String(r.k ?? 'unknown')] = Number(r.c ?? 0)
     const perAttribute: Record<string, number> = {}
+    for (const r of perAttrRows) perAttribute[String(r.k ?? 'unknown')] = Number(r.c ?? 0)
     const perTerm: Record<string, number> = {}
-    for (const doc of statsDocs) {
-      const vRaw = (doc as any).variation_id
-      const vKey = vRaw && typeof vRaw === 'object' && 'id' in vRaw ? String((vRaw as any).id) : String(vRaw ?? 'unknown')
-      const aRaw = (doc as any).attribute_id
-      const aKey = aRaw && typeof aRaw === 'object' && 'id' in aRaw ? String((aRaw as any).id) : String(aRaw ?? 'unknown')
-      const tRaw = (doc as any).term_id
-      const tKey = tRaw && typeof tRaw === 'object' && 'id' in tRaw ? String((tRaw as any).id) : String(tRaw ?? 'unknown')
-      perVariation[vKey] = (perVariation[vKey] || 0) + 1
-      perAttribute[aKey] = (perAttribute[aKey] || 0) + 1
-      perTerm[tKey] = (perTerm[tKey] || 0) + 1
-    }
+    for (const r of perTermRows) perTerm[String(r.k ?? 'unknown')] = Number(r.c ?? 0)
 
-    // filtered stats if where applied
+    // filtered stats exact via SQL (replaces bounded-2000 re-fetch + cap fallback)
     let filteredTotal = total
     let perVariationFiltered = perVariation
     let perAttributeFiltered = perAttribute
     let perTermFiltered = perTerm
-    if (finalWhere) {
-      try {
-        const filteredAll = await payload.find({
-          collection: 'prod-variation-values',
-          where: finalWhere as any,
-          limit: 2000,
-          depth: 0,
-          overrideAccess: true,
-          pagination: false,
-        } as any)
-        const fdocs = (filteredAll as any).docs as Record<string, any>[] ?? []
-        filteredTotal = fdocs.length
-        if (typeof paginated.totalDocs === 'number' && paginated.totalDocs > 2000) filteredTotal = paginated.totalDocs
-        // capped recompute filtered breakdown
-        const pv: Record<string, number> = {}
-        const pa: Record<string, number> = {}
-        const pt: Record<string, number> = {}
-        for (const doc of fdocs) {
-          const vRaw = (doc as any).variation_id
-          const vKey = vRaw && typeof vRaw === 'object' && 'id' in vRaw ? String((vRaw as any).id) : String(vRaw ?? 'unknown')
-          const aRaw = (doc as any).attribute_id
-          const aKey = aRaw && typeof aRaw === 'object' && 'id' in aRaw ? String((aRaw as any).id) : String(aRaw ?? 'unknown')
-          const tRaw = (doc as any).term_id
-          const tKey = tRaw && typeof tRaw === 'object' && 'id' in tRaw ? String((tRaw as any).id) : String(tRaw ?? 'unknown')
-          pv[vKey] = (pv[vKey] || 0) + 1
-          pa[aKey] = (pa[aKey] || 0) + 1
-          pt[tKey] = (pt[tKey] || 0) + 1
-        }
-        perVariationFiltered = pv
-        perAttributeFiltered = pa
-        perTermFiltered = pt
-      } catch {}
+    if (filterWhere) {
+      const [fCount, fVar, fAttr, fTerm] = await Promise.all([
+        vvRows(payload, sql`SELECT COUNT(*)::int AS total FROM prod_variation_values WHERE ${filterWhere}`),
+        vvRows(payload, sql`SELECT variation_id_id::text AS k, COUNT(*)::int AS c FROM prod_variation_values WHERE ${filterWhere} GROUP BY variation_id_id`),
+        vvRows(payload, sql`SELECT attribute_id_id::text AS k, COUNT(*)::int AS c FROM prod_variation_values WHERE ${filterWhere} GROUP BY attribute_id_id`),
+        vvRows(payload, sql`SELECT term_id_id::text AS k, COUNT(*)::int AS c FROM prod_variation_values WHERE ${filterWhere} GROUP BY term_id_id`),
+      ])
+      filteredTotal = Number(fCount[0]?.total ?? total)
+      const pv: Record<string, number> = {}
+      for (const r of fVar) pv[String(r.k ?? 'unknown')] = Number(r.c ?? 0)
+      const pa: Record<string, number> = {}
+      for (const r of fAttr) pa[String(r.k ?? 'unknown')] = Number(r.c ?? 0)
+      const pt: Record<string, number> = {}
+      for (const r of fTerm) pt[String(r.k ?? 'unknown')] = Number(r.c ?? 0)
+      perVariationFiltered = pv
+      perAttributeFiltered = pa
+      perTermFiltered = pt
     }
 
     const responseBody = {
@@ -369,11 +374,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search, variationId: variationIdRaw || null, attributeId: attributeIdRaw || null, termId: termIdRaw || null },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-VariationValues-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/catalog/variation-values] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load variation values' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/catalog/variation-values] list build error:', err)
+    throw err
   }
 }
 

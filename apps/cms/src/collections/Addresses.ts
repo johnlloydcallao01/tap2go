@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { googleMapsService } from '../services/GoogleMapsService'
+import { bustCustomersCache } from '../utils/dashboardCache'
 
 export const Addresses: CollectionConfig = {
   slug: 'addresses',
@@ -429,6 +430,13 @@ export const Addresses: CollectionConfig = {
     {
       fields: ['verification_method'],
     },
+    // Customers address-book filters
+    {
+      fields: ['address_type'],
+    },
+    {
+      fields: ['is_default'],
+    },
   ],
   hooks: {
     beforeChange: [
@@ -514,6 +522,18 @@ export const Addresses: CollectionConfig = {
               console.error('Error propagating address coordinates to merchants:', error)
             }
           })()
+        }
+        void bustCustomersCache().catch(() => {
+          // ignore cache bust failures
+        })
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCustomersCache()
+        } catch {
+          // ignore
         }
       },
     ],

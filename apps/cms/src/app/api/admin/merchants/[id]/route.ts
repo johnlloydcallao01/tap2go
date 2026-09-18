@@ -8,7 +8,8 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
-import { deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustMerchantsCache, getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function str(v: unknown, fb=''): string { return typeof v==='string'?v:fb }
 function num(v: unknown, fb=0): number { if(typeof v==='number'&&Number.isFinite(v)) return v; if(typeof v==='string'){ const n=Number(v); return Number.isFinite(n)?n:fb } return fb }
@@ -99,21 +100,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if(!admin) return NextResponse.json({ error:'Unauthorized' },{status:401})
     const numericId=Number(id)
     const docId:number|string=Number.isFinite(numericId)?numericId:id
-    let doc: Record<string, any>
-    try{ doc=await payload.findByID({ collection:'merchants', id: docId as number, depth: 2, overrideAccess: true }) as unknown as Record<string, any> }catch(e:any){ return NextResponse.json({ error:'Merchant not found', details:e?.message },{status:404})}
-    if(!doc) return NextResponse.json({ error:'Merchant not found' },{status:404})
-    // enrich with vendor merchant count
-    let vendorMerchantCount: number | null = null
-    try{
-      const vendorId = typeof doc.vendor==='object' ? (doc.vendor as any).id : doc.vendor
-      if(vendorId){
-        const mRes=await payload.find({ collection:'merchants', where:{ vendor:{ equals: vendorId } }, limit:0, depth:0, overrideAccess:true, pagination:false} as any)
-        vendorMerchantCount = typeof (mRes as any).totalDocs==='number' ? (mRes as any).totalDocs : (mRes as any).docs?.length ?? null
-      }
-    }catch{}
-    const sanitized=sanitizeMerchantDoc(doc, vendorMerchantCount ?? undefined)
-    return NextResponse.json({ doc: sanitized })
-  }catch(err:any){ console.error('[admin/merchants/[id]] GET error:',err); return NextResponse.json({ error:err?.message||'Failed to load merchant' },{status:500})}
+    const cacheKey=`admin:merchants:detail:v1:${String(docId)}`
+    const { data, status }=await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try{ doc=await payload.findByID({ collection:'merchants', id: docId as number, depth: 2, overrideAccess: true, context: { skipStoreHours: true } }) as unknown as Record<string, any> }catch(e:any){ throw Object.assign(new Error('Merchant not found'), { status: 404, details: e?.message }) }
+        if(!doc) throw Object.assign(new Error('Merchant not found'), { status: 404 })
+        // enrich with vendor merchant count (indexed count, no doc hydration)
+        let vendorMerchantCount: number | null = null
+        try{
+          const vendorId = typeof doc.vendor==='object' ? (doc.vendor as any).id : doc.vendor
+          if(vendorId){
+            const mCount=await payload.count({ collection:'merchants', where:{ vendor:{ equals: vendorId } }, overrideAccess:true, context: { skipStoreHours: true } })
+            vendorMerchantCount = mCount.totalDocs
+          }
+        }catch{}
+        return { doc: sanitizeMerchantDoc(doc, vendorMerchantCount ?? undefined) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-Merchants-Cache': status } })
+  }catch(err:any){
+    if(err instanceof Error && (err as unknown as {status?:number}).status===404){
+      return NextResponse.json({ error:'Merchant not found', details:(err as unknown as {details?:unknown}).details },{status:404})
+    }
+    console.error('[admin/merchants/[id]] GET error:',err); return NextResponse.json({ error:err?.message||'Failed to load merchant' },{status:500})}
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }){
@@ -216,7 +226,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     const sanitized=sanitizeMerchantDoc(updated)
     // Bust list cache so the update reflects immediately on /merchants
-    await deleteCachedByPrefix('admin:merchants:')
+    await bustMerchantsCache()
     return NextResponse.json({ success:true, message:'Merchant updated successfully', doc: sanitized })
   }catch(err:any){ console.error('[admin/merchants/[id]] PATCH error:',err); return NextResponse.json({ error:err?.message||'Update failed' },{status:500})}
 }
@@ -235,7 +245,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     try{ deleted=await payload.delete({ collection:'merchants', id: docId as number, overrideAccess:true }) }catch(e:any){ return NextResponse.json({ error:e?.message||'Failed to delete merchant' },{status:400})}
     if(!deleted) return NextResponse.json({ error:'Merchant not found' },{status:404})
     // Bust list cache so the deletion reflects immediately on /merchants
-    await deleteCachedByPrefix('admin:merchants:')
+    await bustMerchantsCache()
     return NextResponse.json({ success:true, id:deleted.id, message:'Merchant deleted successfully' })
   }catch(err:any){ console.error('[admin/merchants/[id]] DELETE error:',err); return NextResponse.json({ error:err?.message||'Delete failed' },{status:500})}
 }

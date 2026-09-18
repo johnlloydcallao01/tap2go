@@ -54,6 +54,71 @@ export async function bustDashboardCache(prefix = 'admin:dashboard:'): Promise<v
   await redisBustPrefix(prefix)
 }
 
+export async function bustAnalyticsCache(): Promise<void> {
+  bustDashboardL1('admin:analytics:')
+  await redisBustPrefix('admin:analytics:')
+}
+
+export async function bustReportsCache(): Promise<void> {
+  bustDashboardL1('admin:reports:')
+  await redisBustPrefix('admin:reports:')
+}
+
+export async function bustPayoutsCache(): Promise<void> {
+  bustDashboardL1('admin:payouts:')
+  await redisBustPrefix('admin:payouts:')
+}
+
+export async function bustVendorsCache(): Promise<void> {
+  bustDashboardL1('admin:vendors:')
+  await redisBustPrefix('admin:vendors:')
+}
+
+export async function bustMerchantsCache(): Promise<void> {
+  bustDashboardL1('admin:merchants:')
+  await redisBustPrefix('admin:merchants:')
+}
+
+export async function bustOrdersCache(): Promise<void> {
+  bustDashboardL1('admin:orders:')
+  await redisBustPrefix('admin:orders:')
+}
+
+export async function bustCustomersCache(): Promise<void> {
+  bustDashboardL1('admin:customers:')
+  await redisBustPrefix('admin:customers:')
+  bustDashboardL1('admin:customer-addresses:')
+  await redisBustPrefix('admin:customer-addresses:')
+  bustDashboardL1('admin:emergency-contacts:')
+  await redisBustPrefix('admin:emergency-contacts:')
+  bustDashboardL1('admin:customer-activity:')
+  await redisBustPrefix('admin:customer-activity:')
+}
+
+export async function bustOrderItemsCache(): Promise<void> {
+  bustDashboardL1('admin:order-items:')
+  await redisBustPrefix('admin:order-items:')
+}
+
+export async function bustTransactionsCache(): Promise<void> {
+  bustDashboardL1('admin:transactions:')
+  await redisBustPrefix('admin:transactions:')
+}
+
+export async function bustProductsCache(): Promise<void> {
+  bustDashboardL1('admin:products:')
+  await redisBustPrefix('admin:products:')
+  bustDashboardL1('admin:merchant-products:')
+  await redisBustPrefix('admin:merchant-products:')
+}
+
+export async function bustCatalogCache(): Promise<void> {
+  bustDashboardL1('admin:catalog-')
+  await redisBustPrefix('admin:catalog-')
+  bustDashboardL1('admin:product-categories:')
+  await redisBustPrefix('admin:product-categories:')
+}
+
 function readL1<T>(key: string): { hit: boolean; stale: boolean; value: T | null } {
   const entry = l1.get(key)
   if (!entry) return { hit: false, stale: false, value: null }

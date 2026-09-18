@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustCatalogCache, bustProductsCache } from '../utils/dashboardCache'
 
 export const Products: CollectionConfig = {
   slug: 'products',
@@ -264,6 +265,12 @@ export const Products: CollectionConfig = {
         position: 'sidebar',
       },
     },
+  ],
+  indexes: [
+    // Catalog list filters/breakdowns
+    { fields: ['productType'] },
+    { fields: ['isActive'] },
+    { fields: ['catalogVisibility'] },
   ],
   hooks: {
     beforeValidate: [
@@ -611,6 +618,11 @@ export const Products: CollectionConfig = {
         // Products now directly belong to vendors via createdByVendor field
         // MerchantProducts handles the merchant-product relationships
         console.log(`✅ Product ${operation} completed for product ${doc.id}`);
+        try {
+          await bustProductsCache()
+        } catch {
+          // ignore cache bust failures
+        }
       },
     ],
   },

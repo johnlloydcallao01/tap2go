@@ -7,7 +7,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustCatalogCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql } from 'drizzle-orm'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -68,32 +70,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
-    let doc: Record<string, any>
-    try { doc = await payload.findByID({ collection: 'product-categories', id: docId as number, depth: 1, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) { return NextResponse.json({ error: 'Product category not found', details: e?.message }, { status: 404 }) }
-    if (!doc) return NextResponse.json({ error: 'Product category not found' }, { status: 404 })
+    const cacheKey = `admin:product-categories:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try { doc = await payload.findByID({ collection: 'product-categories', id: docId as number, depth: 1, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) { throw Object.assign(new Error('Product category not found'), { status: 404, details: e?.message }) }
+        if (!doc) throw Object.assign(new Error('Product category not found'), { status: 404 })
 
-    // product count for this category
-    let productCount = 0
-    try {
-      const prodRes = await payload.find({ collection: 'products', where: { categories: { contains: doc.id } }, limit: 0, depth: 0, overrideAccess: true, pagination: false } as any)
-      productCount = (prodRes as any).totalDocs ?? (prodRes as any).docs?.length ?? 0
-      if (productCount === 0) {
-        // fallback via products_rels scan if contains not supported
-        const allProds = await payload.find({ collection: 'products', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any)
-        let cnt = 0
-        for (const p of ((allProds as any).docs as any[]) || []) {
-          const cats: any[] = Array.isArray((p as any).categories) ? (p as any).categories : []
-          for (const c of cats) {
-            const cid = typeof c === 'object' ? String((c as any).id) : String(c)
-            if (cid === String(doc.id)) { cnt++; break }
+        // product count for this category via rels join (replaces 5000-scan fallback)
+        let productCount = 0
+        try {
+          const prodRes = await payload.find({ collection: 'products', where: { categories: { contains: doc.id } }, limit: 0, depth: 0, overrideAccess: true, pagination: false } as any)
+          productCount = (prodRes as any).totalDocs ?? (prodRes as any).docs?.length ?? 0
+          if (productCount === 0) {
+            const rows = (await payload.db.drizzle.execute(
+              sql`SELECT COUNT(DISTINCT parent_id)::int AS c FROM products_rels WHERE "product-categoriesID" = ${Number(doc.id)}` as never,
+            ) as unknown as { rows: Array<Record<string, unknown>> }).rows ?? []
+            productCount = Number(rows[0]?.c ?? 0)
           }
-        }
-        productCount = cnt
-      }
-    } catch {}
-    const sanitized = sanitizeDoc(doc, productCount)
-    return NextResponse.json({ doc: sanitized })
+        } catch {}
+        return { doc: sanitizeDoc(doc, productCount) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-ProductCategories-Cache': status } })
   } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Product category not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
     console.error('[admin/product-categories/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load product category' }, { status: 500 })
   }
@@ -243,7 +246,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     const sanitized = sanitizeDoc(updated, 0)
     // Bust list cache so the update reflects immediately on /product-categories
-    await deleteCachedByPrefix('admin:product-categories:')
+    await bustCatalogCache()
     return NextResponse.json({ success: true, message: 'Product category updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/product-categories/[id]] PATCH error:', err)
@@ -291,7 +294,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     try { deleted = await payload.delete({ collection: 'product-categories', id: docId as number, overrideAccess: true }) } catch (e: any) { return NextResponse.json({ error: e?.message || 'Failed to delete product category' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Product category not found' }, { status: 404 })
     // Bust list cache so the deletion reflects immediately on /product-categories
-    await deleteCachedByPrefix('admin:product-categories:')
+    await bustCatalogCache()
     return NextResponse.json({ success: true, id: deleted.id, message: 'Product category deleted successfully' })
   } catch (err: any) {
     console.error('[admin/product-categories/[id]] DELETE error:', err)

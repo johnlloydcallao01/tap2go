@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const headers = new Headers({ 'Content-Type': res.headers.get('content-type') || 'application/json' })
     const cacheStatus = res.headers.get('X-ProductCategories-Cache')
     if (cacheStatus) headers.set('X-ProductCategories-Cache', cacheStatus)
+    headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
     return new NextResponse(data, { status: res.status, headers })
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })

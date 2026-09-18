@@ -10,10 +10,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -193,9 +195,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:transactions:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Transactions-Cache': 'HIT' } })
+    const cacheKey = `admin:transactions:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildTransactionsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Transactions-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load transactions'
+    console.error('[admin/transactions] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function tRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildTransactionsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
@@ -244,8 +264,8 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // parallel: paginated list + full stats (bounded)
-    const [paginated, statsAll] = await Promise.all([
+    // parallel: paginated list (correct, bounded ≤100) + SQL stats (no 2000-doc hydration)
+    const [paginated, statRows, statusRows, pmRows] = await Promise.all([
       payload.find({
         collection: 'transactions',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -255,57 +275,44 @@ export async function GET(request: NextRequest) {
         depth: 2, // need order + order.merchant/customer populated for sanitization
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'transactions',
-        limit: 2000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
+      tRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COALESCE(SUM(amount::numeric) FILTER (WHERE status='paid'),0) AS revenue,
+        COALESCE(SUM(amount::numeric) FILTER (WHERE status='refunded'),0) AS refunded,
+        COALESCE(SUM(amount::numeric) FILTER (WHERE status='failed'),0) AS failed,
+        COALESCE(SUM(amount::numeric) FILTER (WHERE status='pending'),0) AS pending_amt,
+        COUNT(*) FILTER (WHERE status='paid')::int AS paid_n,
+        COUNT(*) FILTER (WHERE status='pending')::int AS pending_n,
+        COUNT(*) FILTER (WHERE status='failed')::int AS failed_n,
+        COUNT(*) FILTER (WHERE status='refunded')::int AS refunded_n FROM transactions`),
+      tRows(payload, sql`SELECT status::text AS s, COUNT(*)::int AS c FROM transactions GROUP BY status`),
+      tRows(payload, sql`SELECT COALESCE(NULLIF(TRIM(LOWER(payment_method::text)),''),'unknown') AS s, COUNT(*)::int AS c FROM transactions GROUP BY 1`),
     ])
 
-    const statsDocs = ((statsAll as any).docs as Record<string, any>[]) ?? []
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeTransactionDoc(d))
 
-    // stats aggregation
-    const totalAll = typeof (statsAll as any).totalDocs === 'number' ? (statsAll as any).totalDocs : statsDocs.length
+    // stats aggregation (SQL, global)
+    const stats = statRows[0] ?? {}
+    const totalAll = Number(stats.total ?? 0)
     const filteredTotal = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
 
     const statusBreakdown: Record<string, number> = { pending: 0, paid: 0, failed: 0, refunded: 0 }
-    const paymentMethodBreakdown: Record<string, number> = {}
-    let totalRevenue = 0
-    let totalRefunded = 0
-    let totalFailed = 0
-    let totalPendingAmount = 0
-    let paidCount = 0
-    let pendingCount = 0
-    let failedCount = 0
-    let refundedCount = 0
-
-    for (const t of statsDocs) {
-      const st = String(t.status || 'pending').toLowerCase()
-      if (statusBreakdown[st] !== undefined) statusBreakdown[st]++
-      else statusBreakdown[st] = (statusBreakdown[st] || 0) + 1
-
-      const pmRaw = typeof t.payment_method === 'string' ? t.payment_method.trim().toLowerCase() : ''
-      const pm = pmRaw || 'unknown'
-      paymentMethodBreakdown[pm] = (paymentMethodBreakdown[pm] || 0) + 1
-
-      const amt = num(t.amount, 0)
-      if (st === 'paid') {
-        totalRevenue += amt
-        paidCount++
-      } else if (st === 'refunded') {
-        totalRefunded += amt
-        refundedCount++
-      } else if (st === 'failed') {
-        totalFailed += amt
-        failedCount++
-      } else if (st === 'pending') {
-        totalPendingAmount += amt
-        pendingCount++
-      }
+    for (const r of statusRows) {
+      const st = String(r.s || 'pending').toLowerCase()
+      statusBreakdown[st] = (statusBreakdown[st] || 0) + Number(r.c ?? 0)
     }
+    const paymentMethodBreakdown: Record<string, number> = {}
+    for (const r of pmRows) {
+      const pm = String(r.s || 'unknown').toLowerCase() || 'unknown'
+      paymentMethodBreakdown[pm] = (paymentMethodBreakdown[pm] || 0) + Number(r.c ?? 0)
+    }
+    const totalRevenue = Number(stats.revenue ?? 0)
+    const totalRefunded = Number(stats.refunded ?? 0)
+    const totalFailed = Number(stats.failed ?? 0)
+    const totalPendingAmount = Number(stats.pending_amt ?? 0)
+    const paidCount = Number(stats.paid_n ?? 0)
+    const pendingCount = Number(stats.pending_n ?? 0)
+    const failedCount = Number(stats.failed_n ?? 0)
+    const refundedCount = Number(stats.refunded_n ?? 0)
 
     const netRevenue = totalRevenue - totalRefunded
     const avgTransactionAmount = paidCount > 0 ? totalRevenue / paidCount : 0
@@ -338,10 +345,9 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-Transactions-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/transactions] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load transactions' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/transactions] list build error:', err)
+    throw err
   }
 }

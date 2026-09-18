@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePayoutsSummary, usePayoutsRows, usePayoutsDaily } from '@/hooks/useVendorPayouts'
+import { usePayoutsOverview } from '@/hooks/useVendorPayouts'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
   Building, Search, X, SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle,
@@ -99,16 +99,16 @@ function PayoutsPageContent() {
 
   const queryClient = useQueryClient()
   const [hardRefreshing, setHardRefreshing] = useState(false)
-  // Three independent queries under the same payouts/ directory — same qs,
-  // fetched in parallel; each section renders as soon as its group resolves.
-  // Range switches reuse the skeleton screen per section while fetching
-  // instead of keeping the previous range's numbers on screen.
-  const summaryQuery = usePayoutsSummary(qs)
-  const rowsQuery = usePayoutsRows(qs)
-  const dailyQuery = usePayoutsDaily(qs)
-  const summary = summaryQuery.data
-  const payouts = rowsQuery.data
-  const dailyData = dailyQuery.data
+  // Single deduped overview fetch: 1 browser -> 1 BFF -> 1 CMS overview
+  // (was 3 parallel summary/rows/daily -> 12 finds + 3 auth, ~36k docs).
+  const overviewQuery = usePayoutsOverview(qs)
+  const summary = overviewQuery.data ? { meta: overviewQuery.data.meta, summary: overviewQuery.data.summary, verificationBreakdown: overviewQuery.data.verificationBreakdown } : undefined
+  const payouts = overviewQuery.data ? { vendorPayouts: overviewQuery.data.vendorPayouts } : undefined
+  const dailyData = overviewQuery.data ? { daily: overviewQuery.data.daily } : undefined
+  // Adapters preserve per-section skeleton/error UX on top of single fetch.
+  const summaryQuery = { data: summary, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
+  const rowsQuery = { data: payouts, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
+  const dailyQuery = { data: dailyData, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
   const loading = summaryQuery.isFetching || rowsQuery.isFetching || dailyQuery.isFetching || hardRefreshing
   const busy = (q: { isPending: boolean; isFetching: boolean }) => q.isPending || q.isFetching || hardRefreshing
 
@@ -118,11 +118,7 @@ function PayoutsPageContent() {
     void (async () => {
       try {
         queryClient.removeQueries({ queryKey: ['admin', 'vendors', 'payouts'] })
-        await Promise.all([
-          summaryQuery.refetch({ cancelRefetch: true }),
-          rowsQuery.refetch({ cancelRefetch: true }),
-          dailyQuery.refetch({ cancelRefetch: true }),
-        ])
+        await overviewQuery.refetch({ cancelRefetch: true })
       } finally {
         setHardRefreshing(false)
       }

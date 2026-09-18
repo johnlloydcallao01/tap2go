@@ -6,10 +6,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard, bustProductsCache } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -38,9 +40,31 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=10'
-    const cacheKey = `admin:merchant-products:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-MerchantProducts-Cache': 'HIT' } })
+    const cacheKey = `admin:merchant-products:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildMerchantProductsView(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-MerchantProducts-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load merchant products'
+    console.error('[admin/merchant-products] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function mpRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+function escLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+async function buildMerchantProductsView(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
@@ -70,54 +94,96 @@ export async function GET(request: NextRequest) {
         overrideAccess: true,
       } as any)
       const vendorIds = (vendorsRes.docs || []).map((vendor: any) => vendor.id)
-      const [counts, scopedMerchants] = await Promise.all([
+      const [counts, scopedMerchants, mpCountRows] = await Promise.all([
         Promise.all([
-          payload.find({ collection: 'vendors', limit: 1, depth: 0, overrideAccess: true } as any),
-          payload.find({ collection: 'merchants', limit: 1, depth: 0, overrideAccess: true } as any),
-          payload.find({ collection: 'merchant-products', limit: 1, depth: 0, overrideAccess: true } as any),
-          payload.find({ collection: 'merchants', where: { isActive: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
+          payload.count({ collection: 'vendors', overrideAccess: true }),
+          payload.count({ collection: 'merchants', overrideAccess: true }),
+          payload.count({ collection: 'merchant-products', overrideAccess: true }),
+          payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true }),
         ]),
         vendorIds.length
           ? payload.find({ collection: 'merchants', where: { vendor: { in: vendorIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
           : Promise.resolve({ docs: [] }),
+        // Single GROUP BY replaces per-vendor N+1 limit:1 finds.
+        vendorIds.length
+          ? mpRows(payload, sql`SELECT m.vendor_id::text AS vid, COUNT(mp.id)::int AS c FROM merchant_products mp JOIN merchants m ON m.id = mp.merchant_id_id WHERE m.vendor_id IN (${sql.join(vendorIds.map((v: number) => sql`${v}`), sql`, `)}) GROUP BY m.vendor_id`)
+          : Promise.resolve([]),
       ])
       totalVendorsCount = counts[0].totalDocs || 0
       totalMerchantsCount = counts[1].totalDocs || 0
       totalMerchantProductsCount = counts[2].totalDocs || 0
       activeMerchantsCount = counts[3].totalDocs || 0
       merchantsRes = scopedMerchants
-      await Promise.all((vendorsRes.docs || []).map(async (vendor: any) => {
-        const merchantIds = (merchantsRes.docs || [])
-          .filter((merchant: any) => {
-            const rawVendor = merchant.vendor
-            const merchantVendorId = rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
-            return String(merchantVendorId) === String(vendor.id)
-          })
-          .map((merchant: any) => merchant.id)
-        if (!merchantIds.length) {
-          vendorProductCounts.set(String(vendor.id), 0)
-          return
-        }
-        const result = await payload.find({
-          collection: 'merchant-products',
-          where: { merchant_id: { in: merchantIds } },
-          limit: 1,
-          depth: 0,
-          overrideAccess: true,
-        } as any)
-        vendorProductCounts.set(String(vendor.id), result.totalDocs || 0)
-      }))
+      for (const r of mpCountRows) vendorProductCounts.set(String(r.vid), Number(r.c ?? 0))
+      for (const v of (vendorsRes.docs || [])) {
+        if (!vendorProductCounts.has(String((v as any).id))) vendorProductCounts.set(String((v as any).id), 0)
+      }
       merchantProductsRes = { docs: [] }
       productsRes = { docs: [] }
     } else {
-      // Filtered searches currently use the legacy in-memory matcher so their
-      // existing vendor/product matching behavior remains unchanged.
-      ;[vendorsRes, merchantsRes, merchantProductsRes, productsRes] = await Promise.all([
-        payload.find({ collection: 'vendors', limit: 2000, depth: 1, overrideAccess: true, pagination: false } as any),
-        payload.find({ collection: 'merchants', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any),
-        payload.find({ collection: 'merchant-products', limit: 5000, depth: 0, overrideAccess: true, pagination: false, context: { skipEffectiveModifierPreview: true } } as any),
-        payload.find({ collection: 'products', limit: 2000, depth: 1, overrideAccess: true, pagination: false } as any),
+      // Filtered searches: resolve matching vendor ids in SQL (bounded),
+      // page them in SQL, then hydrate only the page — replaces 11k-doc
+      // hydration + in-memory sort/slice. Semantics preserved: vendor hay
+      // match OR product/merchant match, productType/isActive on mps.
+      const vConds: SQL[] = []
+      if (vendorFilter && !Number.isNaN(vendorFilter)) vConds.push(sql`v.id = ${vendorFilter}`)
+      if (search || productTypeFilter || isActiveFilter !== null || merchantFilter) {
+        const mpConds: SQL[] = []
+        if (merchantFilter && !Number.isNaN(merchantFilter)) mpConds.push(sql`m.id = ${merchantFilter}`)
+        if (search) {
+          const like = `%${escLike(search)}%`
+          mpConds.push(sql`(p.name ILIKE ${like} OR p.slug ILIKE ${like} OR p.sku ILIKE ${like} OR m.outlet_name ILIKE ${like} OR m.outlet_code ILIKE ${like})`)
+        }
+        if (productTypeFilter) mpConds.push(sql`LOWER(p.product_type::text) = ${productTypeFilter}`)
+        if (isActiveFilter !== null) mpConds.push(isActiveFilter ? sql`mp.is_active = true` : sql`mp.is_active = false`)
+        let mpWhere: SQL = mpConds[0]
+        for (let i = 1; i < mpConds.length; i++) mpWhere = sql`${mpWhere} AND ${mpConds[i]}`
+        const vendorHay = search ? sql` OR v.business_name ILIKE ${`%${escLike(search)}%`} OR v.legal_name ILIKE ${`%${escLike(search)}%`}` : sql``
+        vConds.push(sql`(EXISTS (SELECT 1 FROM merchants m JOIN merchant_products mp ON mp.merchant_id_id = m.id LEFT JOIN products p ON p.id = mp.product_id_id WHERE m.vendor_id = v.id AND ${mpWhere})${vendorHay})`)
+      }
+      let matchWhere: SQL = sql`1=1`
+      if (vConds.length) {
+        matchWhere = vConds[0]
+        for (let i = 1; i < vConds.length; i++) matchWhere = sql`${matchWhere} AND ${vConds[i]}`
+      }
+      const totalRows = await mpRows(payload, sql`SELECT COUNT(DISTINCT v.id)::int AS c FROM vendors v WHERE ${matchWhere}`)
+      const matchTotal = Number(totalRows[0]?.c ?? 0)
+      const offset = (page - 1) * limit
+      const idRows = await mpRows(
+        payload,
+        sql`SELECT DISTINCT v.id AS id, v.business_name AS bname FROM vendors v WHERE ${matchWhere} ORDER BY v.business_name LIMIT ${limit} OFFSET ${offset}`,
+      )
+      const pageIds = idRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
+      // Phase 1: page vendors + their merchants (bounded by page).
+      const [vRes, mRes] = await Promise.all([
+        pageIds.length
+          ? payload.find({ collection: 'vendors', where: { id: { in: pageIds } }, limit: pageIds.length, depth: 1, overrideAccess: true, pagination: false } as any)
+          : Promise.resolve({ docs: [] }),
+        pageIds.length
+          ? payload.find({ collection: 'merchants', where: { vendor: { in: pageIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
+          : Promise.resolve({ docs: [] }),
       ])
+      const pageMerchantIds = (mRes.docs as any[]).map((m: any) => Number(m.id)).filter((n: number) => Number.isFinite(n))
+      // Phase 2: merchant-products + products for page merchants only.
+      const [mpRes2, pRes2] = await Promise.all([
+        pageMerchantIds.length
+          ? payload.find({ collection: 'merchant-products', where: { merchant_id: { in: pageMerchantIds } }, limit: 5000, depth: 0, overrideAccess: true, pagination: false, context: { skipEffectiveModifierPreview: true } } as any)
+          : Promise.resolve({ docs: [] }),
+        pageMerchantIds.length
+          ? mpRows(payload, sql`SELECT DISTINCT p.id AS id FROM products p JOIN merchant_products mp ON mp.product_id_id = p.id WHERE mp.merchant_id_id IN (${sql.join(pageMerchantIds.map((n: number) => sql`${n}`), sql`, `)}) LIMIT 2000`)
+            .then(async (pIdRows) => {
+              const pIds = pIdRows.map((r) => Number(r.id)).filter((n: number) => Number.isFinite(n))
+              if (!pIds.length) return { docs: [] }
+              return payload.find({ collection: 'products', where: { id: { in: pIds } }, limit: pIds.length, depth: 1, overrideAccess: true, pagination: false } as any)
+            })
+          : Promise.resolve({ docs: [] }),
+      ])
+      vendorsRes = vRes
+      merchantsRes = mRes
+      merchantProductsRes = mpRes2
+      productsRes = pRes2
+      // Stash matched total for pagination override below.
+      ;(vendorsRes as { __matchTotal?: number }).__matchTotal = matchTotal
     }
 
     const vendorsDocs = (vendorsRes.docs as any[]) || []
@@ -155,65 +221,18 @@ export async function GET(request: NextRequest) {
       productsByMerchant.set(merchantId, merchantProducts)
     })
 
-    // Filter vendors by search and vendorFilter/merchantFilter
-    let filteredVendorIds: Set<string> | null = null
-    if (search || vendorFilter || merchantFilter || productTypeFilter || isActiveFilter !== null) {
-      // For vendor-grouped view, filter vendors based on search (vendor name) or merchant-products matching search/productType
-      const vendorMatched = new Set<string>()
-      // Direct vendor search
-      if (search) {
-        for (const v of vendorsDocs) {
-          const hay = `${v.businessName || ''} ${v.legalName || ''}`.toLowerCase()
-          if (hay.includes(search)) vendorMatched.add(String(v.id))
-        }
-      }
-      // Merchant-product search: product name/sku (+ merchant filter)
-      if (search || productTypeFilter || isActiveFilter !== null || merchantFilter) {
-        for (const mp of merchantProductsDocs) {
-          const merchantId = ( ()=>{ const raw=(mp as any).merchant_id ?? (mp as any).merchant; return raw && typeof raw==="object" ? String((raw as any).id ?? "") : String(raw ?? "") })()
-          if (merchantFilter && Number(merchantId) !== merchantFilter) continue
-          const vendorId = merchantToVendor.get(merchantId)
-          if (!vendorId) continue
-          // Check product match
-          const productId = ( ()=>{ const raw=(mp as any).product_id ?? (mp as any).product; return raw && typeof raw==="object" ? String((raw as any).id ?? "") : String(raw ?? "") })()
-          const product = productId ? productMap.get(productId) : null
-          if (search) {
-            const productHay = product ? `${product.name || ''} ${product.slug || ''} ${product.sku || ''}`.toLowerCase() : ''
-            const vendorHay = vendorMap.get(vendorId) ? `${vendorMap.get(vendorId).businessName || ''}`.toLowerCase() : ''
-            if (!productHay.includes(search) && !vendorHay.includes(search) && !vendorMatched.has(vendorId)) {
-              // Check merchant outlet name also
-              const merchant = merchantMap.get(merchantId)
-              const merchantHay = merchant ? `${merchant.outletName || ''} ${merchant.outletCode || ''}`.toLowerCase() : ''
-              if (!merchantHay.includes(search)) continue
-            }
-          }
-          if (productTypeFilter && product) {
-            if (String(product.productType || '').toLowerCase() !== productTypeFilter) continue
-          }
-          if (isActiveFilter !== null && typeof mp.is_active === 'boolean' && mp.is_active !== isActiveFilter) continue
-          if (isActiveFilter !== null && typeof mp.isActive === 'boolean' && mp.isActive !== isActiveFilter) continue
-          vendorMatched.add(vendorId)
-        }
-      }
-      if (vendorFilter && !Number.isNaN(vendorFilter)) {
-        filteredVendorIds = new Set([String(vendorFilter)])
-      } else if (merchantFilter && !Number.isNaN(merchantFilter)) {
-        const vid = merchantToVendor.get(String(merchantFilter))
-        filteredVendorIds = vid ? new Set([vid]) : new Set()
-      } else if (search || productTypeFilter || isActiveFilter !== null) {
-        filteredVendorIds = vendorMatched
-      }
+    // Vendor matching already resolved in SQL (bounded page + matchTotal).
+    // Per-mp search/productType/isActive filtering still applies below in grouping.
+    const vendorsForPage = vendorsDocs
+    // SQL orders by business_name; keep stable sort for unfiltered in-memory path parity.
+    if (isUnfiltered) {
+      vendorsForPage.sort((a: any, b: any) => String(a.businessName || '').localeCompare(String(b.businessName || '')))
     }
 
-    // Apply vendor filter to vendorsDocs
-    let vendorsForPage = filteredVendorIds ? vendorsDocs.filter((v: any) => filteredVendorIds!.has(String(v.id))) : vendorsDocs
-    // Sort vendors by businessName
-    vendorsForPage.sort((a: any, b: any) => String(a.businessName || '').localeCompare(String(b.businessName || '')))
-
-    const totalVendors = isUnfiltered ? (totalVendorsCount || 0) : vendorsForPage.length
+    const matchedTotal = (vendorsRes as { __matchTotal?: number }).__matchTotal
+    const totalVendors = isUnfiltered ? (totalVendorsCount || 0) : (matchedTotal ?? vendorsForPage.length)
     const totalPages = Math.max(1, Math.ceil(totalVendors / limit))
-    const start = (page - 1) * limit
-    const pagedVendors = isUnfiltered ? vendorsForPage : vendorsForPage.slice(start, start + limit)
+    const pagedVendors = vendorsForPage
 
     // Correct grouping: rebuild resultVendors properly
     const finalVendors = pagedVendors.map((vendor: any) => {
@@ -321,11 +340,17 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Stats
-    const totalVendorsAll = totalVendorsCount ?? vendorsDocs.length
-    const totalMerchantsAll = totalMerchantsCount ?? merchantsDocs.length
-    const totalMerchantProductsAll = totalMerchantProductsCount ?? merchantProductsDocs.length
-    const activeMerchantsAll = activeMerchantsCount ?? merchantsDocs.filter((m: any) => m.isActive).length
+    // Stats (exact global counts; filtered branch falls back to counts, never bounded docs).
+    const [gVendors, gMerchants, gMps, gActiveMerchants] = await Promise.all([
+      totalVendorsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'vendors', overrideAccess: true }),
+      totalMerchantsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'merchants', overrideAccess: true }),
+      totalMerchantProductsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'merchant-products', overrideAccess: true }),
+      activeMerchantsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true }),
+    ])
+    const totalVendorsAll = totalVendorsCount ?? gVendors?.totalDocs ?? vendorsDocs.length
+    const totalMerchantsAll = totalMerchantsCount ?? gMerchants?.totalDocs ?? merchantsDocs.length
+    const totalMerchantProductsAll = totalMerchantProductsCount ?? gMps?.totalDocs ?? merchantProductsDocs.length
+    const activeMerchantsAll = activeMerchantsCount ?? gActiveMerchants?.totalDocs ?? 0
 
     const responseBody = {
       vendors: finalVendors,
@@ -348,11 +373,10 @@ export async function GET(request: NextRequest) {
       meta: { generatedAt: new Date().toISOString(), search, vendorFilter: vendorFilter ? String(vendorFilter) : null },
     }
 
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-MerchantProducts-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/merchant-products] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load merchant products' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/merchant-products] list build error:', err)
+    throw err
   }
 }
 
@@ -413,7 +437,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     // Bust list cache (all admins / query variants) so the new merchant product shows immediately
-    await deleteCachedByPrefix('admin:merchant-products:')
+    await bustProductsCache()
     return NextResponse.json({ success: true, message: 'Merchant product created successfully', doc: created }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/merchant-products] POST error:', err)

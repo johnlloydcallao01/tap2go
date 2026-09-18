@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -151,44 +153,52 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
 
-    let doc: Record<string, any>
-    try {
-      doc = (await payload.findByID({
-        collection: 'transactions',
-        id: docId as number,
-        depth: 2,
-        overrideAccess: true,
-      })) as unknown as Record<string, any>
-    } catch (e: any) {
-      return NextResponse.json({ error: 'Transaction not found', details: e?.message }, { status: 404 })
-    }
-    if (!doc) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+    const cacheKey = `admin:transactions:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try {
+          doc = (await payload.findByID({
+            collection: 'transactions',
+            id: docId as number,
+            depth: 2,
+            overrideAccess: true,
+          })) as unknown as Record<string, any>
+        } catch (e: any) {
+          throw Object.assign(new Error('Transaction not found'), { status: 404, details: e?.message })
+        }
+        if (!doc) throw Object.assign(new Error('Transaction not found'), { status: 404 })
 
-    // Enrich order with depth 2 fetch to ensure customer.user and merchant.vendor are populated
-    // If transaction already has order populated, try to refresh it with a dedicated order query
-    let enrichedOrder: unknown = doc.order
-    const rawOrderId =
-      doc.order && typeof doc.order === 'object' ? (doc.order as any).id : doc.order
-    if (rawOrderId != null) {
-      const orderIdNum = Number(rawOrderId)
-      const orderId: number | string = Number.isFinite(orderIdNum) ? orderIdNum : String(rawOrderId)
-      try {
-        const orderDoc = (await payload.findByID({
-          collection: 'orders',
-          id: orderId as number,
-          depth: 2,
-          overrideAccess: true,
-        })) as unknown as Record<string, any>
-        if (orderDoc) enrichedOrder = orderDoc
-      } catch {
-        // fallback to already populated order
-      }
-    }
+        // Enrich order with depth 2 fetch to ensure customer.user and merchant.vendor are populated
+        // If transaction already has order populated, try to refresh it with a dedicated order query
+        let enrichedOrder: unknown = doc.order
+        const rawOrderId =
+          doc.order && typeof doc.order === 'object' ? (doc.order as any).id : doc.order
+        if (rawOrderId != null) {
+          const orderIdNum = Number(rawOrderId)
+          const orderId: number | string = Number.isFinite(orderIdNum) ? orderIdNum : String(rawOrderId)
+          try {
+            const orderDoc = (await payload.findByID({
+              collection: 'orders',
+              id: orderId as number,
+              depth: 2,
+              overrideAccess: true,
+            })) as unknown as Record<string, any>
+            if (orderDoc) enrichedOrder = orderDoc
+          } catch {
+            // fallback to already populated order
+          }
+        }
 
-    const docWithEnrichedOrder = { ...doc, order: enrichedOrder }
-    const sanitized = sanitizeTransactionDoc(docWithEnrichedOrder)
-    return NextResponse.json({ doc: sanitized })
+        const docWithEnrichedOrder = { ...doc, order: enrichedOrder }
+        return { doc: sanitizeTransactionDoc(docWithEnrichedOrder) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-Transactions-Cache': status } })
   } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Transaction not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
     console.error('[admin/transactions/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load transaction' }, { status: 500 })
   }

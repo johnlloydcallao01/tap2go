@@ -7,7 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustCatalogCache, getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -75,16 +76,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
-    let doc: Record<string, any>
-    try {
-      doc = (await payload.findByID({ collection: 'prod-attribute-terms', id: docId as number, depth: 2, overrideAccess: true })) as unknown as Record<string, any>
-    } catch (e: any) {
-      return NextResponse.json({ error: 'Attribute term not found', details: e?.message }, { status: 404 })
-    }
-    if (!doc) return NextResponse.json({ error: 'Attribute term not found' }, { status: 404 })
-    const sanitized = sanitizeDoc(doc)
-    return NextResponse.json({ doc: sanitized })
+    const cacheKey = `admin:catalog-attribute-terms:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try {
+          doc = (await payload.findByID({ collection: 'prod-attribute-terms', id: docId as number, depth: 2, overrideAccess: true })) as unknown as Record<string, any>
+        } catch (e: any) {
+          throw Object.assign(new Error('Attribute term not found'), { status: 404, details: e?.message })
+        }
+        if (!doc) throw Object.assign(new Error('Attribute term not found'), { status: 404 })
+        return { doc: sanitizeDoc(doc) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-AttributeTerms-Cache': status } })
   } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Attribute term not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
     console.error('[admin/catalog/attribute-terms/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load attribute term' }, { status: 500 })
   }
@@ -258,7 +267,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const sanitized = sanitizeDoc(updated)
     // Bust list cache so the update reflects immediately on /catalog/attribute-terms
-    await deleteCachedByPrefix('admin:catalog-attribute-terms:')
+    await bustCatalogCache()
     return NextResponse.json({ success: true, message: 'Attribute term updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/catalog/attribute-terms/[id]] PATCH error:', err)
@@ -305,7 +314,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
     if (!deleted) return NextResponse.json({ error: 'Attribute term not found' }, { status: 404 })
     // Bust list cache so the deletion reflects immediately on /catalog/attribute-terms
-    await deleteCachedByPrefix('admin:catalog-attribute-terms:')
+    await bustCatalogCache()
     return NextResponse.json({ success: true, id: deleted.id, message: 'Attribute term deleted successfully' })
   } catch (err: any) {
     console.error('[admin/catalog/attribute-terms/[id]] DELETE error:', err)

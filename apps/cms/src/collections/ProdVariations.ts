@@ -223,6 +223,12 @@ export const ProdVariations: CollectionConfig = {
     ],
     afterChange: [
       async ({ doc, req, operation }) => {
+        try {
+          const { bustCatalogCache } = await import('../utils/dashboardCache')
+          await bustCatalogCache()
+        } catch {
+          // ignore cache bust failures
+        }
         if (req?.context?.skipSkuUpdate) return
         if (operation !== 'create') return
         const productRaw = doc?.product_id as unknown
@@ -276,6 +282,16 @@ export const ProdVariations: CollectionConfig = {
           })
           ;(doc as Record<string, unknown>).effective_modifier_preview = effectiveModifiers
         } catch {}
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          const { bustCatalogCache } = await import('../utils/dashboardCache')
+          await bustCatalogCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },

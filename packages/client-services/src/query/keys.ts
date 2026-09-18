@@ -10,6 +10,8 @@ export const QUERY_KEYS = {
   adminDashboardTables: ['admin', 'dashboard', 'overview', 'tables'] as const,
   adminAnalytics: (params?: string) =>
     ['admin', 'dashboard', 'analytics', params ?? 'default'] as const,
+  adminAnalyticsOverview: (params?: string) =>
+    ['admin', 'dashboard', 'analytics', 'overview', params ?? 'default'] as const,
   adminAnalyticsSummary: (params?: string) =>
     ['admin', 'dashboard', 'analytics', 'summary', params ?? 'default'] as const,
   adminAnalyticsCharts: (params?: string) =>
@@ -18,6 +20,8 @@ export const QUERY_KEYS = {
     ['admin', 'dashboard', 'analytics', 'tops', params ?? 'default'] as const,
   adminReports: (range?: string) =>
     ['admin', 'dashboard', 'reports', range ?? 'default'] as const,
+  adminReportsOverview: (range?: string) =>
+    ['admin', 'dashboard', 'reports', 'overview', range ?? 'default'] as const,
   adminReportsSummary: (range?: string) =>
     ['admin', 'dashboard', 'reports', 'summary', range ?? 'default'] as const,
   adminReportsFinancial: (range?: string) =>
@@ -28,6 +32,8 @@ export const QUERY_KEYS = {
     ['admin', 'vendors', params ?? 'default'] as const,
   adminVendorPayouts: (params?: string) =>
     ['admin', 'vendors', 'payouts', params ?? 'default'] as const,
+  adminVendorPayoutsOverview: (params?: string) =>
+    ['admin', 'vendors', 'payouts', 'overview', params ?? 'default'] as const,
   adminVendorPayoutsSummary: (params?: string) =>
     ['admin', 'vendors', 'payouts', 'summary', params ?? 'default'] as const,
   adminVendorPayoutsRows: (params?: string) =>

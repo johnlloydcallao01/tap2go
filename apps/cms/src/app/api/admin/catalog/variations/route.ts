@@ -4,10 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -98,9 +101,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:catalog-variations:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Variations-Cache': 'HIT' } })
+    const cacheKey = `admin:catalog-variations:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildVariationsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Variations-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load variations'
+    console.error('[admin/catalog/variations] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function vRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildVariationsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
@@ -140,7 +161,8 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const [paginated, statsAll] = await Promise.all([
+    // Paginated display (correct) + SQL stats (no 2000-doc hydration).
+    const [paginated, statRows] = await Promise.all([
       payload.find({
         collection: 'prod-variations',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -150,41 +172,30 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'prod-variations',
-        limit: 2000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
+      vRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE modifier_behavior_mode='inherit_product')::int AS inh,
+        COUNT(*) FILTER (WHERE modifier_behavior_mode='variation_specific')::int AS vspec,
+        COUNT(*) FILTER (WHERE modifier_behavior_mode='hybrid')::int AS hybrid,
+        COUNT(*) FILTER (WHERE stock_quantity::numeric > 0)::int AS instock,
+        COUNT(*) FILTER (WHERE is_visible = true)::int AS vis FROM prod_variations`),
     ])
 
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
+    const stats = statRows[0] ?? {}
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeDoc(d))
 
     const total = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
+    const totalAll = Number(stats.total ?? 0)
 
     const modeBreakdown: Record<string, number> = {
-      inherit_product: 0,
-      variation_specific: 0,
-      hybrid: 0,
+      inherit_product: Number(stats.inh ?? 0),
+      variation_specific: Number(stats.vspec ?? 0),
+      hybrid: Number(stats.hybrid ?? 0),
     }
-    let inStock = 0
-    let outOfStock = 0
-    let visibleCount = 0
-    let hiddenCount = 0
-    for (const doc of statsDocs) {
-      const m = String(doc.modifier_behavior_mode || 'inherit_product').toLowerCase()
-      if (modeBreakdown[m] !== undefined) modeBreakdown[m]++
-      else modeBreakdown[m] = 1
-      const sq = num(doc.stock_quantity, 0)
-      if (sq > 0) inStock++
-      else outOfStock++
-      if (doc.is_visible) visibleCount++
-      else hiddenCount++
-    }
+    const inStock = Number(stats.instock ?? 0)
+    const outOfStock = totalAll - inStock
+    const visibleCount = Number(stats.vis ?? 0)
+    const hiddenCount = totalAll - visibleCount
 
     const responseBody = {
       docs,
@@ -208,11 +219,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-Variations-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/catalog/variations] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load variations' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/catalog/variations] list build error:', err)
+    throw err
   }
 }
 

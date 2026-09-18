@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout, createMerchantNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
-import { bustDashboardCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustDashboardCache, bustOrderItemsCache, bustOrdersCache, bustPayoutsCache, bustReportsCache, bustTransactionsCache, bustVendorsCache } from '../utils/dashboardCache'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -167,7 +167,7 @@ export const Orders: CollectionConfig = {
         // Write-through: dashboard aggregates read orders counts/status/top lists.
         // Best-effort bust (L1 sync + Redis background); TTL is fallback.
         try {
-          await bustDashboardCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustOrdersCache(); await bustOrderItemsCache(); await bustTransactionsCache()
         } catch {
           // ignore cache bust failures
         }
@@ -177,7 +177,7 @@ export const Orders: CollectionConfig = {
     afterDelete: [
       async () => {
         try {
-          await bustDashboardCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustOrdersCache(); await bustOrderItemsCache(); await bustTransactionsCache()
         } catch {
           // ignore
         }
@@ -207,6 +207,11 @@ export const Orders: CollectionConfig = {
     // Dashboard charts/tables: GROUP BY status, ORDER BY createdAt, GROUP BY merchant
     { fields: ['status', 'createdAt'] },
     { fields: ['merchant', 'createdAt'] },
+    // Analytics filters: status/fulfillment/delivery breakdowns + date windows
+    { fields: ['fulfillment_type'] },
+    { fields: ['delivery_status'] },
+    // Orders list default sort is -placed_at
+    { fields: ['placed_at'] },
   ],
   fields: [
     {

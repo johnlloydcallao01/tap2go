@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -149,22 +151,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
 
-    let doc: Record<string, any>
-    try {
-      doc = (await payload.findByID({
-        collection: 'order-items',
-        id: docId as number,
-        depth: 2,
-        overrideAccess: true,
-      })) as unknown as Record<string, any>
-    } catch (e: any) {
-      return NextResponse.json({ error: 'Order item not found', details: e?.message }, { status: 404 })
-    }
-    if (!doc) return NextResponse.json({ error: 'Order item not found' }, { status: 404 })
-
-    const sanitized = sanitizeOrderItemDoc(doc)
-    return NextResponse.json({ doc: sanitized })
+    const cacheKey = `admin:order-items:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try {
+          doc = (await payload.findByID({
+            collection: 'order-items',
+            id: docId as number,
+            depth: 2,
+            overrideAccess: true,
+          })) as unknown as Record<string, any>
+        } catch (e: any) {
+          throw Object.assign(new Error('Order item not found'), { status: 404, details: e?.message })
+        }
+        if (!doc) throw Object.assign(new Error('Order item not found'), { status: 404 })
+        return { doc: sanitizeOrderItemDoc(doc) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-OrderItems-Cache': status } })
   } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Order item not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
     console.error('[admin/order-items/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load order item' }, { status: 500 })
   }

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAnalyticsSummary, useAnalyticsCharts, useAnalyticsTops } from '@/hooks/useAnalytics'
+import { useAnalyticsOverview } from '@/hooks/useAnalytics'
 import {
   DollarSign, ShoppingCart, Store, TrendingUp, TrendingDown, BarChart3, Package,
   Users, Star, Clock, RefreshCw, AlertCircle, ShoppingBag, CreditCard, Truck, Award, Heart, Activity, Layers,
@@ -161,16 +161,18 @@ export default function AnalyticsPage() {
 
   // TanStack cache: back-nav within 3min renders instantly, no skeleton.
   // Filter/range changes keep previous slice via placeholderData while refetching.
-  // Three independent queries under the same analytics/ directory — same qs,
-  // fetched in parallel; each section renders as soon as its group resolves.
+  // Single deduped overview fetch: 1 browser -> 1 BFF -> 1 CMS overview
+  // (was 3 parallel summary/charts/tops -> ~25 finds + 3 auth, 31k docs).
   const queryClient = useQueryClient()
   const [hardRefreshing, setHardRefreshing] = useState(false)
-  const summaryQuery = useAnalyticsSummary(qs)
-  const chartsQuery = useAnalyticsCharts(qs)
-  const topsQuery = useAnalyticsTops(qs)
-  const summary = summaryQuery.data
-  const charts = chartsQuery.data
-  const tops = topsQuery.data
+  const overviewQuery = useAnalyticsOverview(qs)
+  const summary = overviewQuery.data?.summary
+  const charts = overviewQuery.data?.charts
+  const tops = overviewQuery.data?.tops
+  // Adapters preserve per-section skeleton/error UX on top of single fetch.
+  const summaryQuery = { data: summary, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
+  const chartsQuery = { data: charts, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
+  const topsQuery = { data: tops, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
   const hasAnyData = !!summary || !!charts || !!tops
   const isFetching = summaryQuery.isFetching || chartsQuery.isFetching || topsQuery.isFetching
   const loading = isFetching || hardRefreshing

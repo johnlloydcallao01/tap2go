@@ -48,6 +48,22 @@ export type PayoutsSummaryGroup = Pick<PayoutResponse, 'meta' | 'summary' | 'ver
 export type PayoutsRowsGroup = Pick<PayoutResponse, 'vendorPayouts'>;
 export type PayoutsDailyGroup = Pick<PayoutResponse, 'daily'>;
 
+export interface PayoutsOverviewData extends PayoutResponse {}
+
+async function fetchPayoutsOverview(qs: string, signal?: AbortSignal): Promise<PayoutsOverviewData> {
+  const res = await fetch(`/api/vendors/payouts/overview?${qs}`, { signal });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const j = JSON.parse(text);
+      throw new Error(j.error || 'Failed to load payouts overview');
+    } catch {
+      throw new Error(text || 'Failed to load payouts overview');
+    }
+  }
+  return res.json() as Promise<PayoutsOverviewData>;
+}
+
 async function fetchVendorPayouts(qs: string, signal?: AbortSignal): Promise<PayoutResponse> {
   const res = await fetch(`/api/vendors/payouts?${qs}`, { signal });
   if (!res.ok) {
@@ -123,5 +139,19 @@ export function usePayoutsDaily(qs: string) {
     queryFn: ({ signal }) => fetchPayoutsGroup<PayoutsDailyGroup>('daily', qs, signal),
     ...SHARED_QUERY_DEFAULTS,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Deduped payouts overview — single BFF call replacing 3-way
+ * summary/rows/daily fan-out (was 12 finds + 3 auth, ~36k docs JS-aggregated).
+ * Same qs, same shapes sliced from one CMS buildPayoutsOverview().
+ */
+export function usePayoutsOverview(qs: string) {
+  return useQuery({
+    queryKey: QUERY_KEYS.adminVendorPayoutsOverview(qs),
+    queryFn: ({ signal }) => fetchPayoutsOverview(qs, signal),
+    ...SHARED_QUERY_DEFAULTS,
+    staleTime: 60 * 1000,
   });
 }

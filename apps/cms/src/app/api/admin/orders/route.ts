@@ -10,10 +10,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustOrderItemsCache, bustOrdersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -195,9 +197,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:orders:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Orders-Cache': 'HIT' } })
+    const cacheKey = `admin:orders:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildOrdersList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Orders-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load orders'
+    console.error('[admin/orders] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function oRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildOrdersList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
@@ -254,7 +274,9 @@ export async function GET(request: NextRequest) {
     const hasFilters = and.length > 0 || Object.keys(where).length > 0
     const queryWhere = hasFilters ? finalWhere : undefined
 
-    const [paginated, statsAll, paidTxns] = await Promise.all([
+    // Paginated display (correct, bounded ≤100 with relations) + SQL stats
+    // (no 2000-doc hydration). Stats stay global (unfiltered) per existing contract.
+    const [paginated, countRow, statusRows, fulfillRows, deliveryRows, revRows] = await Promise.all([
       payload.find({
         collection: 'orders',
         where: queryWhere as any,
@@ -264,55 +286,37 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'orders',
-        limit: 2000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
-      // Revenue is verified-transaction based (same principle as analytics):
-      // only paid transactions count, never raw order totals.
-      payload.find({
-        collection: 'transactions',
-        where: { status: { equals: 'paid' } },
-        limit: 2000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
+      oRows(payload, sql`SELECT COUNT(*)::int AS total FROM orders`),
+      oRows(payload, sql`SELECT status::text AS s, COUNT(*)::int AS c FROM orders GROUP BY status`),
+      oRows(payload, sql`SELECT fulfillment_type::text AS s, COUNT(*)::int AS c FROM orders GROUP BY fulfillment_type`),
+      oRows(payload, sql`SELECT delivery_status::text AS s, COUNT(*)::int AS c FROM orders GROUP BY delivery_status`),
+      // Revenue counts verified (paid) transactions only — same as dashboard analytics.
+      oRows(payload, sql`SELECT COALESCE(SUM(amount::numeric),0) AS revenue FROM transactions WHERE status='paid'`),
     ])
 
-    const statsDocs = ((statsAll as any).docs as Record<string, any>[]) ?? []
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeOrderDoc(d))
 
-    // stats aggregation
-    const totalAll = typeof (statsAll as any).totalDocs === 'number' ? (statsAll as any).totalDocs : statsDocs.length
-    // if pagination false with limit 2000, totalDocs may still be full count; use docs length for breakdown but totalAll as totalDocs
+    // stats aggregation (SQL GROUP BY, global)
+    const totalAll = Number(countRow[0]?.total ?? 0)
     const statusBreakdown: Record<string, number> = {}
     for (const s of STATUS_SET) statusBreakdown[s] = 0
+    for (const r of statusRows) {
+      const st = String(r.s || 'pending')
+      statusBreakdown[st] = (statusBreakdown[st] || 0) + Number(r.c ?? 0)
+    }
     const fulfillmentBreakdown: Record<string, number> = {}
     for (const f of FULFILLMENT_SET) fulfillmentBreakdown[f] = 0
+    for (const r of fulfillRows) {
+      const ft = String(r.s || 'delivery')
+      fulfillmentBreakdown[ft] = (fulfillmentBreakdown[ft] || 0) + Number(r.c ?? 0)
+    }
     const deliveryStatusBreakdown: Record<string, number> = {}
     for (const d of DELIVERY_STATUS_SET) deliveryStatusBreakdown[d] = 0
-
-    let totalRevenue = 0
-    for (const o of statsDocs) {
-      const st = String(o.status || 'pending')
-      if (statusBreakdown[st] !== undefined) statusBreakdown[st]++
-      else statusBreakdown[st] = (statusBreakdown[st] || 0) + 1
-
-      const ft = String(o.fulfillment_type || 'delivery')
-      if (fulfillmentBreakdown[ft] !== undefined) fulfillmentBreakdown[ft]++
-      else fulfillmentBreakdown[ft] = (fulfillmentBreakdown[ft] || 0) + 1
-
-      const ds = String(o.delivery_status || 'none')
-      if (deliveryStatusBreakdown[ds] !== undefined) deliveryStatusBreakdown[ds]++
-      else deliveryStatusBreakdown[ds] = (deliveryStatusBreakdown[ds] || 0) + 1
+    for (const r of deliveryRows) {
+      const ds = String(r.s || 'none')
+      deliveryStatusBreakdown[ds] = (deliveryStatusBreakdown[ds] || 0) + Number(r.c ?? 0)
     }
-    // Revenue counts verified (paid) transactions only — same as dashboard analytics.
-    const paidDocs = ((paidTxns as any).docs as Record<string, any>[]) ?? []
-    for (const t of paidDocs) totalRevenue += num(t.amount, 0)
+    const totalRevenue = Number(revRows[0]?.revenue ?? 0)
     const avgOrderValue = totalAll > 0 ? totalRevenue / totalAll : 0
     const filteredTotal = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
 
@@ -337,11 +341,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-Orders-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/orders] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load orders' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/orders] list build error:', err)
+    throw err
   }
 }
 
@@ -405,8 +408,8 @@ export async function POST(request: NextRequest) {
     })
     // Bust list cache (all admins / query variants) so the new order shows immediately.
     // Order items embed order data, so bust that aggregate too.
-    await deleteCachedByPrefix('admin:orders:')
-    await deleteCachedByPrefix('admin:order-items:')
+    await bustOrdersCache()
+    await bustOrderItemsCache()
     return NextResponse.json(
       { success: true, message: 'Order created successfully', doc: sanitizeOrderDoc(created as Record<string, any>) },
       { status: 201 },

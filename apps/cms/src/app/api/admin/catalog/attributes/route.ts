@@ -4,10 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -58,9 +61,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:catalog-attributes:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Attributes-Cache': 'HIT' } })
+    const cacheKey = `admin:catalog-attributes:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildAttributesList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Attributes-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load attributes'
+    console.error('[admin/catalog/attributes] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function aRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildAttributesList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
@@ -89,7 +110,7 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const [paginated, statsAll] = await Promise.all([
+    const [paginated, statRows] = await Promise.all([
       payload.find({
         collection: 'prod-attributes',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -99,26 +120,29 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload.find({ collection: 'prod-attributes', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any),
+      aRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE type::text='select')::int AS select_n,
+        COUNT(*) FILTER (WHERE type::text='color')::int AS color_n,
+        COUNT(*) FILTER (WHERE type::text='button')::int AS button_n,
+        COUNT(*) FILTER (WHERE type::text='radio')::int AS radio_n,
+        COUNT(*) FILTER (WHERE is_active = true)::int AS active FROM prod_attributes`),
     ])
 
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
+    const stats = statRows[0] ?? {}
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeDoc(d))
 
     const total = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
+    const totalAll = Number(stats.total ?? 0)
 
-    const typeBreakdown: Record<string, number> = { select: 0, color: 0, button: 0, radio: 0 }
-    let activeCount = 0
-    let inactiveCount = 0
-    for (const doc of statsDocs) {
-      const t = String(doc.type || 'select').toLowerCase()
-      if (typeBreakdown[t] !== undefined) typeBreakdown[t]++
-      else typeBreakdown[t] = 1
-      if (doc.is_active) activeCount++
-      else inactiveCount++
+    const typeBreakdown: Record<string, number> = {
+      select: Number(stats.select_n ?? 0),
+      color: Number(stats.color_n ?? 0),
+      button: Number(stats.button_n ?? 0),
+      radio: Number(stats.radio_n ?? 0),
     }
+    const activeCount = Number(stats.active ?? 0)
+    const inactiveCount = totalAll - activeCount
 
     const responseBody = {
       docs,
@@ -140,11 +164,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-Attributes-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/catalog/attributes] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load attributes' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/catalog/attributes] list build error:', err)
+    throw err
   }
 }
 

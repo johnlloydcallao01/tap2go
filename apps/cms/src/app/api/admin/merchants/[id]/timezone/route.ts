@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { bustMerchantsCache } from '@/utils/dashboardCache'
 import { validateTimezone } from '@/utils/storeHours'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,5 +22,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (result.status !== 'OK' || !result.timeZoneId) return NextResponse.json({ error: result.status || 'Unable to detect timezone' }, { status: 502 })
   const timezone = validateTimezone(result.timeZoneId)
   const updated = await payload.update({ collection: 'merchants', id: Number(id), data: { timezone }, overrideAccess: true })
+  try { await bustMerchantsCache() } catch { /* ignore */ }
   return NextResponse.json({ timezone, timeZoneName: result.timeZoneName || null, merchant: updated })
 }

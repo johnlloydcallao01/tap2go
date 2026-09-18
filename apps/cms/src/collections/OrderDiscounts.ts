@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustReportsCache } from '../utils/dashboardCache'
 
 export const OrderDiscounts: CollectionConfig = {
   slug: 'order-discounts',
@@ -149,4 +150,24 @@ export const OrderDiscounts: CollectionConfig = {
     { fields: ['order', 'coupon'] },
     { fields: ['coupon'] },
   ],
+  hooks: {
+    afterChange: [
+      async () => {
+        try {
+          await bustReportsCache()
+        } catch {
+          // ignore
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustReportsCache()
+        } catch {
+          // ignore
+        }
+      },
+    ],
+  },
 }

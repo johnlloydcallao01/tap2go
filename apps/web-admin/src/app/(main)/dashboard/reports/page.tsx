@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useReportsSummary, useReportsFinancial, useReportsCatalog } from '@/hooks/useReports'
+import { useReportsOverview } from '@/hooks/useReports'
 import { ClientOnly } from '@/components/ClientOnly'
 import { FileText, Download, Clock, ShieldCheck, DollarSign, Store, ShoppingCart, Truck, Package, Award, AlertCircle, RefreshCw, FileSpreadsheet } from '@/components/ui/IconWrapper'
 
@@ -93,14 +93,16 @@ function ReportsPageContent() {
   const [range, setRange] = useState<Range>('30d')
   const queryClient = useQueryClient()
   const [hardRefreshing, setHardRefreshing] = useState(false)
-  // Three independent queries under the same reports/ directory — same range,
-  // fetched in parallel; each section renders as soon as its group resolves.
-  const summaryQuery = useReportsSummary(range)
-  const financialQuery = useReportsFinancial(range)
-  const catalogQuery = useReportsCatalog(range)
-  const summary = summaryQuery.data
-  const financial = financialQuery.data
-  const catalog = catalogQuery.data
+  // Single deduped overview fetch: 1 browser -> 1 BFF -> 1 CMS overview
+  // (was 3 parallel summary/financial/catalog -> 15 finds + 3 auth, ~41k docs).
+  const overviewQuery = useReportsOverview(range)
+  const summary = overviewQuery.data?.summary
+  const financial = overviewQuery.data?.financial
+  const catalog = overviewQuery.data?.catalog
+  // Adapters preserve per-section skeleton/error UX on top of single fetch.
+  const summaryQuery = { data: summary, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
+  const financialQuery = { data: financial, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
+  const catalogQuery = { data: catalog, isFetching: overviewQuery.isFetching, isPending: overviewQuery.isPending, isError: overviewQuery.isError, error: overviewQuery.error, refetch: overviewQuery.refetch }
   const hasAnyData = !!summary || !!financial || !!catalog
   const isFetching = summaryQuery.isFetching || financialQuery.isFetching || catalogQuery.isFetching
   const queryError = summaryQuery.error ?? financialQuery.error ?? catalogQuery.error
@@ -114,11 +116,7 @@ function ReportsPageContent() {
     void (async () => {
       try {
         queryClient.removeQueries({ queryKey: ['admin', 'dashboard', 'reports'] })
-        await Promise.all([
-          summaryQuery.refetch({ cancelRefetch: true }),
-          financialQuery.refetch({ cancelRefetch: true }),
-          catalogQuery.refetch({ cancelRefetch: true }),
-        ])
+        await overviewQuery.refetch({ cancelRefetch: true })
       } finally {
         setHardRefreshing(false)
       }

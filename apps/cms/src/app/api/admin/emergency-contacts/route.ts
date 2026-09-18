@@ -12,10 +12,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustCustomersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -98,9 +100,31 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:emergency-contacts:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-EmergencyContacts-Cache': 'HIT' } })
+    const cacheKey = `admin:emergency-contacts:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildEmergencyContactsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-EmergencyContacts-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load emergency contacts'
+    console.error('[admin/emergency-contacts] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function ecRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+function escLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+async function buildEmergencyContactsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
@@ -122,7 +146,7 @@ export async function GET(request: NextRequest) {
     if (isPrimaryFilter !== null) where.isPrimary = { equals: isPrimaryFilter }
     if (userIdFilter !== null && Number.isFinite(userIdFilter)) where.user = { equals: userIdFilter }
 
-    // Search handling: extend to related user via lookup + direct contact fields
+    // Search handling: user ids resolved in SQL (id-only, bounded 200, no hydration).
     let userIdsForSearch: number[] | null = null
     if (search) {
       // direct contact fields OR
@@ -137,23 +161,12 @@ export async function GET(request: NextRequest) {
 
       // lookup users matching search
       try {
-        const usersRes = await payload.find({
-          collection: 'users',
-          where: {
-            or: [
-              { firstName: { contains: search } },
-              { lastName: { contains: search } },
-              { email: { contains: search } },
-              { username: { contains: search } },
-              { phone: { contains: search } },
-            ],
-          },
-          limit: 200,
-          depth: 0,
-          overrideAccess: true,
-          pagination: false,
-        } as any)
-        const ids = (usersRes.docs as any[]).map((u) => Number(u.id)).filter((n) => Number.isFinite(n))
+        const like = `%${escLike(search)}%`
+        const uRows = await ecRows(
+          payload,
+          sql`SELECT id FROM users WHERE first_name ILIKE ${like} OR last_name ILIKE ${like} OR email ILIKE ${like} OR username ILIKE ${like} OR phone ILIKE ${like} LIMIT 200`,
+        )
+        const ids = uRows.map((u) => Number(u.id)).filter((n) => Number.isFinite(n))
         userIdsForSearch = ids
         if (ids.length > 0) directOr.push({ user: { in: ids } })
       } catch {
@@ -165,8 +178,8 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // parallel: paginated list + stats (bounded 2000)
-    const [paginated, statsAll] = await Promise.all([
+    // parallel: paginated list (correct, bounded ≤100) + SQL stats (no 2000-doc hydration)
+    const [paginated, statRows, relRows] = await Promise.all([
       payload.find({
         collection: 'emergency-contacts',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -176,39 +189,24 @@ export async function GET(request: NextRequest) {
         depth: 2, // populate user for sanitization
         overrideAccess: true,
       }),
-      payload
-        .find({
-          collection: 'emergency-contacts',
-          where: undefined,
-          limit: 0,
-          pagination: false,
-          depth: 0,
-          overrideAccess: true,
-        } as any)
-        .catch(() => ({ docs: [], totalDocs: 0 } as any))
-        .then(async () => {
-          const r = await payload.find({ collection: 'emergency-contacts', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
-          return r
-        }),
+      ecRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE is_primary = true)::int AS primary_n FROM emergency_contacts`),
+      ecRows(payload, sql`SELECT COALESCE(LOWER(relationship::text),'other') AS s, COUNT(*)::int AS c FROM emergency_contacts GROUP BY LOWER(relationship::text)`),
     ])
 
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
     const paginatedDocs = (paginated.docs as unknown as Record<string, any>[]) ?? []
     const docs = paginatedDocs.map((d) => sanitizeEmergencyContactDoc(d))
 
     const totalFiltered = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
+    const totalAll = Number(statRows[0]?.total ?? 0)
 
     const relationshipBreakdown: Record<string, number> = { parent: 0, spouse: 0, sibling: 0, child: 0, guardian: 0, friend: 0, relative: 0, other: 0 }
-    let primaryCount = 0
-    let nonPrimaryCount = 0
-    for (const c of statsDocs) {
-      const rel = String(c.relationship || 'other').toLowerCase()
-      if (relationshipBreakdown[rel] !== undefined) relationshipBreakdown[rel]++
-      else relationshipBreakdown[rel] = (relationshipBreakdown[rel] || 0) + 1
-      if (c.isPrimary) primaryCount++
-      else nonPrimaryCount++
+    for (const r of relRows) {
+      const rel = String(r.s || 'other').toLowerCase()
+      relationshipBreakdown[rel] = (relationshipBreakdown[rel] || 0) + Number(r.c ?? 0)
     }
+    const primaryCount = Number(statRows[0]?.primary_n ?? 0)
+    const nonPrimaryCount = totalAll - primaryCount
 
     const responseBody = {
       docs,
@@ -230,11 +228,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-EmergencyContacts-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/emergency-contacts] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load emergency contacts' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/emergency-contacts] list build error:', err)
+    throw err
   }
 }
 
@@ -316,6 +313,7 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeEmergencyContactDoc(created)
+    try { await bustCustomersCache() } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: 'Emergency contact created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/emergency-contacts] POST error:', err)

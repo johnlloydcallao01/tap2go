@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
-import { bustDashboardCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustDashboardCache, bustMerchantsCache, bustPayoutsCache, bustReportsCache, bustVendorsCache } from '../utils/dashboardCache'
 
 export const Merchants: CollectionConfig = {
   slug: 'merchants',
@@ -623,7 +623,7 @@ export const Merchants: CollectionConfig = {
           })
         }
         try {
-          await bustDashboardCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustMerchantsCache()
         } catch {
           // ignore
         }
@@ -633,7 +633,7 @@ export const Merchants: CollectionConfig = {
     afterDelete: [
       async () => {
         try {
-          await bustDashboardCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustMerchantsCache()
         } catch {
           // ignore
         }

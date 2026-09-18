@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustCatalogCache } from '../utils/dashboardCache'
 
 export const ProductCategories: CollectionConfig = {
   slug: 'product-categories',
@@ -280,6 +281,24 @@ export const ProductCategories: CollectionConfig = {
         }
 
         return data
+      },
+    ],
+    afterChange: [
+      async () => {
+        try {
+          await bustCatalogCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCatalogCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },

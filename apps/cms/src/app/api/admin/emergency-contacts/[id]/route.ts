@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustCustomersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -62,16 +64,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
-    let doc: Record<string, any>
-    try {
-      doc = (await payload.findByID({ collection: 'emergency-contacts', id: docId as number, depth: 2, overrideAccess: true })) as unknown as Record<string, any>
-    } catch (e: any) {
-      return NextResponse.json({ error: 'Emergency contact not found', details: e?.message }, { status: 404 })
-    }
-    if (!doc) return NextResponse.json({ error: 'Emergency contact not found' }, { status: 404 })
-    const sanitized = sanitizeEmergencyContactDoc(doc)
-    return NextResponse.json({ doc: sanitized })
+    const cacheKey = `admin:emergency-contacts:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try {
+          doc = (await payload.findByID({ collection: 'emergency-contacts', id: docId as number, depth: 2, overrideAccess: true })) as unknown as Record<string, any>
+        } catch (e: any) {
+          throw Object.assign(new Error('Emergency contact not found'), { status: 404, details: e?.message })
+        }
+        if (!doc) throw Object.assign(new Error('Emergency contact not found'), { status: 404 })
+        return { doc: sanitizeEmergencyContactDoc(doc) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-EmergencyContacts-Cache': status } })
   } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Emergency contact not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
     console.error('[admin/emergency-contacts/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load emergency contact' }, { status: 500 })
   }
@@ -208,6 +218,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const sanitized = sanitizeEmergencyContactDoc(updated)
+    try { await bustCustomersCache() } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: 'Emergency contact updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/emergency-contacts/[id]] PATCH error:', err)
@@ -231,6 +242,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: e?.message || 'Failed to delete emergency contact' }, { status: 400 })
     }
     if (!deleted) return NextResponse.json({ error: 'Emergency contact not found' }, { status: 404 })
+    try { await bustCustomersCache() } catch { /* ignore */ }
     return NextResponse.json({ success: true, id: deleted.id, message: 'Emergency contact deleted successfully' })
   } catch (err: any) {
     console.error('[admin/emergency-contacts/[id]] DELETE error:', err)

@@ -11,12 +11,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { validateStoreHoursFields } from '@/utils/storeHours'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
+import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 
 function optionalString(v: unknown): string | null {
@@ -101,8 +103,7 @@ const BUSINESS_TYPES = new Set(['restaurant','fast_food','grocery','pharmacy','c
 const VERIFICATION_STATUSES = new Set(['pending','verified','rejected','suspended'])
 
 export async function GET(request: NextRequest) {
-  return withAdminRequestSlot(async () => {
-    try {
+  try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
@@ -112,10 +113,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20&sort=-createdAt'
-    const cacheKey = `admin:vendors:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Vendors-Cache': 'HIT' } })
+    const cacheKey = `admin:vendors:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildVendorsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Vendors-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load vendors'
+    console.error('[admin/vendors] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
 
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function vRows(payload: Payload, query: string | import('drizzle-orm').SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildVendorsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
     const search = searchParams.get('search')?.trim() || ''
@@ -152,8 +170,8 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // parallel: paginated list + full stats + merchant aggregation
-    const [paginated, statsAll, merchantsAll] = await Promise.all([
+    // parallel: paginated list (correct) + SQL stats (no 2000+5000 hydration)
+    const [paginated, verRows, btRows, activeRows, merchCountRows] = await Promise.all([
       payload.find({
         collection: 'vendors',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -163,55 +181,31 @@ export async function GET(request: NextRequest) {
         depth: 2, // need user + media populated for sanitization
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'vendors',
-        where: undefined,
-        limit: 0,
-        pagination: false,
-        depth: 0,
-        overrideAccess: true,
-      }).catch(() => ({ docs: [], totalDocs: 0 } as any)).then(async () => {
-        // fetch all for stats breakdown (bounded)
-        const r = await payload.find({ collection: 'vendors', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
-        return r
-      }),
-      payload.find({
-        collection: 'merchants',
-        limit: 5000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
+      vRows(payload, sql`SELECT COALESCE(verification_status::text,'pending') AS s, COUNT(*)::int AS c FROM vendors GROUP BY 1`),
+      vRows(payload, sql`SELECT COALESCE(business_type::text,'other') AS s, COUNT(*)::int AS c FROM vendors GROUP BY 1`),
+      vRows(payload, sql`SELECT COUNT(*) FILTER (WHERE is_active = true)::int AS a, COUNT(*) FILTER (WHERE is_active IS NOT true)::int AS i, COUNT(*)::int AS t FROM vendors`),
+      vRows(payload, sql`SELECT vendor_id::text AS vid, COUNT(*)::int AS c FROM merchants GROUP BY vendor_id`),
     ])
 
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
-
-    // merchant counts per vendor (real-time)
+    // merchant counts per vendor (real-time, SQL GROUP BY)
     const merchantCountMap = new Map<string, number>()
-    const merchantsDocs = (merchantsAll as any).docs as Record<string, any>[] ?? []
-    for (const m of merchantsDocs) {
-      const rawVendor = (m as any).vendor
-      const vendorId = rawVendor && typeof rawVendor === 'object' ? String((rawVendor as any).id ?? '') : String(rawVendor ?? '')
-      if (!vendorId) continue
-      merchantCountMap.set(vendorId, (merchantCountMap.get(vendorId) || 0) + 1)
+    for (const r of merchCountRows) {
+      const vid = String(r.vid ?? '')
+      if (!vid) continue
+      merchantCountMap.set(vid, Number(r.c ?? 0))
     }
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeVendorDoc(d, merchantCountMap))
 
-    // stats aggregation
+    // stats aggregation (SQL, global — matches previous unfiltered semantics)
     const totalVendors = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
     const verificationBreakdown: Record<string, number> = { pending: 0, verified: 0, rejected: 0, suspended: 0 }
+    for (const r of verRows) verificationBreakdown[String(r.s ?? 'pending')] = Number(r.c ?? 0)
     const businessTypeBreakdown: Record<string, number> = {}
-    let activeCount = 0
-    let inactiveCount = 0
-    for (const v of statsDocs) {
-      const vs = String(v.verificationStatus || 'pending')
-      verificationBreakdown[vs] = (verificationBreakdown[vs] || 0) + 1
-      const bt = String(v.businessType || 'other')
-      businessTypeBreakdown[bt] = (businessTypeBreakdown[bt] || 0) + 1
-      if (v.isActive) activeCount++; else inactiveCount++
-    }
+    for (const r of btRows) businessTypeBreakdown[String(r.s ?? 'other')] = Number(r.c ?? 0)
+    const totalAll = Number(activeRows[0]?.t ?? 0)
+    const activeCount = Number(activeRows[0]?.a ?? 0)
+    const inactiveCount = Number(activeRows[0]?.i ?? 0)
 
     const response = {
       docs,
@@ -234,13 +228,12 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, response, 20)
-    return NextResponse.json(response, { headers: { 'X-Vendors-Cache': 'MISS' } })
-    } catch (err: any) {
-      console.error('[admin/vendors] GET error:', err)
-      return NextResponse.json({ error: err?.message || 'Failed to load vendors' }, { status: 500 })
-    }
-  })
+    return response
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load vendors'
+    console.error('[admin/vendors] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {

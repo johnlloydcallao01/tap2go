@@ -10,10 +10,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -189,9 +191,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:order-items:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-OrderItems-Cache': 'HIT' } })
+    const cacheKey = `admin:order-items:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildOrderItemsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-OrderItems-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load order items'
+    console.error('[admin/order-items] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function oiRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildOrderItemsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
@@ -235,7 +255,8 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const [paginated, statsAll] = await Promise.all([
+    // Paginated display (correct, bounded ≤100) + SQL stats (no 2000-doc hydration).
+    const [paginated, statRows] = await Promise.all([
       payload.find({
         collection: 'order-items',
         where: Object.keys(finalWhere).length ? (finalWhere as any) : undefined,
@@ -245,44 +266,26 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'order-items',
-        limit: 2000,
-        depth: 0,
-        overrideAccess: true,
-        pagination: false,
-      } as any),
+      oiRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COALESCE(SUM(total_price::numeric),0) AS revenue,
+        COALESCE(SUM(quantity::numeric),0) AS qty,
+        COUNT(DISTINCT order_id)::int AS orders,
+        COUNT(DISTINCT product_id)::int AS products,
+        COUNT(*) FILTER (WHERE options_snapshot IS NOT NULL AND options_snapshot::text NOT IN ('null','[]','{}'))::int AS mods FROM order_items`),
     ])
 
-    const statsDocs = ((statsAll as any).docs as Record<string, any>[]) ?? []
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeOrderItemDoc(d))
 
-    // stats aggregation from statsAll (bounded 2000 for breakdown)
-    const totalAll = typeof (statsAll as any).totalDocs === 'number' ? (statsAll as any).totalDocs : statsDocs.length
+    // stats aggregation from SQL (global; avgQuantity divisor fixed to totalAll)
+    const stats = statRows[0] ?? {}
+    const totalAll = Number(stats.total ?? 0)
     const filteredTotal = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
 
-    let totalRevenue = 0
-    let totalQuantity = 0
-    const uniqueOrders = new Set<string>()
-    const uniqueProducts = new Set<string>()
-    let withModifiersCount = 0
-
-    for (const o of statsDocs) {
-      totalRevenue += num(o.total_price, 0)
-      totalQuantity += num(o.quantity, 0)
-
-      const orderId = o.order != null && typeof o.order === 'object' ? String((o.order as any).id ?? o.order) : o.order != null ? String(o.order) : ''
-      if (orderId) uniqueOrders.add(orderId)
-      const productId = o.product != null && typeof o.product === 'object' ? String((o.product as any).id ?? o.product) : o.product != null ? String(o.product) : ''
-      if (productId) uniqueProducts.add(productId)
-
-      const opts = o.options_snapshot
-      if (Array.isArray(opts) && opts.length > 0) withModifiersCount++
-      else if (opts && typeof opts === 'object' && !Array.isArray(opts) && Object.keys(opts as object).length > 0) withModifiersCount++
-    }
+    const totalRevenue = Number(stats.revenue ?? 0)
+    const totalQuantity = Number(stats.qty ?? 0)
 
     const avgUnitPrice = totalQuantity > 0 ? totalRevenue / totalQuantity : 0
-    const avgQuantity = statsDocs.length > 0 ? totalQuantity / statsDocs.length : 0
+    const avgQuantity = totalAll > 0 ? totalQuantity / totalAll : 0
 
     const responseBody = {
       docs,
@@ -301,16 +304,15 @@ export async function GET(request: NextRequest) {
         totalQuantity,
         avgUnitPrice,
         avgQuantity,
-        uniqueOrders: uniqueOrders.size,
-        uniqueProducts: uniqueProducts.size,
-        withModifiersCount,
+        uniqueOrders: Number(stats.orders ?? 0),
+        uniqueProducts: Number(stats.products ?? 0),
+        withModifiersCount: Number(stats.mods ?? 0),
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-OrderItems-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/order-items] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load order items' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/order-items] list build error:', err)
+    throw err
   }
 }

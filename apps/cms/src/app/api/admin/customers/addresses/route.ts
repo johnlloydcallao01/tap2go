@@ -15,10 +15,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustCustomersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -168,9 +170,31 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:customer-addresses:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-CustomerAddresses-Cache': 'HIT' } })
+    const cacheKey = `admin:customer-addresses:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildCustomerAddressesList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-CustomerAddresses-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load addresses'
+    console.error('[admin/customers/addresses] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function caRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+function escLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+async function buildCustomerAddressesList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
@@ -198,22 +222,14 @@ export async function GET(request: NextRequest) {
     const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
 
     // ── Admin perspective: active current address lives on customers.activeAddress,
-    // not on addresses.is_default. Resolve all customers once (overrideAccess) so we can
-    // (a) filter by active-vs-saved via addresses.id, (b) enrich each row with its
-    // customer's current active address. This keeps the frontend thin per docs/BFF-pattern.md.
-    const customersForActive = await payload
-      .find({ collection: 'customers', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any)
-      .catch(() => ({ docs: [] }) as any)
+    // not on addresses.is_default. Resolve id pairs in SQL (no 5000-doc hydration).
+    const custRows = await caRows(payload, sql`SELECT user_id, active_address_id FROM customers`)
     const activeIdSet = new Set<number>()
     const activeByUserId = new Map<number, number>()
-    const customerByUserId = new Map<number, Record<string, any>>()
-    for (const c of ((customersForActive as any).docs as Record<string, any>[] ?? [])) {
-      const rawUser = (c as any).user
-      const uid = rawUser && typeof rawUser === 'object' ? Number((rawUser as any).id) : Number(rawUser)
+    for (const r of custRows) {
+      const uid = Number(r.user_id)
       if (!Number.isFinite(uid)) continue
-      customerByUserId.set(uid, c as Record<string, any>)
-      const rawActive = (c as any).activeAddress
-      const aid = rawActive && typeof rawActive === 'object' ? Number((rawActive as any).id) : Number(rawActive)
+      const aid = Number(r.active_address_id)
       if (Number.isFinite(aid) && aid > 0) {
         activeIdSet.add(aid)
         activeByUserId.set(uid, aid)
@@ -262,29 +278,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Search: join across address fields + user email/name
+    // Search: join across address fields + user email/name.
+    // User ids resolved in SQL (id-only, bounded 200, no hydration).
     let userIdsForSearch: number[] | null = null
     if (search) {
-      // find users matching search
       try {
-        const usersRes = await payload.find({
-          collection: 'users',
-          where: {
-            or: [
-              { firstName: { contains: search } },
-              { lastName: { contains: search } },
-              { email: { contains: search } },
-              { username: { contains: search } },
-              { phone: { contains: search } },
-            ],
-          },
-          limit: 200,
-          depth: 0,
-          overrideAccess: true,
-          pagination: false,
-        } as any)
-        const ids = (usersRes.docs as any[]).map((u) => Number(u.id)).filter((n) => Number.isFinite(n))
-        userIdsForSearch = ids
+        const like = `%${escLike(search)}%`
+        const uRows = await caRows(
+          payload,
+          sql`SELECT id FROM users WHERE first_name ILIKE ${like} OR last_name ILIKE ${like} OR email ILIKE ${like} OR username ILIKE ${like} OR phone ILIKE ${like} LIMIT 200`,
+        )
+        userIdsForSearch = uRows.map((u) => Number(u.id)).filter((n) => Number.isFinite(n))
       } catch {
         userIdsForSearch = []
       }
@@ -345,8 +349,8 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // parallel: paginated list + full stats (bounded)
-    const [paginated, statsAll] = await Promise.all([
+    // parallel: paginated list (correct, bounded ≤100) + SQL stats (no 2000-doc hydration)
+    const [paginated, statRows, typeRows, verRows, geoRows, srcRows, locRows] = await Promise.all([
       payload.find({
         collection: 'addresses',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
@@ -356,23 +360,19 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }),
-      payload
-        .find({
-          collection: 'addresses',
-          where: undefined,
-          limit: 0,
-          pagination: false,
-          depth: 0,
-          overrideAccess: true,
-        } as any)
-        .catch(() => ({ docs: [], totalDocs: 0 } as any))
-        .then(async () => {
-          const r = await payload.find({ collection: 'addresses', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
-          return r
-        }),
+      caRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE is_verified = true)::int AS verified,
+        COUNT(*) FILTER (WHERE is_default = true)::int AS def,
+        COUNT(*) FILTER (WHERE address_quality_score::numeric >= 80)::int AS hq,
+        COUNT(*) FILTER (WHERE id IN (SELECT active_address_id FROM customers WHERE active_address_id IS NOT NULL))::int AS active FROM addresses`),
+      caRows(payload, sql`SELECT COALESCE(LOWER(address_type::text),'home') AS s, COUNT(*)::int AS c FROM addresses GROUP BY LOWER(address_type::text)`),
+      caRows(payload, sql`SELECT COALESCE(UPPER(verification_method::text),'UNVERIFIED') AS s, COUNT(*)::int AS c FROM addresses GROUP BY UPPER(verification_method::text)`),
+      caRows(payload, sql`SELECT COALESCE(UPPER(geocoding_accuracy::text),'APPROXIMATE') AS s, COUNT(*)::int AS c FROM addresses GROUP BY UPPER(geocoding_accuracy::text)`),
+      caRows(payload, sql`SELECT COALESCE(UPPER(coordinate_source::text),'GOOGLE_GEOCODING') AS s, COUNT(*)::int AS c FROM addresses GROUP BY UPPER(coordinate_source::text)`),
+      caRows(payload, sql`SELECT COALESCE(NULLIF(locality,''),'Unknown') AS s, COUNT(*)::int AS c FROM addresses GROUP BY locality ORDER BY COUNT(*) DESC LIMIT 5`),
     ])
 
-    const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
+    const stats = statRows[0] ?? {}
     const rawDocs = paginated.docs as unknown as Record<string, any>[] ?? []
 
     // Fetch active-address docs for customers on this page so each row can show
@@ -404,6 +404,36 @@ export async function GET(request: NextRequest) {
         }
       } catch {}
     }
+    // Customer briefs for page rows only (bounded ≤100, replaces full 5000 map).
+    const pageUserIds = Array.from(
+      new Set(
+        rawDocs
+          .map((d) => {
+            const u = (d as any).user
+            const uid = u && typeof u === 'object' ? Number((u as any).id) : Number(u)
+            return Number.isFinite(uid) ? uid : undefined
+          })
+          .filter((n): n is number => typeof n === 'number'),
+      ),
+    )
+    const customerByUserId = new Map<number, Record<string, any>>()
+    if (pageUserIds.length) {
+      try {
+        const custRes = await payload.find({
+          collection: 'customers',
+          where: { user: { in: pageUserIds } },
+          limit: pageUserIds.length,
+          depth: 0,
+          overrideAccess: true,
+          pagination: false,
+        } as any)
+        for (const c of ((custRes as any).docs as Record<string, any>[] ?? [])) {
+          const rawUser = (c as any).user
+          const uid = rawUser && typeof rawUser === 'object' ? Number((rawUser as any).id) : Number(rawUser)
+          if (Number.isFinite(uid)) customerByUserId.set(uid, c)
+        }
+      } catch {}
+    }
 
     const docs = rawDocs.map((d) => {
       const base = sanitizeAddressDoc(d)
@@ -430,36 +460,24 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // stats aggregation from statsDocs
+    // stats aggregation from SQL (global; top localities pre-sorted in DB)
     const totalAddresses = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-    const totalAll = statsDocs.length
+    const totalAll = Number(stats.total ?? 0)
     const addressTypeBreakdown: Record<string, number> = {}
+    for (const r of typeRows) addressTypeBreakdown[String(r.s ?? 'home').toLowerCase()] = Number(r.c ?? 0)
     const verificationMethodBreakdown: Record<string, number> = {}
+    for (const r of verRows) verificationMethodBreakdown[String(r.s ?? 'UNVERIFIED').toUpperCase()] = Number(r.c ?? 0)
     const geocodingBreakdown: Record<string, number> = {}
+    for (const r of geoRows) geocodingBreakdown[String(r.s ?? 'APPROXIMATE').toUpperCase()] = Number(r.c ?? 0)
     const coordinateSourceBreakdown: Record<string, number> = {}
+    for (const r of srcRows) coordinateSourceBreakdown[String(r.s ?? 'GOOGLE_GEOCODING').toUpperCase()] = Number(r.c ?? 0)
     const localityBreakdown: Record<string, number> = {}
-    let verifiedCount = 0
-    let unverifiedCount = 0
-    let defaultCount = 0
-    let highQualityCount = 0 // score >= 80
-    let activeCount = 0
-    for (const a of statsDocs) {
-      const at = String(a.address_type || 'home').toLowerCase()
-      addressTypeBreakdown[at] = (addressTypeBreakdown[at] || 0) + 1
-      const vm = String(a.verification_method || 'UNVERIFIED').toUpperCase()
-      verificationMethodBreakdown[vm] = (verificationMethodBreakdown[vm] || 0) + 1
-      const ga = String(a.geocoding_accuracy || 'APPROXIMATE').toUpperCase()
-      geocodingBreakdown[ga] = (geocodingBreakdown[ga] || 0) + 1
-      const cs = String(a.coordinate_source || 'GOOGLE_GEOCODING').toUpperCase()
-      coordinateSourceBreakdown[cs] = (coordinateSourceBreakdown[cs] || 0) + 1
-      const loc = String(a.locality || 'Unknown')
-      localityBreakdown[loc] = (localityBreakdown[loc] || 0) + 1
-      if (a.is_verified) verifiedCount++
-      else unverifiedCount++
-      if (a.is_default) defaultCount++
-      if (activeIdSet.has(Number((a as any).id))) activeCount++
-      if (typeof a.address_quality_score === 'number' && a.address_quality_score >= 80) highQualityCount++
-    }
+    for (const r of locRows) localityBreakdown[String(r.s ?? 'Unknown')] = Number(r.c ?? 0)
+    const verifiedCount = Number(stats.verified ?? 0)
+    const unverifiedCount = totalAll - verifiedCount
+    const defaultCount = Number(stats.def ?? 0)
+    const highQualityCount = Number(stats.hq ?? 0)
+    const activeCount = Number(stats.active ?? 0)
 
     // top localities sorted
     const topLocalities = Object.entries(localityBreakdown)
@@ -497,11 +515,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search, isActiveFilter },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-CustomerAddresses-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/customers/addresses] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load addresses' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/customers/addresses] list build error:', err)
+    throw err
   }
 }
 
@@ -658,6 +675,7 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeAddressDoc(created)
+    try { await bustCustomersCache() } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: 'Address created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/customers/addresses] POST error:', err)

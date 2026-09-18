@@ -7,7 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustProductsCache, getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -54,12 +55,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
-    let doc: Record<string, any>
-    try { doc = await payload.findByID({ collection: 'products', id: docId as number, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) { return NextResponse.json({ error: 'Product not found', details: e?.message }, { status: 404 }) }
-    if (!doc) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
-    const sanitized = sanitizeDoc(doc)
-    return NextResponse.json({ doc: sanitized })
-  } catch (err: any) { console.error('[admin/products/[id]] GET error:', err); return NextResponse.json({ error: err?.message || 'Failed to load product' }, { status: 500 }) }
+    const cacheKey = `admin:products:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try { doc = await payload.findByID({ collection: 'products', id: docId as number, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) { throw Object.assign(new Error('Product not found'), { status: 404, details: e?.message }) }
+        if (!doc) throw Object.assign(new Error('Product not found'), { status: 404 })
+        return { doc: sanitizeDoc(doc) }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-Products-Cache': status } })
+  } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Product not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
+    console.error('[admin/products/[id]] GET error:', err); return NextResponse.json({ error: err?.message || 'Failed to load product' }, { status: 500 }) }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -126,8 +136,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const sanitized = sanitizeDoc(updated)
     // Bust list cache so the update reflects immediately on /products.
     // Master names are embedded in the merchant-products aggregate, so bust that too.
-    await deleteCachedByPrefix('admin:products:')
-    await deleteCachedByPrefix('admin:merchant-products:')
+    await bustProductsCache()
+    await bustProductsCache()
     return NextResponse.json({ success: true, message: 'Product updated successfully', doc: sanitized })
   } catch (err: any) { console.error('[admin/products/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message || 'Update failed' }, { status: 500 }) }
 }
@@ -144,7 +154,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     try { deleted = await payload.delete({ collection: 'products', id: docId as number, overrideAccess: true }) } catch (e: any) { return NextResponse.json({ error: e?.message || 'Failed to delete product' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     // Bust list cache so the deletion reflects immediately on /products
-    await deleteCachedByPrefix('admin:products:')
+    await bustProductsCache()
     return NextResponse.json({ success: true, id: deleted.id, message: 'Product deleted successfully' })
   } catch (err: any) { console.error('[admin/products/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message || 'Delete failed' }, { status: 500 }) }
 }

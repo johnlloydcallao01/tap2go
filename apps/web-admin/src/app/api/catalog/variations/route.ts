@@ -13,7 +13,11 @@ export async function GET(request: NextRequest) {
       cache: 'no-store',
     })
     const data = await res.text()
-    return new NextResponse(data, { status: res.status, headers: { 'Content-Type': res.headers.get('content-type') || 'application/json' } })
+    const headers = new Headers({ 'Content-Type': res.headers.get('content-type') || 'application/json' })
+    const cacheStatus = res.headers.get('X-Variations-Cache')
+    if (cacheStatus) headers.set('X-Variations-Cache', cacheStatus)
+    headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+    return new NextResponse(data, { status: res.status, headers })
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
   }
@@ -36,7 +40,11 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     })
     const data = await res.text()
-    return new NextResponse(data, { status: res.status, headers: { 'Content-Type': res.headers.get('content-type') || 'application/json' } })
+    const headers = new Headers({ 'Content-Type': res.headers.get('content-type') || 'application/json' })
+    const cacheStatus = res.headers.get('X-Variations-Cache')
+    if (cacheStatus) headers.set('X-Variations-Cache', cacheStatus)
+    headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+    return new NextResponse(data, { status: res.status, headers })
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
   }

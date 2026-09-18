@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { bustCustomersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v.trim() || null : null
@@ -93,60 +95,68 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
-    let doc: Record<string, any>
-    try {
-      doc = (await payload.findByID({ collection: 'customers', id: docId as number, depth: 2, overrideAccess: true })) as unknown as Record<string, any>
-    } catch (e: any) {
-      return NextResponse.json({ error: 'Customer not found', details: e?.message }, { status: 404 })
-    }
-    if (!doc) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+    const cacheKey = `admin:customers:detail:v1:${String(docId)}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 120, () =>
+      withAdminRequestSlot(async () => {
+        let doc: Record<string, any>
+        try {
+          doc = (await payload.findByID({ collection: 'customers', id: docId as number, depth: 2, overrideAccess: true })) as unknown as Record<string, any>
+        } catch (e: any) {
+          throw Object.assign(new Error('Customer not found'), { status: 404, details: e?.message })
+        }
+        if (!doc) throw Object.assign(new Error('Customer not found'), { status: 404 })
 
-    const userId = (doc.user as any)?.id ?? doc.user
-    const uidNum = Number(userId)
+        const userId = (doc.user as any)?.id ?? doc.user
+        const uidNum = Number(userId)
 
-    const [ordersRes, addressesRes, recentEventsRes, wishlistsRes] = await Promise.all([
-      payload
-        .find({ collection: 'orders', where: { customer: { equals: doc.id } }, limit: 10, sort: '-placed_at', depth: 1, overrideAccess: true })
-        .catch(() => ({ docs: [], totalDocs: 0 } as any)),
-      Number.isFinite(uidNum)
-        ? payload.find({ collection: 'addresses', where: { user: { equals: uidNum } }, limit: 50, depth: 0, overrideAccess: true }).catch(() => ({ docs: [], totalDocs: 0 } as any))
-        : ({ docs: [], totalDocs: 0 } as any),
-      Number.isFinite(uidNum)
-        ? payload
-            .find({ collection: 'user-events', where: { user: { equals: uidNum } }, sort: '-timestamp', limit: 8, depth: 0, overrideAccess: true })
-            .catch(() => ({ docs: [] } as any))
-        : ({ docs: [] } as any),
-      Number.isFinite(uidNum)
-        ? payload.find({ collection: 'wishlists', where: { user: { equals: uidNum } }, limit: 50, depth: 0, overrideAccess: true }).catch(() => ({ docs: [], totalDocs: 0 } as any))
-        : ({ docs: [], totalDocs: 0 } as any),
-    ])
+        const [ordersRes, addressesRes, recentEventsRes, wishlistsRes] = await Promise.all([
+          payload
+            .find({ collection: 'orders', where: { customer: { equals: doc.id } }, limit: 10, sort: '-placed_at', depth: 1, overrideAccess: true })
+            .catch(() => ({ docs: [], totalDocs: 0 } as any)),
+          Number.isFinite(uidNum)
+            ? payload.find({ collection: 'addresses', where: { user: { equals: uidNum } }, limit: 50, depth: 0, overrideAccess: true }).catch(() => ({ docs: [], totalDocs: 0 } as any))
+            : ({ docs: [], totalDocs: 0 } as any),
+          Number.isFinite(uidNum)
+            ? payload
+                .find({ collection: 'user-events', where: { user: { equals: uidNum } }, sort: '-timestamp', limit: 8, depth: 0, overrideAccess: true })
+                .catch(() => ({ docs: [] } as any))
+            : ({ docs: [] } as any),
+          Number.isFinite(uidNum)
+            ? payload.find({ collection: 'wishlists', where: { user: { equals: uidNum } }, limit: 50, depth: 0, overrideAccess: true }).catch(() => ({ docs: [], totalDocs: 0 } as any))
+            : ({ docs: [], totalDocs: 0 } as any),
+        ])
 
-    const orderCount = typeof (ordersRes as any).totalDocs === 'number' ? (ordersRes as any).totalDocs : (ordersRes as any).docs?.length ?? 0
-    const addressCount = typeof (addressesRes as any).totalDocs === 'number' ? (addressesRes as any).totalDocs : (addressesRes as any).docs?.length ?? 0
-    const recentOrders = ((ordersRes as any).docs as any[]).map((o) => ({
-      id: o.id,
-      status: String(o.status ?? ''),
-      fulfillment_type: String(o.fulfillment_type ?? ''),
-      total: Number(o.total ?? 0),
-      placed_at: String(o.placed_at ?? o.createdAt ?? ''),
-      merchant: o.merchant ? { id: (o.merchant as any).id ?? o.merchant, outletName: String((o.merchant as any).outletName ?? '') } : null,
-    }))
-    const recentEvents = ((recentEventsRes as any).docs as any[]).map((e) => ({
-      id: e.id,
-      eventType: String(e.eventType ?? ''),
-      timestamp: String(e.timestamp ?? e.createdAt ?? ''),
-      eventData: e.eventData ?? null,
-    }))
+        const orderCount = typeof (ordersRes as any).totalDocs === 'number' ? (ordersRes as any).totalDocs : (ordersRes as any).docs?.length ?? 0
+        const addressCount = typeof (addressesRes as any).totalDocs === 'number' ? (addressesRes as any).totalDocs : (addressesRes as any).docs?.length ?? 0
+        const recentOrders = ((ordersRes as any).docs as any[]).map((o) => ({
+          id: o.id,
+          status: String(o.status ?? ''),
+          fulfillment_type: String(o.fulfillment_type ?? ''),
+          total: Number(o.total ?? 0),
+          placed_at: String(o.placed_at ?? o.createdAt ?? ''),
+          merchant: o.merchant ? { id: (o.merchant as any).id ?? o.merchant, outletName: String((o.merchant as any).outletName ?? '') } : null,
+        }))
+        const recentEvents = ((recentEventsRes as any).docs as any[]).map((e) => ({
+          id: e.id,
+          eventType: String(e.eventType ?? ''),
+          timestamp: String(e.timestamp ?? e.createdAt ?? ''),
+          eventData: e.eventData ?? null,
+        }))
 
-    const sanitized = sanitizeCustomerDoc(doc, orderCount, addressCount, recentOrders)
-    const related = {
-      wishlistCount: (wishlistsRes as any).totalDocs ?? (wishlistsRes as any).docs?.length ?? 0,
-      addressCount,
-      orderCount,
-    }
-
-    return NextResponse.json({ doc: sanitized, related, recentEvents })
+        const sanitized = sanitizeCustomerDoc(doc, orderCount, addressCount, recentOrders)
+        const related = {
+          wishlistCount: (wishlistsRes as any).totalDocs ?? (wishlistsRes as any).docs?.length ?? 0,
+          addressCount,
+          orderCount,
+        }
+        return { doc: sanitized, related, recentEvents }
+      }),
+    )
+    return NextResponse.json(data, { headers: { 'X-Customers-Cache': status } })
   } catch (err: any) {
+    if (err instanceof Error && (err as unknown as { status?: number }).status === 404) {
+      return NextResponse.json({ error: 'Customer not found', details: (err as unknown as { details?: unknown }).details }, { status: 404 })
+    }
     console.error('[admin/customers/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load customer' }, { status: 500 })
   }
@@ -273,6 +283,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const orderCount = (ordersRes as any).totalDocs ?? 0
     const addressCount = (addressesRes as any).totalDocs ?? 0
     const sanitized = sanitizeCustomerDoc(updated, orderCount, addressCount)
+    try { await bustCustomersCache() } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: 'Customer updated successfully', doc: sanitized })
   } catch (err: any) {
     console.error('[admin/customers/[id]] PATCH error:', err)
@@ -331,6 +342,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: e?.message || 'Failed to delete customer' }, { status: 400 })
     }
     if (!deleted) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+    try { await bustCustomersCache() } catch { /* ignore */ }
     return NextResponse.json({ success: true, id: deleted.id, message: 'Customer deleted successfully' })
   } catch (err: any) {
     console.error('[admin/customers/[id]] DELETE error:', err)

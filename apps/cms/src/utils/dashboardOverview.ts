@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { sql, type SQL } from 'drizzle-orm'
 
 export function daysAgoISO(n: number): string {
   const d = new Date()
@@ -34,7 +35,7 @@ export function getStr(val: unknown, fallback = ''): string {
 
 type DrizzleRows = { rows: Array<Record<string, unknown>> }
 
-async function drizzleRows(payload: Payload, query: string): Promise<Array<Record<string, unknown>>> {
+async function drizzleRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
   const result = (await payload.db.drizzle.execute(query as never)) as unknown as DrizzleRows
   return Array.isArray(result?.rows) ? result.rows : []
 }
@@ -127,15 +128,15 @@ export async function fetchDashboardCounts(payload: Payload) {
 export async function fetchRevenueMetrics(payload: Payload, thirtyDaysAgoISO: string, sixtyDaysAgoISO: string) {
   const totalRows = await drizzleRows(
     payload,
-    `SELECT COALESCE(SUM(amount::numeric),0) AS total_revenue FROM transactions WHERE status='paid'`,
+    sql`SELECT COALESCE(SUM(amount::numeric),0) AS total_revenue FROM transactions WHERE status='paid'`,
   )
   const recentRows = await drizzleRows(
     payload,
-    `SELECT COALESCE(SUM(amount::numeric),0) AS recent_revenue FROM transactions WHERE status='paid' AND paid_at >= '${thirtyDaysAgoISO}'`,
+    sql`SELECT COALESCE(SUM(amount::numeric),0) AS recent_revenue FROM transactions WHERE status='paid' AND paid_at >= ${thirtyDaysAgoISO}`,
   )
   const previousRows = await drizzleRows(
     payload,
-    `SELECT COALESCE(SUM(amount::numeric),0) AS previous_revenue FROM transactions WHERE status='paid' AND paid_at >= '${sixtyDaysAgoISO}' AND paid_at < '${thirtyDaysAgoISO}'`,
+    sql`SELECT COALESCE(SUM(amount::numeric),0) AS previous_revenue FROM transactions WHERE status='paid' AND paid_at >= ${sixtyDaysAgoISO} AND paid_at < ${thirtyDaysAgoISO}`,
   )
 
   return {
@@ -148,7 +149,7 @@ export async function fetchRevenueMetrics(payload: Payload, thirtyDaysAgoISO: st
 export async function fetchRevenueChart(payload: Payload, thirtyDaysAgoISO: string): Promise<DailyMetric[]> {
   const rows = await drizzleRows(
     payload,
-    `SELECT date_trunc('day', paid_at)::date::text AS day, COALESCE(SUM(amount::numeric),0) AS revenue, COUNT(*) AS orders FROM transactions WHERE status='paid' AND paid_at >= '${thirtyDaysAgoISO}' GROUP BY 1 ORDER BY 1`,
+    sql`SELECT date_trunc('day', paid_at)::date::text AS day, COALESCE(SUM(amount::numeric),0) AS revenue, COUNT(*) AS orders FROM transactions WHERE status='paid' AND paid_at >= ${thirtyDaysAgoISO} GROUP BY 1 ORDER BY 1`,
   )
   const buckets = new Map<string, { revenue: number; orders: number }>()
   for (const r of rows) {
@@ -166,14 +167,14 @@ export async function fetchRevenueChart(payload: Payload, thirtyDaysAgoISO: stri
 }
 
 export async function fetchOrderStatusChart(payload: Payload): Promise<OrderStatusCount[]> {
-  const rows = await drizzleRows(payload, `SELECT status::text AS status, COUNT(*) AS count FROM orders GROUP BY status`)
+  const rows = await drizzleRows(payload, sql`SELECT status::text AS status, COUNT(*) AS count FROM orders GROUP BY status`)
   return rows.map((r) => ({ status: getStr(r.status, 'unknown'), count: getNum(r.count) }))
 }
 
 export async function fetchTopMerchants(payload: Payload): Promise<TopMerchant[]> {
   const rows = await drizzleRows(
     payload,
-    `SELECT o.merchant_id::text AS merchant_id, m.outlet_name AS outlet_name, COUNT(*) AS orders, COALESCE(SUM(o.total::numeric),0) AS revenue FROM orders o LEFT JOIN merchants m ON m.id = o.merchant_id GROUP BY o.merchant_id, m.outlet_name ORDER BY COUNT(*) DESC LIMIT 5`,
+    sql`SELECT o.merchant_id::text AS merchant_id, m.outlet_name AS outlet_name, COUNT(*) AS orders, COALESCE(SUM(o.total::numeric),0) AS revenue FROM orders o LEFT JOIN merchants m ON m.id = o.merchant_id GROUP BY o.merchant_id, m.outlet_name ORDER BY COUNT(*) DESC LIMIT 5`,
   )
   return rows.map((r) => {
     const id = getStr(r.merchant_id)
@@ -190,7 +191,7 @@ export async function fetchTopMerchants(payload: Payload): Promise<TopMerchant[]
 export async function fetchTopVendors(payload: Payload): Promise<TopVendor[]> {
   const rows = await drizzleRows(
     payload,
-    `SELECT v.id::text AS id, v.business_name AS business_name, v.total_merchants AS total_merchants, v.average_rating AS average_rating, COUNT(o.id)::int AS total_orders FROM vendors v LEFT JOIN merchants m ON m.vendor_id = v.id LEFT JOIN orders o ON o.merchant_id = m.id GROUP BY v.id, v.business_name, v.total_merchants, v.average_rating ORDER BY COUNT(o.id) DESC LIMIT 5`,
+    sql`SELECT v.id::text AS id, v.business_name AS business_name, v.total_merchants AS total_merchants, v.average_rating AS average_rating, COUNT(o.id)::int AS total_orders FROM vendors v LEFT JOIN merchants m ON m.vendor_id = v.id LEFT JOIN orders o ON o.merchant_id = m.id GROUP BY v.id, v.business_name, v.total_merchants, v.average_rating ORDER BY COUNT(o.id) DESC LIMIT 5`,
   )
   return rows.map((r) => ({
     id: getStr(r.id),
@@ -204,7 +205,7 @@ export async function fetchTopVendors(payload: Payload): Promise<TopVendor[]> {
 export async function fetchRecentOrders(payload: Payload): Promise<RecentOrder[]> {
   const rows = await drizzleRows(
     payload,
-    `SELECT o.id::text AS id, o.total AS total, o.status::text AS status, o.created_at::text AS created_at, m.outlet_name AS merchant_name, c.email AS customer_email, c.id::text AS customer_id FROM orders o LEFT JOIN merchants m ON m.id = o.merchant_id LEFT JOIN customers c ON c.id = o.customer_id ORDER BY o.created_at DESC LIMIT 10`,
+    sql`SELECT o.id::text AS id, o.total AS total, o.status::text AS status, o.created_at::text AS created_at, m.outlet_name AS merchant_name, c.email AS customer_email, c.id::text AS customer_id FROM orders o LEFT JOIN merchants m ON m.id = o.merchant_id LEFT JOIN customers c ON c.id = o.customer_id ORDER BY o.created_at DESC LIMIT 10`,
   )
   return rows.map((r) => ({
     id: getStr(r.id),

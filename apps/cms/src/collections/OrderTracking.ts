@@ -79,4 +79,8 @@ export const OrderTracking: CollectionConfig = {
       },
     },
   ],
+  indexes: [
+    // Order detail timeline: WHERE order + ORDER BY timestamp
+    { fields: ['order', 'timestamp'] },
+  ],
 }

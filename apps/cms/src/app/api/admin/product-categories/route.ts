@@ -6,10 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
+import { sql, type SQL } from 'drizzle-orm'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -75,9 +78,27 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:product-categories:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-ProductCategories-Cache': 'HIT' } })
+    const cacheKey = `admin:product-categories:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildProductCategoriesList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-ProductCategories-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load product categories'
+    console.error('[admin/product-categories] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function cRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+async function buildProductCategoriesList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
@@ -114,46 +135,34 @@ export async function GET(request: NextRequest) {
     }
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const [paginated, allForStats, allProducts] = await Promise.all([
+    // Paginated display (correct) + SQL stats (no 2000+5000 hydration).
+    const [paginated, statRows, levelRows, typeRows, countRows] = await Promise.all([
       payload.find({ collection: 'product-categories', where: Object.keys(finalWhere).length ? finalWhere : undefined, page, limit, sort, depth: 1, overrideAccess: true }),
-      payload.find({ collection: 'product-categories', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any),
-      payload.find({ collection: 'products', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any),
+      cRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE is_active = true)::int AS active,
+        COUNT(*) FILTER (WHERE is_featured = true)::int AS featured,
+        COUNT(*) FILTER (WHERE parent_category_id IS NULL)::int AS top FROM prod_categories`),
+      cRows(payload, sql`SELECT COALESCE(category_level::text,'1') AS lvl, COUNT(*)::int AS c FROM prod_categories GROUP BY category_level`),
+      cRows(payload, sql`SELECT COALESCE(LOWER(attributes_category_type::text),'other') AS ct, COUNT(*)::int AS c FROM prod_categories GROUP BY LOWER(attributes_category_type::text)`),
+      cRows(payload, sql`SELECT "product-categoriesID"::text AS cid, COUNT(*)::int AS c FROM products_rels WHERE "product-categoriesID" IS NOT NULL GROUP BY "product-categoriesID"`),
     ])
 
-    // productCount per category via products_rels scan (products hasMany categories)
+    // productCount per category via products_rels join (hasMany categories).
     const productCountByCategory = new Map<string, number>()
-    for (const prod of ((allProducts as any).docs as any[]) || []) {
-      // products.categories is hasMany relationship — Payload stores via products_rels, but find depth 0 returns array of IDs or objects?
-      const cats: any[] = Array.isArray((prod as any).categories) ? (prod as any).categories : []
-      for (const c of cats) {
-        const cid = typeof c === 'object' ? String((c as any).id ?? c) : String(c)
-        if (!cid || cid === 'undefined') continue
-        productCountByCategory.set(cid, (productCountByCategory.get(cid) || 0) + 1)
-      }
-      // also check products_rels style if present
-      const rels: any[] = Array.isArray((prod as any).product_categories) ? (prod as any).product_categories : []
-      for (const c of rels) {
-        const cid = typeof c === 'object' ? String((c as any).id ?? c) : String(c)
-        productCountByCategory.set(cid, (productCountByCategory.get(cid) || 0) + 1)
-      }
-    }
+    for (const r of countRows) productCountByCategory.set(String(r.cid ?? ''), Number(r.c ?? 0))
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeDoc(d, productCountByCategory.get(String(d.id)) || 0))
 
-    const allDocs = ((allForStats as any).docs as any[]) || []
-    const total = allDocs.length
-    const activeCount = allDocs.filter((d: any) => d.isActive).length
-    const featuredCount = allDocs.filter((d: any) => d.isFeatured).length
-    const topLevelCount = allDocs.filter((d: any) => !d.parentCategory).length
+    const stats = statRows[0] ?? {}
+    const total = Number(stats.total ?? 0)
+    const activeCount = Number(stats.active ?? 0)
+    const featuredCount = Number(stats.featured ?? 0)
+    const topLevelCount = Number(stats.top ?? 0)
 
     const levelBreakdown: Record<string, number> = {}
+    for (const r of levelRows) levelBreakdown[String(r.lvl ?? '1')] = Number(r.c ?? 0)
     const categoryTypeBreakdown: Record<string, number> = {}
-    for (const d of allDocs) {
-      const lvl = String(d.categoryLevel ?? 1)
-      levelBreakdown[lvl] = (levelBreakdown[lvl] || 0) + 1
-      const ct = String(d.attributes?.categoryType || 'other').toLowerCase()
-      categoryTypeBreakdown[ct] = (categoryTypeBreakdown[ct] || 0) + 1
-    }
+    for (const r of typeRows) categoryTypeBreakdown[String(r.ct ?? 'other')] = Number(r.c ?? 0)
 
     const responseBody = {
       docs,
@@ -177,11 +186,10 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-ProductCategories-Cache': 'MISS' } })
-  } catch (err: any) {
-    console.error('[admin/product-categories] GET error:', err)
-    return NextResponse.json({ error: err?.message || 'Failed to load product categories' }, { status: 500 })
+    return responseBody
+  } catch (err: unknown) {
+    console.error('[admin/product-categories] list build error:', err)
+    throw err
   }
 }
 

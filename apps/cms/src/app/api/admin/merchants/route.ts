@@ -7,12 +7,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { getOrBuildDashboard, bustMerchantsCache } from '@/utils/dashboardCache'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
+import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
@@ -75,20 +76,41 @@ function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
 const OPERATIONAL_STATUSES = new Set(['open','closed','busy','temp_closed','maintenance'])
 
 export async function GET(request: NextRequest) {
-  return withAdminRequestSlot(async () => {
-    try{
+  try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
-    if(!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
+    if (!admin) return NextResponse.json({ error: 'Unauthorized: admin authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
     const cacheQuery = Array.from(searchParams.entries())
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=10&sort=-createdAt'
-    const cacheKey = `admin:merchants:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Merchants-Cache': 'HIT' } })
+    const cacheKey = `admin:merchants:v1:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildMerchantsList(payload, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-Merchants-Cache': status } })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load merchants'
+    console.error('[admin/merchants] GET error:', err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+type Rows = { rows: Array<Record<string, unknown>> }
+
+async function mRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
+  const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
+  return Array.isArray(result?.rows) ? result.rows : []
+}
+
+function escLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+async function buildMerchantsList(payload: Payload, searchParams: URLSearchParams) {
+  try {
 
     const page = Math.max(1, parseInt(searchParams.get('page')||'1',10)||1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit')||'10',10)||10))
@@ -123,32 +145,99 @@ export async function GET(request: NextRequest) {
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const needsVendorDocuments = Boolean(search || verificationCsv.length || businessTypeCsv.length)
-    // The table needs direct relations only. Stats use count queries instead of
-    // transferring every merchant and vendor document on every request.
-    const [paginated, vendorStats, merchantStats] = await Promise.all([
-      payload.find({ collection: 'merchants', where: Object.keys(finalWhere).length?finalWhere:undefined, page, limit, sort, depth: 1, overrideAccess: true }),
-      Promise.all([
-        payload.find({ collection: 'vendors', limit: 1, depth: 0, overrideAccess: true } as any),
-        payload.find({ collection: 'vendors', where: { isActive: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
-        needsVendorDocuments
-          ? payload.find({ collection: 'vendors', limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
-          : Promise.resolve({ docs: [] }),
-      ]),
-      Promise.all([
-        payload.find({ collection: 'merchants', limit: 1, depth: 0, overrideAccess: true } as any),
-        payload.find({ collection: 'merchants', where: { isActive: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
-        payload.find({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, limit: 1, depth: 0, overrideAccess: true } as any),
-        ...Array.from(OPERATIONAL_STATUSES, status => payload.find({ collection: 'merchants', where: { operationalStatus: { equals: status } }, limit: 1, depth: 0, overrideAccess: true } as any)),
-      ]),
+    const skipCtx = { skipStoreHours: true } as const
+    // Vendor-side filters resolved in SQL (bounded 500) and pushed into
+    // the merchant query as vendor IN — replaces vendors 2000 hydration +
+    // JS post-filter that broke pagination counts.
+    let vendorConstrainedIds: number[] | null = null
+    if (verificationCsv.length || businessTypeCsv.length) {
+      const vConds: SQL[] = []
+      if (verificationCsv.length) {
+        vConds.push(sql`LOWER(verification_status::text) IN (${sql.join(
+          verificationCsv.map((v) => sql`${v}`),
+          sql`, `,
+        )})`)
+      }
+      if (businessTypeCsv.length) {
+        vConds.push(sql`LOWER(business_type::text) IN (${sql.join(
+          businessTypeCsv.map((v) => sql`${v}`),
+          sql`, `,
+        )})`)
+      }
+      let vWhere: SQL = vConds[0]
+      for (let i = 1; i < vConds.length; i++) vWhere = sql`${vWhere} AND ${vConds[i]}`
+      const vRows = await mRows(payload, sql`SELECT id FROM vendors WHERE ${vWhere} LIMIT 500`)
+      vendorConstrainedIds = vRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
+    }
+    // Vendor businessName search resolved in SQL (bounded 200) and OR-ed
+    // with direct outletName/outletCode/contact matches — replaces the
+    // merchants 5000 depth:2 + in-memory sort/slice fallback.
+    let vendorSearchIds: number[] = []
+    if (search) {
+      const like = `%${escLike(search)}%`
+      const sRows = await mRows(
+        payload,
+        sql`SELECT id FROM vendors WHERE business_name ILIKE ${like} OR legal_name ILIKE ${like} LIMIT 200`,
+      )
+      vendorSearchIds = sRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
+    }
+    const effectiveWhere = (() => {
+      const base = Object.keys(finalWhere).length ? finalWhere : undefined
+      const extraAnd: unknown[] = []
+      if (vendorConstrainedIds !== null) {
+        if (!vendorConstrainedIds.length) return { __empty: true } as unknown as typeof finalWhere
+        extraAnd.push({ vendor: { in: vendorConstrainedIds } })
+      }
+      if (search && vendorSearchIds.length) {
+        // Direct matches (finalWhere) OR vendor-matched merchants, plus AND-ed direct filters.
+        return { or: [base ?? {}, { vendor: { in: vendorSearchIds } }], and: extraAnd } as unknown as typeof finalWhere
+      }
+      if (!extraAnd.length) return base
+      return { and: [base ?? {}, ...extraAnd] } as unknown as typeof finalWhere
+    })()
+    if ((effectiveWhere as Record<string, unknown>).__empty) {
+      const [mTotal, mActive, mAccepting, opRows, vTotal, vActive] = await Promise.all([
+        payload.count({ collection: 'merchants', overrideAccess: true, context: skipCtx }),
+        payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
+        payload.count({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, overrideAccess: true, context: skipCtx }),
+        mRows(payload, sql`SELECT operational_status::text AS s, COUNT(*)::int AS c FROM merchants GROUP BY 1`),
+        payload.count({ collection: 'vendors', overrideAccess: true, context: skipCtx }),
+        payload.count({ collection: 'vendors', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
+      ])
+      const operationalBreakdown: Record<string, number> = {}
+      for (const s of OPERATIONAL_STATUSES) operationalBreakdown[s] = 0
+      for (const r of opRows) operationalBreakdown[String(r.s ?? '')] = Number(r.c ?? 0)
+      return {
+        docs: [],
+        pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: page > 1 },
+        stats: {
+          totalMerchants: mTotal.totalDocs,
+          totalVendors: vTotal.totalDocs,
+          activeMerchants: mActive.totalDocs,
+          acceptingOrders: mAccepting.totalDocs,
+          activeVendors: vActive.totalDocs,
+          operationalBreakdown,
+          filteredCount: 0,
+        },
+        meta: { generatedAt: new Date().toISOString(), sort, search },
+      }
+    }
+    // Paginated list (correct) + exact counts + operational breakdown in SQL.
+    // Replaces vendors 2000 + 8× limit:1 stats finds + merchants 5000 fallback.
+    const [paginated, mTotal, mActive, mAccepting, opRows, vTotal, vActive] = await Promise.all([
+      payload.find({ collection: 'merchants', where: effectiveWhere as never, page, limit, sort, depth: 1, overrideAccess: true, context: skipCtx }),
+      payload.count({ collection: 'merchants', overrideAccess: true, context: skipCtx }),
+      payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
+      payload.count({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, overrideAccess: true, context: skipCtx }),
+      mRows(payload, sql`SELECT operational_status::text AS s, COUNT(*)::int AS c FROM merchants GROUP BY 1`),
+      payload.count({ collection: 'vendors', overrideAccess: true, context: skipCtx }),
+      payload.count({ collection: 'vendors', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
     ])
 
-    const vendorsDocs = (vendorStats[2].docs as any[]) || []
-    const vendorMap = new Map<string, any>()
-    vendorsDocs.forEach((v:any)=> vendorMap.set(String(v.id), v))
+    const vendorMap = new Map<string, unknown>()
 
-    // Enrich paginated docs with sanitized vendor + filter by verification/businessType if needed (post-filter if vendor join)
-    let docsRaw = paginated.docs as unknown as Record<string, any>[]
+    // Enrich paginated docs with vendor brief (bounded by page size ≤100).
+    const docsRaw = paginated.docs as unknown as Record<string, any>[]
     const pageVendorIds = Array.from(new Set(docsRaw.map((merchant) => {
       const rawVendor = merchant.vendor
       return rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
@@ -161,93 +250,28 @@ export async function GET(request: NextRequest) {
         depth: 1,
         overrideAccess: true,
         pagination: false,
+        context: skipCtx,
       } as any)
       pageVendors.docs.forEach((vendor: any) => vendorMap.set(String(vendor.id), vendor))
     }
-    docsRaw = docsRaw.map((merchant) => {
+    const enrichedRaw = docsRaw.map((merchant) => {
       const rawVendor = merchant.vendor
       const vendorId = rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
       const vendor = vendorMap.get(String(vendorId))
       return vendor ? { ...merchant, vendor } : merchant
     })
-    // Post-filter for vendor verification/businessType because where on relationship not directly filterable via simple where
-    if(verificationCsv.length || businessTypeCsv.length){
-      docsRaw = docsRaw.filter((m)=>{
-        const rawVendor = (m as any).vendor
-        const vendorObj = rawVendor && typeof rawVendor==='object' ? rawVendor as Record<string, unknown> : null
-        const vendorId = vendorObj ? String((vendorObj as any).id ?? '') : String(rawVendor ?? '')
-        const vendorDoc = vendorId ? vendorMap.get(vendorId) : null
-        if(!vendorDoc) return false
-        if(verificationCsv.length && !verificationCsv.includes(String(vendorDoc.verificationStatus||'').toLowerCase())) return false
-        if(businessTypeCsv.length && !businessTypeCsv.includes(String(vendorDoc.businessType||'').toLowerCase())) return false
-        return true
-      })
-    }
-    // If search should also match vendor businessName, include those (already filtered partly, but ensure)
-    if(search && (verificationCsv.length || businessTypeCsv.length)){
-      // already handled
-    } else if(search){
-      // also include vendor businessName match (not covered by direct where)
-      const vendorMatchedIds = new Set<string>()
-      vendorsDocs.forEach((v:any)=>{
-        const hay = `${v.businessName||''} ${v.legalName||''}`.toLowerCase()
-        if(hay.includes(search.toLowerCase())) vendorMatchedIds.add(String(v.id))
-      })
-      if(vendorMatchedIds.size){
-        const extra = docsRaw // already have direct matches, now also add vendor-matched that were not in direct where
-        // We already have paginated docs limited, so to include vendor-matched we need to fetch those merchant docs separately if not in current page
-        // For simplicity, if search matches vendor, and current page doesn't contain those merchants, we will keep current docs but also note that totalDocs may be off
-        // For enterprise, better to do full scan for search vendor match and merge
-        // We'll fetch all merchants matching vendor ids and search, then re-paginate in memory for accuracy when search matches vendor
-        // To keep simple and correct, do in-memory pagination after filtering
-        const allDocsForSearch = (await payload.find({ collection: 'merchants', where: Object.keys(where).length?where:undefined, limit: 5000, depth: 2, overrideAccess: true, pagination: false } as any)).docs as unknown as Record<string, any>[]
-        let filteredAll = allDocsForSearch.filter((m)=>{
-          const rawVendor = (m as any).vendor
-          const vendorObj = rawVendor && typeof rawVendor==='object' ? rawVendor as Record<string, unknown> : null
-          const vendorId = vendorObj ? String((vendorObj as any).id ?? '') : String(rawVendor ?? '')
-          const vendorDoc = vendorId ? vendorMap.get(vendorId) : null
-          const directMatch = String(m.outletName||'').toLowerCase().includes(search.toLowerCase()) || String(m.outletCode||'').toLowerCase().includes(search.toLowerCase())
-          const vendorMatch = vendorDoc ? `${vendorDoc.businessName||''} ${vendorDoc.legalName||''}`.toLowerCase().includes(search.toLowerCase()) : false
-          return directMatch || vendorMatch
-        })
-        // Apply verification/businessType post-filter again
-        if(verificationCsv.length || businessTypeCsv.length){
-          filteredAll = filteredAll.filter((m)=>{
-            const rawVendor = (m as any).vendor
-            const vendorObj = rawVendor && typeof rawVendor==='object' ? rawVendor as Record<string, unknown> : null
-            const vendorId = vendorObj ? String((vendorObj as any).id ?? '') : String(rawVendor ?? '')
-            const vendorDoc = vendorId ? vendorMap.get(vendorId) : null
-            if(!vendorDoc) return false
-            if(verificationCsv.length && !verificationCsv.includes(String(vendorDoc.verificationStatus||'').toLowerCase())) return false
-            if(businessTypeCsv.length && !businessTypeCsv.includes(String(vendorDoc.businessType||'').toLowerCase())) return false
-            return true
-          })
-        }
-        // Re-sort and paginate
-        // sort handling simplified: -createdAt
-        filteredAll.sort((a:any,b:any)=> String(b.createdAt||'').localeCompare(String(a.createdAt||'')))
-        const start = (page-1)*limit
-        docsRaw = filteredAll.slice(start, start+limit)
-        // Override pagination totalDocs to reflect filtered total
-        ;(paginated as any).totalDocs = filteredAll.length
-        ;(paginated as any).totalPages = Math.ceil(filteredAll.length/limit)
-        ;(paginated as any).hasNextPage = page < (paginated as any).totalPages
-        ;(paginated as any).hasPrevPage = page > 1
-      }
-    }
 
-    const docs = docsRaw.map(sanitizeMerchantDoc)
+    const docs = enrichedRaw.map(sanitizeMerchantDoc)
 
-    // Stats are exact totals from count queries, not capped document arrays.
-    const totalMerchants = merchantStats[0].totalDocs || 0
-    const activeCount = merchantStats[1].totalDocs || 0
-    const acceptingCount = merchantStats[2].totalDocs || 0
+    // Stats are exact totals from count queries + SQL GROUP BY, not capped arrays.
+    const totalMerchants = mTotal.totalDocs || 0
+    const activeCount = mActive.totalDocs || 0
+    const acceptingCount = mAccepting.totalDocs || 0
     const operationalBreakdown: Record<string, number> = {}
-    Array.from(OPERATIONAL_STATUSES).forEach((status, index) => {
-      operationalBreakdown[status] = merchantStats[index + 3].totalDocs || 0
-    })
-    const totalVendors = vendorStats[0].totalDocs || 0
-    const activeVendors = vendorStats[1].totalDocs || 0
+    for (const s of OPERATIONAL_STATUSES) operationalBreakdown[s] = 0
+    for (const r of opRows) operationalBreakdown[String((r as Record<string, unknown>).s ?? '')] = Number((r as Record<string, unknown>).c ?? 0)
+    const totalVendors = vTotal.totalDocs || 0
+    const activeVendors = vActive.totalDocs || 0
 
     const response = {
       docs,
@@ -270,13 +294,11 @@ export async function GET(request: NextRequest) {
       },
       meta: { generatedAt: new Date().toISOString(), sort, search }
     }
-    await setCached(cacheKey, response, 20)
-    return NextResponse.json(response, { headers: { 'X-Merchants-Cache': 'MISS' } })
-    }catch(err:any){
-      console.error('[admin/merchants] GET error:', err)
-      return NextResponse.json({ error: err?.message || 'Failed to load merchants' }, { status: 500 })
-    }
-  })
+    return response
+  } catch (err: unknown) {
+    console.error('[admin/merchants] list build error:', err)
+    throw err
+  }
 }
 
 export async function POST(request: NextRequest){
@@ -389,7 +411,7 @@ export async function POST(request: NextRequest){
     }
     const sanitized = sanitizeMerchantDoc(created)
     // Bust list cache (all admins / query variants) so the new outlet shows immediately
-    await deleteCachedByPrefix('admin:merchants:')
+    await bustMerchantsCache()
     return NextResponse.json({ success: true, message: 'Merchant created successfully', doc: sanitized }, { status: 201 })
   }catch(err:any){
     console.error('[admin/merchants] POST error:', err)

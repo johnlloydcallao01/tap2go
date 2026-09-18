@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
-import { bustDashboardCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustDashboardCache, bustReportsCache } from '../utils/dashboardCache'
 
 export const Customers: CollectionConfig = {
   slug: 'customers',
@@ -23,7 +23,7 @@ export const Customers: CollectionConfig = {
           })
         }
         try {
-          await bustDashboardCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache()
         } catch {
           // ignore
         }
@@ -33,7 +33,7 @@ export const Customers: CollectionConfig = {
     afterDelete: [
       async () => {
         try {
-          await bustDashboardCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache()
         } catch {
           // ignore
         }
@@ -162,5 +162,9 @@ export const Customers: CollectionConfig = {
       },
     },
 
+  ],
+  indexes: [
+    // Customers list level filter + breakdown
+    { fields: ['currentLevel'] },
   ],
 }

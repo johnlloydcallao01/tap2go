@@ -168,8 +168,8 @@ function OrdersPageContent() {
     p.set('sort', sort)
     if (debouncedQ) p.set('search', debouncedQ)
     if (statusFilter.length) p.set('status', statusFilter.join(','))
-    if (fulfillmentFilter.length) p.set('fulfillmentType', fulfillmentFilter.join(','))
-    if (deliveryStatusFilter.length) p.set('deliveryStatus', deliveryStatusFilter.join(','))
+    if (fulfillmentFilter.length) p.set('fulfillment_type', fulfillmentFilter.join(','))
+    if (deliveryStatusFilter.length) p.set('delivery_status', deliveryStatusFilter.join(','))
     return p.toString()
   }, [page, limit, sort, debouncedQ, statusFilter, fulfillmentFilter, deliveryStatusFilter])
 

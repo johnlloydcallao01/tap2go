@@ -33,6 +33,18 @@ async function fetchReportsCatalog(range: string, signal?: AbortSignal): Promise
   return res.json() as Promise<ReportsCatalogGroup>;
 }
 
+export interface ReportsOverviewData {
+  summary: ReportsSummaryGroup;
+  financial: ReportsFinancialGroup;
+  catalog: ReportsCatalogGroup;
+}
+
+async function fetchReportsOverview(range: string, signal?: AbortSignal): Promise<ReportsOverviewData> {
+  const res = await fetch(`/api/reports/overview?range=${range}`, { signal });
+  if (!res.ok) throw new Error('Failed to load reports overview');
+  return res.json() as Promise<ReportsOverviewData>;
+}
+
 /**
  * Reports query — 3-min instant-back.
  * Range changes keep previous slice via placeholderData while refetching.
@@ -83,5 +95,20 @@ export function useReportsCatalog(range: string) {
     placeholderData: keepPreviousData,
     ...SHARED_QUERY_DEFAULTS,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Deduped reports overview — single BFF call replacing 3-way
+ * summary/financial/catalog fan-out (was 15 finds + 3 auth, ~41k docs JS-aggregated).
+ * Same range, same shapes sliced from one CMS buildReportsOverview().
+ */
+export function useReportsOverview(range: string) {
+  return useQuery({
+    queryKey: QUERY_KEYS.adminReportsOverview(range),
+    queryFn: ({ signal }) => fetchReportsOverview(range, signal),
+    placeholderData: keepPreviousData,
+    ...SHARED_QUERY_DEFAULTS,
+    staleTime: 60 * 1000,
   });
 }

@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { adminOnly } from '../access'
+import { bustCustomersCache } from '../utils/dashboardCache'
 
 export const EmergencyContacts: CollectionConfig = {
   slug: 'emergency-contacts',
@@ -90,4 +91,29 @@ export const EmergencyContacts: CollectionConfig = {
       },
     },
   ],
+  indexes: [
+    // Emergency-contacts list filters
+    { fields: ['relationship'] },
+    { fields: ['isPrimary'] },
+  ],
+  hooks: {
+    afterChange: [
+      async () => {
+        try {
+          await bustCustomersCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCustomersCache()
+        } catch {
+          // ignore
+        }
+      },
+    ],
+  },
 }

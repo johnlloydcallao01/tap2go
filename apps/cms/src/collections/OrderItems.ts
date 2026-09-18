@@ -2,6 +2,7 @@ import type { CollectionConfig, Where } from 'payload'
 import { extractRelationshipId } from '../services/modifierUtils'
 import { normalizeOrderItemOptionsSnapshot } from '../services/orderItemSnapshot'
 import { validateOrderItemSnapshot } from '../services/orderItemValidation'
+import { bustOrderItemsCache, bustOrdersCache } from '../utils/dashboardCache'
 
 export const OrderItems: CollectionConfig = {
   slug: 'order-items',
@@ -173,6 +174,26 @@ export const OrderItems: CollectionConfig = {
         }
 
         return data
+      },
+    ],
+    afterChange: [
+      async () => {
+        try {
+          await bustOrderItemsCache()
+          await bustOrdersCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustOrderItemsCache()
+          await bustOrdersCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },

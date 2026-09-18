@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached } from '@encreasl/cache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard } from '@/utils/dashboardCache'
 
 type ActivityKey = 'wishlists' | 'carts' | 'searches' | 'views'
 
@@ -94,9 +95,25 @@ export async function GET(request: NextRequest, context: { params: Promise<{ act
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=20'
-    const cacheKey = `admin:customer-activity:${activity}:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-CustomerActivity-Cache': 'HIT' } })
+    const cacheKey = `admin:customer-activity:v1:${activity}:${cacheQuery}`
+    const { data, status } = await getOrBuildDashboard(cacheKey, 60, () =>
+      withAdminRequestSlot(() => buildCustomerActivity(payload, activity, searchParams)),
+    )
+    return NextResponse.json(data, { headers: { 'X-CustomerActivity-Cache': status } })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to load customer activity'
+    console.error('[admin/customer-activity] GET error:', error)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+async function buildCustomerActivity(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  activity: ActivityKey,
+  searchParams: URLSearchParams,
+) {
+  try {
+    const definition = CONFIG[activity]
 
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
@@ -113,7 +130,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ act
       page,
       limit,
       sort,
-      depth: 3,
+      depth: 2,
       overrideAccess: true,
     })
     const docs = (result.docs as unknown as Record<string, any>[]).map((doc) => sanitize(doc, activity))
@@ -123,10 +140,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ act
       stats: { total: result.totalDocs, returned: docs.length },
       meta: { activity, title: definition.title, search, sort, generatedAt: new Date().toISOString() },
     }
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-CustomerActivity-Cache': 'MISS' } })
-  } catch (error: any) {
-    console.error('[admin/customer-activity] GET error:', error)
-    return NextResponse.json({ error: error?.message || 'Failed to load customer activity' }, { status: 500 })
+    return responseBody
+  } catch (error: unknown) {
+    console.error('[admin/customer-activity] list build error:', error)
+    throw error
   }
 }
