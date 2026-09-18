@@ -140,7 +140,10 @@ async function buildMerchantsList(payload: Payload, searchParams: URLSearchParam
     }
     if(isActiveFilter!==null) where.isActive = { equals: isActiveFilter }
     if(isAcceptingFilter!==null) where.isAcceptingOrders = { equals: isAcceptingFilter }
-    if(operationalCsv.length) where.operationalStatus = { in: operationalCsv.filter(v=>OPERATIONAL_STATUSES.has(v)) }
+    if (operationalCsv.length) {
+      const filtered = operationalCsv.filter((v) => OPERATIONAL_STATUSES.has(v))
+      if (filtered.length) where.operationalStatus = { in: filtered }
+    }
     if(vendorIdFilter && !Number.isNaN(vendorIdFilter)) where.vendor = { equals: vendorIdFilter }
 
     const finalWhere = and.length ? { and: [...and, where] } : where
@@ -181,21 +184,26 @@ async function buildMerchantsList(payload: Payload, searchParams: URLSearchParam
       )
       vendorSearchIds = sRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
     }
-    const effectiveWhere = (() => {
-      const base = Object.keys(finalWhere).length ? finalWhere : undefined
-      const extraAnd: unknown[] = []
-      if (vendorConstrainedIds !== null) {
-        if (!vendorConstrainedIds.length) return { __empty: true } as unknown as typeof finalWhere
-        extraAnd.push({ vendor: { in: vendorConstrainedIds } })
+    // Emptiness is an explicit flag — never a Where property, never read off
+    // a possibly-undefined object. `undefined` where = match-all (Payload canonical).
+    // Order matters: OR the vendor-name matches with direct matches first,
+    // then AND the verification/businessType vendor constraint over the union.
+    let isEmpty = false
+    let effectiveWhere: Record<string, unknown> | undefined =
+      Object.keys(finalWhere).length ? (finalWhere as Record<string, unknown>) : undefined
+    if (search && vendorSearchIds.length) {
+      const vendorMatch = { vendor: { in: vendorSearchIds } }
+      effectiveWhere = effectiveWhere ? { or: [effectiveWhere, vendorMatch] } : vendorMatch
+    }
+    if (vendorConstrainedIds !== null) {
+      if (!vendorConstrainedIds.length) {
+        isEmpty = true
+      } else {
+        const vendorClause = { vendor: { in: vendorConstrainedIds } }
+        effectiveWhere = effectiveWhere ? { and: [effectiveWhere, vendorClause] } : vendorClause
       }
-      if (search && vendorSearchIds.length) {
-        // Direct matches (finalWhere) OR vendor-matched merchants, plus AND-ed direct filters.
-        return { or: [base ?? {}, { vendor: { in: vendorSearchIds } }], and: extraAnd } as unknown as typeof finalWhere
-      }
-      if (!extraAnd.length) return base
-      return { and: [base ?? {}, ...extraAnd] } as unknown as typeof finalWhere
-    })()
-    if ((effectiveWhere as Record<string, unknown>).__empty) {
+    }
+    if (isEmpty) {
       const [mTotal, mActive, mAccepting, opRows, vTotal, vActive] = await Promise.all([
         payload.count({ collection: 'merchants', overrideAccess: true, context: skipCtx }),
         payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
