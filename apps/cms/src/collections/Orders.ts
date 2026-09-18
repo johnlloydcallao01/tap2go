@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout, createMerchantNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
+import { bustDashboardCache } from '../utils/dashboardCache'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -163,7 +164,23 @@ export const Orders: CollectionConfig = {
         } catch (error) {
           console.error('[orders] afterChange notification error:', error)
         }
+        // Write-through: dashboard aggregates read orders counts/status/top lists.
+        // Best-effort bust (L1 sync + Redis background); TTL is fallback.
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore cache bust failures
+        }
         return doc
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },
@@ -186,6 +203,11 @@ export const Orders: CollectionConfig = {
       return user?.role === 'service' || user?.role === 'admin' || false
     },
   },
+  indexes: [
+    // Dashboard charts/tables: GROUP BY status, ORDER BY createdAt, GROUP BY merchant
+    { fields: ['status', 'createdAt'] },
+    { fields: ['merchant', 'createdAt'] },
+  ],
   fields: [
     {
       name: 'customer',

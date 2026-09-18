@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@encreasl/client-services';
-import { useDashboardMetrics, useDashboardCharts, useDashboardTables } from '@/hooks/useDashboard';
+import { useDashboardOverview } from '@/hooks/useDashboard';
 import { ClientOnly } from '@/components/ClientOnly';
 import {
   MetricCard,
@@ -149,36 +149,25 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 function DashboardPageContent() {
   const queryClient = useQueryClient();
   const [hardRefreshing, setHardRefreshing] = useState(false);
-  // Three independent queries under the same dashboard/ directory — they fetch
-  // in parallel and each section renders as soon as its own group resolves.
-  const metricsQuery = useDashboardMetrics();
-  const chartsQuery = useDashboardCharts();
-  const tablesQuery = useDashboardTables();
+  // Single deduped overview fetch: 1 browser -> 1 BFF -> 1 CMS overview
+  // (was 3 parallel metrics/charts/tables -> 14 finds + 3 auth).
+  const overviewQuery = useDashboardOverview();
 
-  const isFetching = metricsQuery.isFetching || chartsQuery.isFetching || tablesQuery.isFetching;
-  const allLoading =
-    (metricsQuery.isLoading && !metricsQuery.data) &&
-    (chartsQuery.isLoading && !chartsQuery.data) &&
-    (tablesQuery.isLoading && !tablesQuery.data);
-  const allErrored =
-    metricsQuery.isError && !metricsQuery.data &&
-    chartsQuery.isError && !chartsQuery.data &&
-    tablesQuery.isError && !tablesQuery.data;
+  const isFetching = overviewQuery.isFetching;
+  const allLoading = overviewQuery.isLoading && !overviewQuery.data;
+  const allErrored = overviewQuery.isError && !overviewQuery.data;
 
   const handleHardRefresh = () => {
     if (hardRefreshing) return;
     setHardRefreshing(true);
     void (async () => {
       try {
+        queryClient.removeQueries({ queryKey: QUERY_KEYS.adminDashboardOverview });
         queryClient.removeQueries({ queryKey: QUERY_KEYS.adminDashboardMetrics });
         queryClient.removeQueries({ queryKey: QUERY_KEYS.adminDashboardCharts });
         queryClient.removeQueries({ queryKey: QUERY_KEYS.adminDashboardTables });
         queryClient.removeQueries({ queryKey: QUERY_KEYS.adminDashboard });
-        await Promise.all([
-          metricsQuery.refetch({ cancelRefetch: true }),
-          chartsQuery.refetch({ cancelRefetch: true }),
-          tablesQuery.refetch({ cancelRefetch: true }),
-        ]);
+        await overviewQuery.refetch({ cancelRefetch: true });
       } finally {
         setHardRefreshing(false);
       }
@@ -200,12 +189,12 @@ function DashboardPageContent() {
     return <DashboardSkeleton />;
   }
 
-  const metrics = metricsQuery.data?.metrics;
-  const revenueChart = chartsQuery.data?.revenueChart;
-  const orderStatusChart = chartsQuery.data?.orderStatusChart;
-  const topMerchants = chartsQuery.data?.topMerchants;
-  const topVendors = tablesQuery.data?.topVendors;
-  const recentOrders = tablesQuery.data?.recentOrders;
+  const metrics = overviewQuery.data?.metrics;
+  const revenueChart = overviewQuery.data?.revenueChart;
+  const orderStatusChart = overviewQuery.data?.orderStatusChart;
+  const topMerchants = overviewQuery.data?.topMerchants;
+  const topVendors = overviewQuery.data?.topVendors;
+  const recentOrders = overviewQuery.data?.recentOrders;
 
   return (
     <div className="space-y-6 py-5 px-2.5">
@@ -253,10 +242,10 @@ function DashboardPageContent() {
             iconBg="bg-purple-500"
           />
         </div>
-      ) : metricsQuery.isError ? (
+      ) : overviewQuery.isError ? (
         <SectionError
-          message={metricsQuery.error instanceof Error ? metricsQuery.error.message : 'Failed to load metrics'}
-          onRetry={() => void metricsQuery.refetch({ cancelRefetch: true })}
+          message={overviewQuery.error instanceof Error ? overviewQuery.error.message : 'Failed to load metrics'}
+          onRetry={() => void overviewQuery.refetch({ cancelRefetch: true })}
         />
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 [&>:last-child:nth-child(odd)]:col-span-full md:[&>:last-child:nth-child(odd)]:col-span-1">
@@ -283,10 +272,10 @@ function DashboardPageContent() {
           {/* Top Merchants Chart */}
           <TopMerchantsChart data={topMerchants} />
         </>
-      ) : chartsQuery.isError ? (
+      ) : overviewQuery.isError ? (
         <SectionError
-          message={chartsQuery.error instanceof Error ? chartsQuery.error.message : 'Failed to load charts'}
-          onRetry={() => void chartsQuery.refetch({ cancelRefetch: true })}
+          message={overviewQuery.error instanceof Error ? overviewQuery.error.message : 'Failed to load charts'}
+          onRetry={() => void overviewQuery.refetch({ cancelRefetch: true })}
         />
       ) : (
         <>
@@ -308,10 +297,10 @@ function DashboardPageContent() {
             <TopVendorsTable vendors={topVendors} />
           </div>
         </div>
-      ) : tablesQuery.isError ? (
+      ) : overviewQuery.isError ? (
         <SectionError
-          message={tablesQuery.error instanceof Error ? tablesQuery.error.message : 'Failed to load tables'}
-          onRetry={() => void tablesQuery.refetch({ cancelRefetch: true })}
+          message={overviewQuery.error instanceof Error ? overviewQuery.error.message : 'Failed to load tables'}
+          onRetry={() => void overviewQuery.refetch({ cancelRefetch: true })}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

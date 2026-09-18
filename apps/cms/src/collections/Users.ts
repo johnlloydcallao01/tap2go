@@ -114,7 +114,10 @@ export const Users: CollectionConfig = {
       },
     ],
   },
-
+  indexes: [
+    // Notification fanout: WHERE role='admin' on every order/transaction write
+    { fields: ['role'] },
+  ],
   fields: [
     // Email and password are added automatically by auth: true
     {

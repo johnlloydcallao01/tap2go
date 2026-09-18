@@ -4,6 +4,7 @@
  */
 export const QUERY_KEYS = {
   adminDashboard: ['admin', 'dashboard', 'overview'] as const,
+  adminDashboardOverview: ['admin', 'dashboard', 'overview', 'v1'] as const,
   adminDashboardMetrics: ['admin', 'dashboard', 'overview', 'metrics'] as const,
   adminDashboardCharts: ['admin', 'dashboard', 'overview', 'charts'] as const,
   adminDashboardTables: ['admin', 'dashboard', 'overview', 'tables'] as const,

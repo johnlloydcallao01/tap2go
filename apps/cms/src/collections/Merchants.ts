@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
+import { bustDashboardCache } from '../utils/dashboardCache'
 
 export const Merchants: CollectionConfig = {
   slug: 'merchants',
@@ -585,6 +586,9 @@ export const Merchants: CollectionConfig = {
       fields: ['outletCode'],
     },
     {
+      fields: ['isActive'],
+    },
+    {
       fields: ['isActive', 'isAcceptingOrders'],
     },
     {
@@ -618,11 +622,29 @@ export const Merchants: CollectionConfig = {
             metadata: { merchantId: doc.id, vendor: doc.vendor, outletCode: doc.outletCode },
           })
         }
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore
+        }
         return doc
       },
     ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore
+        }
+      },
+    ],
     afterRead: [
-      ({ doc }) => {
+      ({ doc, req }) => {
+        // Dashboard aggregations pass context.skipStoreHours to avoid up to
+        // 11520 isStoreOpen loops per doc x1000 on raw overview reads.
+        const reqCtx = (req as unknown as { context?: Record<string, unknown> })?.context
+        if (reqCtx?.skipStoreHours) return doc
         const storeHoursStatus = getStoreHoursStatus(doc as Record<string, unknown>)
         return { ...doc, isOpenNow: storeHoursStatus.isOpen, storeHoursStatus, nextOpeningAt: storeHoursStatus.nextOpeningAt ?? null }
       },

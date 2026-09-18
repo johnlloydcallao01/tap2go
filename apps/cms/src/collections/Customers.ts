@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
+import { bustDashboardCache } from '../utils/dashboardCache'
 
 export const Customers: CollectionConfig = {
   slug: 'customers',
@@ -21,7 +22,21 @@ export const Customers: CollectionConfig = {
             metadata: { customerId: doc.id, userId: doc.user },
           })
         }
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore
+        }
         return doc
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore
+        }
       },
     ],
     beforeChange: [

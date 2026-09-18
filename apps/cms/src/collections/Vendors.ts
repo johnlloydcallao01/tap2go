@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { validateStoreHoursFields } from '@/utils/storeHours'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
+import { bustDashboardCache } from '../utils/dashboardCache'
 
 export const Vendors: CollectionConfig = {
   slug: 'vendors',
@@ -306,7 +307,21 @@ export const Vendors: CollectionConfig = {
             metadata: { vendorId: doc.id, verificationStatus: doc.verificationStatus },
           })
         }
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore
+        }
         return doc
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustDashboardCache()
+        } catch {
+          // ignore
+        }
       },
     ],
     beforeValidate: [

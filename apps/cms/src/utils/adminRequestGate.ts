@@ -1,4 +1,4 @@
-const MAX_CONCURRENT_ADMIN_REQUESTS = 2
+const MAX_CONCURRENT_ADMIN_REQUESTS = 8
 
 let activeRequests = 0
 const waiters: Array<() => void> = []

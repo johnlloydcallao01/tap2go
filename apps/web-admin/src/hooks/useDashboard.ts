@@ -27,6 +27,14 @@ export interface DashboardTablesGroup {
   recentOrders: RecentOrder[];
 }
 
+export type DashboardOverview = DashboardMetricsGroup & DashboardChartsGroup & DashboardTablesGroup;
+
+async function fetchDashboardOverview(signal?: AbortSignal): Promise<DashboardOverview> {
+  const res = await fetch('/api/dashboard/overview', { signal });
+  if (!res.ok) throw new Error('Failed to load dashboard overview');
+  return res.json() as Promise<DashboardOverview>;
+}
+
 async function fetchDashboard(signal?: AbortSignal): Promise<DashboardData> {
   const res = await fetch('/api/dashboard', { signal });
   if (!res.ok) throw new Error('Failed to load dashboard');
@@ -96,6 +104,20 @@ export function useDashboardTables() {
   return useQuery({
     queryKey: QUERY_KEYS.adminDashboardTables,
     queryFn: ({ signal }) => fetchDashboardTables(signal),
+    ...SHARED_QUERY_DEFAULTS,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Deduped overview query — single BFF call replacing 3-way fan-out.
+ * 1 browser fetch -> 1 BFF -> 1 CMS overview (counts + SQL aggregates).
+ * Preferred for /dashboard/overview cold loads.
+ */
+export function useDashboardOverview() {
+  return useQuery({
+    queryKey: QUERY_KEYS.adminDashboardOverview,
+    queryFn: ({ signal }) => fetchDashboardOverview(signal),
     ...SHARED_QUERY_DEFAULTS,
     staleTime: 30 * 1000,
   });
