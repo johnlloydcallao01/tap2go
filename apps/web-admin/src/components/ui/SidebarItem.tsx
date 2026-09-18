@@ -14,15 +14,16 @@ import { getIcon } from '@/utils';
  * @param onClick - Optional click handler
  * @param href - Optional href for navigation
  */
-export function SidebarItem({ 
-  icon, 
-  label, 
-  active = false, 
-  collapsed = false, 
+export function SidebarItem({
+  icon,
+  label,
+  active = false,
+  collapsed = false,
   onClick,
   href,
-  badge = 0
-}: SidebarItemProps & { badge?: number }) {
+  badge = 0,
+  prefetch,
+}: SidebarItemProps & { badge?: number; prefetch?: boolean | 'auto' | null }) {
   const baseClasses = "relative w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors";
   const activeClasses = active
     ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
@@ -48,6 +49,7 @@ export function SidebarItem({
         href={href as Route}
         className={`${baseClasses} ${activeClasses}`}
         onClick={onClick}
+        prefetch={prefetch ?? undefined}
       >
         {content}
       </Link>

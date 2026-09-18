@@ -591,6 +591,14 @@ export const Merchants: CollectionConfig = {
     {
       fields: ['isActive', 'isAcceptingOrders'],
     },
+    // List filter+sort coverage: WHERE isActive/operationalStatus ORDER BY createdAt,
+    // and ORDER BY outletName (name sort). See performance.md §15.
+    {
+      fields: ['isActive', 'operationalStatus', 'createdAt'],
+    },
+    {
+      fields: ['outletName'],
+    },
     {
       fields: ['operationalStatus'],
     },

@@ -145,6 +145,20 @@ Use for analytics, reports, payouts, merchant dashboard, any `limit:1000 + JS ag
 
 ---
 
+## 4b. Conditional extras — entity-list pages (`/merchants`-kind) vs aggregate pages (`/dashboard/overview`-kind)
+
+Steps 1–8 above are always required. Steps below apply **only** when the page hydrates real entity rows (table/pagination: merchants, vendors, products, orders, customers lists). They do **not** apply to aggregate pages (`/dashboard/overview` returns ~60 precomputed numbers with zero doc hydration — there is nothing per-row to trim, paginate, or search).
+
+For first-visit raw speed (cache gives nothing), ranked by impact:
+
+1. **Kill per-row CPU the table never displays.** Example: list `sanitizeMerchantDoc` ran `getStoreHoursStatus` (up to 11,520 `isStoreOpen` loops/doc) yet the table shows only the `operationalStatus` badge (`page.tsx` + `useMerchants` type read none of `isOpenNow/storeHoursStatus/nextOpeningAt`; pickers neither). Fix: drop the call + output keys from list sanitize, keep them on `[id]` detail (or precompute at write time into columns). Verify zero readers via Grep before deleting.
+2. **Narrow the page query.** Paginated `find` with `select:` of only consumed fields (verify each key against sanitize + page reads; relations in `select` stay populated per `depth`); `depth:2` only if a nested relation is actually rendered (e.g. vendor `logo` stays an ID at `depth:1` — then depth:2 replaces a second re-fetch, else keep `depth:1`); delete redundant re-fetch/merge blocks; add composite `(filter…, sort)` + sort-column indexes via migration.
+3. **First paint carries real rows.** Restore `prefetch` prop passthrough (`LinkWrapper` drops it from types although runtime forwards via `...props`); set `prefetch` on the sidebar entry; replace barrel `IconWrapper` (`import *`) with direct `lucide-react` imports on the page (wrapper only forwards props — identical rendering); server-prefetch the default qs (`page=1&limit=10&sort=…`) into a dehydrated `QUERY_KEYS` cache in a server `page.tsx` wrapper, keeping `ClientOnly` + #441 guards and CSR filters, with empty-cache fallback to client fetch.
+4. **Index-backed search.** `%ILIKE%` scans need `pg_trgm` (`CREATE EXTENSION IF NOT EXISTS pg_trgm` + `USING gin (… gin_trgm_ops)`); Payload/Drizzle can't generate these — hand-write the migration per `database-modification-guide.md` Example 2, register in `migrations/index.ts`, review + `migrate --force` + `migrate:status`. Keep `LIMIT 200/500` pushdown. Dedicated search engine is overkill until typo-tolerance/cross-entity relevance is required.
+5. **Cached stats rollup.** Move unfiltered totals into a global `admin:<ns>:stats:v1` TTL-300 builder (`getOrBuildDashboard`, gate-inside); list MISS becomes paginated `find` + one rollup HIT; filtered `totalDocs` stays exact from `paginated`. Covered by existing prefix busts — no new bust function.
+
+---
+
 ## 5. Verification record
 
 - `pnpm exec tsc --noEmit` CMS + web-admin: clean
@@ -232,6 +246,19 @@ After: list keeps paginated `find` (correct) + counts/SQL sidecars; detail + pea
 
 ---
 
+## 15. Merchants cold-speed pass (first-visit raw speed, 2026-09-18)
+
+Cache helps only revisits. These five cut the cold MISS itself (ranked by impact):
+
+- **Item 1 — no per-row store-hours on list.** `merchants/route.ts sanitizeMerchantDoc` no longer calls `getStoreHoursStatus` (up to 11,520 `isStoreOpen` loops/doc) nor returns `isOpenNow/storeHoursStatus/nextOpeningAt`. Verified zero readers in list table, `useMerchants` type, and all picker consumers (`OrderForm`, `CouponForm`, `MerchantProductForm`, vendor pages); detail `[id]`, vendor outlets, storefront, and mobile keep them.
+- **Item 2 — narrow page query.** Paginated `find` is now `depth:2` (vendor `logo`/media populated in-trip) + `select:` dropping unread heavy blobs (`operatingHours`, `specialHours`, `delivery_hours`, geometries, coordinates, interior/menu images); the second `vendors IN (pageIds)` find + merge block is deleted. New composite `isActive_operationalStatus_createdAt_idx` + `outletName_idx` via migration `20260918_141028.ts` (index-only, 391ms, status Yes Batch 42).
+- **Item 5 — stats rollup split.** New global `admin:merchants:stats:v1` TTL-300 builder (`getMerchantStats()`); list MISS is now paginated `find` + one rollup HIT instead of 5 counts + `GROUP BY` per qs.
+- **Item 4 — trigram search.** Manual migration `20260918_143000_merchants_vendors_trgm.ts` (`CREATE EXTENSION IF NOT EXISTS pg_trgm` + GIN `gin_trgm_ops` on `merchants(outlet_name,outlet_code)`, `vendors(business_name,legal_name)`; registered in `migrations/index.ts`, 1061ms, status Yes Batch 43). Payload/Drizzle can't generate these — hand-written per `database-modification-guide.md` Example 2.
+- **Item 3 — first render.** `LinkWrapper` accepts `prefetch` again (runtime already forwarded it); sidebar `All Merchants` link prefetches; merchants page icons import directly from `lucide-react` (wrapper only forwards props, identical rendering; drops the `import *` barrel from the chunk). First rows: `merchants/page.tsx` is now a server wrapper prefetching default `page=1&limit=10&sort=-createdAt` into a dehydrated `QUERY_KEYS.adminMerchants` cache — cold open paints real rows on first client commit; `ClientOnly` + #441 guards preserved, filters stay CSR, empty-cache fallback is the old client fetch.
+- **Verify:** `tsc` CMS + web-admin clean, `eslint` clean, `migrate:status` all `Yes`, no `migrate:fresh`. Retest cold load empty-cache: expect cover → shell → real rows, no blank stage.
+
+---
+
 ## 11. Products/Catalog application (`/products`, `/catalog/*`, 2026-09-18)
 
 Same principles, list-sidecar variant (displays already paginated; stats hydration was the blowup; no fan-out to dedupe — each list is already a single query). Before: every list did paginated `find depth:1/2` + unbounded stats `find limit:2000 depth:0` (+ `products 5000` for categories, 2× `2000` + re-fetch for terms/values) with JS `filter/Map` breakdowns; `merchant-products` filtered path hydrated 11k docs (`vendors/merchants/merchant-products/products 2000/2000/5000/2000`) + N+1 per-vendor counts unfiltered; per-admin raw-qs keys TTL 20, gate-outside (products) or no gate (merchant-products, all catalog); no L1/singleflight; prefix-SCAN bust only.
@@ -274,4 +301,38 @@ After: same single queries, global keys, gate-inside, SQL stats + id sets.
 - **Write-through:** `dashboardCache.ts` new `bustCustomersCache()` (all four customer-domain prefixes L1+Redis); `Customers` hooks extend to it; `Addresses` afterChange (sync-safe `void …catch`) + afterDelete; `EmergencyContacts` new `afterChange+afterDelete`. Dynamic import only in collections.
 - **BFF:** lists add 20s timeout (addresses/emergency) + `Cache-Control` (all four); details forward `X-*-Cache`. Frontend unchanged (lists already single `useQuery`; details direct-fetch now HIT-cached).
 - **Verify:** `tsc` CMS + web-admin clean, `eslint` clean, `migrate:status` 5× `Yes`, no `migrate:fresh`.
+
+---
+
+## 14. First-paint fix (`/dashboard/overview` blank before skeleton, 2026-09-18)
+
+Same principles applied to rendering: never serve blank. Before: cold open showed blank tab → gradient cover → blank/`Checking…` → skeleton. Causes: RootLayout awaited CMS `users/me` before streaming any byte (up to 10s); `(main)/layout` `Suspense fallback={null}` swallowed the skeleton on prerender (`useSearchParams` suspend); `ProtectedRoute` returned literal `null`; skeleton is pure Tailwind (invisible pre-CSS); Font-Awesome CDN link render-blocked first paint.
+
+After (`apps/web-admin/src/app/layout.tsx`, `app/(main)/layout.tsx`):
+- RootLayout is sync; session resolves in `ProvidersWithSession` (async, `Promise.all(user, token)`) inside `Suspense` — static shell streams on first byte, auth fills in when ready. Client revalidation on null seed unchanged.
+- New `AdminShellFallback` (inline styles only, no hooks/Tailwind) used as `Suspense` fallback AND `ProtectedRoute` fallback — first paint is always a shell, never blank/null.
+- FA stylesheet loaded via `FontAwesomeLoader` client component (DOM-injected on mount, never render-blocking; `noscript` fallback). NOTE: a `media="print"` + `onLoad` link was tried first and reverted — event handlers are illegal on `<link>` in Server Components (500 on every route).
+- **Verify:** `tsc` + `eslint` clean. Retest cold load with empty cache + throttled network; back-nav unaffected.
+
+---
+
+## 16. Products cold-speed pass (first-visit raw speed, 2026-09-18)
+
+§4b items 2–5 applied to `/products` (vendor-grouped `merchant-products` landing + master `products` list). Item 1 N/A — products have no per-row CPU loop (modifier-preview resolver already bypassed via `skipEffectiveModifierPreview`); verified via agents.
+
+- **Item 2 — narrow page query.** Master list `depth:2` → `depth:1` (categories/vendor/media resolve at depth 1; depth 2 only re-hydrated nested uploads) + `select:` dropping `description` richtext + `parentProduct` (agent-verified unread in table, detail, forms, pickers; detail `[id]` keeps full fetch). Merchant-products bounded hydration kept (page vendors → merchants → mps → products).
+- **Item 5 — stats rollup split.** New globals `admin:products:stats:v1` + `admin:merchant-products:stats:v1` TTL-300 (`getProductsStats()`, `getMerchantProductStats()`); list MISS is now paginated `find` + one rollup HIT. Shapes identical; busts already covered by `bustProductsCache()` (both prefixes).
+- **Item 4 — trigram search.** Manual migration `20260918_144500_products_trgm.ts` (`pg_trgm` + GIN on `products(name,slug,sku,short_description)`; registered in `migrations/index.ts`, 791ms, status Yes Batch 44). Vendors/merchants names covered by `20260918_143000`. `LIMIT 200` pushdown kept.
+- **Item 3 — first render.** Products page icons import directly from `lucide-react` (drops 2 unused + the `import *` barrel; wrapper only forwards props); `SidebarItem` accepts `prefetch` (like `renderChildLink`), `Products` entry prefetches; `products/page.tsx` is now a server wrapper prefetching default `page=1&limit=10` into dehydrated `QUERY_KEYS.adminMerchantProducts` cache — cold open paints real rows on first commit. `ClientOnly` + #441 guards preserved, search/pagination stay CSR.
+- **Verify:** `tsc` CMS + web-admin clean, `eslint` clean, `migrate:status` all `Yes`, no `migrate:fresh`. Scales to thousands of products: vendor page + `COUNT DISTINCT` totals in SQL, bounded hydration per page, exact `filteredTotal` from `paginated.totalDocs`.
+
+---
+
+## 17. Products marketplace upgrades (`/products` vendor landing, 2026-09-18)
+
+Alibaba/Amazon patterns applied where they fit this stack (studied via agents + web research). Deliberately NOT built: dedicated search engine (overkill — trigram + pushdown suffice), denormalized matview (current SQL vendor page is the pragmatic equivalent at this scale), cursor pagination (would break numbered Prev/1..5/Next UI), ISR landing (per-admin token + `private` make it uncacheable at edge).
+
+- **Facets (additive, zero shape change).** Filtered branch runs 2 extra `GROUP BY` scans over the SAME matched-vendor set (`COUNT DISTINCT v.id` by `LOWER(business_type)` / `LOWER(verification_status)`, reusing `matchWhere` verbatim — self-contained, no extra JOINs). New `facets: { businessType[], verificationStatus[] }` key alongside `vendors/pagination/stats/meta` (absent on unfiltered loads); frontend ignores unknown keys by construction (selective destructuring, type assertion). Enables left-rail filter counts without new round-trips.
+- **Image variants.** `sanitizeMediaRef` now also returns `thumbUrl` (`/upload/w_80,q_auto,f_auto/` injected into Cloudinary fetch URLs; non-cloudinary/already-transformed/null pass through safely). Vendor avatar in `content.tsx` uses `next/image` (`40×40`, `sizes="40px"`, `loading="lazy"`, thumb preferred) — remote hosts already allowlisted in `next.config.ts`. Biggest LCP/bandwidth win on the page.
+- **Verify:** `tsc` CMS + web-admin clean, `eslint` clean, no new migration (code-only; trigram coverage from `20260918_143000` + `20260918_144500`). NOTE: `thumbUrl` must stay module-private in route files — Next.js route type-check rejects non-route exports.
 

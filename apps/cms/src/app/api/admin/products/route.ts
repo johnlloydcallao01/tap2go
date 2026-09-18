@@ -82,6 +82,43 @@ async function pRows(payload: Payload, query: string | SQL): Promise<Array<Recor
   return Array.isArray(result?.rows) ? result.rows : []
 }
 
+type ProductStats = {
+  total: number
+  simple: number
+  variable: number
+  grouped: number
+  activeCount: number
+}
+
+/**
+ * Global stats rollup — unfiltered platform totals shared by every list qs.
+ * Cached 300s (own key) so per-qs list MISSes don't recount; writes bust via
+ * bustProductsCache (prefix admin:products:). Filtered totals still come
+ * from paginated.totalDocs (exact). See performance.md §16.
+ */
+async function getProductsStats(payload: Payload): Promise<ProductStats> {
+  const { data } = await getOrBuildDashboard<ProductStats>(
+    'admin:products:stats:v1',
+    300,
+    async () => {
+      const rows = await pRows(payload, sql`SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE product_type='simple')::int AS simple,
+        COUNT(*) FILTER (WHERE product_type='variable')::int AS variable,
+        COUNT(*) FILTER (WHERE product_type='grouped')::int AS grouped,
+        COUNT(*) FILTER (WHERE is_active = true)::int AS active FROM products`)
+      const s = rows[0] ?? {}
+      return {
+        total: Number(s.total ?? 0),
+        simple: Number(s.simple ?? 0),
+        variable: Number(s.variable ?? 0),
+        grouped: Number(s.grouped ?? 0),
+        activeCount: Number(s.active ?? 0),
+      }
+    },
+  )
+  return data
+}
+
 async function buildProductsList(payload: Payload, searchParams: URLSearchParams) {
   try {
 
@@ -121,19 +158,40 @@ async function buildProductsList(payload: Payload, searchParams: URLSearchParams
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // Paginated display (correct) + SQL stats (no 2000-doc hydration).
-    const [paginated, statRows] = await Promise.all([
-      payload.find({ collection: 'products', where: Object.keys(finalWhere).length ? finalWhere : undefined, page, limit, sort, depth: 2, overrideAccess: true }),
-      pRows(payload, sql`SELECT COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE product_type='simple')::int AS simple,
-        COUNT(*) FILTER (WHERE product_type='variable')::int AS variable,
-        COUNT(*) FILTER (WHERE product_type='grouped')::int AS grouped,
-        COUNT(*) FILTER (WHERE is_active = true)::int AS active FROM products`),
+    // Paginated display + shared stats rollup in parallel.
+    const [paginated, stats] = await Promise.all([
+      payload.find({
+        collection: 'products',
+        where: Object.keys(finalWhere).length ? finalWhere : undefined,
+        page,
+        limit,
+        sort,
+        depth: 1,
+        overrideAccess: true,
+        select: {
+          name: true,
+          slug: true,
+          sku: true,
+          productType: true,
+          basePrice: true,
+          compareAtPrice: true,
+          isActive: true,
+          catalogVisibility: true,
+          categories: true,
+          media: true,
+          shortDescription: true,
+          createdByVendor: true,
+          createdByMerchant: true,
+          assign_to_all_vendor_merchants: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      getProductsStats(payload),
     ])
 
-    const stats = statRows[0] ?? {}
-    const total = Number(stats.total ?? 0)
-    const activeCount = Number(stats.active ?? 0)
+    const total = stats.total
+    const activeCount = stats.activeCount
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map(sanitizeDoc)
 
@@ -149,9 +207,9 @@ async function buildProductsList(payload: Payload, searchParams: URLSearchParams
       },
       stats: {
         total,
-        simple: Number(stats.simple ?? 0),
-        variable: Number(stats.variable ?? 0),
-        grouped: Number(stats.grouped ?? 0),
+        simple: stats.simple,
+        variable: stats.variable,
+        grouped: stats.grouped,
         activeCount,
         inactiveCount: total - activeCount,
         filteredCount: (paginated as any).totalDocs ?? docs.length,

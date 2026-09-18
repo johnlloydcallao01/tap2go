@@ -12,7 +12,7 @@ import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 import { getOrBuildDashboard, bustMerchantsCache } from '@/utils/dashboardCache'
-import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
+import { validateStoreHoursFields } from '@/utils/storeHours'
 import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -40,7 +40,10 @@ function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
   const mediaThumb = sanitizeMediaRef((raw.media as any)?.thumbnail)
   const mediaFront = sanitizeMediaRef((raw.media as any)?.storeFrontImage)
   const cats = Array.isArray(raw.merchant_categories) ? raw.merchant_categories.map((c:any)=> typeof c==='object'? { id: Number(c.id), name: str(c.name) } : { id: Number(c), name: String(c) }) : []
-  const storeHoursStatus = getStoreHoursStatus(raw)
+  // NOTE: no getStoreHoursStatus here — up to 11520 isStoreOpen loops per doc.
+  // The list table never renders isOpenNow/storeHoursStatus/nextOpeningAt
+  // (see web-admin merchants/page.tsx + useMerchants MerchantDoc type);
+  // detail GET [id] computes them for the single doc. See performance.md §10/§15.
   const addr = raw.activeAddress && typeof raw.activeAddress==='object' ? { id: Number((raw.activeAddress as any).id), formatted_address: str((raw.activeAddress as any).formatted_address) } : raw.activeAddress ? { id: Number(raw.activeAddress), formatted_address: '' } : null
   return {
     id: raw.id,
@@ -52,9 +55,6 @@ function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
     isActive: typeof raw.isActive==='boolean'?raw.isActive:true,
     isAcceptingOrders: typeof raw.isAcceptingOrders==='boolean'?raw.isAcceptingOrders:true,
     operationalStatus: str(raw.operationalStatus,'open'),
-    isOpenNow: storeHoursStatus.isOpen,
-    storeHoursStatus,
-    nextOpeningAt: storeHoursStatus.nextOpeningAt ?? null,
     operatingHours: raw.operatingHours ?? null,
     deliverySettings: raw.deliverySettings ?? null,
     description: optionalString(raw.description),
@@ -109,6 +109,52 @@ function escLike(s: string): string {
   return s.replace(/[\\%_]/g, (m) => `\\${m}`)
 }
 
+const skipCtx = { skipStoreHours: true } as const
+
+type MerchantStats = {
+  totalMerchants: number
+  totalVendors: number
+  activeMerchants: number
+  acceptingOrders: number
+  activeVendors: number
+  operationalBreakdown: Record<string, number>
+}
+
+/**
+ * Global stats rollup — unfiltered platform totals shared by every list qs.
+ * Cached 300s (own key) so per-qs list MISSes don't recount; writes bust via
+ * bustMerchantsCache (prefix admin:merchants:). Filtered totals still come
+ * from paginated.totalDocs (exact). See performance.md §15.
+ */
+async function getMerchantStats(payload: Payload): Promise<MerchantStats> {
+  const { data } = await getOrBuildDashboard<MerchantStats>(
+    'admin:merchants:stats:v1',
+    300,
+    async () => {
+      const [mTotal, mActive, mAccepting, opRows, vTotal, vActive] = await Promise.all([
+        payload.count({ collection: 'merchants', overrideAccess: true, context: skipCtx }),
+        payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
+        payload.count({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, overrideAccess: true, context: skipCtx }),
+        mRows(payload, sql`SELECT operational_status::text AS s, COUNT(*)::int AS c FROM merchants GROUP BY 1`),
+        payload.count({ collection: 'vendors', overrideAccess: true, context: skipCtx }),
+        payload.count({ collection: 'vendors', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
+      ])
+      const operationalBreakdown: Record<string, number> = {}
+      for (const s of OPERATIONAL_STATUSES) operationalBreakdown[s] = 0
+      for (const r of opRows) operationalBreakdown[String(r.s ?? '')] = Number(r.c ?? 0)
+      return {
+        totalMerchants: mTotal.totalDocs || 0,
+        totalVendors: vTotal.totalDocs || 0,
+        activeMerchants: mActive.totalDocs || 0,
+        acceptingOrders: mAccepting.totalDocs || 0,
+        activeVendors: vActive.totalDocs || 0,
+        operationalBreakdown,
+      }
+    },
+  )
+  return data
+}
+
 async function buildMerchantsList(payload: Payload, searchParams: URLSearchParams) {
   try {
 
@@ -148,7 +194,6 @@ async function buildMerchantsList(payload: Payload, searchParams: URLSearchParam
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const skipCtx = { skipStoreHours: true } as const
     // Vendor-side filters resolved in SQL (bounded 500) and pushed into
     // the merchant query as vendor IN — replaces vendors 2000 hydration +
     // JS post-filter that broke pagination counts.
@@ -204,82 +249,76 @@ async function buildMerchantsList(payload: Payload, searchParams: URLSearchParam
       }
     }
     if (isEmpty) {
-      const [mTotal, mActive, mAccepting, opRows, vTotal, vActive] = await Promise.all([
-        payload.count({ collection: 'merchants', overrideAccess: true, context: skipCtx }),
-        payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
-        payload.count({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, overrideAccess: true, context: skipCtx }),
-        mRows(payload, sql`SELECT operational_status::text AS s, COUNT(*)::int AS c FROM merchants GROUP BY 1`),
-        payload.count({ collection: 'vendors', overrideAccess: true, context: skipCtx }),
-        payload.count({ collection: 'vendors', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
-      ])
-      const operationalBreakdown: Record<string, number> = {}
-      for (const s of OPERATIONAL_STATUSES) operationalBreakdown[s] = 0
-      for (const r of opRows) operationalBreakdown[String(r.s ?? '')] = Number(r.c ?? 0)
+      const stats = await getMerchantStats(payload)
       return {
         docs: [],
         pagination: { page, limit, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: page > 1 },
         stats: {
-          totalMerchants: mTotal.totalDocs,
-          totalVendors: vTotal.totalDocs,
-          activeMerchants: mActive.totalDocs,
-          acceptingOrders: mAccepting.totalDocs,
-          activeVendors: vActive.totalDocs,
-          operationalBreakdown,
+          totalMerchants: stats.totalMerchants,
+          totalVendors: stats.totalVendors,
+          activeMerchants: stats.activeMerchants,
+          acceptingOrders: stats.acceptingOrders,
+          activeVendors: stats.activeVendors,
+          operationalBreakdown: stats.operationalBreakdown,
           filteredCount: 0,
         },
         meta: { generatedAt: new Date().toISOString(), sort, search },
       }
     }
-    // Paginated list (correct) + exact counts + operational breakdown in SQL.
-    // Replaces vendors 2000 + 8× limit:1 stats finds + merchants 5000 fallback.
-    const [paginated, mTotal, mActive, mAccepting, opRows, vTotal, vActive] = await Promise.all([
-      payload.find({ collection: 'merchants', where: effectiveWhere as never, page, limit, sort, depth: 1, overrideAccess: true, context: skipCtx }),
-      payload.count({ collection: 'merchants', overrideAccess: true, context: skipCtx }),
-      payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
-      payload.count({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, overrideAccess: true, context: skipCtx }),
-      mRows(payload, sql`SELECT operational_status::text AS s, COUNT(*)::int AS c FROM merchants GROUP BY 1`),
-      payload.count({ collection: 'vendors', overrideAccess: true, context: skipCtx }),
-      payload.count({ collection: 'vendors', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
+    // Paginated list + shared stats rollup in parallel.
+    // depth:2 populates vendor.logo/media in the same trip (previously a second
+    // vendors IN-pageIds find); select: drops unread heavy blobs (operatingHours,
+    // specialHours, delivery_hours, geometries, coordinates, interior/menu images).
+    // Stats come from the global TTL-300 rollup (one builder for all qs).
+    // See performance.md §10/§15. select: keys are top-level collection fields.
+    const [paginated, stats] = await Promise.all([
+      payload.find({
+        collection: 'merchants',
+        where: effectiveWhere as never,
+        page,
+        limit,
+        sort,
+        depth: 2,
+        overrideAccess: true,
+        context: skipCtx,
+        select: {
+          outletName: true,
+          outletCode: true,
+          createdAt: true,
+          updatedAt: true,
+          timezone: true,
+          vendor: true,
+          contactInfo: true,
+          isActive: true,
+          isAcceptingOrders: true,
+          operationalStatus: true,
+          merchant_categories: true,
+          activeAddress: true,
+          media: true,
+          description: true,
+          tags: true,
+          deliverySettings: true,
+          merchant_latitude: true,
+          merchant_longitude: true,
+          delivery_radius_meters: true,
+          is_currently_delivering: true,
+          avg_delivery_time_minutes: true,
+        },
+      }),
+      getMerchantStats(payload),
     ])
 
-    const vendorMap = new Map<string, unknown>()
-
-    // Enrich paginated docs with vendor brief (bounded by page size ≤100).
     const docsRaw = paginated.docs as unknown as Record<string, any>[]
-    const pageVendorIds = Array.from(new Set(docsRaw.map((merchant) => {
-      const rawVendor = merchant.vendor
-      return rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
-    }).filter(Boolean)))
-    if (pageVendorIds.length) {
-      const pageVendors = await payload.find({
-        collection: 'vendors',
-        where: { id: { in: pageVendorIds } },
-        limit: pageVendorIds.length,
-        depth: 1,
-        overrideAccess: true,
-        pagination: false,
-        context: skipCtx,
-      } as any)
-      pageVendors.docs.forEach((vendor: any) => vendorMap.set(String(vendor.id), vendor))
-    }
-    const enrichedRaw = docsRaw.map((merchant) => {
-      const rawVendor = merchant.vendor
-      const vendorId = rawVendor && typeof rawVendor === 'object' ? rawVendor.id : rawVendor
-      const vendor = vendorMap.get(String(vendorId))
-      return vendor ? { ...merchant, vendor } : merchant
-    })
 
-    const docs = enrichedRaw.map(sanitizeMerchantDoc)
+    const docs = docsRaw.map(sanitizeMerchantDoc)
 
-    // Stats are exact totals from count queries + SQL GROUP BY, not capped arrays.
-    const totalMerchants = mTotal.totalDocs || 0
-    const activeCount = mActive.totalDocs || 0
-    const acceptingCount = mAccepting.totalDocs || 0
-    const operationalBreakdown: Record<string, number> = {}
-    for (const s of OPERATIONAL_STATUSES) operationalBreakdown[s] = 0
-    for (const r of opRows) operationalBreakdown[String((r as Record<string, unknown>).s ?? '')] = Number((r as Record<string, unknown>).c ?? 0)
-    const totalVendors = vTotal.totalDocs || 0
-    const activeVendors = vActive.totalDocs || 0
+    // Stats from the shared rollup (global totals); filteredTotal stays exact per qs.
+    const totalMerchants = stats.totalMerchants || 0
+    const activeCount = stats.activeMerchants || 0
+    const acceptingCount = stats.acceptingOrders || 0
+    const operationalBreakdown = stats.operationalBreakdown
+    const totalVendors = stats.totalVendors || 0
+    const activeVendors = stats.activeVendors || 0
 
     const response = {
       docs,

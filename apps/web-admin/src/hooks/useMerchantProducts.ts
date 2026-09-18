@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type VendorGroup = {
-  vendor: { id: number; businessName: string; legalName: string; businessType: string; verificationStatus: string; isActive: boolean; logo: { id: number; url: string | null } | null };
+  vendor: { id: number; businessName: string; legalName: string; businessType: string; verificationStatus: string; isActive: boolean; logo: { id: number; url: string | null; thumbUrl?: string | null } | null };
   totalMerchants: number;
   totalProducts: number;
   totalProductsFiltered: number;

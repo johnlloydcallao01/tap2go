@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
+import { Suspense } from "react";
 import { InstantLoadingController } from "@/components/loading";
+import { FontAwesomeLoader } from "@/components/FontAwesomeLoader";
 import { getServerToken, getServerUser } from "@/app/actions/auth";
 import { Providers } from "@/app/providers";
 import "./globals.css";
@@ -38,19 +40,16 @@ type LayoutProps = {
   children: React.ReactNode;
 };
 
-export default async function RootLayout({ children }: LayoutProps) {
-  const initialUser = await getServerUser();
-  const initialToken = await getServerToken();
+export default function RootLayout({ children }: LayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link
-          rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
-          crossOrigin="anonymous"
-          referrerPolicy="no-referrer"
-        />
+        <noscript>
+          <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          />
+        </noscript>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -107,12 +106,35 @@ export default async function RootLayout({ children }: LayoutProps) {
           </div>
         </div>
 
-        <Providers initialUser={initialUser} initialToken={initialToken}>
-          {/* Inside Providers so it can never throw "No QueryClient set" */}
-          <InstantLoadingController />
-          {children}
-        </Providers>
+        <FontAwesomeLoader />
+        <Suspense fallback={null}>
+          <ProvidersWithSession>
+            {/* Inside Providers so it can never throw "No QueryClient set" */}
+            <InstantLoadingController />
+            {children}
+          </ProvidersWithSession>
+        </Suspense>
       </body>
     </html>
+  );
+}
+
+/**
+ * Session bootstrap — resolves server auth WITHOUT blocking first byte.
+ * Previously RootLayout awaited CMS users/me before streaming anything,
+ * so a slow CMS meant a blank tab (no HTML at all, up to the 10s timeout).
+ * Now the static shell (instant-loading cover) streams immediately and this
+ * fills in auth + content when ready. Client revalidates anyway when the
+ * seed is null (AuthContext initializeAuth), so behavior is unchanged.
+ */
+async function ProvidersWithSession({ children }: LayoutProps) {
+  const [initialUser, initialToken] = await Promise.all([
+    getServerUser(),
+    getServerToken(),
+  ]);
+  return (
+    <Providers initialUser={initialUser} initialToken={initialToken}>
+      {children}
+    </Providers>
   );
 }

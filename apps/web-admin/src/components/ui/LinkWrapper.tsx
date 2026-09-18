@@ -15,9 +15,12 @@ interface LinkProps {
   rel?: string;
   onClick?: () => void;
   title?: string;
+  // Next.js route prefetch (hover/viewport). Passed through to NextLink via
+  // ...props at runtime; declared here so callers typecheck. See §15 item 3.
+  prefetch?: boolean | 'auto' | null;
 }
 
-const Link = ({ href, children, className, target, rel, onClick, title, ...props }: LinkProps) => {
+const Link = ({ href, children, className, target, rel, onClick, title, prefetch, ...props }: LinkProps) => {
   return React.createElement(
     NextLink,
     {
@@ -27,6 +30,7 @@ const Link = ({ href, children, className, target, rel, onClick, title, ...props
       rel,
       onClick,
       title,
+      prefetch: prefetch ?? undefined,
       ...props,
     },
     children

@@ -13,12 +13,25 @@ import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 import { getOrBuildDashboard, bustProductsCache } from '@/utils/dashboardCache'
 import { sql, type SQL } from 'drizzle-orm'
 
-function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
+function sanitizeMediaRef(v: unknown): { id: number; url: string | null; thumbUrl: string | null } | null {
   if (!v || typeof v !== 'object') return null
   const s = v as Record<string, unknown>
   const id = Number(s.id); if (Number.isNaN(id)) return null
   const url = typeof s.cloudinaryURL === 'string' ? s.cloudinaryURL : typeof s.url === 'string' ? s.url : null
-  return { id, url }
+  return { id, url, thumbUrl: thumbUrl(url, 80) }
+}
+
+/**
+ * Marketplace 80px thumbnail variant. Cloudinary fetch URLs transform via
+ * `/upload/w_80,q_auto,f_auto/`; anything else (null, non-cloudinary,
+ * already-transformed) passes through so callers always have a safe src.
+ * See performance.md §17.
+ */
+function thumbUrl(url: string | null, w = 80): string | null {
+  if (!url) return null
+  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url
+  if (url.includes('q_auto')) return url
+  return url.replace('/upload/', `/upload/w_${w},q_auto,f_auto/`)
 }
 function sanitizeVendorBrief(v: unknown) {
   if (!v || typeof v !== 'object') return null
@@ -63,6 +76,41 @@ function escLike(s: string): string {
   return s.replace(/[\\%_]/g, (m) => `\\${m}`)
 }
 
+type MerchantProductStats = {
+  totalVendors: number
+  totalMerchants: number
+  totalMerchantProducts: number
+  activeMerchants: number
+}
+
+/**
+ * Global stats rollup — unfiltered platform totals shared by every list qs.
+ * Cached 300s (own key); writes bust via bustProductsCache (prefix
+ * admin:merchant-products:). Filtered totals still come from matchTotal.
+ * See performance.md §16.
+ */
+async function getMerchantProductStats(payload: Payload): Promise<MerchantProductStats> {
+  const { data } = await getOrBuildDashboard<MerchantProductStats>(
+    'admin:merchant-products:stats:v1',
+    300,
+    async () => {
+      const [v, m, mp, am] = await Promise.all([
+        payload.count({ collection: 'vendors', overrideAccess: true }),
+        payload.count({ collection: 'merchants', overrideAccess: true }),
+        payload.count({ collection: 'merchant-products', overrideAccess: true }),
+        payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true }),
+      ])
+      return {
+        totalVendors: v.totalDocs || 0,
+        totalMerchants: m.totalDocs || 0,
+        totalMerchantProducts: mp.totalDocs || 0,
+        activeMerchants: am.totalDocs || 0,
+      }
+    },
+  )
+  return data
+}
+
 async function buildMerchantProductsView(payload: Payload, searchParams: URLSearchParams) {
   try {
 
@@ -94,13 +142,8 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
         overrideAccess: true,
       } as any)
       const vendorIds = (vendorsRes.docs || []).map((vendor: any) => vendor.id)
-      const [counts, scopedMerchants, mpCountRows] = await Promise.all([
-        Promise.all([
-          payload.count({ collection: 'vendors', overrideAccess: true }),
-          payload.count({ collection: 'merchants', overrideAccess: true }),
-          payload.count({ collection: 'merchant-products', overrideAccess: true }),
-          payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true }),
-        ]),
+      const [stats, scopedMerchants, mpCountRows] = await Promise.all([
+        getMerchantProductStats(payload),
         vendorIds.length
           ? payload.find({ collection: 'merchants', where: { vendor: { in: vendorIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
           : Promise.resolve({ docs: [] }),
@@ -109,10 +152,10 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
           ? mpRows(payload, sql`SELECT m.vendor_id::text AS vid, COUNT(mp.id)::int AS c FROM merchant_products mp JOIN merchants m ON m.id = mp.merchant_id_id WHERE m.vendor_id IN (${sql.join(vendorIds.map((v: number) => sql`${v}`), sql`, `)}) GROUP BY m.vendor_id`)
           : Promise.resolve([]),
       ])
-      totalVendorsCount = counts[0].totalDocs || 0
-      totalMerchantsCount = counts[1].totalDocs || 0
-      totalMerchantProductsCount = counts[2].totalDocs || 0
-      activeMerchantsCount = counts[3].totalDocs || 0
+      totalVendorsCount = stats.totalVendors || 0
+      totalMerchantsCount = stats.totalMerchants || 0
+      totalMerchantProductsCount = stats.totalMerchantProducts || 0
+      activeMerchantsCount = stats.activeMerchants || 0
       merchantsRes = scopedMerchants
       for (const r of mpCountRows) vendorProductCounts.set(String(r.vid), Number(r.c ?? 0))
       for (const v of (vendorsRes.docs || [])) {
@@ -154,14 +197,17 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
         sql`SELECT DISTINCT v.id AS id, v.business_name AS bname FROM vendors v WHERE ${matchWhere} ORDER BY v.business_name LIMIT ${limit} OFFSET ${offset}`,
       )
       const pageIds = idRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
-      // Phase 1: page vendors + their merchants (bounded by page).
-      const [vRes, mRes] = await Promise.all([
+      // Phase 1: page vendors + their merchants (bounded by page) + facet
+      // rollups over the SAME matched-vendor set (marketplace left-rail counts).
+      const [vRes, mRes, btFacetRows, vsFacetRows] = await Promise.all([
         pageIds.length
           ? payload.find({ collection: 'vendors', where: { id: { in: pageIds } }, limit: pageIds.length, depth: 1, overrideAccess: true, pagination: false } as any)
           : Promise.resolve({ docs: [] }),
         pageIds.length
           ? payload.find({ collection: 'merchants', where: { vendor: { in: pageIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
           : Promise.resolve({ docs: [] }),
+        mpRows(payload, sql`SELECT COALESCE(LOWER(v.business_type::text),'other') AS s, COUNT(DISTINCT v.id)::int AS c FROM vendors v WHERE ${matchWhere} GROUP BY 1 ORDER BY 1`),
+        mpRows(payload, sql`SELECT COALESCE(LOWER(v.verification_status::text),'pending') AS s, COUNT(DISTINCT v.id)::int AS c FROM vendors v WHERE ${matchWhere} GROUP BY 1 ORDER BY 1`),
       ])
       const pageMerchantIds = (mRes.docs as any[]).map((m: any) => Number(m.id)).filter((n: number) => Number.isFinite(n))
       // Phase 2: merchant-products + products for page merchants only.
@@ -182,8 +228,12 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
       merchantsRes = mRes
       merchantProductsRes = mpRes2
       productsRes = pRes2
-      // Stash matched total for pagination override below.
+      // Stash matched total + facets for response assembly below.
       ;(vendorsRes as { __matchTotal?: number }).__matchTotal = matchTotal
+      ;(vendorsRes as { __facets?: { businessType: Array<{ value: string; count: number }>; verificationStatus: Array<{ value: string; count: number }> } }).__facets = {
+        businessType: btFacetRows.map((r) => ({ value: String(r.s ?? 'other'), count: Number(r.c ?? 0) })),
+        verificationStatus: vsFacetRows.map((r) => ({ value: String(r.s ?? 'pending'), count: Number(r.c ?? 0) })),
+      }
     }
 
     const vendorsDocs = (vendorsRes.docs as any[]) || []
@@ -340,17 +390,12 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
       }
     })
 
-    // Stats (exact global counts; filtered branch falls back to counts, never bounded docs).
-    const [gVendors, gMerchants, gMps, gActiveMerchants] = await Promise.all([
-      totalVendorsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'vendors', overrideAccess: true }),
-      totalMerchantsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'merchants', overrideAccess: true }),
-      totalMerchantProductsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'merchant-products', overrideAccess: true }),
-      activeMerchantsCount !== null ? Promise.resolve(null) : payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true }),
-    ])
-    const totalVendorsAll = totalVendorsCount ?? gVendors?.totalDocs ?? vendorsDocs.length
-    const totalMerchantsAll = totalMerchantsCount ?? gMerchants?.totalDocs ?? merchantsDocs.length
-    const totalMerchantProductsAll = totalMerchantProductsCount ?? gMps?.totalDocs ?? merchantProductsDocs.length
-    const activeMerchantsAll = activeMerchantsCount ?? gActiveMerchants?.totalDocs ?? 0
+    // Stats (exact global rollup; filtered branch falls back to rollup, never bounded docs).
+    const rollup = await getMerchantProductStats(payload)
+    const totalVendorsAll = totalVendorsCount ?? rollup.totalVendors
+    const totalMerchantsAll = totalMerchantsCount ?? rollup.totalMerchants
+    const totalMerchantProductsAll = totalMerchantProductsCount ?? rollup.totalMerchantProducts
+    const activeMerchantsAll = activeMerchantsCount ?? rollup.activeMerchants
 
     const responseBody = {
       vendors: finalVendors,
@@ -370,6 +415,9 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
         filteredVendors: totalVendors,
         totalProducts: totalMerchantProductsAll,
       },
+      // Marketplace facet counts over the matched-vendor set (additive;
+      // absent on unfiltered loads). See performance.md §17.
+      facets: ((vendorsRes as { __facets?: { businessType: Array<{ value: string; count: number }>; verificationStatus: Array<{ value: string; count: number }> } }).__facets ?? { businessType: [], verificationStatus: [] }),
       meta: { generatedAt: new Date().toISOString(), search, vendorFilter: vendorFilter ? String(vendorFilter) : null },
     }
 

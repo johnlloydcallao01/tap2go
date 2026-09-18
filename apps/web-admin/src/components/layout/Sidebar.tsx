@@ -23,12 +23,13 @@ function SidebarSectionLabel({ children, isOpen }: { children: React.ReactNode; 
 }
 
 function renderChildLink(
-  item: { label: string; href: string; isActive: boolean },
+  item: { label: string; href: string; isActive: boolean; prefetch?: boolean | 'auto' | null },
 ) {
   return (
     <div key={item.href}>
       <Link
         href={item.href as any}
+        prefetch={item.prefetch ?? undefined}
         className={`flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors ${
           item.isActive
             ? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800 dark:text-gray-100'
@@ -147,7 +148,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
               onToggle={() => setIsMerchantsExpanded((c) => !c)}
               active={hasActiveMerchantsChild}
             >
-              {renderChildLink({ label: 'All Merchants', href: '/merchants', isActive: exactActive(pathname, '/merchants') })}
+              {renderChildLink({ label: 'All Merchants', href: '/merchants', isActive: exactActive(pathname, '/merchants'), prefetch: true })}
               {renderChildLink({ label: 'Merchant Categories', href: '/merchant-categories', isActive: dropdownActive(pathname, '/merchant-categories') })}
             </SidebarDropdownGroup>
 
@@ -170,7 +171,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
           <div className="space-y-1">
             <SidebarSectionLabel isOpen={expanded}>Catalog</SidebarSectionLabel>
 
-            <SidebarItem icon="products" label="Products" active={dropdownActive(pathname, '/products')} collapsed={!expanded} href="/products" />
+            <SidebarItem icon="products" label="Products" active={dropdownActive(pathname, '/products')} collapsed={!expanded} href="/products" prefetch={true} />
 
             <SidebarDropdownGroup
               icon="settings"
