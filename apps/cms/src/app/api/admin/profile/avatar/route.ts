@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin, generateUniqueFilename } from '@/utils/mediaLibrary'
+import { bustProfileCache } from '@/utils/dashboardCache'
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
@@ -111,6 +112,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: e?.message || 'Image uploaded but failed to link to profile' }, { status: 500 })
     }
 
+    await bustProfileCache(userIdNum)
     return NextResponse.json({ success: true, message: 'Profile picture updated', user: sanitizeUser(updated), mediaId: media.id })
   } catch (err: any) {
     console.error('[admin/profile/avatar] POST error:', err)
@@ -151,6 +153,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: e?.message || 'Failed to remove picture' }, { status: 500 })
     }
 
+    await bustProfileCache(userIdNum)
     return NextResponse.json({ success: true, message: 'Profile picture removed', user: sanitizeUser(updated) })
   } catch (err: any) {
     console.error('[admin/profile/avatar] DELETE error:', err)

@@ -11,14 +11,13 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin, aggregateMediaUsage, mapMediaDoc, generateUniqueFilename } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getCached, setCached } from '@encreasl/cache'
+import { getOrBuildDashboard, bustMediaLibraryCache } from '@/utils/dashboardCache'
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50 MB
 const MAX_FILE_SIZE_DB = 1024 * 1024 * 1024 // Payload default cap, defensive
 
 export async function GET(request: NextRequest) {
-  return withAdminRequestSlot(async () => {
-    try {
+  try {
     const payload = await getPayload({ config: configPromise })
     const admin = await authenticateAdmin(payload, request)
     if (!admin) {
@@ -30,62 +29,67 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=24&sort=-createdAt'
-    const cacheKey = `admin:media-library:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Media-Cache': 'HIT' } })
 
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
-    const limit = Math.min(60, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24))
-    const search = searchParams.get('search')?.trim() || ''
-    const type = searchParams.get('type') || ''
-    const sort = searchParams.get('sort') || '-createdAt'
+    // Media library is a platform-wide asset pool (Media.read is public) →
+    // global key per qs. Gate wraps the builder only — cached HIT never queues.
+    const { data: responseBody, status } = await getOrBuildDashboard<Record<string, unknown>>(
+      `admin:media-library:v1:${cacheQuery}`,
+      60,
+      () =>
+        withAdminRequestSlot(async () => {
+          const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
+          const limit = Math.min(60, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24))
+          const search = searchParams.get('search')?.trim() || ''
+          const type = searchParams.get('type') || ''
+          const sort = searchParams.get('sort') || '-createdAt'
 
-    const where: Record<string, any> = {}
+          const where: Record<string, any> = {}
 
-    if (search) {
-      where.or = [
-        { filename: { contains: search } },
-        { alt: { contains: search } },
-        { cloudinaryPublicId: { contains: search } },
-      ]
-    }
+          if (search) {
+            where.or = [
+              { filename: { contains: search } },
+              { alt: { contains: search } },
+              { cloudinaryPublicId: { contains: search } },
+            ]
+          }
 
-    if (type === 'image' || type === 'video') {
-      where.mimeType = { contains: `${type}/` }
-    }
+          if (type === 'image' || type === 'video') {
+            where.mimeType = { contains: `${type}/` }
+          }
 
-    const result = await payload.find({
-      collection: 'media',
-      where,
-      page,
-      limit,
-      sort,
-      depth: 0,
-      overrideAccess: true,
-    })
+          const result = await payload.find({
+            collection: 'media',
+            where,
+            page,
+            limit,
+            sort,
+            depth: 0,
+            overrideAccess: true,
+          })
 
-    const mediaIds = result.docs.map((doc: any) => doc.id)
-    const usageMap = await aggregateMediaUsage(payload, mediaIds)
+          const mediaIds = result.docs.map((doc: any) => doc.id)
+          const usageMap = await aggregateMediaUsage(payload, mediaIds)
 
-    const docs = result.docs.map((doc: any) =>
-      mapMediaDoc(doc, usageMap.get(doc.id) || [])
+          const docs = result.docs.map((doc: any) =>
+            mapMediaDoc(doc, usageMap.get(doc.id) || [])
+          )
+
+          return {
+            docs,
+            totalDocs: result.totalDocs,
+            totalPages: result.totalPages,
+            page: result.page,
+            hasNextPage: result.hasNextPage,
+            hasPrevPage: result.hasPrevPage,
+          }
+        }),
     )
 
-    const response = {
-      docs,
-      totalDocs: result.totalDocs,
-      totalPages: result.totalPages,
-      page: result.page,
-      hasNextPage: result.hasNextPage,
-      hasPrevPage: result.hasPrevPage,
-    }
-    await setCached(cacheKey, response, 15)
-    return NextResponse.json(response, { headers: { 'X-Media-Cache': 'MISS' } })
-    } catch (err: any) {
-      console.error('[media/library] GET error:', err)
-      return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 })
-    }
-  })
+    return NextResponse.json(responseBody, { headers: { 'X-Media-Cache': status } })
+  } catch (err: any) {
+    console.error('[media/library] GET error:', err)
+    return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -135,6 +139,7 @@ export async function POST(request: NextRequest) {
       overrideAccess: true,
     })
 
+    await bustMediaLibraryCache()
     return NextResponse.json({ doc: mapMediaDoc(created) }, { status: 201 })
   } catch (err: any) {
     console.error('[media/library] POST error:', err)

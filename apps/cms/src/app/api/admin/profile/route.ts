@@ -296,7 +296,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const user = sanitizeUserForResponse(updated)
-    await deleteCached(`admin:profile:${userIdNum}`)
+    await bustProfileCache(userIdNum)
     return NextResponse.json({ success: true, message: 'Profile updated successfully', user })
   } catch (err: any) {
     console.error('[admin/profile] PATCH error:', err)

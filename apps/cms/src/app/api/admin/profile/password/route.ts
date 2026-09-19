@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
+import { bustProfileCache } from '@/utils/dashboardCache'
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: e?.message || 'Failed to change password' }, { status: 500 })
     }
 
+    await bustProfileCache(userIdNum)
     return NextResponse.json({ success: true, message: 'Password changed successfully. Please keep it secure.' })
   } catch (err: any) {
     console.error('[admin/profile/password] POST error:', err)

@@ -1,7 +1,7 @@
-# Dashboard Performance Blueprint — `/dashboard/overview` + `/dashboard/analytics` + `/dashboard/reports` + `/vendors` + `/merchants` + `/products` + `/orders` + `/customers` + `/business-zones`
+# Dashboard Performance Blueprint — `/dashboard/overview` + `/dashboard/analytics` + `/dashboard/reports` + `/vendors` + `/merchants` + `/products` + `/orders` + `/customers` + `/business-zones` + `/profile` + `/media`
 
 Date: 2026-09-18
-Scope: `apps/web-admin` Overview + Analytics + Reports + Vendors + Merchants + Products/Catalog + Orders + Customers + Business Zones + `apps/cms` admin dashboard/analytics/reports/vendors/merchants/products/catalog/orders/customers/business-zones APIs + Postgres + Upstash Redis + Cloud Run
+Scope: `apps/web-admin` Overview + Analytics + Reports + Vendors + Merchants + Products/Catalog + Orders + Customers + Business Zones + Profile + Media + `apps/cms` admin dashboard/analytics/reports/vendors/merchants/products/catalog/orders/customers/business-zones/profile/media APIs + Postgres + Upstash Redis + Cloud Run
 Status: Implemented and verified (`tsc`, `eslint`, `migrate:status Yes` ×2). No `migrate:fresh` used.
 
 This document is the reproduction guide for applying the same optimization to other pages (analytics, reports, vendor payouts, merchant dashboard, lists).
@@ -402,4 +402,33 @@ After: same single queries, global keys, gate-inside, SQL stats rollup.
 - **Merchants page `/business-zones/merchants` (2026-09-18, same pass)**: consumes the same two optimized endpoints (zone list `limit=100` + overview, zone-filtered client-side), so backend work was already covered by the above; applied §4b item 3 — page split into `content.tsx` + server wrapper prefetching `QUERY_KEYS.adminBusinessZones('limit=100')` + default overview; sidebar `Business Zones → Merchants` child `prefetch={true}`; icons direct from `lucide-react` (`Pencil` unused dropped).
 - **Detail `[id]` GET**: now `admin:business-zones:detail:v1:<id>` TTL 120 + gate-in (`X-BusinessZoneDetail-Cache` via BFF); preview merchants find gained `select:` (scalars + vendor only) + `context: { skipStoreHours: true }`; `findByID` 404 returns `null` from the builder (never cached) and the route maps it to 404. PATCH/DELETE busts already live under the same `bustBusinessZonesCache()` prefix.
 - **Verify**: `pg` script ran both SQL statements + old-JS semantics — identical; `tsc --noEmit` CMS + web-admin clean; `eslint` clean; no new migration (SQL uses existing indexes: `merchants_business_zone_idx`, `business_zones isActive_idx`), no `migrate:fresh`.
+
+---
+
+## 19. Profile application (`/profile`, 2026-09-18)
+
+Per-user detail page (not a list) — the dataset is one user + one admins row + 8 user-events, so there was no hydration blowup to kill; the misses were cache mechanics + one redundant auth query. Before: CMS GET wrapped the WHOLE handler in `withAdminRequestSlot` (gate-outside — every HIT queued on the gate) with `admin:profile:<userId>` raw-qs-less key, TTL 15, `getCached/setCached` (no L1/singleflight/Redis-swap for reads), and an `admins` level lookup ran on EVERY self-fetch (cross-user fetch is a rare system-admin action); PATCH busted via raw `deleteCached`, and password + avatar writes did NOT bust at all; page was a single CSR `IconWrapper`-barrel client component with no prefetch; sidebar profile entries unprefetched.
+
+After (code-only, no migration):
+
+- **Gate-inside + L1/singleflight**: CMS GET rebuilt on `getOrBuildDashboard('admin:profile:v1:<userId>', 60, () => withAdminRequestSlot(builder))` — cached HIT never queues; per-user key (profile is genuinely personal data, §4 step 4). `X-Profile-Cache` HIT/STALE/MISS. 404 (missing/non-admin user) returns `null` from the builder — never cached.
+- **Auth trimmed on the hot path**: self-fetch (the normal case) skips the `admins` level lookup entirely; only cross-user fetches run it and enforce the system-admin gate. So a self-fetch is exactly 1 `findByID users depth:2` + 1 `admins find` + 1 `user-events find limit:8` on MISS, zero Payload ops on HIT beyond `authenticateAdmin`.
+- **Write-through**: `dashboardCache.ts` new `bustProfileCache(userId?)` (exact scoped selector `admin:profile:v1:<id>`, L1+Redis; domain-wide prefix when no id). Wired into PATCH (replaces `deleteCached`), password POST (new), avatar POST + DELETE (new) — password/session/avatar changes now refresh the profile instantly instead of waiting out the TTL.
+- **First paint (§4b item 3)**: page split into `content.tsx` (client, `ProfileInner`/`ProfileSkeleton` exported) + server `page.tsx` wrapper prefetching `QUERY_KEYS.adminProfile()` (`['admin','profile','default']`) from the CMS GET into the dehydrated cache (`next: { revalidate: 30 }`); empty-cache/auth-failure falls back to the client's `getProfileData` server action. Icons direct from `lucide-react` (barrel dropped, identical rendering; all 37 icons used — no drops). Sidebar `Your Profile` + `Account Settings` entries get `prefetch`.
+- **Verify**: `tsc --noEmit` CMS + web-admin clean; `eslint` clean on changed CMS routes + web-admin page/content/Sidebar; no new migration, no `migrate:fresh`.
+
+---
+
+## 20. Media Library application (`/media`, 2026-09-18)
+
+Direct-CMS page (no BFF — the hook + page call `{CMS}/media/library` directly with the client JWT). `Media.read` is public, so the library is a platform-wide asset pool. Before: list GET wrapped the WHOLE handler in `withAdminRequestSlot` (gate-outside — every HIT queued) with per-`admin.id` raw-qs keys `admin:media-library:<adminId>:<qs>`, TTL 15, `getCached/setCached` (no L1/singleflight); detail GET uncached (findByID + full usage aggregation per view); upload/update/delete busted nothing; page was a single CSR `IconWrapper`-barrel client component with no prefetch; sidebar `Media Library` unprefetched.
+
+After (code-only, no migration):
+
+- **Global key + gate-inside**: list GET now `getOrBuildDashboard('admin:media-library:v1:<sorted-qs>', 60, () => withAdminRequestSlot(builder))` — platform-wide key per qs, cached HIT never queues; `X-Media-Cache` HIT/STALE/MISS. Builder keeps the bounded paginated `find` (≤60, `depth:0`) + per-page usage aggregation.
+- **Detail `[id]` GET**: `admin:media-library:detail:v1:<id>` TTL 120 + gate-inside; 404 returns `null` from the builder (never cached) → route 404.
+- **Write-through**: `dashboardCache.ts` new `bustMediaLibraryCache()` (`admin:media-library:` L1+Redis covers both list+detail prefixes); wired into upload POST (new), PATCH (alt rename, new), DELETE (new).
+- **First paint (§4b item 3)**: page split into `content.tsx` (client, `MediaLibraryPageContent`/`MediaLibrarySkeleton` exported) + server `page.tsx` wrapper prefetching default `page=1&limit=24` into the dehydrated `QUERY_KEYS.adminMediaLibrary('page=1&limit=24')` cache (`next: { revalidate: 30 }`); empty-cache/auth-failure falls back to the client's direct fetch. Icons direct from `lucide-react` (barrel dropped; all 19 used — no drops). Sidebar `Media Library` entry gets `prefetch`.
+- **Search — NO trigram index (explicitly deferred)**: `contains` on `filename/alt/cloudinaryPublicId` is a bare `%ILIKE%` scan, but the media table is 188 rows (verified) and `pg_trgm` is already installed — a seq scan is sub-ms. Per §4b item 4 / §17b item 1 the GIN indexes are conditional on `%ILIKE%` p95 exceeding budget at scale; documented as a known gap, not built.
+- **Verify**: `pg` script confirmed media columns (`filename/alt/cloudinary_public_id` varchar), count 188, `pg_trgm` present; `tsc --noEmit` CMS + web-admin clean; `eslint` clean; no new migration, no `migrate:fresh`.
 

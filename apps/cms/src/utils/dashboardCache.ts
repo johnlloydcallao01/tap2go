@@ -132,6 +132,11 @@ export async function bustProfileCache(userId?: number | string): Promise<void> 
   await redisBustPrefix(selector)
 }
 
+export async function bustMediaLibraryCache(): Promise<void> {
+  bustDashboardL1('admin:media-library:')
+  await redisBustPrefix('admin:media-library:')
+}
+
 function readL1<T>(key: string): { hit: boolean; stale: boolean; value: T | null } {
   const entry = l1.get(key)
   if (!entry) return { hit: false, stale: false, value: null }

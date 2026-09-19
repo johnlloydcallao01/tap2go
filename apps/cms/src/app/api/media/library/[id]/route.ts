@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin, aggregateMediaUsage, mapMediaDoc } from '@/utils/mediaLibrary'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getOrBuildDashboard, bustMediaLibraryCache } from '@/utils/dashboardCache'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,19 +24,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const numericId = Number(id)
-    const doc = await payload.findByID({
-      collection: 'media',
-      id: Number.isFinite(numericId) ? numericId : id,
-      depth: 0,
-      overrideAccess: true,
-    })
+    const docId: number | string = Number.isFinite(numericId) ? numericId : id
 
-    if (!doc) {
+    const { data: responseBody, status } = await getOrBuildDashboard<Record<string, unknown> | null>(
+      `admin:media-library:detail:v1:${docId}`,
+      120,
+      () =>
+        withAdminRequestSlot(async () => {
+          const doc = await payload.findByID({
+            collection: 'media',
+            id: docId as number,
+            depth: 0,
+            overrideAccess: true,
+          })
+          if (!doc) return null
+
+          const usageMap = await aggregateMediaUsage(payload, [doc.id])
+          return { doc: mapMediaDoc(doc, usageMap.get(doc.id) || []) }
+        }),
+    )
+
+    if (!responseBody) {
       return NextResponse.json({ error: 'Media not found' }, { status: 404 })
     }
-
-    const usageMap = await aggregateMediaUsage(payload, [doc.id])
-    return NextResponse.json({ doc: mapMediaDoc(doc, usageMap.get(doc.id) || []) })
+    return NextResponse.json(responseBody, { headers: { 'X-Media-Cache': status } })
   } catch (err: any) {
     console.error('[media/library/[id]] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 })
@@ -74,6 +87,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       overrideAccess: true,
     })
 
+    await bustMediaLibraryCache()
     return NextResponse.json({ doc: mapMediaDoc(updated) })
   } catch (err: any) {
     console.error('[media/library/[id]] PATCH error:', err)
@@ -101,6 +115,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Media not found' }, { status: 404 })
     }
 
+    await bustMediaLibraryCache()
     return NextResponse.json({ success: true, id: deleted.id })
   } catch (err: any) {
     console.error('[media/library/[id]] DELETE error:', err)
