@@ -14,7 +14,7 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { deleteCached, getCached, setCached } from '@encreasl/cache'
+import { getOrBuildDashboard, bustProfileCache } from '@/utils/dashboardCache'
 
 function optionalString(v: unknown): string | null {
   return typeof v === 'string' ? v : null
@@ -69,8 +69,7 @@ function badRequest(message: string, details?: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  return withAdminRequestSlot(async () => {
-    try {
+  try {
     const payload = await getPayload({ config: configPromise })
     const authUser = await authenticateAdmin(payload, request)
     if (!authUser) {
@@ -84,33 +83,36 @@ export async function GET(request: NextRequest) {
       return badRequest('userId is required and must be numeric')
     }
 
-    // Enforce that non-system admins can only fetch own profile (system admins can fetch any)
-    // Fetch auth user's admin record to check level
-    let isSystemAdmin = false
-    try {
-      const authAdminRes = await payload.find({
-        collection: 'admins',
-        where: { user: { equals: authUser.id } },
-        limit: 1,
-        depth: 0,
-        overrideAccess: true,
-      })
-      const level = (authAdminRes.docs[0] as any)?.adminLevel
-      isSystemAdmin = level === 'system'
-    } catch {
-      // ignore, default false
+    // Self-fetch is always allowed; only cross-user fetches (system admins) pay
+    // for the admins-level lookup. Per-user key — profile is personal data.
+    if (String(authUser.id) !== String(userIdNum)) {
+      let isSystemAdmin = false
+      try {
+        const authAdminRes = await payload.find({
+          collection: 'admins',
+          where: { user: { equals: authUser.id } },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        })
+        isSystemAdmin = (authAdminRes.docs[0] as any)?.adminLevel === 'system'
+      } catch {
+        // ignore, default false
+      }
+      if (!isSystemAdmin) {
+        return NextResponse.json({ error: 'Forbidden: can only fetch own profile' }, { status: 403 })
+      }
     }
 
-    if (String(authUser.id) !== String(userIdNum) && !isSystemAdmin) {
-      return NextResponse.json({ error: 'Forbidden: can only fetch own profile' }, { status: 403 })
-    }
-
-    const cacheKey = `admin:profile:${userIdNum}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-Profile-Cache': 'HIT' } })
+    // Gate wraps the builder only — cached HIT never queues (performance.md §4).
+    const { data: responseBody, status } = await getOrBuildDashboard<Record<string, unknown> | null>(
+      `admin:profile:v1:${userIdNum}`,
+      60,
+      () =>
+        withAdminRequestSlot(async () => {
 
     // 1. Resolve user (overrideAccess: true is safe boundary - endpoint is admin-only)
-    let userDoc: Record<string, any>
+    let userDoc: Record<string, any> | null = null
     try {
       userDoc = await payload.findByID({
         collection: 'users',
@@ -118,12 +120,12 @@ export async function GET(request: NextRequest) {
         depth: 2,
         overrideAccess: true,
       }) as unknown as Record<string, any>
-    } catch (e: any) {
-      return NextResponse.json({ error: 'User not found', details: e?.message }, { status: 404 })
+    } catch {
+      userDoc = null
     }
-
+    // 404s return null — never cached (performance.md §4x)
     if (!userDoc || userDoc.role !== 'admin') {
-      return NextResponse.json({ error: 'User not found or not admin' }, { status: 404 })
+      return null
     }
 
     // 2. Resolve admin record (relationship)
@@ -160,7 +162,6 @@ export async function GET(request: NextRequest) {
     // Sanitize for frontend
     const user = sanitizeUserForResponse(userDoc)
     const raw = sanitizeUserForResponse(userDoc) // includes loginAttempts etc for frontend's raw
-    // But raw should include all fields; sanitize already includes them
     // Keep admin shape minimal
     const admin = adminDoc
       ? {
@@ -182,19 +183,21 @@ export async function GET(request: NextRequest) {
       userAgent: a.userAgent || null,
     }))
 
-    const response = {
+    return {
       user,
       raw,
       admin,
       activities: sanitizedActivities,
     }
-    await setCached(cacheKey, response, 15)
-    return NextResponse.json(response, { headers: { 'X-Profile-Cache': 'MISS' } })
-    } catch (err: any) {
-      console.error('[admin/profile] GET error:', err)
-      return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 })
-    }
-  })
+        }),
+    )
+
+    if (!responseBody) return NextResponse.json({ error: 'User not found or not admin' }, { status: 404 })
+    return NextResponse.json(responseBody, { headers: { 'X-Profile-Cache': status } })
+  } catch (err: any) {
+    console.error('[admin/profile] GET error:', err)
+    return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 })
+  }
 }
 
 export async function PATCH(request: NextRequest) {

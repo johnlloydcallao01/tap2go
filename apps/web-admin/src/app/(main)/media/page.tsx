@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ClientOnly } from '@/components/ClientOnly';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@encreasl/client-services';
@@ -84,7 +85,8 @@ function MediaLibraryPageContent() {
   const [editError, setEditError] = useState<string | null>(null);
 
   // Delete state
-  const [deletingId, setDeletingId] = useState<number | string | null>(null);
+  const [deleting, setDeleting] = useState<MediaItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const authHeaders = useCallback((): Record<string, string> => {
@@ -260,14 +262,24 @@ function MediaLibraryPageContent() {
   // DELETE
   // ========================================
 
-  const handleDelete = async (item: MediaItem) => {
-    if (!confirm(`Delete "${item.filename}"?\n\nThis will permanently remove the file. This action cannot be undone.`)) {
-      return;
+  // Prevent page scroll when delete confirm is open
+  useEffect(() => {
+    const isOpen = !!deleting;
+    if (isOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev };
     }
-    setDeletingId(item.id);
+    document.body.style.overflow = '';
+    return () => { document.body.style.overflow = '' };
+  }, [deleting]);
+
+  const handleDelete = async () => {
+    if (!deleting || isDeleting) return;
+    setIsDeleting(true);
     setDeleteError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/media/library/${item.id}`, {
+      const response = await fetch(`${API_BASE_URL}/media/library/${deleting.id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: authHeaders(),
@@ -278,11 +290,12 @@ function MediaLibraryPageContent() {
         throw new Error(data?.error || 'Failed to delete media');
       }
 
+      setDeleting(null);
       void refetch();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete media');
     } finally {
-      setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
@@ -370,16 +383,12 @@ function MediaLibraryPageContent() {
               <Edit className="w-3 h-3 text-[#eba236]" />
             </button>
             <button
-              onClick={() => handleDelete(item)}
-              disabled={deletingId === item.id}
+              onClick={() => setDeleting(item)}
+              disabled={!!deleting}
               className="p-1.5 bg-white dark:bg-[#171717] rounded shadow-md hover:bg-red-50 dark:hover:bg-red-900/20 border border-gray-200 dark:border-[#262626] disabled:opacity-50"
               title="Delete"
             >
-              {deletingId === item.id ? (
-                <Loader2 className="w-3 h-3 text-red-600 animate-spin" />
-              ) : (
-                <Trash2 className="w-3 h-3 text-red-600" />
-              )}
+              <Trash2 className="w-3 h-3 text-red-600" />
             </button>
           </div>
         </div>
@@ -468,16 +477,12 @@ function MediaLibraryPageContent() {
           <Edit className="w-4 h-4" />
         </button>
         <button
-          onClick={() => handleDelete(item)}
-          disabled={deletingId === item.id}
+          onClick={() => setDeleting(item)}
+          disabled={!!deleting}
           className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-50"
           title="Delete"
         >
-          {deletingId === item.id ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Trash2 className="w-4 h-4" />
-          )}
+          <Trash2 className="w-4 h-4" />
         </button>
       </div>
     </div>
@@ -836,15 +841,52 @@ function MediaLibraryPageContent() {
         )}
       </div>
 
-      {deleteError && (
-        <div className="fixed bottom-4 right-4 z-[110] p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl shadow-lg flex items-start max-w-sm backdrop-blur">
-          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-red-800 dark:text-red-200 flex-1">{deleteError}</p>
-          <button onClick={() => setDeleteError(null)} className="ml-2 text-red-600 dark:text-red-400 hover:text-red-800">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+      {/* Delete confirm — portal to body for true viewport centering */}
+      {deleting && typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isDeleting) setDeleting(null) }}>
+            <div className="relative bg-white dark:bg-[#171717] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#262626] w-full max-w-md p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+              <div className="h-12 w-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="font-bold text-gray-900 dark:text-white">Delete media file?</h3>
+              <p className="text-sm text-gray-600 dark:text-[#a1a1aa] mt-1">
+                This will permanently delete{' '}
+                <span className="font-semibold text-gray-900 dark:text-white">{deleting.filename}</span>.
+                {deleting.usage.total > 0
+                  ? ` It is currently used in ${deleting.usage.total} place${deleting.usage.total === 1 ? '' : 's'}.`
+                  : ' This action cannot be undone.'}
+              </p>
+              {deleting.usage.total > 0 && (
+                <p className="text-xs text-amber-600 mt-2">Warning: this file is referenced by other records. Deleting it may break those references.</p>
+              )}
+              {deleteError && (
+                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md flex items-start">
+                  <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-red-800 dark:text-red-200 flex-1">{deleteError}</p>
+                </div>
+              )}
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => { setDeleting(null); setDeleteError(null) }}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[#262626] text-sm font-medium bg-white dark:bg-[#171717] hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isDeleting ? 'Deleting…' : 'Confirm delete'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

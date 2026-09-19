@@ -126,6 +126,12 @@ export async function bustBusinessZonesCache(): Promise<void> {
   await redisBustPrefix('admin:business-zones-overview:')
 }
 
+export async function bustProfileCache(userId?: number | string): Promise<void> {
+  const selector = userId != null ? `admin:profile:v1:${userId}` : 'admin:profile:'
+  bustDashboardL1(selector)
+  await redisBustPrefix(selector)
+}
+
 function readL1<T>(key: string): { hit: boolean; stale: boolean; value: T | null } {
   const entry = l1.get(key)
   if (!entry) return { hit: false, stale: false, value: null }
