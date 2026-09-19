@@ -7,7 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { deleteCachedByPrefix } from '@encreasl/cache'
+import { getOrBuildDashboard, bustBusinessZonesCache } from '@/utils/dashboardCache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
@@ -47,32 +48,62 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
-    let doc: Record<string, any>
-    try { doc = await payload.findByID({ collection: 'business-zones', id: docId as number, depth: 0, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) { return NextResponse.json({ error: 'Business zone not found', details: e?.message }, { status: 404 }) }
-    if (!doc) return NextResponse.json({ error: 'Business zone not found' }, { status: 404 })
 
-    // Merchant counts for this zone + sample merchants
-    let merchantCount = 0
-    let merchantsPreview: any[] = []
-    try {
-      const mRes = await payload.find({ collection: 'merchants', where: { businessZone: { equals: doc.id } }, limit: 10, depth: 1, overrideAccess: true, pagination: false } as any)
-      const allRes = await payload.find({ collection: 'merchants', where: { businessZone: { equals: doc.id } }, limit: 0, depth: 0, overrideAccess: true } as any)
-      merchantCount = typeof (allRes as any).totalDocs === 'number' ? (allRes as any).totalDocs : (allRes as any).docs?.length ?? 0
-      merchantsPreview = ((mRes as any).docs || []).map((m: any) => ({
-        id: m.id,
-        outletName: String(m.outletName || ''),
-        outletCode: String(m.outletCode || ''),
-        isActive: !!m.isActive,
-        isAcceptingOrders: !!m.isAcceptingOrders,
-        merchant_latitude: m.merchant_latitude ?? null,
-        merchant_longitude: m.merchant_longitude ?? null,
-        service_area: m.service_area ?? null,
-        vendor: m.vendor && typeof m.vendor === 'object' ? { id: (m.vendor as any).id, businessName: String((m.vendor as any).businessName || '') } : null,
-      }))
-    } catch {}
+    const { data: responseBody, status } = await getOrBuildDashboard<Record<string, unknown> | null>(
+      `admin:business-zones:detail:v1:${docId}`,
+      120,
+      () =>
+        withAdminRequestSlot(async () => {
+          let doc: Record<string, any> | null = null
+          try { doc = await payload.findByID({ collection: 'business-zones', id: docId as number, depth: 0, overrideAccess: true }) as unknown as Record<string, any> } catch { doc = null }
+          if (!doc) return null
 
-    const sanitized = sanitizeZoneDoc(doc)
-    return NextResponse.json({ doc: { ...sanitized, merchantCount, merchantsPreview } })
+          // Merchant counts for this zone + sample merchants (bounded, projected,
+          // afterRead guarded — merchantPreview renders scalars + vendor name only)
+          let merchantCount = 0
+          let merchantsPreview: any[] = []
+          try {
+            const mRes = await payload.find({
+              collection: 'merchants',
+              where: { businessZone: { equals: doc.id } },
+              limit: 10,
+              depth: 1,
+              overrideAccess: true,
+              pagination: false,
+              select: {
+                id: true,
+                outletName: true,
+                outletCode: true,
+                isActive: true,
+                isAcceptingOrders: true,
+                merchant_latitude: true,
+                merchant_longitude: true,
+                service_area: true,
+                vendor: true,
+              },
+              context: { skipStoreHours: true },
+            } as any)
+            const countRes = await payload.count({ collection: 'merchants', where: { businessZone: { equals: doc.id } }, overrideAccess: true, context: { skipStoreHours: true } } as any)
+            merchantCount = typeof (countRes as any).totalDocs === 'number' ? (countRes as any).totalDocs : 0
+            merchantsPreview = ((mRes as any).docs || []).map((m: any) => ({
+              id: m.id,
+              outletName: String(m.outletName || ''),
+              outletCode: String(m.outletCode || ''),
+              isActive: !!m.isActive,
+              isAcceptingOrders: !!m.isAcceptingOrders,
+              merchant_latitude: m.merchant_latitude ?? null,
+              merchant_longitude: m.merchant_longitude ?? null,
+              service_area: m.service_area ?? null,
+              vendor: m.vendor && typeof m.vendor === 'object' ? { id: (m.vendor as any).id, businessName: String((m.vendor as any).businessName || '') } : null,
+            }))
+          } catch {}
+
+          const sanitized = sanitizeZoneDoc(doc)
+          return { doc: { ...sanitized, merchantCount, merchantsPreview } }
+        }),
+    )
+    if (!responseBody) return NextResponse.json({ error: 'Business zone not found' }, { status: 404 })
+    return NextResponse.json(responseBody, { headers: { 'X-BusinessZoneDetail-Cache': status } })
   } catch (err: any) { console.error('[admin/business-zones/[id]] GET error:', err); return NextResponse.json({ error: err?.message || 'Failed to load zone' }, { status: 500 }) }
 }
 
@@ -121,8 +152,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     const sanitized = sanitizeZoneDoc(updated)
     // Bust list + overview caches so the update reflects immediately on /business-zones/admin
-    await deleteCachedByPrefix('admin:business-zones:')
-    await deleteCachedByPrefix('admin:business-zones-overview:')
+    await bustBusinessZonesCache()
     return NextResponse.json({ success: true, message: 'Business zone updated successfully', doc: sanitized })
   } catch (err: any) { console.error('[admin/business-zones/[id]] PATCH error:', err); return NextResponse.json({ error: err?.message || 'Update failed' }, { status: 500 }) }
 }
@@ -139,7 +169,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // Safety: count merchants assigned to this zone
     let assignedCount = 0
     try {
-      const r = await payload.find({ collection: 'merchants', where: { businessZone: { equals: numericId } }, limit: 0, overrideAccess: true } as any)
+      const r = await payload.count({ collection: 'merchants', where: { businessZone: { equals: numericId } }, overrideAccess: true, context: { skipStoreHours: true } } as any)
       assignedCount = typeof (r as any).totalDocs === 'number' ? (r as any).totalDocs : 0
     } catch {}
     if (assignedCount > 0) {
@@ -150,8 +180,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     try { deleted = await payload.delete({ collection: 'business-zones', id: docId as number, overrideAccess: true }) } catch (e: any) { return NextResponse.json({ error: e?.message || 'Failed to delete zone' }, { status: 400 }) }
     if (!deleted) return NextResponse.json({ error: 'Business zone not found' }, { status: 404 })
     // Bust list + overview caches so the deletion reflects immediately on /business-zones/admin
-    await deleteCachedByPrefix('admin:business-zones:')
-    await deleteCachedByPrefix('admin:business-zones-overview:')
+    await bustBusinessZonesCache()
     return NextResponse.json({ success: true, id: deleted.id, message: 'Business zone deleted successfully' })
   } catch (err: any) { console.error('[admin/business-zones/[id]] DELETE error:', err); return NextResponse.json({ error: err?.message || 'Delete failed' }, { status: 500 }) }
 }

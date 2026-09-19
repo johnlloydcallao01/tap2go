@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustBusinessZonesCache } from '../utils/dashboardCache'
 
 export const BusinessZones: CollectionConfig = {
   slug: 'business-zones',
@@ -125,6 +126,16 @@ export const BusinessZones: CollectionConfig = {
           data.boundary_geometry = null
         }
         return data
+      },
+    ],
+    afterChange: [
+      async () => {
+        try { await bustBusinessZonesCache() } catch { /* ignore */ }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try { await bustBusinessZonesCache() } catch { /* ignore */ }
       },
     ],
   },

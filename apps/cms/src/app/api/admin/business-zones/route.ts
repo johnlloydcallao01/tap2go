@@ -10,7 +10,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
-import { getCached, setCached, deleteCachedByPrefix } from '@encreasl/cache'
+import { getOrBuildDashboard, bustBusinessZonesCache } from '@/utils/dashboardCache'
+import { withAdminRequestSlot } from '@/utils/adminRequestGate'
+import { getBusinessZoneStats } from '@/utils/businessZoneStats'
 
 function optionalString(v: unknown): string | null { return typeof v === 'string' ? v.trim() || null : null }
 function str(v: unknown, fb = ''): string { return typeof v === 'string' ? v : fb }
@@ -55,93 +57,71 @@ export async function GET(request: NextRequest) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&') || 'page=1&limit=10&sort=-createdAt'
-    const cacheKey = `admin:business-zones:${admin.id}:${cacheQuery}`
-    const cached = await getCached<Record<string, unknown>>(cacheKey)
-    if (cached) return NextResponse.json(cached, { headers: { 'X-BusinessZones-Cache': 'HIT' } })
+    // Global key (no admin.id) + data is platform-wide. Gate wraps the builder
+    // only, so cached HITs never queue. See performance.md.
+    const cacheKey = `admin:business-zones:v1:${cacheQuery}`
 
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
-    const search = searchParams.get('search')?.trim() || ''
-    const sort = searchParams.get('sort') || '-createdAt'
-    const isActiveParam = searchParams.get('isActive')
-    const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
+    const { data: responseBody, status } = await getOrBuildDashboard<Record<string, unknown>>(
+      cacheKey,
+      60,
+      () =>
+        withAdminRequestSlot(async () => {
+          const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
+          const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
+          const search = searchParams.get('search')?.trim() || ''
+          const sort = searchParams.get('sort') || '-createdAt'
+          const isActiveParam = searchParams.get('isActive')
+          const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
 
-    const where: Record<string, any> = {}
-    const and: any[] = []
-    if (search) {
-      and.push({ or: [{ name: { contains: search } }, { slug: { contains: search } }, { description: { contains: search } }] })
-    }
-    if (isActiveFilter !== null) where.isActive = { equals: isActiveFilter }
-    const finalWhere = and.length ? { and: [...and, where] } : where
+          const where: Record<string, any> = {}
+          const and: any[] = []
+          if (search) {
+            and.push({ or: [{ name: { contains: search } }, { slug: { contains: search } }, { description: { contains: search } }] })
+          }
+          if (isActiveFilter !== null) where.isActive = { equals: isActiveFilter }
+          const finalWhere = and.length ? { and: [...and, where] } : where
 
-    const [paginated, allZonesForStats, merchantsForStats] = await Promise.all([
-      payload.find({
-        collection: 'business-zones',
-        where: Object.keys(finalWhere).length ? finalWhere : undefined,
-        page,
-        limit,
-        sort,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({ collection: 'business-zones', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any),
-      payload.find({ collection: 'merchants', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any),
-    ])
+          // Paginated display (bounded ≤100, depth 0 — zones are scalar) + one
+          // cached stats rollup. No 5000-doc hydration per request.
+          const [paginated, stats] = await Promise.all([
+            payload.find({
+              collection: 'business-zones',
+              where: Object.keys(finalWhere).length ? finalWhere : undefined,
+              page,
+              limit,
+              sort,
+              depth: 0,
+              overrideAccess: true,
+            }),
+            getBusinessZoneStats(payload),
+          ])
 
-    const zoneDocs = paginated.docs as unknown as Record<string, any>[]
-    const allZones = (allZonesForStats.docs as any[]) || []
-    const allMerchants = (merchantsForStats.docs as any[]) || []
+          const zoneDocs = paginated.docs as unknown as Record<string, any>[]
+          const docs = zoneDocs.map((raw) => {
+            const sanitized = sanitizeZoneDoc(raw)
+            const idStr = String(sanitized.id)
+            return {
+              ...sanitized,
+              merchantCount: stats.merchantCountByZone[idStr] || 0,
+            }
+          })
 
-    // Merchant counts per zone
-    const merchantCountByZone = new Map<string, number>()
-    let unassignedMerchants = 0
-    for (const m of allMerchants) {
-      const bz = (m as any).businessZone ?? (m as any).business_zone ?? null
-      const bzId = bz != null ? String(typeof bz === 'object' ? (bz as any).id ?? bz : bz) : null
-      if (!bzId || bzId === 'null') {
-        unassignedMerchants++
-      } else {
-        merchantCountByZone.set(bzId, (merchantCountByZone.get(bzId) || 0) + 1)
-      }
-    }
-
-    const docs = zoneDocs.map((raw) => {
-      const sanitized = sanitizeZoneDoc(raw as Record<string, any>)
-      const idStr = String(sanitized.id)
-      return {
-        ...sanitized,
-        merchantCount: merchantCountByZone.get(idStr) || 0,
-      }
-    })
-
-    const totalZones = allZones.length
-    const activeZones = allZones.filter((z: any) => z.isActive !== false).length
-    const inactiveZones = totalZones - activeZones
-
-    const responseBody = {
-      docs,
-      pagination: {
-        page: (paginated as any).page || page,
-        limit: (paginated as any).limit || limit,
-        totalDocs: (paginated as any).totalDocs ?? docs.length,
-        totalPages: (paginated as any).totalPages ?? 1,
-        hasNextPage: (paginated as any).hasNextPage ?? false,
-        hasPrevPage: (paginated as any).hasPrevPage ?? false,
-      },
-      stats: {
-        totalZones,
-        activeZones,
-        inactiveZones,
-        totalMerchants: allMerchants.length,
-        assignedMerchants: allMerchants.length - unassignedMerchants,
-        unassignedMerchants,
-        merchantCountByZone: Object.fromEntries(merchantCountByZone),
-      },
-      meta: { generatedAt: new Date().toISOString(), sort, search },
-    }
-
-    await setCached(cacheKey, responseBody, 20)
-    return NextResponse.json(responseBody, { headers: { 'X-BusinessZones-Cache': 'MISS' } })
+          return {
+            docs,
+            pagination: {
+              page: (paginated as any).page || page,
+              limit: (paginated as any).limit || limit,
+              totalDocs: (paginated as any).totalDocs ?? docs.length,
+              totalPages: (paginated as any).totalPages ?? 1,
+              hasNextPage: (paginated as any).hasNextPage ?? false,
+              hasPrevPage: (paginated as any).hasPrevPage ?? false,
+            },
+            stats,
+            meta: { generatedAt: new Date().toISOString(), sort, search },
+          }
+        }),
+    )
+    return NextResponse.json(responseBody, { headers: { 'X-BusinessZones-Cache': status } })
   } catch (err: any) {
     console.error('[admin/business-zones] GET error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to load business zones' }, { status: 500 })
@@ -204,8 +184,7 @@ export async function POST(request: NextRequest) {
     }
     const sanitized = sanitizeZoneDoc(created)
     // Bust list + overview caches (all admins / query variants) so the new zone shows immediately
-    await deleteCachedByPrefix('admin:business-zones:')
-    await deleteCachedByPrefix('admin:business-zones-overview:')
+    await bustBusinessZonesCache()
     return NextResponse.json({ success: true, message: 'Business zone created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/business-zones] POST error:', err)

@@ -77,6 +77,7 @@ import * as migration_20260918_105206 from './20260918_105206';
 import * as migration_20260918_141028 from './20260918_141028';
 import * as migration_20260918_143000_merchants_vendors_trgm from './20260918_143000_merchants_vendors_trgm';
 import * as migration_20260918_144500_products_trgm from './20260918_144500_products_trgm';
+import * as migration_20260918_150000_vendors_business_name_btree from './20260918_150000_vendors_business_name_btree';
 
 export const migrations = [
   {
@@ -473,5 +474,10 @@ export const migrations = [
     up: migration_20260918_144500_products_trgm.up,
     down: migration_20260918_144500_products_trgm.down,
     name: '20260918_144500_products_trgm'
+  },
+  {
+    up: migration_20260918_150000_vendors_business_name_btree.up,
+    down: migration_20260918_150000_vendors_business_name_btree.down,
+    name: '20260918_150000_vendors_business_name_btree'
   },
 ];

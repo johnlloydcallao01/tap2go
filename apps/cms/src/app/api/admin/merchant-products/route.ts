@@ -140,12 +140,13 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
       vendorsRes = await payload.find({
         collection: 'vendors', page, limit, sort: 'businessName', depth: 1,
         overrideAccess: true,
+        select: { id: true, businessName: true, legalName: true, businessType: true, verificationStatus: true, isActive: true, logo: true },
       } as any)
       const vendorIds = (vendorsRes.docs || []).map((vendor: any) => vendor.id)
       const [stats, scopedMerchants, mpCountRows] = await Promise.all([
         getMerchantProductStats(payload),
         vendorIds.length
-          ? payload.find({ collection: 'merchants', where: { vendor: { in: vendorIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
+          ? payload.find({ collection: 'merchants', where: { vendor: { in: vendorIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false, context: { skipStoreHours: true } } as any)
           : Promise.resolve({ docs: [] }),
         // Single GROUP BY replaces per-vendor N+1 limit:1 finds.
         vendorIds.length
@@ -189,25 +190,44 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
         matchWhere = vConds[0]
         for (let i = 1; i < vConds.length; i++) matchWhere = sql`${matchWhere} AND ${vConds[i]}`
       }
-      const totalRows = await mpRows(payload, sql`SELECT COUNT(DISTINCT v.id)::int AS c FROM vendors v WHERE ${matchWhere}`)
-      const matchTotal = Number(totalRows[0]?.c ?? 0)
       const offset = (page - 1) * limit
-      const idRows = await mpRows(
-        payload,
-        sql`SELECT DISTINCT v.id AS id, v.business_name AS bname FROM vendors v WHERE ${matchWhere} ORDER BY v.business_name LIMIT ${limit} OFFSET ${offset}`,
-      )
+      // Two scans instead of four: one GROUPING SETS aggregate returns the
+      // matched total + both facet rollups, and the page query stays as the
+      // DISTINCT/ORDER scan. The triple-join EXISTS below (and the
+      // `%ILIKE%` predicates) is evaluated once per scan, not per rollup.
+      // The page ORDER BY is served by idx_vendors_business_name_btree.
+      // See performance.md §17.
+      const [aggRows, idRows] = await Promise.all([
+        mpRows(
+          payload,
+          sql`SELECT COALESCE(LOWER(v.business_type::text),'other') AS bt, COALESCE(LOWER(v.verification_status::text),'pending') AS vs, COUNT(DISTINCT v.id)::int AS c, GROUPING(LOWER(v.business_type::text))::int AS g_bt, GROUPING(LOWER(v.verification_status::text))::int AS g_vs FROM vendors v WHERE ${matchWhere} GROUP BY GROUPING SETS ((LOWER(v.business_type::text)), (LOWER(v.verification_status::text)), ()) ORDER BY g_bt, g_vs, bt, vs`,
+        ),
+        mpRows(
+          payload,
+          sql`SELECT DISTINCT v.id AS id, v.business_name AS bname FROM vendors v WHERE ${matchWhere} ORDER BY v.business_name LIMIT ${limit} OFFSET ${offset}`,
+        ),
+      ])
+      let matchTotal = 0
+      const btFacetRows: Array<{ s: string; c: number }> = []
+      const vsFacetRows: Array<{ s: string; c: number }> = []
+      for (const r of aggRows) {
+        const gBt = Number(r.g_bt ?? 0)
+        const gVs = Number(r.g_vs ?? 0)
+        if (gBt === 0 && gVs === 1) btFacetRows.push({ s: String(r.bt ?? 'other'), c: Number(r.c ?? 0) })
+        else if (gBt === 1 && gVs === 0) vsFacetRows.push({ s: String(r.vs ?? 'pending'), c: Number(r.c ?? 0) })
+        else if (gBt === 1 && gVs === 1) matchTotal = Number(r.c ?? 0)
+      }
       const pageIds = idRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
-      // Phase 1: page vendors + their merchants (bounded by page) + facet
-      // rollups over the SAME matched-vendor set (marketplace left-rail counts).
-      const [vRes, mRes, btFacetRows, vsFacetRows] = await Promise.all([
+      // Phase 1: page vendors + their merchants, both bounded by the SQL page.
+      // Vendors projected (no `user` relationship join) and merchants skip the
+      // expensive store-hours afterRead — neither is part of the response.
+      const [vRes, mRes] = await Promise.all([
         pageIds.length
-          ? payload.find({ collection: 'vendors', where: { id: { in: pageIds } }, limit: pageIds.length, depth: 1, overrideAccess: true, pagination: false } as any)
+          ? payload.find({ collection: 'vendors', where: { id: { in: pageIds } }, limit: pageIds.length, depth: 1, overrideAccess: true, pagination: false, select: { id: true, businessName: true, legalName: true, businessType: true, verificationStatus: true, isActive: true, logo: true } } as any)
           : Promise.resolve({ docs: [] }),
         pageIds.length
-          ? payload.find({ collection: 'merchants', where: { vendor: { in: pageIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false } as any)
+          ? payload.find({ collection: 'merchants', where: { vendor: { in: pageIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false, context: { skipStoreHours: true } } as any)
           : Promise.resolve({ docs: [] }),
-        mpRows(payload, sql`SELECT COALESCE(LOWER(v.business_type::text),'other') AS s, COUNT(DISTINCT v.id)::int AS c FROM vendors v WHERE ${matchWhere} GROUP BY 1 ORDER BY 1`),
-        mpRows(payload, sql`SELECT COALESCE(LOWER(v.verification_status::text),'pending') AS s, COUNT(DISTINCT v.id)::int AS c FROM vendors v WHERE ${matchWhere} GROUP BY 1 ORDER BY 1`),
       ])
       const pageMerchantIds = (mRes.docs as any[]).map((m: any) => Number(m.id)).filter((n: number) => Number.isFinite(n))
       // Phase 2: merchant-products + products for page merchants only.
@@ -220,7 +240,7 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
             .then(async (pIdRows) => {
               const pIds = pIdRows.map((r) => Number(r.id)).filter((n: number) => Number.isFinite(n))
               if (!pIds.length) return { docs: [] }
-              return payload.find({ collection: 'products', where: { id: { in: pIds } }, limit: pIds.length, depth: 1, overrideAccess: true, pagination: false } as any)
+              return payload.find({ collection: 'products', where: { id: { in: pIds } }, limit: pIds.length, depth: 1, overrideAccess: true, pagination: false, select: { id: true, name: true, slug: true, sku: true, productType: true, basePrice: true, media: true } } as any)
             })
           : Promise.resolve({ docs: [] }),
       ])

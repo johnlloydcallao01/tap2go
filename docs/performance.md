@@ -1,7 +1,7 @@
-# Dashboard Performance Blueprint — `/dashboard/overview` + `/dashboard/analytics` + `/dashboard/reports` + `/vendors` + `/merchants` + `/products` + `/orders` + `/customers`
+# Dashboard Performance Blueprint — `/dashboard/overview` + `/dashboard/analytics` + `/dashboard/reports` + `/vendors` + `/merchants` + `/products` + `/orders` + `/customers` + `/business-zones`
 
 Date: 2026-09-18
-Scope: `apps/web-admin` Overview + Analytics + Reports + Vendors + Merchants + Products/Catalog + Orders + Customers + `apps/cms` admin dashboard/analytics/reports/vendors/merchants/products/catalog/orders/customers APIs + Postgres + Upstash Redis + Cloud Run
+Scope: `apps/web-admin` Overview + Analytics + Reports + Vendors + Merchants + Products/Catalog + Orders + Customers + Business Zones + `apps/cms` admin dashboard/analytics/reports/vendors/merchants/products/catalog/orders/customers/business-zones APIs + Postgres + Upstash Redis + Cloud Run
 Status: Implemented and verified (`tsc`, `eslint`, `migrate:status Yes` ×2). No `migrate:fresh` used.
 
 This document is the reproduction guide for applying the same optimization to other pages (analytics, reports, vendor payouts, merchant dashboard, lists).
@@ -281,11 +281,23 @@ Same principles, list-sidecar variant (displays already single-query with correc
 After: same single queries, global keys, gate-inside, SQL stats, cached details.
 
 - **Indexes:** `Orders(placed_at)` (list default sort `-placed_at` was unindexed) + `OrderTracking(order,timestamp)` (detail timeline `WHERE order + ORDER BY timestamp`). `pnpm payload migrate:create` → `20260918_103301.ts` (index-only, reviewed), `echo y | pnpm payload migrate --force` → `Migrated (399ms)`, `migrate:status Yes` (Batch 40). Status/payment/FK sorts already covered by `041730`/`053029`/auto indexes; `LIKE %…%` search and `discount_total` expression intentionally not indexed.
-- **List builders** (in-route, shapes preserved, stats stay global per existing contract): `orders` stats → `COUNT` + `GROUP BY status/fulfillment_type/delivery_status` + `SUM(paid)`; `order-items` → `COUNT + SUM(total_price/quantity) + COUNT DISTINCT order/product + FILTER (options_snapshot not empty)` (avgQuantity divisor fixed to `totalAll` instead of capped-2000 length); `transactions` → `COUNT + SUM FILTER (paid/refunded/failed/pending)` + `GROUP BY status/payment_method`. All parameterized `drizzle-orm sql`, all TTL 60 globals (`admin:orders:v1`, `admin:order-items:v1`, `admin:transactions:v1`).
+- **List builders** (in-route, shapes preserved, stats stay global per existing contract): `orders` stats → `COUNT` + `GROUP BY status/fulfillment_type/delivery_status` + `SUM(paid)`, later consolidated into a cached rollup (§12b); `order-items` → `COUNT + SUM(total_price/quantity) + COUNT DISTINCT order/product + FILTER (options_snapshot not empty)` (avgQuantity divisor fixed to `totalAll` instead of capped-2000 length); `transactions` → `COUNT + SUM FILTER (paid/refunded/failed/pending)` + `GROUP BY status/payment_method`. All parameterized `drizzle-orm sql`, all TTL 60 globals (`admin:orders:v1`, `admin:order-items:v1`, `admin:transactions:v1`).
 - **Details:** `orders/[id]` (1+7 aggregates) + `transactions/[id]` (1+1) + `order-items/[id]` wrapped in `:detail:v1:<id>` TTL 120 + gate-inside; dead `orders limit:0` replaced by `payload.count(vendor)`; PATCH busts switched to `bustOrdersCache()/bustOrderItemsCache()` (L1+Redis).
 - **Write-through:** `dashboardCache.ts` new `bustOrdersCache()`, `bustOrderItemsCache()`, `bustTransactionsCache()`; `Orders` hooks bust all eight prefixes; `Transactions` bust six; `OrderItems` new `afterChange+afterDelete` bust items+orders. Dynamic import only in collections.
 - **BFF:** lists add 20s timeout + `Cache-Control` + existing `X-*-Cache` forward; details forward `X-*-Cache`. Frontend one-line fix: `fulfillmentType/deliveryStatus` → `fulfillment_type/delivery_status` (filters now actually apply).
 - **Verify:** `tsc` CMS + web-admin clean, `eslint` clean, `migrate:status` 4× `Yes`, no `migrate:fresh`. Known remaining gap (documented, not changed): list `search` covers `id/lalamove/notes/coupon` only, not merchant/customer/outlet despite placeholder text — needs JOIN search if desired.
+
+---
+
+## 12b. Orders list-speed pass (stats rollup + first paint, 2026-09-18)
+
+`/orders` is a §4b entity-list page: the base port (§12) fixed the 2000-doc hydration blowup; this pass removes the remaining per-request recounts + cold-start waterfall. Code-only, no migration.
+
+- **Repeated-scan consolidation — one `admin:orders:stats:v1` rollup.** The 5 global stat queries ran on every list MISS of every qs. Moved into a TTL-300 builder (`getOrdersStats`) sharing `bustOrdersCache` coverage; inside it, `COUNT` + the 3 dimension `GROUP BY`s collapse into a SINGLE `GROUPING SETS ((status),(fulfillment_type),(delivery_status),())` scan (`GROUPING()` flags disambiguate rows; total row = all-1s), revenue (transactions table) stays the second query. Verified identical numbers vs the old 5-query shape: total=5, status facet matches original `GROUP BY status`, revenue=76. Recurring scans per qs: 5→0; per-build: 5→2. §17c 42803 rule applied — matched set includes all three dims. Stats stay global per contract.
+- **`skipStoreHours` on the list find.** `depth:2` populates a full merchant per order and its `afterRead` runs `getStoreHoursStatus` (≤11,520 loops) — the table renders only `outletName` + `vendor.businessName/logo`. One-line `context` guard (same as §17c item 3). Note: Payload can't project nested merchant/customer docs via `select`, so full bounded enrichment (`depth:0` + projected finds) is deferred until profiling shows merchant/customer payload dominates.
+- **First paint carries real rows (§4b item 3).** Orders page split into `content.tsx` (client, `OrdersPageContent`/`OrdersSkeleton` exported) + server `page.tsx` wrapper prefetching default `page=1&limit=10&sort=-placed_at` into the dehydrated `QUERY_KEYS.adminOrders` cache (`next: { revalidate: 30 }`); sidebar `All Orders` now `prefetch={true}`; icons import direct from `lucide-react` (dropped the `IconWrapper` barrel + 6 unused: `Users/ShieldAlert/TrendingUp/Filter/Star/Award`).
+- **Fixed dead AOV field.** CMS has always sent `stats.avgOrderValue` but the page read `stats.averageOrderValue` — the average order value KPI never rendered. Renamed the frontend type + read to `avgOrderValue`.
+- **Verify:** GROUPING SETS + revenue queries run against Supabase via `pg` (numbers match old shapes); `tsc --noEmit` CMS + web-admin clean; `eslint` clean on changed files; no new migration, no `migrate:fresh`.
 
 ---
 
@@ -332,7 +344,62 @@ After (`apps/web-admin/src/app/layout.tsx`, `app/(main)/layout.tsx`):
 
 Alibaba/Amazon patterns applied where they fit this stack (studied via agents + web research). Deliberately NOT built: dedicated search engine (overkill — trigram + pushdown suffice), denormalized matview (current SQL vendor page is the pragmatic equivalent at this scale), cursor pagination (would break numbered Prev/1..5/Next UI), ISR landing (per-admin token + `private` make it uncacheable at edge).
 
-- **Facets (additive, zero shape change).** Filtered branch runs 2 extra `GROUP BY` scans over the SAME matched-vendor set (`COUNT DISTINCT v.id` by `LOWER(business_type)` / `LOWER(verification_status)`, reusing `matchWhere` verbatim — self-contained, no extra JOINs). New `facets: { businessType[], verificationStatus[] }` key alongside `vendors/pagination/stats/meta` (absent on unfiltered loads); frontend ignores unknown keys by construction (selective destructuring, type assertion). Enables left-rail filter counts without new round-trips.
+- **Facets (additive, zero shape change).** Filtered branch returns matched-vendor counts by `LOWER(business_type)` / `LOWER(verification_status)`. New `facets: { businessType[], verificationStatus[] }` key alongside `vendors/pagination/stats/meta` (absent on unfiltered loads); frontend ignores unknown keys by construction (selective destructuring, type assertion). Enables left-rail filter counts without new round-trips. See §17c for how the totals are gathered in a single scan.
 - **Image variants.** `sanitizeMediaRef` now also returns `thumbUrl` (`/upload/w_80,q_auto,f_auto/` injected into Cloudinary fetch URLs; non-cloudinary/already-transformed/null pass through safely). Vendor avatar in `content.tsx` uses `next/image` (`40×40`, `sizes="40px"`, `loading="lazy"`, thumb preferred) — remote hosts already allowlisted in `next.config.ts`. Biggest LCP/bandwidth win on the page.
-- **Verify:** `tsc` CMS + web-admin clean, `eslint` clean, no new migration (code-only; trigram coverage from `20260918_143000` + `20260918_144500`). NOTE: `thumbUrl` must stay module-private in route files — Next.js route type-check rejects non-route exports.
+- **Verify:** `tsc` CMS + web-admin clean, `eslint` clean, migration `20260918_150000_vendors_business_name_btree` (Batch 45) applied. NOTE: `thumbUrl` must stay module-private in route files — Next.js route type-check rejects non-route exports.
+
+---
+
+## 17c. Filtered-path single-scan pass (`/products` searches, 2026-09-18)
+
+Follow-up to §17. Agent-verified diagnosis + fix in `apps/cms/src/app/api/admin/merchant-products/route.ts`.
+
+**Default landing is fine:** 7 cheap ops (vendors page via paginated `find depth:1` + scoped merchants `IN (pageIds) depth:0` + one SQL `GROUP BY vendor_id` for product counts + 4 cached `payload.count` totals from `getMerchantProductStats`). Zero mp/product docs hydrated. Relations are all FK-indexed; JOIN order is not the problem.
+
+**Filtered loads pay the same expensive scan 4× per request:**
+
+- `COUNT DISTINCT` (total) + `DISTINCT … ORDER BY business_name` (page) + 2 facet-style `GROUP BY`s (added in §17) — each re-evaluating the `EXISTS (merchants ⨝ merchant-products ⨝ products)` triple-join with `%ILIKE%` predicates over the full candidate set.
+- `ORDER BY business_name` + `DISTINCT` have no btree index (trigram GINs cover the `ILIKE`, not sorting/distinct) — so sort-unique spills with no index support.
+- Phase-2 then hydrates up to 5,000 mps + 2,000 full products to paint 10 vendor rows.
+
+**DB techniques that fix it, in order:**
+
+1. **One scan instead of four.** Merge total + both facets into a single statement with `GROUPING SETS ((business_type),(verification_status),())` over the matched set; page query stays separate. `GROUPING(...)` flags disambiguate rows (`g_bt=0,g_vs=1` → businessType facet; `1,0` → verificationStatus facet; `1,1` → matched total). Cuts the dominant scan 4→2 with zero shape change. Important lesson (42803): every `GROUPING(...)` argument must be a grouping expression of THAT query level — the matched set must include both dimensions even when one facet is unused.
+2. **Btree on `vendors(business_name)`.** Serves the `DISTINCT + ORDER BY` directly (trigram can't). Manual migration `20260918_150000_vendors_business_name_btree.ts` (`CREATE INDEX IF NOT EXISTS idx_vendors_business_name_btree ON vendors (business_name)`, Batch 45, 242ms), same hand-written pattern as the trigram migrations. Verified in `pg_indexes`.
+3. **Projected hydration.** Phase-2 products `depth:1` find now `select:`s only `id, name, slug, sku, productType, basePrice, media` — richText `description` + `categories` uploads were fetched then discarded. Phase-1/landing vendors find projected to `id, businessName, legalName, businessType, verificationStatus, isActive, logo` (drops the required `user` relationship join — unused in the response). Both merchants finds pass `context: { skipStoreHours: true }` (the afterRead hook's up-to-11520-loop status computation is not part of the response).
+4. **Later, if vendors scale 10–100×:** the `vendor_list_v1` matview from §17b item 2 (one `SELECT` replaces page + total + facets entirely), refreshed on write via `bustProductsCache` hooks + 60s rebuild.
+
+- **Verify:** `CREATE INDEX` + all three query shapes (facet aggregate, EXISTS variant with `p.name ILIKE`, distinct page) run against Supabase via `pg`; `tsc --noEmit` CMS clean, `eslint` clean, `migrate:status` Batch 45 `Yes`. Sample: 9 vendors total, facet rows `restaurant:5 / other:5` on `%chicken%` search.
+
+---
+
+## 17b. Marketplace patterns — conditional status for `/products`-kind pages
+
+The Alibaba/Amazon study (agents + web research) produced six patterns. Only two are built unconditionally; the rest are **explicitly deferred with build triggers**. Do NOT build them speculatively — each changes contracts, freshness, or infra:
+
+1. **Search leaves Postgres → inverted index (Typesense/Meilisearch/ES).** CONDITIONAL — build when: trigram `%ILIKE%` p95 exceeds budget at scale, or typo-tolerance/cross-entity relevance becomes a product requirement. Until then trigram + `LIMIT` pushdown suffices. Note the search stays in-DB so today's `matchWhere` SQL is the future indexer's filter spec — keep it exact.
+2. **Denormalized read model (`vendor_list_v1` matview/table).** CONDITIONAL — build when: the filtered vendor page (now a single `GROUPING SETS` aggregate + indexed distinct page, per §17c) breaches budget, or vendor counts must stay correct past the `2000` merchant / `5000` mp hydration caps. Refresh via existing `bustProductsCache` write hooks + 60s rebuild (same pattern as stats rollups). Until then the SQL vendor page IS the pragmatic equivalent.
+3. **Cursor pagination (`search_after` on `(business_name, id)`).** CONDITIONAL — build when: deep pages are actually used or OFFSET cost shows in `EXPLAIN`. It breaks the numbered Prev/1..5/Next UI, so it requires a frontend contract change (`hasNextPage` via `LIMIT+1`, cursor in URL, exact totals only for the unfiltered head). Do not half-build backend cursors the UI ignores.
+4. **Tiles-not-groups contract split.** CONDITIONAL — build when: vendor-group hydration dominates despite caps (media-heavy groups). Landing returns vendor + counts only (today's unfiltered branch shape); products move to `vendors/[id]` drill-down. Requires frontend + BFF contract versioning.
+5. **Image variants.** BUILT (§17: `thumbUrl` + `next/image` 40×40 lazy). Extend to product tiles if a product-grid view ships (same helper pattern, `w_320`).
+6. **ISR/edge landing.** CONDITIONAL — build when: anonymous or shared-token traffic exists. Today per-admin JWT + `private` make even the identical landing uncacheable at the edge; making it public requires separating the auth gate from the cached payload first. Do not mark filtered/search responses public.
+
+---
+
+## 18. Business Zones application (`/business-zones/admin`, 2026-09-18)
+
+Same principles, list-sidecar variant with an unfiltered overview for the map — both were legacy "before" state (not part of the original port). Before: list GET did paginated `find` (correct) + `business-zones 5000` + `merchants 5000 depth:0` hydration with JS `Map`/`filter` counts; overview did `business-zones 1000` + `merchants 1000 depth:2` (full vendor + upload hydration) or `merchants 5000` when merchants were skipped, again JS counts; both per-`admin.id` raw-qs keys TTL 20, no gate/L1/singleflight; `[id]` DELETE used `limit:0` count-via-find, no bust helper; BFF no `Cache-Control`/`X-*`; page used `IconWrapper` barrel + no prefetch.
+
+After: same single queries, global keys, gate-inside, SQL stats rollup.
+
+- **Shared stats rollup** `apps/cms/src/utils/businessZoneStats.ts`: new `getBusinessZoneStats()` under `admin:business-zones:stats:v1` (TTL 300, gate-inside, shares `bustBusinessZonesCache` coverage). Two indexed SQL statements — `business_zones` total/active via `COUNT(*) FILTER (WHERE is_active)`, merchant assignment via `merchants GROUP BY business_zone_id` (FK-indexed) → `merchantCountByZone` map + unassigned/total. Verified against Supabase: total=2/active=2, 9 merchants all unassigned → matches old JS semantics exactly (`MATCH: true`).
+- **List `route.ts`** → global `admin:business-zones:v1:<sorted-qs>` TTL 60, `getOrBuildDashboard` + gate-inside, `X-BusinessZones-Cache` forward; MISS = paginated `find` (bounded ≤100, `depth:0` — zones are scalar) + one rollup HIT. No 5000-doc hydration per request.
+- **Overview `route.ts`** → global `admin:business-zones-overview:v1:<sorted-qs>` TTL 300 + gate-inside. Merchant fetch stays `depth:2` but gets `select:` of only the ~17 rendered render fields (drops hours/geometry/media blobs) + `context: { skipStoreHours: true }` (guards the afterRead loop); `includeMerchants=false` path now runs zero merchant query (counts come from the rollup). Zone counts use the global rollup — exact even under `zoneId` filter (old code's map was wrong there).
+- **`[id]` route**: dead `limit:0` count-via-find → `payload.count` (merchants by zone, `skipStoreHours`); PATCH/DELETE busts switched from raw `deleteCachedByPrefix`×2 to `bustBusinessZonesCache()`.
+- **Write-through**: `dashboardCache.ts` new `bustBusinessZonesCache()` (both `admin:business-zones:` + `admin:business-zones-overview:` prefixes, L1+Redis); `Merchants` hooks extend to it (zone assignment moves counts); `BusinessZones` gets new `afterChange+afterDelete` hooks. Top-level `dashboardCache` import (dynamic cache import internally — no top-level `@encreasl/cache` in collections).
+- **BFF**: list + overview GETs add `Cache-Control: private, max-age=30, SWR=60` + forward `X-BusinessZones-Cache` / `X-BusinessZonesOverview-Cache`.
+- **First paint (§4b item 3)**: admin page split into `content.tsx` (client) + server `page.tsx` wrapper prefetching the default list qs (`page=1&limit=10&sort=-createdAt`) AND the unfiltered overview into dehydrated caches (`QUERY_KEYS.adminBusinessZones` + `adminBusinessZoneOverview`); sidebar `Business Zones → Admin` child `prefetch={true}`; icons import direct from `lucide-react` (barrel dropped, `Clock` unused removed).
+- **Merchants page `/business-zones/merchants` (2026-09-18, same pass)**: consumes the same two optimized endpoints (zone list `limit=100` + overview, zone-filtered client-side), so backend work was already covered by the above; applied §4b item 3 — page split into `content.tsx` + server wrapper prefetching `QUERY_KEYS.adminBusinessZones('limit=100')` + default overview; sidebar `Business Zones → Merchants` child `prefetch={true}`; icons direct from `lucide-react` (`Pencil` unused dropped).
+- **Detail `[id]` GET**: now `admin:business-zones:detail:v1:<id>` TTL 120 + gate-in (`X-BusinessZoneDetail-Cache` via BFF); preview merchants find gained `select:` (scalars + vendor only) + `context: { skipStoreHours: true }`; `findByID` 404 returns `null` from the builder (never cached) and the route maps it to 404. PATCH/DELETE busts already live under the same `bustBusinessZonesCache()` prefix.
+- **Verify**: `pg` script ran both SQL statements + old-JS semantics — identical; `tsc --noEmit` CMS + web-admin clean; `eslint` clean; no new migration (SQL uses existing indexes: `merchants_business_zone_idx`, `business_zones isActive_idx`), no `migrate:fresh`.
 

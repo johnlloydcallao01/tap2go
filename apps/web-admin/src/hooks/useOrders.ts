@@ -54,7 +54,7 @@ export type OrderStats = {
   totalAll: number;
   filteredTotal: number;
   totalRevenue: number;
-  averageOrderValue: number;
+  avgOrderValue: number;
   statusBreakdown: Record<string, number>;
   fulfillmentBreakdown: Record<string, number>;
   totalOrders?: number;

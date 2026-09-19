@@ -160,8 +160,8 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
               onToggle={() => setIsBusinessZonesExpanded((c) => !c)}
               active={hasActiveBusinessZonesChild}
             >
-              {renderChildLink({ label: 'Admin', href: '/business-zones/admin', isActive: dropdownActive(pathname, '/business-zones/admin') })}
-              {renderChildLink({ label: 'Merchants', href: '/business-zones/merchants', isActive: dropdownActive(pathname, '/business-zones/merchants') })}
+              {renderChildLink({ label: 'Admin', href: '/business-zones/admin', isActive: dropdownActive(pathname, '/business-zones/admin'), prefetch: true })}
+              {renderChildLink({ label: 'Merchants', href: '/business-zones/merchants', isActive: dropdownActive(pathname, '/business-zones/merchants'), prefetch: true })}
             </SidebarDropdownGroup>
           </div>
 
@@ -230,7 +230,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
           <div className="space-y-1">
             <SidebarSectionLabel isOpen={expanded}>Orders</SidebarSectionLabel>
 
-            <SidebarItem icon="orders" label="All Orders" active={exactActive(pathname, '/orders')} collapsed={!expanded} href="/orders" />
+            <SidebarItem icon="orders" label="All Orders" active={exactActive(pathname, '/orders')} collapsed={!expanded} href="/orders" prefetch={true} />
 
             <SidebarItem icon="pages" label="Order Items" active={dropdownActive(pathname, '/order-items')} collapsed={!expanded} href="/order-items" />
 

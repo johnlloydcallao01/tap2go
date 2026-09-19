@@ -119,6 +119,13 @@ export async function bustCatalogCache(): Promise<void> {
   await redisBustPrefix('admin:product-categories:')
 }
 
+export async function bustBusinessZonesCache(): Promise<void> {
+  bustDashboardL1('admin:business-zones:')
+  await redisBustPrefix('admin:business-zones:')
+  bustDashboardL1('admin:business-zones-overview:')
+  await redisBustPrefix('admin:business-zones-overview:')
+}
+
 function readL1<T>(key: string): { hit: boolean; stale: boolean; value: T | null } {
   const entry = l1.get(key)
   if (!entry) return { hit: false, stale: false, value: null }

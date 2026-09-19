@@ -216,6 +216,70 @@ async function oRows(payload: Payload, query: string | SQL): Promise<Array<Recor
   return Array.isArray(result?.rows) ? result.rows : []
 }
 
+type OrdersStats = {
+  totalAll: number
+  statusBreakdown: Record<string, number>
+  fulfillmentBreakdown: Record<string, number>
+  deliveryStatusBreakdown: Record<string, number>
+  totalRevenue: number
+}
+
+/**
+ * Global stats rollup — unfiltered platform totals shared by every orders qs.
+ * Cached 300s under its own key so per-qs list MISSes don't recount 5 stats;
+ * Orders writes bust via bustOrdersCache (prefix admin:orders:). One
+ * GROUPING SETS scan returns total + all three dimension breaks; revenue
+ * (transactions table) is the second query. See performance.md §12 + §17c.
+ */
+async function getOrdersStats(payload: Payload): Promise<OrdersStats> {
+  const { data } = await getOrBuildDashboard<OrdersStats>(
+    'admin:orders:stats:v1',
+    300,
+    async () => {
+      const [aggRows, revRows] = await Promise.all([
+        oRows(
+          payload,
+          sql`SELECT COALESCE(status::text,'pending') AS s, COALESCE(fulfillment_type::text,'delivery') AS f, COALESCE(delivery_status::text,'none') AS d, COUNT(*)::int AS c, GROUPING(status::text)::int AS g_s, GROUPING(fulfillment_type::text)::int AS g_f, GROUPING(delivery_status::text)::int AS g_d FROM orders GROUP BY GROUPING SETS ((status::text),(fulfillment_type::text),(delivery_status::text),()) ORDER BY g_s, g_f, g_d`,
+        ),
+        // Revenue counts verified (paid) transactions only — same as dashboard analytics.
+        oRows(payload, sql`SELECT COALESCE(SUM(amount::numeric),0) AS revenue FROM transactions WHERE status='paid'`),
+      ])
+      const statusBreakdown: Record<string, number> = {}
+      for (const s of STATUS_SET) statusBreakdown[s] = 0
+      const fulfillmentBreakdown: Record<string, number> = {}
+      for (const f of FULFILLMENT_SET) fulfillmentBreakdown[f] = 0
+      const deliveryStatusBreakdown: Record<string, number> = {}
+      for (const d of DELIVERY_STATUS_SET) deliveryStatusBreakdown[d] = 0
+      let totalAll = 0
+      for (const r of aggRows) {
+        const gS = Number(r.g_s ?? 0)
+        const gF = Number(r.g_f ?? 0)
+        const gD = Number(r.g_d ?? 0)
+        if (gS === 0 && gF === 1 && gD === 1) {
+          const st = String(r.s || 'pending')
+          statusBreakdown[st] = (statusBreakdown[st] || 0) + Number(r.c ?? 0)
+        } else if (gS === 1 && gF === 0 && gD === 1) {
+          const ft = String(r.f || 'delivery')
+          fulfillmentBreakdown[ft] = (fulfillmentBreakdown[ft] || 0) + Number(r.c ?? 0)
+        } else if (gS === 1 && gF === 1 && gD === 0) {
+          const ds = String(r.d || 'none')
+          deliveryStatusBreakdown[ds] = (deliveryStatusBreakdown[ds] || 0) + Number(r.c ?? 0)
+        } else if (gS === 1 && gF === 1 && gD === 1) {
+          totalAll = Number(r.c ?? 0)
+        }
+      }
+      return {
+        totalAll,
+        statusBreakdown,
+        fulfillmentBreakdown,
+        deliveryStatusBreakdown,
+        totalRevenue: Number(revRows[0]?.revenue ?? 0),
+      }
+    },
+  )
+  return data
+}
+
 async function buildOrdersList(payload: Payload, searchParams: URLSearchParams) {
   try {
 
@@ -274,9 +338,13 @@ async function buildOrdersList(payload: Payload, searchParams: URLSearchParams) 
     const hasFilters = and.length > 0 || Object.keys(where).length > 0
     const queryWhere = hasFilters ? finalWhere : undefined
 
-    // Paginated display (correct, bounded ≤100 with relations) + SQL stats
-    // (no 2000-doc hydration). Stats stay global (unfiltered) per existing contract.
-    const [paginated, countRow, statusRows, fulfillRows, deliveryRows, revRows] = await Promise.all([
+    // Paginated display (correct, bounded ≤100, relations at depth 2) + global
+    // stats as one cached rollup (single GROUPING SETS scan, no 2000-doc
+    // hydration). Stats stay global (unfiltered) per existing contract.
+    // skipStoreHours guards the afterRead store-hours loop on every populated
+    // merchant — the table renders only outletName + vendor name/logo.
+    // See performance.md §12.
+    const [paginated, stats] = await Promise.all([
       payload.find({
         collection: 'orders',
         where: queryWhere as any,
@@ -285,38 +353,14 @@ async function buildOrdersList(payload: Payload, searchParams: URLSearchParams) 
         sort,
         depth: 2,
         overrideAccess: true,
+        context: { skipStoreHours: true },
       }),
-      oRows(payload, sql`SELECT COUNT(*)::int AS total FROM orders`),
-      oRows(payload, sql`SELECT status::text AS s, COUNT(*)::int AS c FROM orders GROUP BY status`),
-      oRows(payload, sql`SELECT fulfillment_type::text AS s, COUNT(*)::int AS c FROM orders GROUP BY fulfillment_type`),
-      oRows(payload, sql`SELECT delivery_status::text AS s, COUNT(*)::int AS c FROM orders GROUP BY delivery_status`),
-      // Revenue counts verified (paid) transactions only — same as dashboard analytics.
-      oRows(payload, sql`SELECT COALESCE(SUM(amount::numeric),0) AS revenue FROM transactions WHERE status='paid'`),
+      getOrdersStats(payload),
     ])
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeOrderDoc(d))
 
-    // stats aggregation (SQL GROUP BY, global)
-    const totalAll = Number(countRow[0]?.total ?? 0)
-    const statusBreakdown: Record<string, number> = {}
-    for (const s of STATUS_SET) statusBreakdown[s] = 0
-    for (const r of statusRows) {
-      const st = String(r.s || 'pending')
-      statusBreakdown[st] = (statusBreakdown[st] || 0) + Number(r.c ?? 0)
-    }
-    const fulfillmentBreakdown: Record<string, number> = {}
-    for (const f of FULFILLMENT_SET) fulfillmentBreakdown[f] = 0
-    for (const r of fulfillRows) {
-      const ft = String(r.s || 'delivery')
-      fulfillmentBreakdown[ft] = (fulfillmentBreakdown[ft] || 0) + Number(r.c ?? 0)
-    }
-    const deliveryStatusBreakdown: Record<string, number> = {}
-    for (const d of DELIVERY_STATUS_SET) deliveryStatusBreakdown[d] = 0
-    for (const r of deliveryRows) {
-      const ds = String(r.s || 'none')
-      deliveryStatusBreakdown[ds] = (deliveryStatusBreakdown[ds] || 0) + Number(r.c ?? 0)
-    }
-    const totalRevenue = Number(revRows[0]?.revenue ?? 0)
+    const { totalAll, statusBreakdown, fulfillmentBreakdown, deliveryStatusBreakdown, totalRevenue } = stats
     const avgOrderValue = totalAll > 0 ? totalRevenue / totalAll : 0
     const filteredTotal = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
 

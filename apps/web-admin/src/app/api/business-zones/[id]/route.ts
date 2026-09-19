@@ -13,7 +13,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       cache: 'no-store',
     })
     const data = await res.text()
-    return new NextResponse(data, { status: res.status, headers: { 'Content-Type': res.headers.get('content-type') || 'application/json' } })
+    const cacheHeader = res.headers.get('x-businesszonedetail-cache')
+    return new NextResponse(data, {
+      status: res.status,
+      headers: {
+        'Content-Type': res.headers.get('content-type') || 'application/json',
+        'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+        ...(cacheHeader ? { 'X-BusinessZoneDetail-Cache': cacheHeader } : {}),
+      },
+    })
   } catch { return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 }) }
 }
 
