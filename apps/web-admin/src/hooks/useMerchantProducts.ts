@@ -3,11 +3,29 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
-export type VendorGroup = {
-  vendor: { id: number; businessName: string; legalName: string; businessType: string; verificationStatus: string; isActive: boolean; logo: { id: number; url: string | null; thumbUrl?: string | null } | null };
-  totalMerchants: number;
+export type MerchantProductLite = {
+  merchantProductId: number;
+  merchantId: number;
+  product: { id: number; name: string; slug: string; sku: string | null; productType: string; basePrice: number | null; primaryImage: { id: number; url: string | null; thumbUrl?: string | null } | null } | null;
+  price_override: number | null;
+  stock_quantity: number | null;
+  is_active: boolean;
+  is_available: boolean;
+  createdAt: string;
+};
+
+export type MerchantBrief = {
+  id: number;
+  outletName: string;
+  outletCode: string;
+  isActive: boolean;
+  isAcceptingOrders: boolean;
+  operationalStatus: string;
+  vendor: { id: number; businessName: string; legalName: string; businessType: string; verificationStatus: string; isActive: boolean; logo: { id: number; url: string | null; thumbUrl?: string | null } | null } | null;
+  media: { thumbnail: { id: number; url: string | null; thumbUrl?: string | null } | null };
   totalProducts: number;
   totalProductsFiltered: number;
+  products: MerchantProductLite[];
 };
 
 export type MerchantProductPagination = {
@@ -20,16 +38,16 @@ export type MerchantProductPagination = {
 };
 
 export type MerchantProductStats = {
-  totalVendors: number;
   totalMerchants: number;
+  totalVendors: number;
   totalMerchantProducts: number;
   activeMerchants: number;
-  filteredVendors: number;
+  filteredMerchants: number;
   totalProducts: number;
 };
 
 export type MerchantProductsResponse = {
-  vendors: VendorGroup[];
+  merchants: MerchantBrief[];
   pagination: MerchantProductPagination | null;
   stats: MerchantProductStats | null;
 };
@@ -49,7 +67,9 @@ async function fetchMerchantProducts(qs: string, signal?: AbortSignal): Promise<
 }
 
 /**
- * Merchant products (vendor-encapsulated) list query — 3-min instant-back.
+ * Merchant-encapsulated catalog list query — 3-min instant-back.
+ * Landing (no merchant filter) pages outlets with product counts; passing
+ * merchant=<id> returns that outlet's products for the drill-in page.
  * Query key encodes page, limit, sort, search, and filters.
  */
 export function useMerchantProducts(qs: string) {

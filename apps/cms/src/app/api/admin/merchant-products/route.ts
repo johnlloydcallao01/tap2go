@@ -1,7 +1,7 @@
 /**
  * @file apps/cms/src/app/api/admin/merchant-products/route.ts
- * @description BFF for /products page — vendor-encapsulated merchant products (FoodPanda style).
- * GET  /api/admin/merchant-products?page=1&limit=10&search=&vendor=&productType=&isActive=
+ * @description BFF for /products page — merchant-encapsulated catalog (Merchants → Products).
+ * GET  /api/admin/merchant-products?page=1&limit=10&search=&isActive=&merchant=<id>
  * POST /api/admin/merchant-products — create merchant product (assign product to merchant)
  */
 
@@ -37,7 +37,7 @@ function sanitizeVendorBrief(v: unknown) {
   if (!v || typeof v !== 'object') return null
   const o = v as Record<string, any>
   const id = Number(o.id); if (Number.isNaN(id)) return null
-  return { id, businessName: String(o.businessName || ''), verificationStatus: String(o.verificationStatus || 'pending'), businessType: String(o.businessType || 'other') }
+  return { id, businessName: String(o.businessName || ''), legalName: String(o.legalName || ''), businessType: String(o.businessType || 'other'), verificationStatus: String(o.verificationStatus || 'pending'), isActive: !!o.isActive, logo: sanitizeMediaRef(o.logo) }
 }
 function badRequest(m: string, d?: unknown) { return NextResponse.json({ error: m, details: d }, { status: 400 }) }
 
@@ -86,7 +86,7 @@ type MerchantProductStats = {
 /**
  * Global stats rollup — unfiltered platform totals shared by every list qs.
  * Cached 300s (own key); writes bust via bustProductsCache (prefix
- * admin:merchant-products:). Filtered totals still come from matchTotal.
+ * admin:merchant-products:). Filtered totals still come from matchCount.
  * See performance.md §16.
  */
 async function getMerchantProductStats(payload: Payload): Promise<MerchantProductStats> {
@@ -96,9 +96,9 @@ async function getMerchantProductStats(payload: Payload): Promise<MerchantProduc
     async () => {
       const [v, m, mp, am] = await Promise.all([
         payload.count({ collection: 'vendors', overrideAccess: true }),
-        payload.count({ collection: 'merchants', overrideAccess: true }),
+        payload.count({ collection: 'merchants', overrideAccess: true, context: { skipStoreHours: true } }),
         payload.count({ collection: 'merchant-products', overrideAccess: true }),
-        payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true }),
+        payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: { skipStoreHours: true } }),
       ])
       return {
         totalVendors: v.totalDocs || 0,
@@ -111,337 +111,226 @@ async function getMerchantProductStats(payload: Payload): Promise<MerchantProduc
   return data
 }
 
+type MpHydration = {
+  merchantFilter: number
+  search: string
+  like: string | null
+  productTypeFilter: string
+  isActiveFilter: boolean | null
+  stats: MerchantProductStats
+}
+
+type MpListCtx = {
+  page: number
+  limit: number
+  like: string | null
+  isActiveFilter: boolean | null
+  stats: MerchantProductStats
+}
+
+async function buildMerchantDetail(payload: Payload, ctx: MpHydration) {
+  const { merchantFilter, like, productTypeFilter, isActiveFilter, stats } = ctx
+
+  const mpConds: SQL[] = [sql`mp.merchant_id_id = ${merchantFilter}`]
+  if (like) mpConds.push(sql`(p.name ILIKE ${like} OR p.slug ILIKE ${like} OR p.sku ILIKE ${like})`)
+  if (productTypeFilter) mpConds.push(sql`LOWER(p.product_type::text) = ${productTypeFilter}`)
+  if (isActiveFilter !== null) mpConds.push(isActiveFilter ? sql`mp.is_active = true` : sql`mp.is_active = false`)
+  let mpWhere: SQL = mpConds[0]
+  for (let i = 1; i < mpConds.length; i++) mpWhere = sql`${mpWhere} AND ${mpConds[i]}`
+  const fromClause = sql`FROM merchant_products mp LEFT JOIN products p ON p.id = mp.product_id_id WHERE ${mpWhere}`
+
+  let merchantDoc: any = null
+  try {
+    merchantDoc = await payload.findByID({ collection: 'merchants', id: merchantFilter, depth: 2, overrideAccess: true, context: { skipStoreHours: true } })
+  } catch { merchantDoc = null }
+
+  const emptyPagination = { page: 1, limit: 10, totalDocs: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false }
+  const statsPayload = {
+    totalMerchants: stats.totalMerchants || 0,
+    totalVendors: stats.totalVendors || 0,
+    totalMerchantProducts: stats.totalMerchantProducts || 0,
+    activeMerchants: stats.activeMerchants || 0,
+    filteredMerchants: merchantDoc ? 1 : 0,
+    totalProducts: stats.totalMerchantProducts || 0,
+  }
+
+  if (!merchantDoc) {
+    return {
+      merchants: [],
+      pagination: emptyPagination,
+      stats: statsPayload,
+      meta: { generatedAt: new Date().toISOString(), search: ctx.search, merchantId: String(merchantFilter) },
+    }
+  }
+
+  // Page the merchant's products in SQL (bounded) then hydrate the page only
+  // — replaces full-catalog hydration + in-memory sort/slice.
+  const idRows = await mpRows(payload, sql`SELECT mp.id AS id ${fromClause} ORDER BY mp.id ASC LIMIT 500`)
+  const mpIds = idRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
+
+  const [mpRes, pRes] = await Promise.all([
+    mpIds.length
+      ? payload.find({ collection: 'merchant-products', where: { id: { in: mpIds } }, limit: mpIds.length, depth: 0, overrideAccess: true, pagination: false, context: { skipEffectiveModifierPreview: true } })
+      : Promise.resolve({ docs: [] }),
+    mpIds.length
+      ? mpRows(payload, sql`SELECT DISTINCT p.id AS id FROM products p JOIN merchant_products mp ON mp.product_id_id = p.id WHERE mp.id IN (${sql.join(mpIds.map((n) => sql`${n}`), sql`, `)}) LIMIT 1000`)
+          .then(async (pIdRows) => {
+            const pIds = pIdRows.map((r) => Number(r.id)).filter((n: number) => Number.isFinite(n))
+            if (!pIds.length) return { docs: [] }
+            return payload.find({ collection: 'products', where: { id: { in: pIds } }, limit: pIds.length, depth: 1, overrideAccess: true, pagination: false, select: { id: true, name: true, slug: true, sku: true, productType: true, basePrice: true, media: true } } as any)
+          })
+      : Promise.resolve({ docs: [] }),
+  ])
+
+  const productMap = new Map<string, any>()
+  ;(pRes.docs as any[] | undefined || []).forEach((p: any) => productMap.set(String(p.id), p))
+
+  const products = (mpRes.docs as any[] | undefined || []).map((mp: any) => {
+    const raw = mp.product_id ?? mp.product
+    const productId = raw && typeof raw === 'object' ? String((raw as any).id ?? '') : String(raw ?? '')
+    const product = productId ? productMap.get(productId) : null
+    return {
+      merchantProductId: Number(mp.id),
+      merchantId: Number(merchantFilter),
+      product: product ? {
+        id: Number(product.id),
+        name: String(product.name || ''),
+        slug: String(product.slug || ''),
+        sku: product.sku ? String(product.sku) : null,
+        productType: String(product.productType || 'simple'),
+        basePrice: product.basePrice != null ? Number(product.basePrice) : null,
+        primaryImage: sanitizeMediaRef((product.media as any)?.primaryImage),
+      } : null,
+      price_override: mp.price_override != null ? Number(mp.price_override) : null,
+      stock_quantity: mp.stock_quantity != null ? Number(mp.stock_quantity) : null,
+      is_active: typeof mp.is_active === 'boolean' ? mp.is_active : typeof mp.isActive === 'boolean' ? mp.isActive : true,
+      is_available: typeof mp.is_available === 'boolean' ? mp.is_available : true,
+      createdAt: String(mp.createdAt || ''),
+    }
+  })
+
+  const group = {
+    id: Number(merchantDoc.id),
+    outletName: String(merchantDoc.outletName || ''),
+    outletCode: String(merchantDoc.outletCode || ''),
+    isActive: typeof merchantDoc.isActive === 'boolean' ? merchantDoc.isActive : true,
+    isAcceptingOrders: typeof merchantDoc.isAcceptingOrders === 'boolean' ? merchantDoc.isAcceptingOrders : true,
+    operationalStatus: String(merchantDoc.operationalStatus || 'open'),
+    vendor: sanitizeVendorBrief(merchantDoc.vendor),
+    media: { thumbnail: sanitizeMediaRef((merchantDoc.media as any)?.thumbnail) },
+    totalProducts: products.length,
+    totalProductsFiltered: products.length,
+    products,
+  }
+
+  return {
+    merchants: [group],
+    pagination: { page: 1, limit: 1, totalDocs: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+    stats: statsPayload,
+    meta: { generatedAt: new Date().toISOString(), search: ctx.search, merchantId: String(merchantFilter) },
+  }
+}
+
+async function buildMerchantLanding(payload: Payload, ctx: MpListCtx) {
+  const { page, limit, like, isActiveFilter, stats } = ctx
+
+  const meConds: SQL[] = []
+  if (like) {
+    meConds.push(sql`(m.outlet_name ILIKE ${like} OR m.outlet_code ILIKE ${like} OR EXISTS (SELECT 1 FROM merchant_products mp JOIN products p ON p.id = mp.product_id_id WHERE mp.merchant_id_id = m.id AND (p.name ILIKE ${like} OR p.slug ILIKE ${like} OR p.sku ILIKE ${like})))`)
+  }
+  if (isActiveFilter !== null) meConds.push(isActiveFilter ? sql`m.is_active = true` : sql`m.is_active = false`)
+  let meWhere: SQL = sql`1=1`
+  if (meConds.length) {
+    meWhere = meConds[0]
+    for (let i = 1; i < meConds.length; i++) meWhere = sql`${meWhere} AND ${meConds[i]}`
+  }
+
+  const unfiltered = !like && isActiveFilter === null
+  const offset = (page - 1) * limit
+  const idRows = await mpRows(payload, sql`SELECT m.id AS id FROM merchants m WHERE ${meWhere} ORDER BY m.outlet_name LIMIT ${limit} OFFSET ${offset}`)
+  let totalDocs: number
+  if (unfiltered) {
+    totalDocs = stats.totalMerchants || 0
+  } else {
+    const cRows = await mpRows(payload, sql`SELECT COUNT(*)::int AS c FROM merchants m WHERE ${meWhere}`)
+    totalDocs = Number(cRows[0]?.c ?? 0)
+  }
+  const pageIds = idRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
+
+  // Page merchants + their product counts in parallel. Merchants are projected
+  // (no heavy blobs) and skip the expensive store-hours afterRead — the list
+  // never renders live hours. Single GROUP BY replaces per-merchant N+1 counts.
+  const [mRes, countRows] = await Promise.all([
+    pageIds.length
+      ? payload.find({ collection: 'merchants', where: { id: { in: pageIds } }, limit: pageIds.length, depth: 2, overrideAccess: true, pagination: false, context: { skipStoreHours: true }, select: { outletName: true, outletCode: true, isActive: true, isAcceptingOrders: true, operationalStatus: true, media: true, vendor: true, createdAt: true } } as any)
+      : Promise.resolve({ docs: [] }),
+    pageIds.length
+      ? mpRows(payload, sql`SELECT mp.merchant_id_id AS mid, COUNT(*)::int AS c FROM merchant_products mp WHERE mp.merchant_id_id IN (${sql.join(pageIds.map((n: number) => sql`${n}`), sql`, `)}) GROUP BY mp.merchant_id_id`)
+      : Promise.resolve([]),
+  ])
+  const countMap = new Map<string, number>()
+  for (const r of countRows) countMap.set(String(r.mid), Number(r.c ?? 0))
+
+  const merchants = (mRes.docs as any[] | undefined || []).map((m: any) => {
+    const merchantId = String(m.id)
+    const productCount = countMap.get(merchantId) ?? 0
+    return {
+      id: Number(m.id),
+      outletName: String(m.outletName || ''),
+      outletCode: String(m.outletCode || ''),
+      isActive: typeof m.isActive === 'boolean' ? m.isActive : true,
+      isAcceptingOrders: typeof m.isAcceptingOrders === 'boolean' ? m.isAcceptingOrders : true,
+      operationalStatus: String(m.operationalStatus || 'open'),
+      vendor: sanitizeVendorBrief(m.vendor),
+      media: { thumbnail: sanitizeMediaRef((m.media as any)?.thumbnail) },
+      totalProducts: productCount,
+      totalProductsFiltered: productCount,
+      products: [],
+    }
+  })
+  // SQL already orders by outlet_name; keep a stable sort for the count-merged list.
+  merchants.sort((a: any, b: any) => String(a.outletName || '').localeCompare(String(b.outletName || '')))
+
+  const totalPages = Math.max(1, Math.ceil(totalDocs / limit))
+
+  return {
+    merchants,
+    pagination: {
+      page,
+      limit,
+      totalDocs,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+    },
+    stats: {
+      totalMerchants: stats.totalMerchants || 0,
+      totalVendors: stats.totalVendors || 0,
+      totalMerchantProducts: stats.totalMerchantProducts || 0,
+      activeMerchants: stats.activeMerchants || 0,
+      filteredMerchants: totalDocs,
+      totalProducts: stats.totalMerchantProducts || 0,
+    },
+    meta: { generatedAt: new Date().toISOString(), search: ctx.like ? (ctx.like || '').replace(/%/g, '') : '', merchantId: null },
+  }
+}
+
 async function buildMerchantProductsView(payload: Payload, searchParams: URLSearchParams) {
   try {
-
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '10', 10) || 10))
-    const search = searchParams.get('search')?.trim().toLowerCase() || ''
-    const vendorFilter = searchParams.get('vendor') ? Number(searchParams.get('vendor')) : null
+    const searchRaw = searchParams.get('search')?.trim() || ''
+    const search = searchRaw.toLowerCase()
     const merchantFilter = searchParams.get('merchant') ? Number(searchParams.get('merchant')) : null
     const productTypeFilter = searchParams.get('productType')?.trim().toLowerCase() || ''
     const isActiveParam = searchParams.get('isActive')
     const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
+    const stats = await getMerchantProductStats(payload)
 
-    const isUnfiltered = !search && !vendorFilter && !merchantFilter && !productTypeFilter && isActiveFilter === null
-    let totalVendorsCount: number | null = null
-    let totalMerchantsCount: number | null = null
-    let totalMerchantProductsCount: number | null = null
-    let activeMerchantsCount: number | null = null
-    let vendorsRes: any
-    let merchantsRes: any
-    let merchantProductsRes: any
-    let productsRes: any
-    const vendorProductCounts = new Map<string, number>()
-
-    if (isUnfiltered) {
-      // The landing page only displays vendor summaries. Page vendors in SQL first,
-      // then load relations for those vendors instead of the entire catalog.
-      vendorsRes = await payload.find({
-        collection: 'vendors', page, limit, sort: 'businessName', depth: 1,
-        overrideAccess: true,
-        select: { id: true, businessName: true, legalName: true, businessType: true, verificationStatus: true, isActive: true, logo: true },
-      } as any)
-      const vendorIds = (vendorsRes.docs || []).map((vendor: any) => vendor.id)
-      const [stats, scopedMerchants, mpCountRows] = await Promise.all([
-        getMerchantProductStats(payload),
-        vendorIds.length
-          ? payload.find({ collection: 'merchants', where: { vendor: { in: vendorIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false, context: { skipStoreHours: true } } as any)
-          : Promise.resolve({ docs: [] }),
-        // Single GROUP BY replaces per-vendor N+1 limit:1 finds.
-        vendorIds.length
-          ? mpRows(payload, sql`SELECT m.vendor_id::text AS vid, COUNT(mp.id)::int AS c FROM merchant_products mp JOIN merchants m ON m.id = mp.merchant_id_id WHERE m.vendor_id IN (${sql.join(vendorIds.map((v: number) => sql`${v}`), sql`, `)}) GROUP BY m.vendor_id`)
-          : Promise.resolve([]),
-      ])
-      totalVendorsCount = stats.totalVendors || 0
-      totalMerchantsCount = stats.totalMerchants || 0
-      totalMerchantProductsCount = stats.totalMerchantProducts || 0
-      activeMerchantsCount = stats.activeMerchants || 0
-      merchantsRes = scopedMerchants
-      for (const r of mpCountRows) vendorProductCounts.set(String(r.vid), Number(r.c ?? 0))
-      for (const v of (vendorsRes.docs || [])) {
-        if (!vendorProductCounts.has(String((v as any).id))) vendorProductCounts.set(String((v as any).id), 0)
-      }
-      merchantProductsRes = { docs: [] }
-      productsRes = { docs: [] }
-    } else {
-      // Filtered searches: resolve matching vendor ids in SQL (bounded),
-      // page them in SQL, then hydrate only the page — replaces 11k-doc
-      // hydration + in-memory sort/slice. Semantics preserved: vendor hay
-      // match OR product/merchant match, productType/isActive on mps.
-      const vConds: SQL[] = []
-      if (vendorFilter && !Number.isNaN(vendorFilter)) vConds.push(sql`v.id = ${vendorFilter}`)
-      if (search || productTypeFilter || isActiveFilter !== null || merchantFilter) {
-        const mpConds: SQL[] = []
-        if (merchantFilter && !Number.isNaN(merchantFilter)) mpConds.push(sql`m.id = ${merchantFilter}`)
-        if (search) {
-          const like = `%${escLike(search)}%`
-          mpConds.push(sql`(p.name ILIKE ${like} OR p.slug ILIKE ${like} OR p.sku ILIKE ${like} OR m.outlet_name ILIKE ${like} OR m.outlet_code ILIKE ${like})`)
-        }
-        if (productTypeFilter) mpConds.push(sql`LOWER(p.product_type::text) = ${productTypeFilter}`)
-        if (isActiveFilter !== null) mpConds.push(isActiveFilter ? sql`mp.is_active = true` : sql`mp.is_active = false`)
-        let mpWhere: SQL = mpConds[0]
-        for (let i = 1; i < mpConds.length; i++) mpWhere = sql`${mpWhere} AND ${mpConds[i]}`
-        const vendorHay = search ? sql` OR v.business_name ILIKE ${`%${escLike(search)}%`} OR v.legal_name ILIKE ${`%${escLike(search)}%`}` : sql``
-        vConds.push(sql`(EXISTS (SELECT 1 FROM merchants m JOIN merchant_products mp ON mp.merchant_id_id = m.id LEFT JOIN products p ON p.id = mp.product_id_id WHERE m.vendor_id = v.id AND ${mpWhere})${vendorHay})`)
-      }
-      let matchWhere: SQL = sql`1=1`
-      if (vConds.length) {
-        matchWhere = vConds[0]
-        for (let i = 1; i < vConds.length; i++) matchWhere = sql`${matchWhere} AND ${vConds[i]}`
-      }
-      const offset = (page - 1) * limit
-      // Two scans instead of four: one GROUPING SETS aggregate returns the
-      // matched total + both facet rollups, and the page query stays as the
-      // DISTINCT/ORDER scan. The triple-join EXISTS below (and the
-      // `%ILIKE%` predicates) is evaluated once per scan, not per rollup.
-      // The page ORDER BY is served by idx_vendors_business_name_btree.
-      // See performance.md §17.
-      const [aggRows, idRows] = await Promise.all([
-        mpRows(
-          payload,
-          sql`SELECT COALESCE(LOWER(v.business_type::text),'other') AS bt, COALESCE(LOWER(v.verification_status::text),'pending') AS vs, COUNT(DISTINCT v.id)::int AS c, GROUPING(LOWER(v.business_type::text))::int AS g_bt, GROUPING(LOWER(v.verification_status::text))::int AS g_vs FROM vendors v WHERE ${matchWhere} GROUP BY GROUPING SETS ((LOWER(v.business_type::text)), (LOWER(v.verification_status::text)), ()) ORDER BY g_bt, g_vs, bt, vs`,
-        ),
-        mpRows(
-          payload,
-          sql`SELECT DISTINCT v.id AS id, v.business_name AS bname FROM vendors v WHERE ${matchWhere} ORDER BY v.business_name LIMIT ${limit} OFFSET ${offset}`,
-        ),
-      ])
-      let matchTotal = 0
-      const btFacetRows: Array<{ s: string; c: number }> = []
-      const vsFacetRows: Array<{ s: string; c: number }> = []
-      for (const r of aggRows) {
-        const gBt = Number(r.g_bt ?? 0)
-        const gVs = Number(r.g_vs ?? 0)
-        if (gBt === 0 && gVs === 1) btFacetRows.push({ s: String(r.bt ?? 'other'), c: Number(r.c ?? 0) })
-        else if (gBt === 1 && gVs === 0) vsFacetRows.push({ s: String(r.vs ?? 'pending'), c: Number(r.c ?? 0) })
-        else if (gBt === 1 && gVs === 1) matchTotal = Number(r.c ?? 0)
-      }
-      const pageIds = idRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))
-      // Phase 1: page vendors + their merchants, both bounded by the SQL page.
-      // Vendors projected (no `user` relationship join) and merchants skip the
-      // expensive store-hours afterRead — neither is part of the response.
-      const [vRes, mRes] = await Promise.all([
-        pageIds.length
-          ? payload.find({ collection: 'vendors', where: { id: { in: pageIds } }, limit: pageIds.length, depth: 1, overrideAccess: true, pagination: false, select: { id: true, businessName: true, legalName: true, businessType: true, verificationStatus: true, isActive: true, logo: true } } as any)
-          : Promise.resolve({ docs: [] }),
-        pageIds.length
-          ? payload.find({ collection: 'merchants', where: { vendor: { in: pageIds } }, limit: 2000, depth: 0, overrideAccess: true, pagination: false, context: { skipStoreHours: true } } as any)
-          : Promise.resolve({ docs: [] }),
-      ])
-      const pageMerchantIds = (mRes.docs as any[]).map((m: any) => Number(m.id)).filter((n: number) => Number.isFinite(n))
-      // Phase 2: merchant-products + products for page merchants only.
-      const [mpRes2, pRes2] = await Promise.all([
-        pageMerchantIds.length
-          ? payload.find({ collection: 'merchant-products', where: { merchant_id: { in: pageMerchantIds } }, limit: 5000, depth: 0, overrideAccess: true, pagination: false, context: { skipEffectiveModifierPreview: true } } as any)
-          : Promise.resolve({ docs: [] }),
-        pageMerchantIds.length
-          ? mpRows(payload, sql`SELECT DISTINCT p.id AS id FROM products p JOIN merchant_products mp ON mp.product_id_id = p.id WHERE mp.merchant_id_id IN (${sql.join(pageMerchantIds.map((n: number) => sql`${n}`), sql`, `)}) LIMIT 2000`)
-            .then(async (pIdRows) => {
-              const pIds = pIdRows.map((r) => Number(r.id)).filter((n: number) => Number.isFinite(n))
-              if (!pIds.length) return { docs: [] }
-              return payload.find({ collection: 'products', where: { id: { in: pIds } }, limit: pIds.length, depth: 1, overrideAccess: true, pagination: false, select: { id: true, name: true, slug: true, sku: true, productType: true, basePrice: true, media: true } } as any)
-            })
-          : Promise.resolve({ docs: [] }),
-      ])
-      vendorsRes = vRes
-      merchantsRes = mRes
-      merchantProductsRes = mpRes2
-      productsRes = pRes2
-      // Stash matched total + facets for response assembly below.
-      ;(vendorsRes as { __matchTotal?: number }).__matchTotal = matchTotal
-      ;(vendorsRes as { __facets?: { businessType: Array<{ value: string; count: number }>; verificationStatus: Array<{ value: string; count: number }> } }).__facets = {
-        businessType: btFacetRows.map((r) => ({ value: String(r.s ?? 'other'), count: Number(r.c ?? 0) })),
-        verificationStatus: vsFacetRows.map((r) => ({ value: String(r.s ?? 'pending'), count: Number(r.c ?? 0) })),
-      }
+    if (merchantFilter && !Number.isNaN(merchantFilter)) {
+      return buildMerchantDetail(payload, { merchantFilter, search, like: search ? `%${escLike(search)}%` : null, productTypeFilter, isActiveFilter, stats })
     }
-
-    const vendorsDocs = (vendorsRes.docs as any[]) || []
-    const merchantsDocs = (merchantsRes.docs as any[]) || []
-    const merchantProductsDocs = (merchantProductsRes.docs as any[]) || []
-    const productsDocs = (productsRes.docs as any[]) || []
-
-    const vendorMap = new Map<string, any>()
-    vendorsDocs.forEach((v: any) => vendorMap.set(String(v.id), v))
-    const merchantMap = new Map<string, any>()
-    merchantsDocs.forEach((m: any) => merchantMap.set(String(m.id), m))
-    const productMap = new Map<string, any>()
-    productsDocs.forEach((p: any) => productMap.set(String(p.id), p))
-
-    // Build merchant -> vendor lookup
-    const merchantToVendor = new Map<string, string>()
-    const merchantsByVendor = new Map<string, any[]>()
-    merchantsDocs.forEach((m: any) => {
-      const vRaw = m.vendor
-      const vId = vRaw && typeof vRaw === 'object' ? String((vRaw as any).id ?? '') : String(vRaw ?? '')
-      if (vId) {
-        merchantToVendor.set(String(m.id), vId)
-        const vendorMerchants = merchantsByVendor.get(vId) || []
-        vendorMerchants.push(m)
-        merchantsByVendor.set(vId, vendorMerchants)
-      }
-    })
-    const productsByMerchant = new Map<string, any[]>()
-    merchantProductsDocs.forEach((mp: any) => {
-      const raw = mp.merchant_id ?? mp.merchant
-      const merchantId = raw && typeof raw === 'object' ? String(raw.id ?? '') : String(raw ?? '')
-      if (!merchantId) return
-      const merchantProducts = productsByMerchant.get(merchantId) || []
-      merchantProducts.push(mp)
-      productsByMerchant.set(merchantId, merchantProducts)
-    })
-
-    // Vendor matching already resolved in SQL (bounded page + matchTotal).
-    // Per-mp search/productType/isActive filtering still applies below in grouping.
-    const vendorsForPage = vendorsDocs
-    // SQL orders by business_name; keep stable sort for unfiltered in-memory path parity.
-    if (isUnfiltered) {
-      vendorsForPage.sort((a: any, b: any) => String(a.businessName || '').localeCompare(String(b.businessName || '')))
-    }
-
-    const matchedTotal = (vendorsRes as { __matchTotal?: number }).__matchTotal
-    const totalVendors = isUnfiltered ? (totalVendorsCount || 0) : (matchedTotal ?? vendorsForPage.length)
-    const totalPages = Math.max(1, Math.ceil(totalVendors / limit))
-    const pagedVendors = vendorsForPage
-
-    // Correct grouping: rebuild resultVendors properly
-    const finalVendors = pagedVendors.map((vendor: any) => {
-      const vendorId = String(vendor.id)
-      const vendorMerchants = (merchantsByVendor.get(vendorId) || []).filter((m: any) => !merchantFilter || Number(m.id) === merchantFilter)
-      if (isUnfiltered) {
-        const totalProducts = vendorProductCounts.get(vendorId) || 0
-        return {
-          vendor: {
-            id: Number(vendor.id),
-            businessName: String(vendor.businessName || ''),
-            legalName: String(vendor.legalName || ''),
-            businessType: String(vendor.businessType || 'other'),
-            verificationStatus: String(vendor.verificationStatus || 'pending'),
-            isActive: !!vendor.isActive,
-            logo: sanitizeMediaRef(vendor.logo),
-          },
-          merchants: [],
-          totalMerchants: vendorMerchants.length,
-          totalProducts,
-          totalProductsFiltered: totalProducts,
-        }
-      }
-      const merchantsWithProducts = vendorMerchants.map((merchant: any) => {
-        const merchantId = String(merchant.id)
-        let mps = productsByMerchant.get(merchantId) || []
-        if (search) {
-          const lower = search.toLowerCase()
-          mps = mps.filter((mp: any) => {
-            const productId = ( ()=>{ const raw=(mp as any).product_id ?? (mp as any).product; return raw && typeof raw==="object" ? String((raw as any).id ?? "") : String(raw ?? "") })()
-            const product = productId ? productMap.get(productId) : null
-            const hay = product ? `${product.name || ''} ${product.slug || ''} ${product.sku || ''}`.toLowerCase() : ''
-            return hay.includes(lower)
-          })
-        }
-        if (productTypeFilter) {
-          mps = mps.filter((mp: any) => {
-            const productId = ( ()=>{ const raw=(mp as any).product_id ?? (mp as any).product; return raw && typeof raw==="object" ? String((raw as any).id ?? "") : String(raw ?? "") })()
-            const product = productId ? productMap.get(productId) : null
-            return product && String(product.productType || '').toLowerCase() === productTypeFilter
-          })
-        }
-        if (isActiveFilter !== null) {
-          mps = mps.filter((mp: any) => {
-            const val = typeof mp.is_active === 'boolean' ? mp.is_active : typeof mp.isActive === 'boolean' ? mp.isActive : true
-            return val === isActiveFilter
-          })
-        }
-        const products = mps.map((mp: any) => {
-          const productId = ( ()=>{ const raw=(mp as any).product_id ?? (mp as any).product; return raw && typeof raw==="object" ? String((raw as any).id ?? "") : String(raw ?? "") })()
-          const product = productId ? productMap.get(productId) : null
-          const prodMedia = product ? sanitizeMediaRef((product.media as any)?.primaryImage) : null
-          return {
-            merchantProductId: Number(mp.id),
-            merchantId: Number(merchantId),
-            product: product ? {
-              id: Number(product.id),
-              name: String(product.name || ''),
-              slug: String(product.slug || ''),
-              sku: product.sku ? String(product.sku) : null,
-              productType: String(product.productType || 'simple'),
-              basePrice: product.basePrice != null ? Number(product.basePrice) : null,
-              primaryImage: prodMedia,
-            } : null,
-            price_override: mp.price_override != null ? Number(mp.price_override) : null,
-            stock_quantity: mp.stock_quantity != null ? Number(mp.stock_quantity) : null,
-            is_active: typeof mp.is_active === 'boolean' ? mp.is_active : typeof mp.isActive === 'boolean' ? mp.isActive : true,
-            is_available: typeof mp.is_available === 'boolean' ? mp.is_available : true,
-            createdAt: String(mp.createdAt || ''),
-          }
-        })
-        return {
-          merchant: {
-            id: Number(merchant.id),
-            outletName: String(merchant.outletName || ''),
-            outletCode: String(merchant.outletCode || ''),
-            isActive: !!merchant.isActive,
-            isAcceptingOrders: !!merchant.isAcceptingOrders,
-            operationalStatus: String(merchant.operationalStatus || 'open'),
-          },
-          products,
-        }
-      })
-
-      // Filter out merchants with no products after search filter (to keep vendor visible only if has matching products)
-      const filteredMerchants = merchantsWithProducts.filter(m => m.products.length > 0)
-      // If search filters products, and vendor has no matching products, vendor will have empty merchantsWithProducts, we keep vendor but with empty (so it will show 0 products)
-      const totalProductsForVendor = merchantsWithProducts.reduce((sum, m) => sum + m.products.length, 0)
-      const totalProductsFiltered = filteredMerchants.reduce((sum, m) => sum + m.products.length, 0)
-
-      return {
-        vendor: {
-          id: Number(vendor.id),
-          businessName: String(vendor.businessName || ''),
-          legalName: String(vendor.legalName || ''),
-          businessType: String(vendor.businessType || 'other'),
-          verificationStatus: String(vendor.verificationStatus || 'pending'),
-          isActive: !!vendor.isActive,
-          logo: sanitizeMediaRef(vendor.logo),
-        },
-        merchants: search || productTypeFilter || isActiveFilter !== null ? filteredMerchants : merchantsWithProducts,
-        totalMerchants: vendorMerchants.length,
-        totalProducts: totalProductsForVendor,
-        totalProductsFiltered,
-      }
-    })
-
-    // Stats (exact global rollup; filtered branch falls back to rollup, never bounded docs).
-    const rollup = await getMerchantProductStats(payload)
-    const totalVendorsAll = totalVendorsCount ?? rollup.totalVendors
-    const totalMerchantsAll = totalMerchantsCount ?? rollup.totalMerchants
-    const totalMerchantProductsAll = totalMerchantProductsCount ?? rollup.totalMerchantProducts
-    const activeMerchantsAll = activeMerchantsCount ?? rollup.activeMerchants
-
-    const responseBody = {
-      vendors: finalVendors,
-      pagination: {
-        page,
-        limit,
-        totalDocs: totalVendors,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
-      },
-      stats: {
-        totalVendors: totalVendorsAll,
-        totalMerchants: totalMerchantsAll,
-        totalMerchantProducts: totalMerchantProductsAll,
-        activeMerchants: activeMerchantsAll,
-        filteredVendors: totalVendors,
-        totalProducts: totalMerchantProductsAll,
-      },
-      // Marketplace facet counts over the matched-vendor set (additive;
-      // absent on unfiltered loads). See performance.md §17.
-      facets: ((vendorsRes as { __facets?: { businessType: Array<{ value: string; count: number }>; verificationStatus: Array<{ value: string; count: number }> } }).__facets ?? { businessType: [], verificationStatus: [] }),
-      meta: { generatedAt: new Date().toISOString(), search, vendorFilter: vendorFilter ? String(vendorFilter) : null },
-    }
-
-    return responseBody
+    return buildMerchantLanding(payload, { page, limit, like: search ? `%${escLike(search)}%` : null, isActiveFilter, stats })
   } catch (err: unknown) {
     console.error('[admin/merchant-products] list build error:', err)
     throw err

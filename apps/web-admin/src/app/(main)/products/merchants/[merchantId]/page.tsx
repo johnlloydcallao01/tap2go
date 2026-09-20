@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
 import { ClientOnly } from '@/components/ClientOnly'
-import { Package, ArrowLeft, Search, X, Plus, RefreshCw, AlertCircle, Eye, Pencil, Trash2, Store, Tag, DollarSign } from '@/components/ui/IconWrapper'
+import { Package, ArrowLeft, Search, X, Plus, RefreshCw, AlertCircle, Eye, Pencil, Trash2, Store } from 'lucide-react'
 
 type MerchantProduct = {
   merchantProductId: number
@@ -16,6 +17,18 @@ type MerchantProduct = {
   stock_quantity: number | null
   is_active: boolean
   is_available: boolean
+}
+
+type MerchantGroup = {
+  id: number
+  outletName: string
+  outletCode: string
+  isActive: boolean
+  isAcceptingOrders: boolean
+  operationalStatus: string
+  vendor: { id: number; businessName: string; legalName: string; businessType: string; verificationStatus: string; logo: { url: string | null; thumbUrl?: string | null } | null } | null
+  media: { thumbnail: { url: string | null; thumbUrl?: string | null } | null }
+  products: MerchantProduct[]
 }
 
 function fmtPHP(n: number | null){ if(n==null) return '—'; return `₱${Number(n).toLocaleString('en-PH',{minimumFractionDigits:2})}` }
@@ -28,10 +41,8 @@ function MerchantProductsListPageContent(){
   const params=useParams()
   const router=useRouter()
   const queryClient=useQueryClient()
-  const vendorId=params.vendorId as string
   const merchantId=params.merchantId as string
-  const [merchant,setMerchant]=useState<any>(null)
-  const [vendor,setVendor]=useState<any>(null)
+  const [merchant,setMerchant]=useState<MerchantGroup|null>(null)
   const [products,setProducts]=useState<MerchantProduct[]>([])
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState<string|null>(null)
@@ -44,62 +55,17 @@ function MerchantProductsListPageContent(){
   const load=useCallback(async ()=>{
     setLoading(true); setError(null)
     try{
-      const [merchantRes, mpRes] = await Promise.all([
-        fetch(`/api/merchants/${merchantId}`,{cache:'no-store'}).then(r=>r.json()),
-        fetch(`/api/merchant-products?merchant=${merchantId}&limit=100`,{cache:'no-store'}).then(r=>r.json()),
-      ])
-      const mDoc = merchantRes.doc || merchantRes
-      setMerchant(mDoc)
-      // try to get vendor from merchant
-      const vId = mDoc.vendor?.id || mDoc.vendorId || vendorId
-      if(vId){
-        const vRes = await fetch(`/api/vendors/${vId}`,{cache:'no-store'}).then(r=>r.json()).catch(()=>null)
-        if(vRes?.doc) setVendor(vRes.doc)
-        else setVendor({ id: Number(vId), businessName: mDoc.vendor?.businessName || `Vendor #${vId}` })
-      }
-      // merchant-products BFF returns vendors grouped, but when filtered by merchant, it will still be grouped; extract products for this merchant
-      let mps: MerchantProduct[] = []
-      if(mpRes.vendors){
-        const vGroup = (mpRes.vendors as any[]).find((v:any)=> String(v.vendor.id)===String(vId))
-        const mGroup = vGroup?.merchants?.find((m:any)=> String(m.merchant.id)===String(merchantId))
-        mps = (mGroup?.products || []) as MerchantProduct[]
-        // fallback: if no grouping, try flat
-        if(mps.length===0 && mpRes.vendors.length){
-          // collect all products for this merchant across all vendors (should be just one)
-          for(const v of mpRes.vendors as any[]){
-            for(const m of v.merchants as any[]){
-              if(String(m.merchant.id)===String(merchantId)){
-                mps = m.products as MerchantProduct[]
-              }
-            }
-          }
-        }
-      } else if(mpRes.docs){
-        mps = (mpRes.docs as any[]).map((mp:any)=>({
-          merchantProductId: Number(mp.id),
-          merchantId: Number(merchantId),
-          product: mp.product_id ? { id: Number(mp.product_id), name: String(mp.product_id), slug: '', sku: null, productType: 'simple', basePrice: null, primaryImage: null } : null,
-          price_override: mp.price_override != null ? Number(mp.price_override) : null,
-          stock_quantity: mp.stock_quantity != null ? Number(mp.stock_quantity) : null,
-          is_active: !!mp.is_active,
-          is_available: !!mp.is_available,
-        }))
-      } else if(Array.isArray(mpRes)){
-        mps = mpRes as MerchantProduct[]
-      }
-      // Also try direct merchant-products docs if BFF returns flat
-      if(mps.length===0 && mpRes.merchantProducts){
-        mps = mpRes.merchantProducts as MerchantProduct[]
-      }
-      setProducts(mps)
+      const res=await fetch(`/api/merchant-products?merchant=${merchantId}&limit=500`,{cache:'no-store'})
+      const j=await res.json()
+      const g=(j.merchants||[])[0]
+      if(g){ setMerchant(g); setProducts(g.products||[]) }
+      else setProducts([])
     }catch(e:any){ setError(e.message||'Failed') } finally{ setLoading(false) }
-  },[merchantId, vendorId])
+  },[merchantId])
 
   useEffect(()=>{void load()},[load])
   useEffect(()=>{ setPage(1) },[q])
 
-  // Also fetch merchant products via direct BFF that we know works: try fetching merchant-products with merchant filter via BFF that returns vendors grouped
-  // Our BFF handles merchant filter, so the above should work. If still empty, try fetching via direct merchant-products collection via BFF's flat handling
   const filtered = products.filter(p=>{
     if(!q) return true
     const hay = `${p.product?.name||''} ${p.product?.slug||''} ${p.product?.sku||''}`.toLowerCase()
@@ -126,7 +92,7 @@ function MerchantProductsListPageContent(){
 
   const handleBack = () => {
     if(typeof window!=='undefined' && window.history.length>1) router.back()
-    else router.push(`/products/vendors/${vendorId}`)
+    else router.push('/products')
   }
 
   if(loading){
@@ -154,17 +120,17 @@ function MerchantProductsListPageContent(){
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center font-bold overflow-hidden shrink-0">
-            {(merchant as any)?.media?.thumbnail?.url || (merchant as any)?.thumbnail?.url ? (
-              <img src={(merchant as any).media?.thumbnail?.url || (merchant as any).thumbnail?.url} alt={merchant?.outletName || 'Outlet'} className="h-10 w-10 object-cover" />
-            ) : vendor?.logo?.url ? (
-              <img src={vendor.logo.url} alt={vendor.businessName} className="h-10 w-10 object-cover" />
+            {merchant?.media?.thumbnail?.url ? (
+              <Image src={merchant.media.thumbnail.thumbUrl || merchant.media.thumbnail.url} alt={merchant.outletName} width={40} height={40} sizes="40px" className="h-10 w-10 object-cover" />
+            ) : merchant?.vendor?.logo?.url ? (
+              <Image src={merchant.vendor.logo.thumbUrl || merchant.vendor.logo.url} alt={merchant.vendor.businessName} width={40} height={40} sizes="40px" className="h-10 w-10 object-cover" />
             ) : (
               <Store className="w-5 h-5" />
             )}
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{merchant?.outletName || `Outlet #${merchantId}`}</h1>
-            <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">{merchant?.outletCode || ''} • {vendor?.businessName ? `Vendor: ${vendor.businessName}` : `Vendor #${vendorId}`} • {filtered.length} product{filtered.length!==1?'s':''}</p>
+            <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">{merchant?.outletCode || ''} • {merchant?.vendor?.businessName ? `Vendor: ${merchant.vendor.businessName}` : `Outlet #${merchantId}`} • {filtered.length} product{filtered.length!==1?'s':''}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -187,7 +153,7 @@ function MerchantProductsListPageContent(){
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="h-16 w-16 bg-gray-100 dark:bg-[#262626] rounded-2xl flex items-center justify-center mb-4"><Package className="w-8 h-8 text-gray-400" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">No products for this outlet</h3>
-            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Assign a product to this merchant to get started.</p>
+            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Assign a product to this outlet to get started.</p>
             <Link href="/products/new" className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-semibold"><Plus className="w-4 h-4" /> Assign Product</Link>
           </div>
         ) : (
