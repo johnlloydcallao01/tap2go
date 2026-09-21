@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { bustCatalogCache, bustProductsCache } from '../utils/dashboardCache'
+import { bustCatalogCache, bustProductsCache, bustSearchCache } from '../utils/dashboardCache'
 
 export const Products: CollectionConfig = {
   slug: 'products',
@@ -623,6 +623,7 @@ export const Products: CollectionConfig = {
           // Product re-categorization moves productCountByCategory in the
           // product-categories stats rollup (same prefix family).
           await bustCatalogCache()
+          await bustSearchCache()
         } catch {
           // ignore cache bust failures
         }

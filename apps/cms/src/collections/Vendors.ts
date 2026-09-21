@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { validateStoreHoursFields } from '@/utils/storeHours'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
-import { bustAnalyticsCache, bustDashboardCache, bustPayoutsCache, bustReportsCache, bustVendorsCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustDashboardCache, bustPayoutsCache, bustReportsCache, bustSearchCache, bustVendorsCache } from '../utils/dashboardCache'
 
 export const Vendors: CollectionConfig = {
   slug: 'vendors',
@@ -314,7 +314,7 @@ export const Vendors: CollectionConfig = {
           })
         }
         try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustSearchCache()
         } catch {
           // ignore
         }
@@ -324,7 +324,7 @@ export const Vendors: CollectionConfig = {
     afterDelete: [
       async () => {
         try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustSearchCache()
         } catch {
           // ignore
         }

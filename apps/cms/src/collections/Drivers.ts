@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustSearchCache } from '../utils/dashboardCache'
 
 export const Drivers: CollectionConfig = {
   slug: 'drivers',
@@ -157,6 +158,24 @@ export const Drivers: CollectionConfig = {
           data.current_coordinates = null
         }
         return data
+      },
+    ],
+    afterChange: [
+      async () => {
+        try {
+          await bustSearchCache()
+        } catch {
+          // ignore
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustSearchCache()
+        } catch {
+          // ignore
+        }
       },
     ],
   },

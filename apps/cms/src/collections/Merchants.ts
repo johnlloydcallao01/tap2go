@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
-import { bustAnalyticsCache, bustBusinessZonesCache, bustDashboardCache, bustMerchantsCache, bustPayoutsCache, bustReportsCache, bustVendorsCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustBusinessZonesCache, bustDashboardCache, bustMerchantsCache, bustPayoutsCache, bustReportsCache, bustSearchCache, bustVendorsCache } from '../utils/dashboardCache'
 
 export const Merchants: CollectionConfig = {
   slug: 'merchants',
@@ -631,7 +631,7 @@ export const Merchants: CollectionConfig = {
           })
         }
         try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustMerchantsCache(); await bustBusinessZonesCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustMerchantsCache(); await bustBusinessZonesCache(); await bustSearchCache()
         } catch {
           // ignore
         }
@@ -641,7 +641,7 @@ export const Merchants: CollectionConfig = {
     afterDelete: [
       async () => {
         try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustMerchantsCache(); await bustBusinessZonesCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustMerchantsCache(); await bustBusinessZonesCache(); await bustSearchCache()
         } catch {
           // ignore
         }

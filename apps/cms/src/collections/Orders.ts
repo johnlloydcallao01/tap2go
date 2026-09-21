@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout, createMerchantNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
-import { bustAnalyticsCache, bustDashboardCache, bustOrderItemsCache, bustOrdersCache, bustPayoutsCache, bustReportsCache, bustTransactionsCache, bustVendorsCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustDashboardCache, bustOrderItemsCache, bustOrdersCache, bustPayoutsCache, bustReportsCache, bustSearchCache, bustTransactionsCache, bustVendorsCache } from '../utils/dashboardCache'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -167,7 +167,7 @@ export const Orders: CollectionConfig = {
         // Write-through: dashboard aggregates read orders counts/status/top lists.
         // Best-effort bust (L1 sync + Redis background); TTL is fallback.
         try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustOrdersCache(); await bustOrderItemsCache(); await bustTransactionsCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustOrdersCache(); await bustOrderItemsCache(); await bustTransactionsCache(); await bustSearchCache()
         } catch {
           // ignore cache bust failures
         }
@@ -177,7 +177,7 @@ export const Orders: CollectionConfig = {
     afterDelete: [
       async () => {
         try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustOrdersCache(); await bustOrderItemsCache(); await bustTransactionsCache()
+          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustOrdersCache(); await bustOrderItemsCache(); await bustTransactionsCache(); await bustSearchCache()
         } catch {
           // ignore
         }

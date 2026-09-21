@@ -137,6 +137,11 @@ export async function bustMediaLibraryCache(): Promise<void> {
   await redisBustPrefix('admin:media-library:')
 }
 
+export async function bustSearchCache(): Promise<void> {
+  bustDashboardL1('admin:search:')
+  await redisBustPrefix('admin:search:')
+}
+
 function readL1<T>(key: string): { hit: boolean; stale: boolean; value: T | null } {
   const entry = l1.get(key)
   if (!entry) return { hit: false, stale: false, value: null }

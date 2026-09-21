@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from '@/components/ui/LinkWrapper';
 import { ClientOnly } from '@/components/ClientOnly';
+import { useDebounce } from '@/hooks/useDebounce';
 import type { SearchResult, SearchCategory } from '@/lib/search-types';
 import { SEARCH_CATEGORY_LABELS, SEARCH_CATEGORY_COLORS } from '@/lib/search-types';
-import { Search, Store, Package, ShoppingBag, Users, Truck, RefreshCw } from '@/components/ui/IconWrapper';
+import { Search, Store, Package, ShoppingBag, Users, Truck, RefreshCw } from 'lucide-react';
 
 const CATEGORY_ICONS: Record<SearchCategory, React.ReactNode> = {
   merchants: <Store className="w-4 h-4" />,
@@ -56,32 +57,51 @@ function SearchSkeleton(){
 function SearchPageContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') ?? '';
+  // Debounce URL-driven queries + cancel in-flight fetches: navigating
+  // q1 → q2 quickly no longer lets the slower response overwrite the newer
+  // one, and the header refresh button actually re-fetches. See §23.
+  const debouncedQuery = useDebounce(query, 350);
 
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchResults = useCallback(async (q: string) => {
+    abortRef.current?.abort();
     if (!q || q.length < 2) {
       setResults([]);
       return;
     }
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=10`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=10`, { signal: controller.signal });
       if (res.ok) {
         const data = await res.json();
         setResults(data.results ?? []);
       }
-    } catch {
-      setResults([]);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') setResults([]);
     } finally {
-      setIsLoading(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchResults(query);
-  }, [query, fetchResults]);
+    fetchResults(debouncedQuery);
+  }, [debouncedQuery, fetchResults]);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    fetchResults(debouncedQuery);
+  }, [fetchResults, debouncedQuery]);
 
   const counts = ALL_CATEGORIES.reduce(
     (acc, cat) => {
@@ -133,7 +153,7 @@ function SearchPageContent() {
           </p>
         </div>
         <button
-          onClick={() => { /* refresh */ }}
+          onClick={handleRefresh}
           disabled={isLoading}
           className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"
         >
