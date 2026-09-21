@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${CMS_BASE}/admin/product-categories?${searchParams.toString()}`, {
       headers: { Authorization: `JWT ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(20000),
     })
     const data = await res.text()
     const headers = new Headers({ 'Content-Type': res.headers.get('content-type') || 'application/json' })

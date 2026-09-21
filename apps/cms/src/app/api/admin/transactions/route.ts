@@ -163,6 +163,14 @@ function parseCsv(value: string | null): string[] {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean)
 }
+// ID extraction that treats null/undefined/'' as missing — Number(null) and
+// Number('') are both 0, which would fabricate an id-0 lookup and change the
+// sanitize fallback (null → brief) for guest/null relations.
+function numId(value: unknown): number | null {
+  if (value == null || value === '') return null
+  const n = typeof value === 'object' ? Number((value as Record<string, any>).id) : Number(value)
+  return Number.isFinite(n) ? n : null
+}
 function badRequest(message: string, details?: unknown) {
   return NextResponse.json({ error: message, details }, { status: 400 })
 }
@@ -212,6 +220,80 @@ type Rows = { rows: Array<Record<string, unknown>> }
 async function tRows(payload: Payload, query: string | SQL): Promise<Array<Record<string, unknown>>> {
   const result = (await payload.db.drizzle.execute(query as never)) as unknown as Rows
   return Array.isArray(result?.rows) ? result.rows : []
+}
+
+type TransactionStats = {
+  totalAll: number
+  statusBreakdown: Record<string, number>
+  paymentMethodBreakdown: Record<string, number>
+  totalRevenue: number
+  totalRefunded: number
+  totalFailed: number
+  totalPendingAmount: number
+  netRevenue: number
+  avgTransactionAmount: number
+  paidCount: number
+  pendingCount: number
+  failedCount: number
+  refundedCount: number
+}
+
+/**
+ * Global stats rollup — unfiltered platform totals shared by every list qs.
+ * Cached 300s (own key); writes bust via bustTransactionsCache (prefix
+ * admin:transactions:). Filtered totals still come from
+ * paginated.totalDocs (exact). See performance.md §4b item 5.
+ */
+async function getTransactionStats(payload: Payload): Promise<TransactionStats> {
+  const { data } = await getOrBuildDashboard<TransactionStats>(
+    'admin:transactions:stats:v1',
+    300,
+    async () => {
+      const [statRows, statusRows, pmRows] = await Promise.all([
+        tRows(payload, sql`SELECT COUNT(*)::int AS total,
+          COALESCE(SUM(amount::numeric) FILTER (WHERE status='paid'),0) AS revenue,
+          COALESCE(SUM(amount::numeric) FILTER (WHERE status='refunded'),0) AS refunded,
+          COALESCE(SUM(amount::numeric) FILTER (WHERE status='failed'),0) AS failed,
+          COALESCE(SUM(amount::numeric) FILTER (WHERE status='pending'),0) AS pending_amt,
+          COUNT(*) FILTER (WHERE status='paid')::int AS paid_n,
+          COUNT(*) FILTER (WHERE status='pending')::int AS pending_n,
+          COUNT(*) FILTER (WHERE status='failed')::int AS failed_n,
+          COUNT(*) FILTER (WHERE status='refunded')::int AS refunded_n FROM transactions`),
+        tRows(payload, sql`SELECT status::text AS s, COUNT(*)::int AS c FROM transactions GROUP BY status`),
+        tRows(payload, sql`SELECT COALESCE(NULLIF(TRIM(LOWER(payment_method::text)),''),'unknown') AS s, COUNT(*)::int AS c FROM transactions GROUP BY 1`),
+      ])
+      const stats = statRows[0] ?? {}
+      const statusBreakdown: Record<string, number> = { pending: 0, paid: 0, failed: 0, refunded: 0 }
+      for (const r of statusRows) {
+        const st = String(r.s || 'pending').toLowerCase()
+        statusBreakdown[st] = (statusBreakdown[st] || 0) + Number(r.c ?? 0)
+      }
+      const paymentMethodBreakdown: Record<string, number> = {}
+      for (const r of pmRows) {
+        const pm = String(r.s || 'unknown').toLowerCase() || 'unknown'
+        paymentMethodBreakdown[pm] = (paymentMethodBreakdown[pm] || 0) + Number(r.c ?? 0)
+      }
+      const totalRevenue = Number(stats.revenue ?? 0)
+      const totalRefunded = Number(stats.refunded ?? 0)
+      const paidCount = Number(stats.paid_n ?? 0)
+      return {
+        totalAll: Number(stats.total ?? 0),
+        statusBreakdown,
+        paymentMethodBreakdown,
+        totalRevenue,
+        totalRefunded,
+        totalFailed: Number(stats.failed ?? 0),
+        totalPendingAmount: Number(stats.pending_amt ?? 0),
+        netRevenue: totalRevenue - totalRefunded,
+        avgTransactionAmount: paidCount > 0 ? totalRevenue / paidCount : 0,
+        paidCount,
+        pendingCount: Number(stats.pending_n ?? 0),
+        failedCount: Number(stats.failed_n ?? 0),
+        refundedCount: Number(stats.refunded_n ?? 0),
+      }
+    },
+  )
+  return data
 }
 
 async function buildTransactionsList(payload: Payload, searchParams: URLSearchParams) {
@@ -264,58 +346,119 @@ async function buildTransactionsList(payload: Payload, searchParams: URLSearchPa
 
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // parallel: paginated list (correct, bounded ≤100) + SQL stats (no 2000-doc hydration)
-    const [paginated, statRows, statusRows, pmRows] = await Promise.all([
+    // Phase 1: page transactions (bounded ≤100). depth:1 populates the order
+    // doc with merchant/customer as IDs — every top-level transaction field
+    // is consumed by sanitize, so no select: trim applies here. skipStoreHours
+    // guards the merchant afterRead loop on any populated merchant.
+    const [paginated, stats] = await Promise.all([
       payload.find({
         collection: 'transactions',
         where: Object.keys(finalWhere).length ? finalWhere : undefined,
         page,
         limit,
         sort,
-        depth: 2, // need order + order.merchant/customer populated for sanitization
+        depth: 1,
         overrideAccess: true,
+        context: { skipStoreHours: true },
       }),
-      tRows(payload, sql`SELECT COUNT(*)::int AS total,
-        COALESCE(SUM(amount::numeric) FILTER (WHERE status='paid'),0) AS revenue,
-        COALESCE(SUM(amount::numeric) FILTER (WHERE status='refunded'),0) AS refunded,
-        COALESCE(SUM(amount::numeric) FILTER (WHERE status='failed'),0) AS failed,
-        COALESCE(SUM(amount::numeric) FILTER (WHERE status='pending'),0) AS pending_amt,
-        COUNT(*) FILTER (WHERE status='paid')::int AS paid_n,
-        COUNT(*) FILTER (WHERE status='pending')::int AS pending_n,
-        COUNT(*) FILTER (WHERE status='failed')::int AS failed_n,
-        COUNT(*) FILTER (WHERE status='refunded')::int AS refunded_n FROM transactions`),
-      tRows(payload, sql`SELECT status::text AS s, COUNT(*)::int AS c FROM transactions GROUP BY status`),
-      tRows(payload, sql`SELECT COALESCE(NULLIF(TRIM(LOWER(payment_method::text)),''),'unknown') AS s, COUNT(*)::int AS c FROM transactions GROUP BY 1`),
+      getTransactionStats(payload),
     ])
 
-    const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeTransactionDoc(d))
+    const txnDocs = (paginated.docs as unknown as Record<string, any>[]) || []
+    const orderIds = Array.from(new Set(
+      txnDocs
+        .map((t) => numId(t.order))
+        .filter((n): n is number => n !== null),
+    ))
 
-    // stats aggregation (SQL, global)
-    const stats = statRows[0] ?? {}
-    const totalAll = Number(stats.total ?? 0)
+    // Phase 2: page orders (depth:0, projected scalars — drops priority_fee,
+    // discount_total, coupon_code, notes, delivery_service_type and friends).
+    const orderDocs = orderIds.length
+      ? ((await payload.find({ collection: 'orders', where: { id: { in: orderIds } }, limit: orderIds.length, depth: 0, overrideAccess: true, pagination: false, context: { skipStoreHours: true }, select: { status: true, total: true, subtotal: true, delivery_fee: true, platform_fee: true, fulfillment_type: true, placed_at: true, lalamove_order_id: true, delivery_status: true, merchant: true, customer: true, createdAt: true, updatedAt: true } } as any)).docs as Record<string, any>[]) || []
+      : []
+    const orderMap = new Map<string, Record<string, any>>()
+    for (const o of orderDocs) orderMap.set(String(o.id), o)
+
+    const merchantIds = Array.from(new Set(
+      orderDocs
+        .map((o) => numId(o.merchant))
+        .filter((n): n is number => n !== null),
+    ))
+    const customerIds = Array.from(new Set(
+      orderDocs
+        .map((o) => numId(o.customer))
+        .filter((n): n is number => n !== null),
+    ))
+
+    // Phase 3: page merchants + customers, both projected. Merchants skip the
+    // expensive store-hours afterRead — the table renders only outletName,
+    // outletCode, isActive + vendor brief.
+    const [merchantRes, customerRes] = await Promise.all([
+      merchantIds.length
+        ? payload.find({ collection: 'merchants', where: { id: { in: merchantIds } }, limit: merchantIds.length, depth: 0, overrideAccess: true, pagination: false, context: { skipStoreHours: true }, select: { outletName: true, outletCode: true, isActive: true, vendor: true } } as any)
+        : Promise.resolve({ docs: [] }),
+      customerIds.length
+        ? payload.find({ collection: 'customers', where: { id: { in: customerIds } }, limit: customerIds.length, depth: 0, overrideAccess: true, pagination: false, select: { email: true, user: true } } as any)
+        : Promise.resolve({ docs: [] }),
+    ])
+    const merchantMap = new Map<string, Record<string, any>>()
+    for (const m of ((merchantRes as any).docs as Record<string, any>[]) || []) merchantMap.set(String(m.id), m)
+    const customerMap = new Map<string, Record<string, any>>()
+    for (const c of ((customerRes as any).docs as Record<string, any>[]) || []) customerMap.set(String(c.id), c)
+
+    const vendorIds = Array.from(new Set(
+      Array.from(merchantMap.values())
+        .map((m) => numId(m.vendor))
+        .filter((n): n is number => n !== null),
+    ))
+    const userIds = Array.from(new Set(
+      Array.from(customerMap.values())
+        .map((c) => numId(c.user))
+        .filter((n): n is number => n !== null),
+    ))
+
+    // Phase 4: vendor briefs (depth:1 populates logo) + user names. This also
+    // fixes silently-dead UI: at depth:2 vendor/user stayed IDs, so vendor
+    // names and customer names never rendered on the list — now populated.
+    const [vendorRes, userRes] = await Promise.all([
+      vendorIds.length
+        ? payload.find({ collection: 'vendors', where: { id: { in: vendorIds } }, limit: vendorIds.length, depth: 1, overrideAccess: true, pagination: false, select: { businessName: true, logo: true } } as any)
+        : Promise.resolve({ docs: [] }),
+      userIds.length
+        ? payload.find({ collection: 'users', where: { id: { in: userIds } }, limit: userIds.length, depth: 0, overrideAccess: true, pagination: false, select: { email: true, firstName: true, lastName: true, phone: true } } as any)
+        : Promise.resolve({ docs: [] }),
+    ])
+    const vendorMap = new Map<string, Record<string, any>>()
+    for (const v of ((vendorRes as any).docs as Record<string, any>[]) || []) vendorMap.set(String(v.id), v)
+    const userMap = new Map<string, Record<string, any>>()
+    for (const u of ((userRes as any).docs as Record<string, any>[]) || []) userMap.set(String(u.id), u)
+
+    const docs = txnDocs.map((t) => {
+      const rawOrder = t.order
+      const orderId = rawOrder && typeof rawOrder === 'object' ? String((rawOrder as any).id ?? '') : String(rawOrder ?? '')
+      const orderDoc = orderId ? orderMap.get(orderId) : null
+      let enrichedOrder: Record<string, any> | null = null
+      if (orderDoc) {
+        const merchantId = numId(orderDoc.merchant)
+        const customerId = numId(orderDoc.customer)
+        const merchantDoc = merchantId !== null ? merchantMap.get(String(merchantId)) : null
+        const customerDoc = customerId !== null ? customerMap.get(String(customerId)) : null
+        const vendorId = merchantDoc ? numId(merchantDoc.vendor) : null
+        const userId = customerDoc ? numId(customerDoc.user) : null
+        enrichedOrder = {
+          ...orderDoc,
+          merchant: merchantDoc
+            ? { ...merchantDoc, vendor: vendorId !== null ? (vendorMap.get(String(vendorId)) ?? vendorId) : null }
+            : merchantId,
+          customer: customerDoc
+            ? { ...customerDoc, user: userId !== null ? (userMap.get(String(userId)) ?? userId) : null }
+            : customerId,
+        }
+      }
+      return sanitizeTransactionDoc({ ...t, order: enrichedOrder ?? rawOrder ?? null })
+    })
+
     const filteredTotal = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
-
-    const statusBreakdown: Record<string, number> = { pending: 0, paid: 0, failed: 0, refunded: 0 }
-    for (const r of statusRows) {
-      const st = String(r.s || 'pending').toLowerCase()
-      statusBreakdown[st] = (statusBreakdown[st] || 0) + Number(r.c ?? 0)
-    }
-    const paymentMethodBreakdown: Record<string, number> = {}
-    for (const r of pmRows) {
-      const pm = String(r.s || 'unknown').toLowerCase() || 'unknown'
-      paymentMethodBreakdown[pm] = (paymentMethodBreakdown[pm] || 0) + Number(r.c ?? 0)
-    }
-    const totalRevenue = Number(stats.revenue ?? 0)
-    const totalRefunded = Number(stats.refunded ?? 0)
-    const totalFailed = Number(stats.failed ?? 0)
-    const totalPendingAmount = Number(stats.pending_amt ?? 0)
-    const paidCount = Number(stats.paid_n ?? 0)
-    const pendingCount = Number(stats.pending_n ?? 0)
-    const failedCount = Number(stats.failed_n ?? 0)
-    const refundedCount = Number(stats.refunded_n ?? 0)
-
-    const netRevenue = totalRevenue - totalRefunded
-    const avgTransactionAmount = paidCount > 0 ? totalRevenue / paidCount : 0
 
     const responseBody = {
       docs,
@@ -328,20 +471,8 @@ async function buildTransactionsList(payload: Payload, searchParams: URLSearchPa
         hasPrevPage: paginated.hasPrevPage,
       },
       stats: {
-        totalAll,
+        ...stats,
         filteredTotal,
-        statusBreakdown,
-        paymentMethodBreakdown,
-        totalRevenue,
-        totalRefunded,
-        totalFailed,
-        totalPendingAmount,
-        netRevenue,
-        avgTransactionAmount,
-        paidCount,
-        pendingCount,
-        failedCount,
-        refundedCount,
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }

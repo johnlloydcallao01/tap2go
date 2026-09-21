@@ -10,8 +10,7 @@ import { getPayload, type Payload } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
-import { getOrBuildDashboard } from '@/utils/dashboardCache'
-import { deleteCachedByPrefix } from '@encreasl/cache'
+import { getOrBuildDashboard, bustCatalogCache } from '@/utils/dashboardCache'
 import { sql, type SQL } from 'drizzle-orm'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
@@ -97,6 +96,58 @@ async function cRows(payload: Payload, query: string | SQL): Promise<Array<Recor
   return Array.isArray(result?.rows) ? result.rows : []
 }
 
+type ProductCategoryStats = {
+  total: number
+  activeCount: number
+  featuredCount: number
+  topLevelCount: number
+  levelBreakdown: Record<string, number>
+  categoryTypeBreakdown: Record<string, number>
+  productCountByCategory: Record<string, number>
+}
+
+/**
+ * Global stats rollup — unfiltered platform totals shared by every list qs.
+ * Cached 300s (own key); writes bust via bustCatalogCache (prefix
+ * admin:product-categories:). Filtered totals still come from
+ * paginated.totalDocs (exact). See performance.md §4b item 5.
+ */
+async function getProductCategoryStats(payload: Payload): Promise<ProductCategoryStats> {
+  const { data } = await getOrBuildDashboard<ProductCategoryStats>(
+    'admin:product-categories:stats:v1',
+    300,
+    async () => {
+      const [statRows, levelRows, typeRows, countRows] = await Promise.all([
+        cRows(payload, sql`SELECT COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE is_active = true)::int AS active,
+          COUNT(*) FILTER (WHERE is_featured = true)::int AS featured,
+          COUNT(*) FILTER (WHERE parent_category_id IS NULL)::int AS top FROM prod_categories`),
+        cRows(payload, sql`SELECT COALESCE(category_level::text,'1') AS lvl, COUNT(*)::int AS c FROM prod_categories GROUP BY category_level`),
+        cRows(payload, sql`SELECT COALESCE(LOWER(attributes_category_type::text),'other') AS ct, COUNT(*)::int AS c FROM prod_categories GROUP BY LOWER(attributes_category_type::text)`),
+        cRows(payload, sql`SELECT prod_categories_id::text AS cid, COUNT(*)::int AS c FROM products_rels WHERE prod_categories_id IS NOT NULL GROUP BY prod_categories_id`),
+      ])
+      const stats = statRows[0] ?? {}
+      const levelBreakdown: Record<string, number> = {}
+      for (const r of levelRows) levelBreakdown[String(r.lvl ?? '1')] = Number(r.c ?? 0)
+      const categoryTypeBreakdown: Record<string, number> = {}
+      for (const r of typeRows) categoryTypeBreakdown[String(r.ct ?? 'other')] = Number(r.c ?? 0)
+      // productCount per category via products_rels join (hasMany categories).
+      const productCountByCategory: Record<string, number> = {}
+      for (const r of countRows) productCountByCategory[String(r.cid ?? '')] = Number(r.c ?? 0)
+      return {
+        total: Number(stats.total ?? 0),
+        activeCount: Number(stats.active ?? 0),
+        featuredCount: Number(stats.featured ?? 0),
+        topLevelCount: Number(stats.top ?? 0),
+        levelBreakdown,
+        categoryTypeBreakdown,
+        productCountByCategory,
+      }
+    },
+  )
+  return data
+}
+
 async function buildProductCategoriesList(payload: Payload, searchParams: URLSearchParams) {
   try {
 
@@ -135,34 +186,17 @@ async function buildProductCategoriesList(payload: Payload, searchParams: URLSea
     }
     const finalWhere = and.length ? { and: [...and, where] } : where
 
-    // Paginated display (correct) + SQL stats (no 2000+5000 hydration).
-    const [paginated, statRows, levelRows, typeRows, countRows] = await Promise.all([
-      payload.find({ collection: 'product-categories', where: Object.keys(finalWhere).length ? finalWhere : undefined, page, limit, sort, depth: 1, overrideAccess: true }),
-      cRows(payload, sql`SELECT COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE is_active = true)::int AS active,
-        COUNT(*) FILTER (WHERE is_featured = true)::int AS featured,
-        COUNT(*) FILTER (WHERE parent_category_id IS NULL)::int AS top FROM prod_categories`),
-      cRows(payload, sql`SELECT COALESCE(category_level::text,'1') AS lvl, COUNT(*)::int AS c FROM prod_categories GROUP BY category_level`),
-      cRows(payload, sql`SELECT COALESCE(LOWER(attributes_category_type::text),'other') AS ct, COUNT(*)::int AS c FROM prod_categories GROUP BY LOWER(attributes_category_type::text)`),
-      cRows(payload, sql`SELECT "product-categoriesID"::text AS cid, COUNT(*)::int AS c FROM products_rels WHERE "product-categoriesID" IS NOT NULL GROUP BY "product-categoriesID"`),
+    // Paginated display (correct) + one stats-rollup HIT (no per-qs recounts,
+    // no 2000+5000 hydration). The find is projected: the list renders name,
+    // description, slug, level/path, categoryType, badges, productCount,
+    // displayOrder, icon + parent name — seo, banner/thumbnail uploads and the
+    // unread attribute keys are dropped (sanitize nulls them, shape unchanged).
+    const [paginated, stats] = await Promise.all([
+      payload.find({ collection: 'product-categories', where: Object.keys(finalWhere).length ? finalWhere : undefined, page, limit, sort, depth: 1, overrideAccess: true, select: { name: true, slug: true, description: true, parentCategory: true, categoryLevel: true, categoryPath: true, displayOrder: true, isActive: true, isFeatured: true, media: { icon: true }, attributes: { categoryType: true }, createdAt: true, updatedAt: true } } as any),
+      getProductCategoryStats(payload),
     ])
 
-    // productCount per category via products_rels join (hasMany categories).
-    const productCountByCategory = new Map<string, number>()
-    for (const r of countRows) productCountByCategory.set(String(r.cid ?? ''), Number(r.c ?? 0))
-
-    const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeDoc(d, productCountByCategory.get(String(d.id)) || 0))
-
-    const stats = statRows[0] ?? {}
-    const total = Number(stats.total ?? 0)
-    const activeCount = Number(stats.active ?? 0)
-    const featuredCount = Number(stats.featured ?? 0)
-    const topLevelCount = Number(stats.top ?? 0)
-
-    const levelBreakdown: Record<string, number> = {}
-    for (const r of levelRows) levelBreakdown[String(r.lvl ?? '1')] = Number(r.c ?? 0)
-    const categoryTypeBreakdown: Record<string, number> = {}
-    for (const r of typeRows) categoryTypeBreakdown[String(r.ct ?? 'other')] = Number(r.c ?? 0)
+    const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeDoc(d, stats.productCountByCategory[String(d.id)] || 0))
 
     const responseBody = {
       docs,
@@ -175,14 +209,14 @@ async function buildProductCategoriesList(payload: Payload, searchParams: URLSea
         hasPrevPage: (paginated as any).hasPrevPage ?? false,
       },
       stats: {
-        total,
-        activeCount,
-        featuredCount,
-        inactiveCount: total - activeCount,
-        topLevelCount,
+        total: stats.total,
+        activeCount: stats.activeCount,
+        featuredCount: stats.featuredCount,
+        inactiveCount: stats.total - stats.activeCount,
+        topLevelCount: stats.topLevelCount,
         filteredCount: (paginated as any).totalDocs ?? docs.length,
-        levelBreakdown,
-        categoryTypeBreakdown,
+        levelBreakdown: stats.levelBreakdown,
+        categoryTypeBreakdown: stats.categoryTypeBreakdown,
       },
       meta: { generatedAt: new Date().toISOString(), sort, search },
     }
@@ -327,8 +361,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
     const sanitized = sanitizeDoc(created, 0)
-    // Bust list cache (all admins / query variants) so the new category shows immediately
-    await deleteCachedByPrefix('admin:product-categories:')
+    // Bust list cache (all admins / query variants, L1+Redis) so the new
+    // category shows immediately — raw deleteCachedByPrefix misses L1.
+    await bustCatalogCache()
     return NextResponse.json({ success: true, message: 'Product category created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/product-categories] POST error:', err)

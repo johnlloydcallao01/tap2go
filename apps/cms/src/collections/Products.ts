@@ -620,6 +620,9 @@ export const Products: CollectionConfig = {
         console.log(`✅ Product ${operation} completed for product ${doc.id}`);
         try {
           await bustProductsCache()
+          // Product re-categorization moves productCountByCategory in the
+          // product-categories stats rollup (same prefix family).
+          await bustCatalogCache()
         } catch {
           // ignore cache bust failures
         }

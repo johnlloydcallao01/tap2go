@@ -77,17 +77,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         try { doc = await payload.findByID({ collection: 'product-categories', id: docId as number, depth: 1, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) { throw Object.assign(new Error('Product category not found'), { status: 404, details: e?.message }) }
         if (!doc) throw Object.assign(new Error('Product category not found'), { status: 404 })
 
-        // product count for this category via rels join (replaces 5000-scan fallback)
+        // product count for this category — single indexed SQL on the hasMany
+        // join table (replaces find + 5000-scan fallback; verified identical).
         let productCount = 0
         try {
-          const prodRes = await payload.find({ collection: 'products', where: { categories: { contains: doc.id } }, limit: 0, depth: 0, overrideAccess: true, pagination: false } as any)
-          productCount = (prodRes as any).totalDocs ?? (prodRes as any).docs?.length ?? 0
-          if (productCount === 0) {
-            const rows = (await payload.db.drizzle.execute(
-              sql`SELECT COUNT(DISTINCT parent_id)::int AS c FROM products_rels WHERE "product-categoriesID" = ${Number(doc.id)}` as never,
-            ) as unknown as { rows: Array<Record<string, unknown>> }).rows ?? []
-            productCount = Number(rows[0]?.c ?? 0)
-          }
+          const rows = (await payload.db.drizzle.execute(
+            sql`SELECT COUNT(DISTINCT parent_id)::int AS c FROM products_rels WHERE prod_categories_id = ${Number(doc.id)}` as never,
+          ) as unknown as { rows: Array<Record<string, unknown>> }).rows ?? []
+          productCount = Number(rows[0]?.c ?? 0)
         } catch {}
         return { doc: sanitizeDoc(doc, productCount) }
       }),
@@ -263,22 +260,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const numericId = Number(id)
     const docId: number | string = Number.isFinite(numericId) ? numericId : id
 
-    // Check productCount
+    // In-use guard — single indexed SQL (replaces the products 5000-scan fallback).
     let productCount = 0
     try {
-      const prodRes = await payload.find({ collection: 'products', where: { categories: { contains: docId as number } }, limit: 1, depth: 0, overrideAccess: true, pagination: false } as any)
-      productCount = (prodRes as any).totalDocs ?? (prodRes as any).docs?.length ?? 0
-      if (productCount === 0) {
-        const allProds = await payload.find({ collection: 'products', limit: 5000, depth: 0, overrideAccess: true, pagination: false } as any)
-        for (const p of ((allProds as any).docs as any[]) || []) {
-          const cats: any[] = Array.isArray((p as any).categories) ? (p as any).categories : []
-          for (const c of cats) {
-            const cid = typeof c === 'object' ? String((c as any).id) : String(c)
-            if (cid === String(docId)) { productCount = 1; break }
-          }
-          if (productCount) break
-        }
-      }
+      const rows = (await payload.db.drizzle.execute(
+        sql`SELECT COUNT(DISTINCT parent_id)::int AS c FROM products_rels WHERE prod_categories_id = ${Number(docId)}` as never,
+      ) as unknown as { rows: Array<Record<string, unknown>> }).rows ?? []
+      productCount = Number(rows[0]?.c ?? 0)
     } catch {}
 
     let childCount = 0

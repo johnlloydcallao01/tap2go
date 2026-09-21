@@ -158,11 +158,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       withAdminRequestSlot(async () => {
         let doc: Record<string, any>
         try {
+          // depth:1 suffices — the dedicated order fetch below populates
+          // merchant/customer/vendor/user. skipStoreHours guards the merchant
+          // afterRead loop (the detail never renders live hours).
           doc = (await payload.findByID({
             collection: 'transactions',
             id: docId as number,
-            depth: 2,
+            depth: 1,
             overrideAccess: true,
+            context: { skipStoreHours: true },
           })) as unknown as Record<string, any>
         } catch (e: any) {
           throw Object.assign(new Error('Transaction not found'), { status: 404, details: e?.message })
@@ -183,6 +187,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
               id: orderId as number,
               depth: 2,
               overrideAccess: true,
+              context: { skipStoreHours: true },
             })) as unknown as Record<string, any>
             if (orderDoc) enrichedOrder = orderDoc
           } catch {

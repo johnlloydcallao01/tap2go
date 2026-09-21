@@ -209,7 +209,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
             <SidebarItem icon="products" label="Grouped Items" active={dropdownActive(pathname, '/catalog/grouped-items')} collapsed={!expanded} href="/catalog/grouped-items" />
 
-            <SidebarItem icon="categories" label="Product Categories" active={dropdownActive(pathname, '/product-categories')} collapsed={!expanded} href="/product-categories" />
+            <SidebarItem icon="categories" label="Product Categories" active={dropdownActive(pathname, '/product-categories')} collapsed={!expanded} href="/product-categories" prefetch={true} />
 
             <SidebarDropdownGroup
               icon="tags"
@@ -243,7 +243,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
           <div className="space-y-1">
             <SidebarSectionLabel isOpen={expanded}>Finance</SidebarSectionLabel>
 
-            <SidebarItem icon="payments" label="Transactions" active={dropdownActive(pathname, '/transactions')} collapsed={!expanded} href="/transactions" />
+            <SidebarItem icon="payments" label="Transactions" active={dropdownActive(pathname, '/transactions')} collapsed={!expanded} href="/transactions" prefetch={true} />
 
             <SidebarDropdownGroup
               icon="campaigns"
