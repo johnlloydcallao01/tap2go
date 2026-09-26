@@ -36,6 +36,15 @@ interface Suggestion {
 
 export default function SearchModal({ visible, onClose, initialQuery = '', navigation }: SearchModalProps) {
   const [query, setQuery] = useState(initialQuery);
+  // Reset the query whenever the modal is (re)opened or a new initial query arrives.
+  // Done during render (instead of in an effect) to avoid a cascading re-render.
+  const [prevModalSync, setPrevModalSync] = useState({ visible, initialQuery });
+  if (prevModalSync.visible !== visible || prevModalSync.initialQuery !== initialQuery) {
+    setPrevModalSync({ visible, initialQuery });
+    if (visible) {
+      setQuery(initialQuery);
+    }
+  }
   const { user, token } = useAuth();
 
   // State for product suggestions (Manual fetch like Web)
@@ -61,14 +70,15 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
   // Resolve User ID as string
   const userIdStr = user?.id ? String(user.id) : undefined;
 
-  // Resolve Customer ID from User ID
+  // Resolve Customer ID from User ID (gated: modal is always mounted,
+  // so don't burn a request until it's actually opened)
   const { data: customerId } = useQuery({
     queryKey: ['customerId', userIdStr],
     queryFn: async () => {
       if (!user?.id) return null;
       return LocationBasedMerchantService.getCustomerIdFromUserId(user.id);
     },
-    enabled: !!user?.id,
+    enabled: visible && !!user?.id,
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -135,14 +145,19 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
     return () => { cancelled = true; clearTimeout(t); };
   }, [query, visible]);
 
-  // 3. Merchant Suggestions (Local)
-  const { data: merchants = [] } = useLocationBasedMerchants(customerId || undefined, null, 9999);
+  // 3. Merchant Suggestions (Local; gated on visible — the modal is always
+  // mounted, so an ungated 9999-doc pull would duplicate the home query set)
+  const { data: merchants = [] } = useLocationBasedMerchants(customerId || undefined, null, 9999, {
+    enabled: visible,
+  });
 
-  // 4. Category Suggestions
-  const { data: categories = [] } = useLocationBasedCategories(customerId || undefined);
+  // 4. Category Suggestions (gated on visible, same reason)
+  const { data: categories = [] } = useLocationBasedCategories(customerId || undefined, false, 20, {
+    enabled: visible,
+  });
 
-  // 5. Active Address for "in [Address]" suggestions
-  const { data: addressData } = useActiveAddress(userIdStr, token || undefined);
+  // 5. Active Address for "in [Address]" suggestions (gated on visible)
+  const { data: addressData } = useActiveAddress(userIdStr, token || undefined, { enabled: visible });
   const activeAddressName = addressData?.address?.formatted_address;
 
   // 6. Combined Suggestions (Exact Web Logic)
@@ -213,12 +228,6 @@ export default function SearchModal({ visible, onClose, initialQuery = '', navig
     });
     return out.slice(0, 10);
   }, [serverRecentQueries]);
-
-  useEffect(() => {
-    if (visible) {
-      setQuery(initialQuery);
-    }
-  }, [visible, initialQuery]);
 
   const handleSearch = (val?: string) => {
     const v = (val ?? query).trim();

@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { apiConfig } from '../config/environment';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import { GoMapView, IN_EXPO_GO, type GoMapMarker } from '../components/shared/GoMapView';
 
 const CMS_HEADERS = {
   'Content-Type': 'application/json',
@@ -267,18 +268,58 @@ export default function TrackingScreen() {
       (s) => s.lat != null && s.lng != null,
     );
 
+    const goMarkers: GoMapMarker[] = [];
+    if (pickup.lat != null && pickup.lng != null) {
+      goMarkers.push({
+        latitude: Number(pickup.lat),
+        longitude: Number(pickup.lng),
+        color: '#f97316',
+        title: 'Restaurant',
+      });
+    }
+    if (dropoff.lat != null && dropoff.lng != null) {
+      goMarkers.push({
+        latitude: Number(dropoff.lat),
+        longitude: Number(dropoff.lng),
+        color: '#3b82f6',
+        title: 'Delivery',
+      });
+    }
+    if (hasDriver) {
+      goMarkers.push({
+        latitude: Number(driver.lat),
+        longitude: Number(driver.lng),
+        color: '#111827',
+        title: driver.name || 'Your rider',
+      });
+    }
+    const goRoute = route.length === 2
+      ? route.map((s) => ({ latitude: Number(s.lat), longitude: Number(s.lng) }))
+      : [];
+
     return (
       <View style={styles.mapContainer}>
-        <MapView
-          style={{ flex: 1 }}
-          initialRegion={initialRegion}
-          showsUserLocation={false}
-          showsCompass
-          showsScale
-          loadingEnabled
-          loadingBackgroundColor="#f9fafb"
-          loadingIndicatorColor="#f97316"
-        >
+        {IN_EXPO_GO ? (
+          <GoMapView
+            style={{ flex: 1 }}
+            center={{ latitude: initialRegion.latitude, longitude: initialRegion.longitude }}
+            latitudeDelta={initialRegion.latitudeDelta}
+            interactive
+            markers={goMarkers}
+            polyline={goRoute}
+            autoFit
+          />
+        ) : (
+          <MapView
+            style={{ flex: 1 }}
+            initialRegion={initialRegion}
+            showsUserLocation={false}
+            showsCompass
+            showsScale
+            loadingEnabled
+            loadingBackgroundColor="#f9fafb"
+            loadingIndicatorColor="#f97316"
+          >
           {pickup.lat != null && pickup.lng != null && (
             <Marker
               coordinate={{ latitude: pickup.lat, longitude: pickup.lng }}
@@ -327,7 +368,8 @@ export default function TrackingScreen() {
               lineJoin="round"
             />
           )}
-        </MapView>
+          </MapView>
+        )}
 
         {/* Status pill overlay */}
         <View style={styles.statusPillRow}>

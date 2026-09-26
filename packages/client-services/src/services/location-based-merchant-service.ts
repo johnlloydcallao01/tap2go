@@ -75,6 +75,9 @@ export class LocationBasedMerchantService {
       return cachedData;
     }
 
+    // Coalesce concurrent callers (e.g. home list + modal mounting together)
+    // onto a single network request.
+    return dataCache.dedupe(cacheKey, async () => {
     try {
       // Build headers
       const headers: Record<string, string> = {
@@ -133,6 +136,7 @@ export class LocationBasedMerchantService {
       console.error('❌ Error fetching location-based merchants:', error);
       return []; // Graceful fallback
     }
+    });
   }
 
   static async getLocationBasedMerchantCategories(options: { customerId: string; includeInactive?: boolean; limit?: number }): Promise<MerchantCategoryDisplay[]> {
@@ -141,6 +145,8 @@ export class LocationBasedMerchantService {
     const cacheKey = `${CACHE_KEYS.MERCHANTS}-location-categories-${customerId}-${includeInactive ? 'all' : 'active'}-${limit ?? 'all'}`;
     const cached = dataCache.get<MerchantCategoryDisplay[]>(cacheKey);
     if (cached) return cached;
+    // Coalesce concurrent callers onto a single chain execution.
+    return dataCache.dedupe(cacheKey, async () => {
     const list = await LocationBasedMerchantService.getLocationBasedMerchants({ customerId, limit: 9999 });
     const ids = Array.from(new Set(
       (list || []).flatMap((m: any) => {
@@ -186,6 +192,7 @@ export class LocationBasedMerchantService {
     if (typeof limit === 'number') mapped = mapped.slice(0, limit);
     dataCache.set(cacheKey, mapped, CACHE_TTL.MERCHANTS);
     return mapped;
+    });
   }
 
   static sortByRecentlyUpdated(list: LocationBasedMerchant[]): LocationBasedMerchant[] {

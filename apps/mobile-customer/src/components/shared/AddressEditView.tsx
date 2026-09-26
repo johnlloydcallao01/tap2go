@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
+import { GoMapView, IN_EXPO_GO } from './GoMapView';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapLayer, MapTypeControl } from './MapTypeControl';
@@ -231,19 +232,37 @@ export function AddressEditView({
     <View style={styles.container}>
       {/* ── Map ── */}
       <Animated.View style={[styles.mapWrap, { bottom: sheetHeight }]}>
-        <MapView
-          style={StyleSheet.absoluteFill}
-          mapType={mapLayer}
-          initialRegion={initialRegion}
-          scrollEnabled
-          zoomEnabled
-          pitchEnabled={false}
-          rotateEnabled={false}
-          showsScale
-          loadingEnabled
-          loadingBackgroundColor="#F9FAFB"
-          onRegionChangeComplete={handleRegionChangeComplete}
-        />
+        {IN_EXPO_GO ? (
+          <GoMapView
+            style={StyleSheet.absoluteFill}
+            center={{ latitude: initialRegion.latitude, longitude: initialRegion.longitude }}
+            latitudeDelta={initialRegion.latitudeDelta}
+            mapType={mapLayer}
+            interactive
+            onRegionChangeComplete={({ latitude, longitude }) =>
+              handleRegionChangeComplete({
+                latitude,
+                longitude,
+                latitudeDelta: initialRegion.latitudeDelta,
+                longitudeDelta: initialRegion.longitudeDelta,
+              })
+            }
+          />
+        ) : (
+          <MapView
+            style={StyleSheet.absoluteFill}
+            mapType={mapLayer}
+            initialRegion={initialRegion}
+            scrollEnabled
+            zoomEnabled
+            pitchEnabled={false}
+            rotateEnabled={false}
+            showsScale
+            loadingEnabled
+            loadingBackgroundColor="#F9FAFB"
+            onRegionChangeComplete={handleRegionChangeComplete}
+          />
+        )}
         <View style={styles.markerWrap} pointerEvents="none">
           <View style={styles.pinBox}>
             <Ionicons name="location" size={PIN_SIZE} color="#f3a823" />

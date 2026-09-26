@@ -25,7 +25,7 @@ export default function NewlyUpdatedScreen() {
   const colors = useThemeColors();
   const { customerId } = useAuth();
   const queryClient = useQueryClient();
-  const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isWishlisted, toggleWishlist } = useWishlist({ includeDocs: false });
 
   // Fetch all nearby merchants (limit: 50 for now)
   const {

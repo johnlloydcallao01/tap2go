@@ -1,6 +1,6 @@
 import 'expo-dev-client';
 import 'react-native-url-polyfill/auto';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -28,13 +28,9 @@ function RootNavigation() {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [isNavigationReady, setIsNavigationReady] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setIsNavigationReady(true);
-    }
-  }, [isLoading]);
+  // Navigation is ready as soon as auth has finished loading — derived
+  // directly (instead of mirrored into state via an effect).
+  const isNavigationReady = !isLoading;
 
   useEffect(() => {
     if (!isNavigationReady || isLoading) return;

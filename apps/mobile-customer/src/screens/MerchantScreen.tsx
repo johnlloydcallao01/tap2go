@@ -95,7 +95,7 @@ export default function MerchantScreen() {
   const distanceInMeters = params.distanceInMeters ? Number(params.distanceInMeters) : undefined;
   
   const queryClient = useQueryClient();
-  const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isWishlisted, toggleWishlist } = useWishlist({ includeDocs: false });
   const isHearted = isWishlisted(merchantId);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();

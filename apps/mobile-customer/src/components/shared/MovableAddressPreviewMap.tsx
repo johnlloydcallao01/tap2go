@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
+import { GoMapView, IN_EXPO_GO } from './GoMapView';
 import { Ionicons } from '@expo/vector-icons';
 import { MapLayer, MapTypeControl } from './MapTypeControl';
 
@@ -44,19 +45,37 @@ export function MovableAddressPreviewMap({
 
   return (
     <View style={styles.container}>
-      <MapView
-        style={styles.map}
-        mapType={mapLayer}
-        initialRegion={initialRegion}
-        scrollEnabled
-        zoomEnabled
-        pitchEnabled={false}
-        rotateEnabled={false}
-        showsScale
-        loadingEnabled
-        loadingBackgroundColor="#F9FAFB"
-        onRegionChangeComplete={handleRegionChangeComplete}
-      />
+      {IN_EXPO_GO ? (
+        <GoMapView
+          style={styles.map}
+          center={{ latitude: lat, longitude: lng }}
+          latitudeDelta={0.005}
+          mapType={mapLayer}
+          interactive
+          onRegionChangeComplete={({ latitude, longitude }) =>
+            handleRegionChangeComplete({
+              latitude,
+              longitude,
+              latitudeDelta: 0.005,
+              longitudeDelta: 0.005,
+            })
+          }
+        />
+      ) : (
+        <MapView
+          style={styles.map}
+          mapType={mapLayer}
+          initialRegion={initialRegion}
+          scrollEnabled
+          zoomEnabled
+          pitchEnabled={false}
+          rotateEnabled={false}
+          showsScale
+          loadingEnabled
+          loadingBackgroundColor="#F9FAFB"
+          onRegionChangeComplete={handleRegionChangeComplete}
+        />
+      )}
 
       {/* Center pin marker — the tip sits on the map's center coordinate */}
       <View style={styles.pinWrap} pointerEvents="none">

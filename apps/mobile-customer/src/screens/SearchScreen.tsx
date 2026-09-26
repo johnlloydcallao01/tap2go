@@ -33,7 +33,7 @@ export default function SearchScreen() {
   
   const { user } = useAuth();
   const colors = useThemeColors();
-  const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isWishlisted, toggleWishlist } = useWishlist({ includeDocs: false });
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [modalQuery, setModalQuery] = useState('');
 

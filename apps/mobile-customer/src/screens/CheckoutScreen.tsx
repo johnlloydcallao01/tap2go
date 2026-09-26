@@ -453,6 +453,9 @@ export default function CheckoutScreen() {
         subtotal: totalSubtotal,
         delivery_fee: deliveryFee,
         platform_fee: 0,
+        // Must mirror orderTotal (subtotal + delivery + priority when
+        // delivery is available) or the CMS beforeValidate total check fails.
+        priority_fee: deliveryAvailable ? priorityFee : 0,
         placed_at: new Date().toISOString(),
       };
       const orderRes = await fetch(`${apiConfig.baseUrl}/orders`, {
@@ -701,6 +704,9 @@ export default function CheckoutScreen() {
         subtotal: totalSubtotal,
         delivery_fee: deliveryFee,
         platform_fee: 0,
+        // Must mirror orderTotal (subtotal + delivery + priority when
+        // delivery is available) or the CMS beforeValidate total check fails.
+        priority_fee: deliveryAvailable ? priorityFee : 0,
         placed_at: new Date().toISOString(),
       };
       

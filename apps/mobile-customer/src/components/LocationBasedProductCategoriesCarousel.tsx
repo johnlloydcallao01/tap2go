@@ -26,14 +26,18 @@ export default function LocationBasedProductCategoriesCarousel({
   const { 
     data: rawCategories = [], 
     isLoading, 
-    isRefetching 
   } = useLocationBasedCategories(
     customerId,
     includeInactive,
-    limit
+    limit,
+    // Match the service memory-cache TTL (5 min): background revalidations
+    // resolve from memory instead of churning every global staleTime.
+    { staleTime: 1000 * 60 * 5 }
   );
   
-  const loading = isLoading || isRefetching;
+  // Skeleton only on first load with no rows: background refetches resolve
+  // from cache and must not flash skeletons over rendered cells.
+  const loading = isLoading && rawCategories.length === 0;
   
   const colors = useThemeColors();
 

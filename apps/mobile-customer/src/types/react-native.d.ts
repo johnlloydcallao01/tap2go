@@ -125,21 +125,6 @@ declare module 'react-native-maps' {
   export default MapView;
 }
 
-// React Navigation types
-declare module '@react-navigation/native' {
-  export function useNavigation(): any;
-  export function useFocusEffect(callback: () => void): void;
-  export const NavigationContainer: ComponentType<{ children: React.ReactNode }>;
-}
-
-declare module '@react-navigation/bottom-tabs' {
-  export function createBottomTabNavigator(): any;
-}
-
-declare module '@react-navigation/stack' {
-  export function createStackNavigator(): any;
-}
-
 // Async Storage types
 declare module '@react-native-async-storage/async-storage' {
   export default class AsyncStorage {

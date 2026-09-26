@@ -3,7 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { getWishlistMerchantIds, addMerchantToWishlist, removeMerchantFromWishlist, getWishlistDocs } from '../services/wishlist';
 import { useCallback } from 'react';
 
-export function useWishlist() {
+export function useWishlist(options?: { includeDocs?: boolean }) {
+  // Home/list cards only need IDs for heart state; the 200-doc depth=3
+  // payload is only required by the Wishlist screen itself.
+  const includeDocs = options?.includeDocs ?? true;
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id;
@@ -27,12 +30,15 @@ export function useWishlist() {
   } = useQuery({
     queryKey: ['wishlist-docs', userId],
     queryFn: () => userId ? getWishlistDocs(userId) : Promise.resolve([]),
-    enabled: !!userId,
+    enabled: !!userId && includeDocs,
   });
 
   const refetch = useCallback(async () => {
-    await Promise.all([refetchIds(), refetchDocs()]);
-  }, [refetchIds, refetchDocs]);
+    await Promise.all([
+      refetchIds(),
+      ...(includeDocs ? [refetchDocs()] : []),
+    ]);
+  }, [refetchIds, refetchDocs, includeDocs]);
 
   const addMutation = useMutation({
     mutationFn: (merchantId: string | number) => {

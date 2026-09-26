@@ -28,13 +28,23 @@ export default function MerchantSearchModal({ visible, onClose, products, catego
   const [query, setQuery] = useState('');
   const inputRef = React.useRef<TextInput>(null);
 
-  useEffect(() => {
+  // Clear the query whenever the modal is (re)opened.
+  // Done during render (instead of in an effect) to avoid a cascading re-render.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (wasVisible !== visible) {
+    setWasVisible(visible);
     if (visible) {
       setQuery('');
+    }
+  }
+
+  useEffect(() => {
+    if (visible) {
       // Focus after a short delay to allow modal animation
-      setTimeout(() => {
+      const t = setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
+      return () => clearTimeout(t);
     }
   }, [visible]);
 

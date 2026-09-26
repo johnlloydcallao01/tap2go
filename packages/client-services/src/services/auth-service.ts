@@ -21,6 +21,23 @@ export class AuthService {
   }
 
   /**
+   * Parse a JSON response safely. Proxies / CDNs (e.g. Cloudflare) can return
+   * plain-text or HTML error pages (e.g. "error code: 1033") with a non-2xx
+   * status — surface those as readable errors instead of a cryptic JSON parse failure.
+   */
+  private static async parseResponseData(response: Response): Promise<any> {
+    const text = await response.text();
+    if (!text) {
+      throw new Error(`Server returned an empty response (HTTP ${response.status}). The API may be down.`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`Server returned a non-JSON response (HTTP ${response.status}): ${text.slice(0, 120)}`);
+    }
+  }
+
+  /**
    * Login user
    */
   static async login(credentials: LoginCredentials): Promise<AuthResponse> {
@@ -32,7 +49,7 @@ export class AuthService {
       body: JSON.stringify(credentials),
     });
 
-    const data = await response.json();
+    const data = await this.parseResponseData(response);
 
     if (!response.ok) {
       throw new Error(data.message || data.errors?.[0]?.message || 'Login failed');
@@ -60,7 +77,7 @@ export class AuthService {
       },
     });
 
-    const data = await response.json();
+    const data = await this.parseResponseData(response);
 
     if (!response.ok) {
       throw new Error(data.message || 'Failed to fetch user');
@@ -104,7 +121,7 @@ export class AuthService {
       },
     });
 
-    const data = await response.json();
+    const data = await this.parseResponseData(response);
 
     if (!response.ok) {
       throw new Error(data.message || 'Failed to refresh token');
@@ -131,7 +148,7 @@ export class AuthService {
       body: JSON.stringify(payload),
     });
 
-    const responseData = await response.json();
+    const responseData = await this.parseResponseData(response);
 
     if (!response.ok) {
       throw new Error(responseData.message || responseData.errors?.[0]?.message || 'Registration failed');

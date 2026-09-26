@@ -469,3 +469,19 @@ After (code-only, no migration):
 - **Search page (`/search`).** `q` debounced 350ms via the shared `useDebounce` hook; in-flight fetches aborted via `AbortController` (stale-overwrite race fixed; unmount cancels); refresh button wired to re-fetch (was a no-op). Icons direct from `lucide-react` (all 7 used — no drops). No server prefetch: `q` is dynamic per navigation/keystroke, prefetched rows would never match — documented non-applicable §4b item 3. `ClientOnly` + #441 guard preserved. SearchBar/SearchModal untouched — they automatically collapse onto CMS HITs via the same BFF qs.
 - **Verify**: `tsc --noEmit` CMS + web-admin clean; `eslint` clean on changed files; no new migration, no `migrate:fresh`.
 
+---
+
+## 24. Mobile home application (`apps/mobile-customer` `/`, 2026-09-26)
+
+Client-side port of §4 (no Payload/Redis/BFF exists in this stack — the server half does not apply; no migration). Before (agent-audited): ~13–20 HTTP requests before first paint — hidden always-mounted `SearchModal` fired the full query set with the modal closed (customerId + `limit=9999` merchants + full categories chain + active address), `useLocationBasedMerchants`/`useLocationBasedCategories` queryKeys omitted `limit`/`includeInactive` so home `limit=20` and modal `limit=9999` poisoned each other's cache, `useWishlist` always fired both `limit=200 depth=0` IDs and `limit=200 depth=3` docs though only WishlistScreen reads docs, `loading = isLoading || isRefetching` flashed skeletons on every 1-min global revalidate, and `dataCache` had no in-flight coalescing.
+
+After (code-only, `tsc` + `eslint` clean on `mobile-customer` + `@encreasl/client-services`):
+
+- **Hidden fan-out gated.** `SearchModal` customerId/merchants/categories/active-address queries gain `enabled: visible` (same pattern as `AddressSelectionModal` + the modal's own recent/product effects). Modal-open pays one lazy fill; closed modal costs zero requests.
+- **Keys carry params.** `MERCHANT_KEYS.list` now `(customerId, categoryId, limit)`, `CATEGORY_KEYS.list` now `(customerId, includeInactive, limit)` — 20-vs-9999 entries can no longer collide. Both hooks + `useActiveAddress` accept `{ enabled, staleTime }` options (backward compatible).
+- **Wishlist docs split.** `useWishlist({ includeDocs })` (default true); the five list screens (`LocationBasedMerchants`, `Search`, `NewlyUpdated`, `Merchant`, `NearbyRestaurants`) pass `includeDocs: false` — home no longer hydrates 200 `depth=3` docs for heart state. `refetch`/loading respect the flag; `WishlistScreen` unchanged.
+- **Skeleton only on true first paint.** Merchants rail + categories carousel use `isLoading && data.length === 0`; background revalidations keep rows. Both hooks get `staleTime` 5min matching the `dataCache` `MERCHANTS` TTL (was: 1-min global expiry → memory-hit refetch + visible skeleton flash).
+- **Singleflight.** `dataCache.dedupe(key, fn)` coalesces concurrent same-key callers onto one promise; `clear()` also drops in-flight work so pull-to-refresh never awaits a pre-refresh response. Migrated `getLocationBasedMerchants` + `getLocationBasedMerchantCategories` (error paths still return uncached `[]`, semantics preserved).
+- **Explicitly deferred (needs CMS work):** the carousel's `limit=9999` ID-extraction pull (only IDs consumed — the true fix is a dedicated categories endpoint per §4 step 5); the per-merchant `merchants/{id}?depth=1` subtitle N+1 (needs `activeAddress.formatted_address` on the display payload); per-user `user→customer` triplication across Auth/header/modal.
+- **Verify:** `tsc --noEmit` mobile-customer + client-services clean; `eslint` clean on changed files; no backend change, no migration.
+

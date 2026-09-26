@@ -108,17 +108,19 @@ export default function LocationBasedMerchants({
   categoryId,
   onMerchantPress
 }: LocationBasedMerchantsProps) {
-  const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isWishlisted, toggleWishlist } = useWishlist({ includeDocs: false });
   const navigation = useNavigation();
 
   const {
     data: allMerchants = [],
     isLoading,
-    isRefetching
   } = useLocationBasedMerchants(
     customerId,
     categoryId,
-    limit
+    limit,
+    // Match the service memory-cache TTL (5 min): background revalidations
+    // resolve from memory instead of churning every global staleTime.
+    { staleTime: 1000 * 60 * 5 }
   );
 
   // Apply limit logic for display:
@@ -137,7 +139,9 @@ export default function LocationBasedMerchants({
   // Fetch active addresses for merchants
   const { data: addressMap = {} } = useMerchantAddresses(merchants);
 
-  const loading = isLoading || isRefetching;
+  // Skeleton only on first load with no rows: background refetches resolve
+  // from cache and must not flash skeletons over rendered cards.
+  const loading = isLoading && allMerchants.length === 0;
 
   const colors = useThemeColors();
   const { width } = useWindowDimensions();

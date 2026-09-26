@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import { GoMapView, IN_EXPO_GO } from './GoMapView';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ActiveAddressCardProps {
@@ -38,20 +39,30 @@ export function ActiveAddressCard({ address, onDelete, onEdit, isDeleting }: Act
       {/* ── Map preview (rectangular, pin marker) ── */}
       <View style={styles.mapWrap}>
         {lat != null && lng != null ? (
-          <MapView
-            style={styles.map}
-            initialRegion={region}
-            scrollEnabled={false}
-            zoomEnabled={false}
-            pitchEnabled={false}
-            rotateEnabled={false}
-            toolbarEnabled={false}
-            loadingEnabled
-            loadingBackgroundColor="#E5E7EB"
-            pointerEvents="none"
-          >
-            <Marker coordinate={{ latitude: lat, longitude: lng }} pinColor="#f3a823" />
-          </MapView>
+          IN_EXPO_GO ? (
+            <GoMapView
+              style={styles.map}
+              center={{ latitude: lat, longitude: lng }}
+              latitudeDelta={0.01}
+              interactive={false}
+              markers={[{ latitude: lat, longitude: lng, color: '#f3a823' }]}
+            />
+          ) : (
+            <MapView
+              style={styles.map}
+              initialRegion={region}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              pitchEnabled={false}
+              rotateEnabled={false}
+              toolbarEnabled={false}
+              loadingEnabled
+              loadingBackgroundColor="#E5E7EB"
+              pointerEvents="none"
+            >
+              <Marker coordinate={{ latitude: lat, longitude: lng }} pinColor="#f3a823" />
+            </MapView>
+          )
         ) : (
           <View style={[styles.map, styles.mapFallback]}>
             <Ionicons name="map-outline" size={28} color="#C7CBD1" />
@@ -126,7 +137,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   mapFallback: {
     backgroundColor: '#F3F4F6',

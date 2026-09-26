@@ -11,6 +11,23 @@ interface CacheEntry<T> {
 
 class DataCache {
   private cache = new Map<string, CacheEntry<any>>();
+  // In-flight promise coalescing (singleflight): concurrent callers for the
+  // same key share one network request instead of stampeding the API.
+  private inflight = new Map<string, Promise<any>>();
+
+  /**
+   * Run fn once per key: concurrent callers await the same promise.
+   * The function owns caching semantics (this only dedupes in-flight work).
+   */
+  async dedupe<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const existing = this.inflight.get(key);
+    if (existing) return existing as Promise<T>;
+    const p = fn().finally(() => {
+      if (this.inflight.get(key) === p) this.inflight.delete(key);
+    });
+    this.inflight.set(key, p);
+    return p;
+  }
   
   /**
    * Set data in cache with TTL
@@ -62,10 +79,12 @@ class DataCache {
   }
   
   /**
-   * Clear all cache entries
+   * Clear all cache entries (also drops coalesced in-flight work so a
+   * pull-to-refresh never awaits a pre-refresh response).
    */
   clear(): void {
     this.cache.clear();
+    this.inflight.clear();
   }
   
   /**

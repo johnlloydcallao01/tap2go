@@ -6,7 +6,12 @@ export const ADDRESS_KEYS = {
   active: (userId: string) => [...ADDRESS_KEYS.all, 'active', userId] as const,
 };
 
-export function useActiveAddress(userId?: string, token?: string) {
+interface ActiveAddressOptions {
+  /** Gate the fetch (e.g. only when a modal is visible). Default true. */
+  enabled?: boolean;
+}
+
+export function useActiveAddress(userId?: string, token?: string, options?: ActiveAddressOptions) {
   return useQuery({
     queryKey: ADDRESS_KEYS.active(userId || ''),
     queryFn: async () => {
@@ -26,6 +31,6 @@ export function useActiveAddress(userId?: string, token?: string) {
       
       return null;
     },
-    enabled: !!userId && !!token,
+    enabled: (options?.enabled ?? true) && !!userId && !!token,
   });
 }

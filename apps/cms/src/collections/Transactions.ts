@@ -1,6 +1,5 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout, createMerchantNotificationFanout } from '../utils/notificationFanout'
-import { bustAnalyticsCache, bustDashboardCache, bustOrdersCache, bustPayoutsCache, bustReportsCache, bustTransactionsCache, bustVendorsCache } from '../utils/dashboardCache'
 
 export const Transactions: CollectionConfig = {
   slug: 'transactions',
@@ -29,13 +28,6 @@ export const Transactions: CollectionConfig = {
       return user?.role === 'service' || user?.role === 'admin' || false
     },
   },
-  indexes: [
-    // Dashboard revenue queries: WHERE status='paid' AND paid_at >= 30d / ORDER BY createdAt
-    { fields: ['status', 'paid_at'] },
-    { fields: ['status', 'createdAt'] },
-    // Analytics payment-method breakdown
-    { fields: ['payment_method'] },
-  ],
   fields: [
     {
       name: 'order',
@@ -130,22 +122,7 @@ export const Transactions: CollectionConfig = {
             metadata: { transactionId: doc.id, orderId, status, amount: doc.amount, currency: doc.currency },
           })
         }
-        // Write-through: revenue metrics read transactions SUM/GROUP BY.
-        try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustOrdersCache(); await bustTransactionsCache()
-        } catch {
-          // ignore
-        }
         return doc
-      },
-    ],
-    afterDelete: [
-      async () => {
-        try {
-          await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustOrdersCache(); await bustTransactionsCache()
-        } catch {
-          // ignore
-        }
       },
     ],
   },
