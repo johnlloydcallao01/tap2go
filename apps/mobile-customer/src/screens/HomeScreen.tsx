@@ -6,11 +6,10 @@ import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
 import {
-  MERCHANT_KEYS,
-  CATEGORY_KEYS,
-  ADDRESS_KEYS,
-  MERCHANT_ADDRESS_KEYS,
-  dataCache
+  HOME_OVERVIEW_KEYS,
+  useHomeOverview,
+  dataCache,
+  type RecommendedProduct
 } from '@encreasl/client-services';
 import LocationBasedProductCategoriesCarousel from '../components/LocationBasedProductCategoriesCarousel';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
@@ -19,7 +18,7 @@ import LocationBasedMerchants from '../components/LocationBasedMerchants';
 
 export default function HomeScreen() {
   // console.log('🏠 HomeScreen: Component initializing...');
-  
+
   const navigation = useNavigation();
 
   const queryClient = useQueryClient();
@@ -35,6 +34,15 @@ export default function HomeScreen() {
 
   // No need for local customerId fetching logic anymore as it's handled in AuthContext
 
+  // BFF single query (docs/BFF-pattern.md): one aggregation endpoint drives
+  // Categories + Nearby + Newly Updated + Recommended. Thin frontend.
+  const { data: overview = null, isLoading: overviewLoading } = useHomeOverview(
+    customerId,
+    20,
+    selectedCategoryId,
+    { staleTime: 1000 * 60 * 5 },
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -45,10 +53,7 @@ export default function HomeScreen() {
 
       // Reset queries to clear cache and force fresh fetch
       await Promise.all([
-        queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
-        queryClient.resetQueries({ queryKey: CATEGORY_KEYS.all }),
-        queryClient.resetQueries({ queryKey: ADDRESS_KEYS.all }),
-        queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
+        queryClient.resetQueries({ queryKey: HOME_OVERVIEW_KEYS.all }),
         // Customer ID is now managed by AuthContext and is stable
       ]);
 
@@ -71,6 +76,14 @@ export default function HomeScreen() {
       merchantId: merchant.id,
       distanceKm: merchant.distanceKm,
       distanceInMeters: merchant.distanceInMeters
+    });
+  };
+
+  const handleProductPress = (product: RecommendedProduct) => {
+    navigation.navigate('Product', {
+      productId: product.id,
+      merchantId: product.merchantId,
+      merchantProductId: product.merchantProductId,
     });
   };
 
@@ -115,24 +128,29 @@ export default function HomeScreen() {
             resizeMode="cover"
           />
 
-          {/* Categories Carousel */}
+          {/* Categories Carousel (BFF-driven) */}
           {customerId ? (
             <LocationBasedProductCategoriesCarousel
               customerId={customerId}
               selectedCategorySlug={selectedCategorySlug}
               onCategorySelect={handleCategorySelect}
+              overviewCategories={overview?.categories ?? null}
+              overviewLoading={overviewLoading}
             />
           ) : (
             // Placeholder or empty while loading customer
             <View style={{ height: 20 }} />
           )}
 
-          {/* Merchants List */}
+          {/* Merchants List + Recommended For You (inside, between Nearby / Newly Updated) */}
           {customerId ? (
             <LocationBasedMerchants
               customerId={customerId}
               categoryId={selectedCategoryId}
               onMerchantPress={handleMerchantPress}
+              onProductPress={handleProductPress}
+              overview={overview}
+              overviewLoading={overviewLoading}
             />
           ) : (
             <View style={{ padding: 20, alignItems: 'center' }}>

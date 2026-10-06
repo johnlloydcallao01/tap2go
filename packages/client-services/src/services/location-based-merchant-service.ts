@@ -172,6 +172,10 @@ export class LocationBasedMerchantService {
     params.append('where[id][in]', ids.join(','));
     if (!includeInactive) params.append('where[isActive][equals]', 'true');
     params.append('limit', String(ids.length));
+    // depth=1 populates the `icon` upload (object with cloudinaryURL/url).
+    // Without it the API returns a numeric media ID, which the carousel
+    // cannot render and falls back to the gray placeholder.
+    params.append('depth', '1');
     const url = `${base}/merchant-categories?${params.toString()}`;
     const res = await fetch(url, { headers, credentials: 'omit' });
     if (!res.ok) { dataCache.set(cacheKey, [], CACHE_TTL.MERCHANTS); return []; }

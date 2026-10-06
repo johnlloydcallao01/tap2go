@@ -123,6 +123,9 @@ export class LocationBasedProductCategoriesService {
       return cachedData;
     }
 
+    // Coalesce concurrent callers (e.g. home + modal mounting together)
+    // onto a single network request (copies location-based-merchant-service).
+    return dataCache.dedupe(cacheKey, async () => {
     try {
       // Build headers
       const headers: Record<string, string> = {
@@ -178,12 +181,13 @@ export class LocationBasedProductCategoriesService {
       
       // Cache the result
       dataCache.set(cacheKey, categories, CACHE_TTL.PRODUCT_CATEGORIES);
-      
+
       return categories;
     } catch (error) {
       console.error('❌ Error fetching location-based product categories:', error);
       return []; // Graceful fallback
     }
+    });
   }
 
   /**

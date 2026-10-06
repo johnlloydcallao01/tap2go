@@ -13,6 +13,12 @@ interface LocationBasedProductCategoriesCarouselProps {
   includeInactive?: boolean;
   selectedCategorySlug?: string | null;
   onCategorySelect?: (categoryId: string | null, categorySlug: string | null, categoryName?: string) => void;
+  /**
+   * BFF-provided categories (docs/BFF-pattern.md): when defined, the
+   * carousel renders them instead of firing its own raw query.
+   */
+  overviewCategories?: MerchantCategoryDisplay[] | null;
+  overviewLoading?: boolean;
 }
 
 export default function LocationBasedProductCategoriesCarousel({
@@ -22,34 +28,43 @@ export default function LocationBasedProductCategoriesCarousel({
   includeInactive = false,
   selectedCategorySlug,
   onCategorySelect,
+  overviewCategories,
+  overviewLoading = false,
 }: LocationBasedProductCategoriesCarouselProps) {
-  const { 
-    data: rawCategories = [], 
-    isLoading, 
+  const useBff = overviewCategories !== undefined;
+  const {
+    data: rawCategories = [],
+    isLoading,
   } = useLocationBasedCategories(
     customerId,
     includeInactive,
     limit,
     // Match the service memory-cache TTL (5 min): background revalidations
     // resolve from memory instead of churning every global staleTime.
-    { staleTime: 1000 * 60 * 5 }
+    // Skipped entirely when the BFF overview already provides categories.
+    { staleTime: 1000 * 60 * 5, enabled: !useBff }
   );
+  const categoriesSource = React.useMemo(
+    () => (useBff ? (overviewCategories ?? []) : rawCategories),
+    [useBff, overviewCategories, rawCategories],
+  );
+  const loadingSource = useBff ? overviewLoading : isLoading;
   
   // Skeleton only on first load with no rows: background refetches resolve
   // from cache and must not flash skeletons over rendered cells.
-  const loading = isLoading && rawCategories.length === 0;
+  const loading = loadingSource && categoriesSource.length === 0;
   
   const colors = useThemeColors();
 
   const categories = useMemo(() => {
-    let mapped = rawCategories || [];
+    let mapped = categoriesSource || [];
     if (sortBy === 'name') {
       mapped = mapped.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     } else if (sortBy === 'productCount') {
       mapped = mapped.slice().sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
     }
     return mapped;
-  }, [rawCategories, sortBy]);
+  }, [categoriesSource, sortBy]);
 
   const handleCategoryPress = (category: MerchantCategoryDisplay) => {
     const slug = category.slug || category.name.toLowerCase().replace(/\s+/g, '-');

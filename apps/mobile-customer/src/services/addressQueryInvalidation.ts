@@ -5,6 +5,9 @@ import {
   MERCHANT_KEYS,
   CATEGORY_KEYS,
   MERCHANT_ADDRESS_KEYS,
+  RECOMMENDED_KEYS,
+  MARKETPLACE_CATEGORY_KEYS,
+  HOME_OVERVIEW_KEYS,
 } from '@encreasl/client-services';
 
 /**
@@ -28,5 +31,11 @@ export async function invalidateAddressDependentQueries(
     queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
     queryClient.resetQueries({ queryKey: CATEGORY_KEYS.all }),
     queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
+    // Recommended pool is location-gated too — without this it stays stale
+    // after an address change (HomeScreen pull-to-refresh already resets it).
+    queryClient.resetQueries({ queryKey: RECOMMENDED_KEYS.all }),
+    queryClient.resetQueries({ queryKey: MARKETPLACE_CATEGORY_KEYS.all }),
+    // Home BFF overview (single endpoint drives home sections).
+    queryClient.resetQueries({ queryKey: HOME_OVERVIEW_KEYS.all }),
   ]);
 }

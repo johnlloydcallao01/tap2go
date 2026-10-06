@@ -12,6 +12,9 @@ import {
   MERCHANT_KEYS,
   CATEGORY_KEYS,
   MERCHANT_ADDRESS_KEYS,
+  RECOMMENDED_KEYS,
+  MARKETPLACE_CATEGORY_KEYS,
+  HOME_OVERVIEW_KEYS,
   dataCache,
 } from '@encreasl/client-services';
 import AddressSelectionModal from './AddressSelectionModal';
@@ -123,6 +126,9 @@ export default function MobileHeader({
       queryClient.resetQueries({ queryKey: MERCHANT_KEYS.all }),
       queryClient.resetQueries({ queryKey: CATEGORY_KEYS.all }),
       queryClient.resetQueries({ queryKey: MERCHANT_ADDRESS_KEYS.all }),
+      queryClient.resetQueries({ queryKey: RECOMMENDED_KEYS.all }),
+      queryClient.resetQueries({ queryKey: MARKETPLACE_CATEGORY_KEYS.all }),
+      queryClient.resetQueries({ queryKey: HOME_OVERVIEW_KEYS.all }),
     ]);
 
     setIsAddressModalVisible(false);

@@ -8,15 +8,25 @@ import {
   useMerchantAddresses
 } from '@encreasl/client-services';
 import LocationMerchantCard from './LocationMerchantCard';
+import RecommendedForYou from './RecommendedForYou';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useWishlist } from '../hooks/useWishlist';
 import { useNavigation } from '../navigation/NavigationContext';
+import type { RecommendedProduct, HomeOverview } from '@encreasl/client-services';
 
 interface LocationBasedMerchantsProps {
   customerId?: string;
   limit?: number;
   categoryId?: string | null;
   onMerchantPress?: (merchant: LocationBasedMerchant) => void;
+  onProductPress?: (product: RecommendedProduct) => void;
+  /**
+   * BFF-provided overview (docs/BFF-pattern.md): when defined, Nearby /
+   * Newly Updated / Recommended render from it instead of firing their own
+   * raw queries. `undefined` keeps the legacy hook path (other screens).
+   */
+  overview?: HomeOverview | null;
+  overviewLoading?: boolean;
 }
 
 function MerchantCardSkeleton({ width }: { width: number }) {
@@ -106,10 +116,15 @@ export default function LocationBasedMerchants({
   customerId,
   limit = 20,
   categoryId,
-  onMerchantPress
+  onMerchantPress,
+  onProductPress,
+  overview,
+  overviewLoading = false
 }: LocationBasedMerchantsProps) {
   const { isWishlisted, toggleWishlist } = useWishlist({ includeDocs: false });
   const navigation = useNavigation();
+  // BFF mode: single overview response drives all sections (no raw queries).
+  const useBff = overview !== undefined;
 
   const {
     data: allMerchants = [],
@@ -120,44 +135,69 @@ export default function LocationBasedMerchants({
     limit,
     // Match the service memory-cache TTL (5 min): background revalidations
     // resolve from memory instead of churning every global staleTime.
-    { staleTime: 1000 * 60 * 5 }
+    // Skipped entirely when the BFF overview provides the data.
+    { staleTime: 1000 * 60 * 5, enabled: !useBff }
   );
 
   // Apply limit logic for display:
   // If no category filter (categoryId is null), show max 8 items.
   // Otherwise, show all (or up to limit passed in props)
   const merchants = useMemo(() => {
+    if (useBff) {
+      return categoryId
+        ? (overview?.filteredMerchants ?? [])
+        : (overview?.nearbyMerchants ?? []);
+    }
     if (!categoryId) {
       return allMerchants.slice(0, 8);
     }
     return allMerchants;
-  }, [allMerchants, categoryId]);
+  }, [useBff, overview, allMerchants, categoryId]);
 
   // Check if we have more than 8 merchants to show the chevron
-  const showChevron = !categoryId && allMerchants.length > 8;
+  const showChevron = useBff
+    ? (!categoryId && (overview?.hasMoreNearby === true))
+    : (!categoryId && allMerchants.length > 8);
 
-  // Fetch active addresses for merchants
-  const { data: addressMap = {} } = useMerchantAddresses(merchants);
+  // Fetch active addresses for merchants (legacy path only — BFF embeds
+  // activeAddressName, eliminating the N+1).
+  const { data: legacyAddressMap = {} } = useMerchantAddresses(useBff ? [] : merchants);
+  const addressMap = useMemo<Record<string, string>>(() => {
+    if (!useBff) return legacyAddressMap as Record<string, string>;
+    const map: Record<string, string> = {};
+    for (const m of merchants) {
+      const name = (m as { activeAddressName?: string | null }).activeAddressName;
+      if (name) map[String(m.id)] = name;
+    }
+    return map;
+  }, [useBff, legacyAddressMap, merchants]);
 
   // Skeleton only on first load with no rows: background refetches resolve
   // from cache and must not flash skeletons over rendered cards.
-  const loading = isLoading && allMerchants.length === 0;
+  const loading = useBff
+    ? (overviewLoading && merchants.length === 0)
+    : (isLoading && allMerchants.length === 0);
 
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
 
   // Compute newly updated merchants (Client-side sort using shared logic)
-  // Only shown when no category filter is active, matching web logic
+  // Only shown when no category filter is active, matching web logic.
+  // In BFF mode the backend already owns the sort.
   const newlyUpdatedMerchantsFull = useMemo(() => {
     if (categoryId) return [];
+    if (useBff) return overview?.newlyUpdatedMerchants ?? [];
     return sortMerchantsByRecentlyUpdated(allMerchants);
-  }, [allMerchants, categoryId]);
+  }, [useBff, overview, allMerchants, categoryId]);
 
   const newlyUpdatedMerchants = useMemo(() => {
+    if (useBff) return newlyUpdatedMerchantsFull;
     return newlyUpdatedMerchantsFull.slice(0, 8);
-  }, [newlyUpdatedMerchantsFull]);
+  }, [useBff, newlyUpdatedMerchantsFull]);
 
-  const showChevronNewlyUpdated = newlyUpdatedMerchantsFull.length > 8;
+  const showChevronNewlyUpdated = useBff
+    ? (overview?.hasMoreNewlyUpdated === true)
+    : (newlyUpdatedMerchantsFull.length > 8);
 
   const handleNavigateToNearby = () => {
     navigation.navigate('NearbyRestaurants');
@@ -262,6 +302,21 @@ export default function LocationBasedMerchants({
           </View>
         )}
       </View>
+
+      {/* ================= Recommended For You (location-gated products) ================= */}
+      {/* BFF mode: products + pills come from the overview response. */}
+      {/* Legacy mode: reuses the already-loaded Nearby merchants */}
+      {/* (`allMerchants`, limit=20) with zero extra location fetch. */}
+      <RecommendedForYou
+        customerId={customerId}
+        categoryId={categoryId}
+        onProductPress={onProductPress}
+        eligibleMerchants={useBff ? null : allMerchants}
+        overviewProducts={useBff ? (overview?.recommendedProducts ?? null) : undefined}
+        overviewCategories={useBff ? (overview?.recommendedCategories ?? null) : undefined}
+        overviewHasOrphans={useBff ? (overview?.recommendedHasOrphans === true) : undefined}
+        overviewLoading={useBff ? overviewLoading : undefined}
+      />
 
       {/* Newly Updated Section - Independent skeleton rendered in its real position */}
       {showNewlyUpdatedSection && (

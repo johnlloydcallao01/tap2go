@@ -12,6 +12,7 @@ import { authLogger, createAuthLogContext } from './utils/auth-logger'
 import { GeospatialService } from './services/GeospatialService'
 import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
+import { customerHomeOverviewHandler } from './endpoints/customerHomeOverview'
 import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
 import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
 import { sendOrderHelp } from './endpoints/sendOrderHelp'
@@ -832,6 +833,12 @@ export default buildConfig({
       path: '/merchant/location-based-product-categories',
       method: 'get',
       handler: merchantLocationBasedProductCategoriesHandler,
+    },
+
+    {
+      path: '/customer/home-overview',
+      method: 'get',
+      handler: customerHomeOverviewHandler,
     },
     {
       path: '/effective-modifiers',

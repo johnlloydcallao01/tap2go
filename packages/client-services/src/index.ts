@@ -4,6 +4,8 @@ export * from './cache/data-cache';
 export * from './services/location-based-merchant-service';
 export * from './services/location-based-product-categories-service';
 export * from './services/merchant-client-service';
+export * from './services/home-overview-service';
+export * from './services/marketplace-product-service';
 export * from './services/auth-service';
 export * from './services/address-service';
 export * from './services/search-service';
@@ -15,6 +17,8 @@ export * from './hooks/useLocationBasedMerchants';
 export * from './hooks/useLocationBasedCategories';
 export * from './hooks/useActiveAddress';
 export * from './hooks/useMerchantAddresses';
+export * from './hooks/useRecommendedProducts';
+export * from './hooks/useHomeOverview';
 export * from './hooks/useSearch';
 
 // Shared TanStack foundation (client factory, provider, keys)
