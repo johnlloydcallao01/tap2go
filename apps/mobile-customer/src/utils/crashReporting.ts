@@ -1,8 +1,9 @@
 import { Platform } from 'react-native';
+import type { ErrorInfo } from 'react';
 
 interface CrashReport {
   error: Error;
-  errorInfo?: any;
+  errorInfo?: ErrorInfo;
   timestamp: string;
   platform: string;
   appVersion: string;
@@ -20,7 +21,7 @@ class CrashReporter {
     return CrashReporter.instance;
   }
 
-  logCrash(error: Error, errorInfo?: any, userId?: string) {
+  logCrash(error: Error, errorInfo?: ErrorInfo, userId?: string) {
     const crashReport: CrashReport = {
       error,
       errorInfo,

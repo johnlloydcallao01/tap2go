@@ -14,7 +14,7 @@ import {
   ImageBackground,
   Animated,
   Platform,
-  ViewToken,
+  ListViewToken,
   RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -320,7 +320,7 @@ export default function MerchantScreen() {
     waitForInteraction: true,
   }).current;
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ListViewToken[] }) => {
     if (isManualScroll.current || viewableItems.length === 0) return;
 
     // Find the first viewable item that belongs to a section

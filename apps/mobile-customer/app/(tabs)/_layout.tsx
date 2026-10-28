@@ -21,6 +21,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      id="tabs"
       tabBar={(props) => <FooterAdapter {...props} />}
       screenOptions={{
         headerShown: false,

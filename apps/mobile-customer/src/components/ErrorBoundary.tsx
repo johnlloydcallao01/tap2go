@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ErrorInfo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CrashReporter from '../utils/crashReporting';
@@ -6,7 +7,7 @@ import CrashReporter from '../utils/crashReporting';
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  errorInfo: any;
+  errorInfo: ErrorInfo | null;
 }
 
 interface ErrorBoundaryProps {
@@ -30,7 +31,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('🚨 ErrorBoundary caught an error:', error);
     console.error('🚨 Error Info:', errorInfo);
     console.error('🚨 Error Stack:', error.stack);

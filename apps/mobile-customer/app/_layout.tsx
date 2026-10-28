@@ -55,7 +55,7 @@ function RootNavigation() {
       return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />; 
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Stack id="root" screenOptions={{ headerShown: false }} />;
 }
 
 export default function RootLayout() {

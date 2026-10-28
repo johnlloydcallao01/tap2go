@@ -190,7 +190,7 @@ export function GoMapView({
   onError,
 }: GoMapViewProps): React.JSX.Element {
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const webRef = useRef<WebView>(null);
+  const webRef = useRef<WebView<unknown>>(null);
   const fittedOnce = useRef(false);
   const lastSent = useRef<string>('');
 
@@ -269,7 +269,7 @@ export function GoMapView({
 
   return (
     <View style={[styles.container, style]}>
-      <WebView
+      <WebView<unknown>
         ref={webRef}
         style={styles.web}
         originWhitelist={['*']}

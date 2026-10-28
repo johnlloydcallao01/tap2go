@@ -8,7 +8,8 @@ import {
   StyleSheet,
   FlatList,
   Image,
-  Alert
+  Alert,
+  type TextInputInstance
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +27,7 @@ interface Props {
 export default function MerchantSearchModal({ visible, onClose, products, categories, onAddToCart }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const inputRef = React.useRef<TextInput>(null);
+  const inputRef = React.useRef<TextInputInstance>(null);
 
   // Clear the query whenever the modal is (re)opened.
   // Done during render (instead of in an effect) to avoid a cascading re-render.

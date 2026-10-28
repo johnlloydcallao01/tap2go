@@ -30,6 +30,7 @@
       }
     },
     "production": {
+      "environment": "production",
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease"

@@ -17,6 +17,18 @@ Please ask your friend for the following information:
 
 ### 4. Keystore Credentials
 Along with the keystore file, we need the exact credentials used to unlock it:
-- **Store Password:** `Tap2Go2026!Secure`
+- **Store Password:** Store securely; do not write credentials in this document.
 - **Key Alias:** `upload`
-- **Key Password:** `Tap2Go2026!Secure`
+- **Key Password:** Store securely; do not write credentials in this document.
+
+## Next production release
+
+Google Play Console currently shows active release `17 (1.17)`. Use the next code for the following upload:
+
+- **Application ID:** `com.wnapp.id1721090048598`
+- **Current Play release:** `versionCode` `17`, `versionName` `1.17`
+- **Next versionCode:** `18`
+- **versionName:** `2.1.9` (current app config; change only if choosing a new customer-facing release label)
+- **Signing key:** Use the existing upload key at `C:\Users\User\Desktop\tap2go\keys\keystore.jks`, after confirming its certificate matches the Play Console upload key.
+
+The earlier answer `16` above is historical. The app config should use version code `18` for the next production build and Google Play upload.
