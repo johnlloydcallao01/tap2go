@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustCustomerHomeCache } from '../utils/dashboardCache'
 
 export const MerchantCategories: CollectionConfig = {
   slug: 'merchant-categories',
@@ -75,6 +76,23 @@ export const MerchantCategories: CollectionConfig = {
         return data
       },
     ],
+    afterChange: [
+      async () => {
+        try {
+          await bustCustomerHomeCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCustomerHomeCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
   },
 }
-

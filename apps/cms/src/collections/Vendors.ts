@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { validateStoreHoursFields } from '@/utils/storeHours'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
-import { bustAnalyticsCache, bustDashboardCache, bustPayoutsCache, bustReportsCache, bustSearchCache, bustVendorsCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustCustomerHomeCache, bustDashboardCache, bustPayoutsCache, bustReportsCache, bustSearchCache, bustVendorsCache } from '../utils/dashboardCache'
 
 export const Vendors: CollectionConfig = {
   slug: 'vendors',
@@ -315,6 +315,7 @@ export const Vendors: CollectionConfig = {
         }
         try {
           await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustSearchCache()
+          await bustCustomerHomeCache()
         } catch {
           // ignore
         }
@@ -325,6 +326,7 @@ export const Vendors: CollectionConfig = {
       async () => {
         try {
           await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustPayoutsCache(); await bustVendorsCache(); await bustSearchCache()
+          await bustCustomerHomeCache()
         } catch {
           // ignore
         }

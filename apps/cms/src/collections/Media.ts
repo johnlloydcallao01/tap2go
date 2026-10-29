@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustCustomerHomeCache } from '../utils/dashboardCache'
 import { authenticatedUsers, adminOnly } from '../access'
 
 export const Media: CollectionConfig = {
@@ -28,6 +29,26 @@ export const Media: CollectionConfig = {
       },
     },
   ],
+  hooks: {
+    afterChange: [
+      async () => {
+        try {
+          await bustCustomerHomeCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCustomerHomeCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+  },
   upload: {
     mimeTypes: ['image/*', 'video/*', 'application/pdf', 'application/*'],
   },

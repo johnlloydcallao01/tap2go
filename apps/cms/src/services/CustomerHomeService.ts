@@ -1,10 +1,13 @@
 import type { Payload } from 'payload'
-import { MerchantLocationService } from './MerchantLocationService'
+import { MerchantLocationService, type HomeOverviewTiming } from './MerchantLocationService'
+import { getOrBuildDashboard } from '../utils/dashboardCache'
 
 export interface CustomerHomeRequest {
   customerId: number
   limit?: number
   categoryId?: string
+  section?: 'all' | 'primary' | 'recommendations'
+  forceRefresh?: boolean
 }
 
 export interface HomeMerchant {
@@ -147,14 +150,43 @@ export class CustomerHomeService {
     this.merchantLocationService = new MerchantLocationService(payload)
   }
 
-  async buildCustomerHomeOverview(request: CustomerHomeRequest): Promise<CustomerHomeResponse> {
-    const { customerId, limit = 20, categoryId } = request
+  async buildCustomerHomeOverview(
+    request: CustomerHomeRequest,
+    onTiming?: HomeOverviewTiming,
+  ): Promise<CustomerHomeResponse> {
+    const {
+      customerId,
+      limit = 20,
+      categoryId,
+      section = 'all',
+      forceRefresh = false,
+    } = request
+    const includePrimary = section !== 'recommendations'
+    const includeRecommendations = section !== 'primary'
     const safeLimit = Math.min(Math.max(limit || 20, 1), 50)
 
     // Step 1: customer → active address → eligible merchants (PostGIS, ≤50).
-    const location = await this.merchantLocationService.getMerchantsForLocationDisplay({
+    const locationCacheKey = [
+      'customer:home-overview:location:v1',
       customerId,
-      categoryId: categoryId || undefined,
+      categoryId || 'all',
+    ].join(':')
+    const locationCacheStart = Date.now()
+    const { data: location, status: locationCacheStatus } = await getOrBuildDashboard(
+      locationCacheKey,
+      15,
+      () =>
+        this.merchantLocationService.getMerchantsForLocationDisplay({
+          customerId,
+          categoryId: categoryId || undefined,
+          includeTotalCount: false,
+          onTiming,
+        }),
+      { bypassCache: forceRefresh, awaitRedisWrite: false },
+    )
+    onTiming?.('location_cache', Date.now() - locationCacheStart, {
+      cacheHit: locationCacheStatus === 'HIT' ? 1 : 0,
+      cacheStale: locationCacheStatus === 'STALE' ? 1 : 0,
     })
     const rawMerchants = (location.merchants || []) as unknown as Record<string, unknown>[]
 
@@ -164,8 +196,8 @@ export class CustomerHomeService {
       .map((m) => m.id as number | string)
       .filter((id) => id !== null && id !== undefined)
 
-    // Step 3: merchant categories for the eligible set (scoped, like the
-    // client merchant-categories?where[id][in] pattern — never global).
+    // Step 3: prepare the scoped section reads. They are independent once the
+    // location query has resolved, so start them together below.
     const merchantCategoryIds = Array.from(
       new Set(
         eligible.flatMap((m) => {
@@ -174,9 +206,9 @@ export class CustomerHomeService {
         }),
       ),
     )
-    let categories: HomeCategory[] = []
-    if (merchantCategoryIds.length > 0) {
-      const catsRes = await this.payload.find({
+    const categoriesQuery =
+      includePrimary && merchantCategoryIds.length > 0
+        ? this.payload.find({
         collection: 'merchant-categories',
         where: {
           and: [{ id: { in: merchantCategoryIds } }, { isActive: { equals: true } }],
@@ -186,53 +218,38 @@ export class CustomerHomeService {
         // `media` wrapper — `MerchantCategories.ts` field `icon`). depth:0
         // leaves a numeric ID, which renders as the gray placeholder.
         depth: 1,
+        pagination: false,
+        select: { id: true, name: true, slug: true, icon: true },
       })
-      categories = ((catsRes.docs || []) as unknown as Record<string, unknown>[]).map((c) => {
-        const rawIcon = c.icon as Record<string, unknown> | number | null | undefined
-        const icon = rawIcon && typeof rawIcon === 'object' ? rawIcon : null
-        return {
-          id: (c.id as number | string) ?? '',
-          name: String(c.name ?? ''),
-          slug: String(c.slug ?? toSlug(String(c.name ?? ''))),
-          media: {
-            icon: icon
-              ? {
-                  cloudinaryURL:
-                    (icon.cloudinaryURL as string | undefined) ??
-                    (icon.cloudinary_url as string | undefined) ??
-                    null,
-                  url: (icon.url as string | undefined) ?? null,
-                }
-              : null,
-          },
-        }
-      })
-    }
+        : Promise.resolve({ docs: [] })
 
     // Step 4: scoped merchant-products for the eligible set (copies the
     // merchant-menu pattern: where[merchant_id][in] + active/available).
     // Skipped entirely in filtered mode (client hides Recommended then).
-    let products: HomeProduct[] = []
-    let productCategories: HomeCategory[] = []
-    let hasOrphans = false
-    if (!categoryId && eligibleIds.length > 0) {
-      const distanceByMerchant = new Map<string, { distanceKm: number | null; within: boolean; eta: string | null }>()
-      for (const m of eligible) {
-        distanceByMerchant.set(String(m.id), {
-          distanceKm: typeof m.distanceKm === 'number' ? (m.distanceKm as number) : null,
-          within: (m.isWithinDeliveryRadius as boolean) !== false,
-          eta:
-            typeof m.estimatedDeliveryTime === 'string'
-              ? (m.estimatedDeliveryTime as string)
-              : m.estimatedDeliveryTime != null
-                ? String(m.estimatedDeliveryTime)
-                : null,
-        })
-      }
-      // Full pool, no per-merchant cap and no pool cut: the rail must show
-      // ALL valid products of the eligible merchants (mixed below). Caps and
-      // cuts here silently drop eligible products — never do that again.
-      const mpRes = await this.payload.find({
+    const distanceByMerchant = new Map<
+      string,
+      { distanceKm: number | null; within: boolean; eta: string | null }
+    >()
+    for (const m of eligible) {
+      distanceByMerchant.set(String(m.id), {
+        distanceKm: typeof m.distanceKm === 'number' ? (m.distanceKm as number) : null,
+        within: (m.isWithinDeliveryRadius as boolean) !== false,
+        eta:
+          typeof m.estimatedDeliveryTime === 'string'
+            ? (m.estimatedDeliveryTime as string)
+            : m.estimatedDeliveryTime != null
+              ? String(m.estimatedDeliveryTime)
+              : null,
+      })
+    }
+
+    // Full pool, no per-merchant cap and no pool cut: the rail must show
+    // ALL valid products of the eligible merchants (mixed below). Keep the
+    // established limit; project fields the rail actually consumes and skip
+    // the unused per-document effective-modifier preview hook.
+    const productsQuery =
+      includeRecommendations && !categoryId && eligibleIds.length > 0
+        ? this.payload.find({
         collection: 'merchant-products',
         where: {
           and: [
@@ -244,78 +261,16 @@ export class CustomerHomeService {
         sort: '-updatedAt',
         depth: 2,
         limit: 500,
+        pagination: false,
+        context: { skipEffectiveModifierPreview: true },
+        select: {
+          id: true,
+          price_override: true,
+          merchant_id: true,
+          product_id: true,
+        },
       })
-      const docs = (mpRes.docs || []) as unknown as Record<string, unknown>[]
-      const catMap = new Map<string, HomeCategory>()
-      const collected: HomeProduct[] = []
-      for (const raw of docs) {
-        const mp = raw as Record<string, unknown>
-        const product = (mp.product_id as Record<string, unknown> | null) || null
-        const merchant = (mp.merchant_id as Record<string, unknown> | null) || null
-        if (!product || typeof product !== 'object') continue
-        if (product.isActive === false) continue
-        if ((product.catalogVisibility as string | undefined) === 'hidden') continue
-        const mId = (merchant?.id as number | string | undefined) ?? (mp.merchant_id as number | string)
-        if (mId == null) continue
-        const name = String(product.name ?? '')
-        if (!name) continue
-        const rawCats = Array.isArray(product.categories) ? (product.categories as unknown[]) : []
-        const categoryIds: (number | string)[] = []
-        for (const c of rawCats) {
-          if (typeof c === 'number' || typeof c === 'string') {
-            categoryIds.push(c)
-          } else if (c && typeof c === 'object') {
-            const co = c as Record<string, unknown>
-            if (co.id != null) {
-              categoryIds.push(co.id as number | string)
-              if (!catMap.has(String(co.id))) {
-                catMap.set(String(co.id), {
-                  id: co.id as number | string,
-                  name: String(co.name ?? ''),
-                  slug: String(co.slug ?? toSlug(String(co.name ?? ''))),
-                })
-              }
-            }
-          }
-        }
-        const geo = distanceByMerchant.get(String(mId))
-        const outletName =
-          merchant && typeof merchant.outletName === 'string' && merchant.outletName
-            ? (merchant.outletName as string)
-            : 'Merchant'
-        const primaryImage =
-          (product.media as Record<string, unknown> | undefined)?.primaryImage ?? null
-        const priceOverride = typeof mp.price_override === 'number' ? (mp.price_override as number) : null
-        const basePrice = typeof product.basePrice === 'number' ? (product.basePrice as number) : null
-        collected.push({
-          id: (product.id as number | string | undefined) ?? (mp.id as number | string),
-          merchantProductId: (mp.id as number | string) ?? '',
-          merchantId: mId as number | string,
-          merchantName: outletName,
-          name,
-          productType: String(product.productType ?? 'simple'),
-          basePrice: priceOverride ?? basePrice,
-          compareAtPrice:
-            typeof product.compareAtPrice === 'number' ? (product.compareAtPrice as number) : null,
-          shortDescription: (product.shortDescription as string | null) ?? null,
-          imageUrl: mediaUrl(primaryImage),
-          categoryIds,
-          hasRequiredModifiers: false,
-          distanceKm: geo?.distanceKm ?? null,
-          isWithinDeliveryRadius: geo ? geo.within : undefined,
-          estimatedDeliveryTime: geo?.eta ?? null,
-        })
-      }
-      // Mix owners round-robin by merchant (kills first-merchant bias),
-      // capped at the 40-item discovery ceiling. The client pages through
-      // all 40 with Show More, then shows the end-of-list state.
-      const MAX_POOL = 40
-      products.push(
-        ...interleaveByMerchant(collected, (p) => String(p.merchantId)).slice(0, MAX_POOL),
-      )
-      productCategories = Array.from(catMap.values())
-      hasOrphans = products.some((p) => !p.categoryIds || p.categoryIds.length === 0)
-    }
+        : Promise.resolve({ docs: [] })
 
     // Step 5: page-ready merchant slices (backend owns sort/filter).
     const toHomeMerchant = (m: Record<string, unknown>): HomeMerchant => {
@@ -373,47 +328,179 @@ export class CustomerHomeService {
       }
     }
 
+    let mappingDurationMs = 0
+    const merchantMappingStart = Date.now()
     const mapped = eligible.map(toHomeMerchant)
-    const nearbyMerchants = mapped.slice(0, 8)
-    const newlyUpdatedMerchants = categoryId
+    mappingDurationMs += Date.now() - merchantMappingStart
+    const nearbyMerchants = includePrimary ? mapped.slice(0, 8) : []
+    const newlyUpdatedMerchants = !includePrimary || categoryId
       ? []
       : mapped
           .slice()
           .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')))
           .slice(0, 8)
-    const filteredMerchants = categoryId ? mapped : []
+    const filteredMerchants = includePrimary && categoryId ? mapped : []
 
-    // Step 6: embed per-merchant address names (eliminates client N+1).
-    const addressTargets = Array.from(
+    // Step 6: batch the address names for displayed merchants instead of
+    // issuing one findByID per card.
+    const addressTargets = includePrimary ? Array.from(
       new Map([...nearbyMerchants, ...newlyUpdatedMerchants, ...filteredMerchants].map((m) => [String(m.id), m])).values(),
-    )
-    await Promise.all(
-      addressTargets.map(async (m) => {
-        try {
-          const full = await this.payload.findByID({
+    ) : []
+    const addressesQuery =
+      addressTargets.length > 0
+        ? this.payload.find({
             collection: 'merchants',
-            id: Number(m.id),
+            where: { id: { in: addressTargets.map((m) => Number(m.id)) } },
+            limit: addressTargets.length,
             depth: 1,
+            pagination: false,
+            context: { skipStoreHours: true },
+            select: { id: true, activeAddress: true },
           })
-          const active = (full as unknown as Record<string, unknown>)?.activeAddress as
-            | Record<string, unknown>
-            | null
-          if (active && typeof active === 'object' && typeof active.formatted_address === 'string') {
-            m.activeAddressName = active.formatted_address as string
+        : Promise.resolve({ docs: [] })
+
+    const sectionReadsStart = Date.now()
+    let catsRes: Awaited<typeof categoriesQuery>
+    let mpRes: Awaited<typeof productsQuery>
+    let addressesRes: Awaited<typeof addressesQuery>
+    try {
+      const sectionResults = await Promise.all([
+        categoriesQuery,
+        productsQuery,
+        addressesQuery,
+      ])
+      catsRes = sectionResults[0]
+      mpRes = sectionResults[1]
+      addressesRes = sectionResults[2]
+    } catch (error) {
+      onTiming?.('parallel_section_reads', Date.now() - sectionReadsStart)
+      throw error
+    }
+    onTiming?.('parallel_section_reads', Date.now() - sectionReadsStart, {
+      categoryDocs: catsRes.docs?.length ?? 0,
+      productDocs: mpRes.docs?.length ?? 0,
+      merchantDocs: addressesRes.docs?.length ?? 0,
+    })
+
+    const sectionMappingStart = Date.now()
+    const categories = ((catsRes.docs || []) as unknown as Record<string, unknown>[]).map((c) => {
+      const rawIcon = c.icon as Record<string, unknown> | number | null | undefined
+      const icon = rawIcon && typeof rawIcon === 'object' ? rawIcon : null
+      return {
+        id: (c.id as number | string) ?? '',
+        name: String(c.name ?? ''),
+        slug: String(c.slug ?? toSlug(String(c.name ?? ''))),
+        media: {
+          icon: icon
+            ? {
+                cloudinaryURL:
+                  (icon.cloudinaryURL as string | undefined) ??
+                  (icon.cloudinary_url as string | undefined) ??
+                  null,
+                url: (icon.url as string | undefined) ?? null,
+              }
+            : null,
+        },
+      }
+    })
+
+    const catMap = new Map<string, HomeCategory>()
+    const collected: HomeProduct[] = []
+    const docs = (mpRes.docs || []) as unknown as Record<string, unknown>[]
+    for (const raw of docs) {
+      const mp = raw as Record<string, unknown>
+      const product = (mp.product_id as Record<string, unknown> | null) || null
+      const merchant = (mp.merchant_id as Record<string, unknown> | null) || null
+      if (!product || typeof product !== 'object') continue
+      if (product.isActive === false) continue
+      if ((product.catalogVisibility as string | undefined) === 'hidden') continue
+      const mId = (merchant?.id as number | string | undefined) ?? (mp.merchant_id as number | string)
+      if (mId == null) continue
+      const name = String(product.name ?? '')
+      if (!name) continue
+      const rawCats = Array.isArray(product.categories) ? (product.categories as unknown[]) : []
+      const categoryIds: (number | string)[] = []
+      for (const c of rawCats) {
+        if (typeof c === 'number' || typeof c === 'string') {
+          categoryIds.push(c)
+        } else if (c && typeof c === 'object') {
+          const co = c as Record<string, unknown>
+          if (co.id != null) {
+            categoryIds.push(co.id as number | string)
+            if (!catMap.has(String(co.id))) {
+              catMap.set(String(co.id), {
+                id: co.id as number | string,
+                name: String(co.name ?? ''),
+                slug: String(co.slug ?? toSlug(String(co.name ?? ''))),
+              })
+            }
           }
-        } catch {
-          m.activeAddressName = null
         }
-      }),
+      }
+      const geo = distanceByMerchant.get(String(mId))
+      const outletName =
+        merchant && typeof merchant.outletName === 'string' && merchant.outletName
+          ? (merchant.outletName as string)
+          : 'Merchant'
+      const primaryImage =
+        (product.media as Record<string, unknown> | undefined)?.primaryImage ?? null
+      const priceOverride = typeof mp.price_override === 'number' ? (mp.price_override as number) : null
+      const basePrice = typeof product.basePrice === 'number' ? (product.basePrice as number) : null
+      collected.push({
+        id: (product.id as number | string | undefined) ?? (mp.id as number | string),
+        merchantProductId: (mp.id as number | string) ?? '',
+        merchantId: mId as number | string,
+        merchantName: outletName,
+        name,
+        productType: String(product.productType ?? 'simple'),
+        basePrice: priceOverride ?? basePrice,
+        compareAtPrice:
+          typeof product.compareAtPrice === 'number' ? (product.compareAtPrice as number) : null,
+        shortDescription: (product.shortDescription as string | null) ?? null,
+        imageUrl: mediaUrl(primaryImage),
+        categoryIds,
+        hasRequiredModifiers: false,
+        distanceKm: geo?.distanceKm ?? null,
+        isWithinDeliveryRadius: geo ? geo.within : undefined,
+        estimatedDeliveryTime: geo?.eta ?? null,
+      })
+    }
+    // Mix owners round-robin by merchant (kills first-merchant bias),
+    // capped at the 40-item discovery ceiling. The client pages through
+    // all 40 with Show More, then shows the end-of-list state.
+    const products = includeRecommendations && !categoryId
+      ? interleaveByMerchant(collected, (p) => String(p.merchantId)).slice(0, 40)
+      : []
+    const productCategories = Array.from(catMap.values())
+    const hasOrphans = products.some((p) => !p.categoryIds || p.categoryIds.length === 0)
+
+    const merchantAddresses = new Map(
+      ((addressesRes.docs || []) as unknown as Record<string, unknown>[]).map((merchant) => [
+        String(merchant.id),
+        merchant.activeAddress as Record<string, unknown> | null,
+      ]),
     )
+    for (const merchant of addressTargets) {
+      const activeAddress = merchantAddresses.get(String(merchant.id))
+      if (activeAddress && typeof activeAddress.formatted_address === 'string') {
+        merchant.activeAddressName = activeAddress.formatted_address
+      }
+    }
+
+    mappingDurationMs += Date.now() - sectionMappingStart
+    onTiming?.('mapping', mappingDurationMs, {
+      merchantCount: mapped.length,
+      categoryCount: categories.length,
+      productCount: products.length,
+    })
 
     return {
       customer: location.customer,
       address: location.address,
       nearbyMerchants,
       newlyUpdatedMerchants,
-      hasMoreNearby: eligible.length > 8,
-      hasMoreNewlyUpdated: eligible.length > 8,
+      hasMoreNearby: includePrimary && eligible.length > 8,
+      hasMoreNewlyUpdated: includePrimary && eligible.length > 8,
       categories: categories.slice(0, 20),
       recommended: { products, productCategories, hasOrphans },
       filteredMerchants,

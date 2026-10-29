@@ -8,6 +8,10 @@ interface DatabaseQueryResult {
   rows: DatabaseRow[]
 }
 
+interface CountQueryResult {
+  rows: Array<{ total_count: string }>
+}
+
 // Type for database row from merchants query
 interface DatabaseRow {
   id: number  // Changed from string to number to match Merchant interface
@@ -20,16 +24,10 @@ interface DatabaseRow {
   is_active: boolean
   is_accepting_orders: boolean
   operational_status: string
-  min_order_amount: number
-  delivery_fee_base: number
-  free_delivery_threshold: number
-  is_currently_delivering: boolean
   updated_at: string
   created_at: string
   vendor_id: number  // Changed from string to number to match Vendor interface
   distance_meters: string
-  average_rating: number
-  total_orders: number
   service_area: unknown
   priority_zones: unknown
   restricted_areas: unknown
@@ -63,11 +61,7 @@ interface DatabaseRow {
   vendor_logo_filename: string | null
   vendor_logo_alt: string | null
   timezone: string
-}
-
-// Type for count query result
-interface CountQueryResult {
-  rows: Array<{ total_count: string }>
+  total_count: string
 }
 
 // Type for geospatial query results with vendor relationship
@@ -721,8 +715,19 @@ export class GeospatialService {
     limit?: number
     offset?: number
     categoryId?: number
+    includeTotalCount?: boolean
+    onTiming?: (phase: string, durationMs: number, counts?: Record<string, number>) => void
   }) {
-    const { latitude, longitude, radiusMeters, limit = 20, offset = 0, categoryId } = params
+    const {
+      latitude,
+      longitude,
+      radiusMeters,
+      limit = 20,
+      offset = 0,
+      categoryId,
+      includeTotalCount = true,
+      onTiming,
+    } = params
     const startTime = Date.now()
 
     // Validate coordinates
@@ -739,23 +744,38 @@ export class GeospatialService {
       // Create customer point for PostGIS query
       const customerPoint = `ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)`
 
-      console.log(`🔍 PostGIS Query Debug:`, {
-        customerPoint,
-        radiusMeters,
-        limit,
-        offset
-      })
-
       // Execute query using PostGIS geometry operations
-      // Convert jsonb coordinates to geometry before applying spatial functions
+      // Project only fields consumed by the location-display response. The
+      // window count preserves exact pagination totals without a second scan.
       // Add proper validation for GeoJSON data
-      const result = await this.payload.db.drizzle.execute(`
+      const sqlStartTime = Date.now()
+      let result: DatabaseQueryResult | undefined
+      let emptyPageCount: CountQueryResult | null = null
+      try {
+        const queryResult = (await this.payload.db.drizzle.execute(`
         SELECT 
-          m.*,
+          m.id,
+          m.outlet_name,
+          m.outlet_code,
+          m.merchant_latitude,
+          m.merchant_longitude,
+          m.delivery_radius_meters,
+          m.avg_delivery_time_minutes,
+          m.is_active,
+          m.is_accepting_orders,
+          m.operational_status,
+          m.service_area,
+          m.priority_zones,
+          m.restricted_areas,
+          m.delivery_zones,
+          m.timezone,
+          m.created_at,
+          m.updated_at,
           ST_Distance(
             ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
             ST_Transform(${customerPoint}, 3857)
           ) as distance_meters,
+          ${includeTotalCount ? 'COUNT(*) OVER() as total_count,' : ''}
           v.id as vendor_id,
           v.business_name as vendor_business_name,
           v.average_rating as vendor_average_rating,
@@ -829,12 +849,50 @@ export class GeospatialService {
           )
         LIMIT ${limit}
         OFFSET ${offset};
-      `)
+      `)) as DatabaseQueryResult
+        result = queryResult
 
-      console.log(`✅ PostGIS Query executed successfully, rows returned: ${(result as DatabaseQueryResult).rows.length}`)
+        if (includeTotalCount && queryResult.rows.length === 0) {
+          emptyPageCount = (await this.payload.db.drizzle.execute(`
+            SELECT COUNT(*) as total_count
+            FROM merchants m
+            LEFT JOIN vendors v ON m.vendor_id = v.id
+            LEFT JOIN business_zones bz ON m.business_zone_id = bz.id
+            WHERE
+              m.merchant_coordinates IS NOT NULL
+              AND m.merchant_coordinates::text != 'null'
+              AND m.merchant_coordinates ? 'type'
+              AND m.merchant_coordinates ? 'coordinates'
+              AND m.merchant_coordinates->>'type' = 'Point'
+              AND jsonb_array_length(m.merchant_coordinates->'coordinates') = 2
+              AND m.is_active = true
+              AND m.is_accepting_orders = true
+              AND v.is_active = true
+              AND (m.business_zone_id IS NULL OR bz.is_active = true)
+              AND ST_DWithin(
+                ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
+                ST_Transform(${customerPoint}, 3857),
+                ${radiusMeters}
+              )
+              ${categoryId ? `AND EXISTS (
+                SELECT 1 FROM merchants_rels mr2
+                WHERE mr2.parent_id = m.id
+                  AND mr2.path = 'merchant_categories'
+                  AND mr2.merchant_categories_id = ${categoryId}
+              )` : ''};
+          `)) as CountQueryResult
+        }
+      } finally {
+        onTiming?.('geospatial_sql', Date.now() - sqlStartTime, {
+          rowCount: result?.rows.length ?? 0,
+          countFallback: emptyPageCount ? 1 : 0,
+        })
+      }
 
       // Transform results to match expected format
-      const merchantsWithDistance: MerchantWithDistance[] = (result as DatabaseQueryResult).rows.map((row: DatabaseRow) => {
+      const resultRows = result?.rows ?? []
+      const mappingStartTime = Date.now()
+      const merchantsWithDistance: MerchantWithDistance[] = resultRows.map((row: DatabaseRow) => {
         const distanceMeters = parseFloat(row.distance_meters)
         const merchantCategoryIdsRaw = (row as unknown as { merchant_category_ids?: unknown }).merchant_category_ids
         const merchantCategoryIds = Array.isArray(merchantCategoryIdsRaw) ? merchantCategoryIdsRaw.filter(id => typeof id === 'number') as number[] : []
@@ -847,8 +905,6 @@ export class GeospatialService {
           merchant_longitude: row.merchant_longitude,
           delivery_radius_meters: row.delivery_radius_meters,
           avg_delivery_time_minutes: row.avg_delivery_time_minutes,
-          average_rating: row.average_rating,
-          total_orders: row.total_orders,
           isActive: row.is_active,
           isAcceptingOrders: row.is_accepting_orders,
           operationalStatus: row.operational_status,
@@ -909,40 +965,13 @@ export class GeospatialService {
               alt: row.vendor_logo_alt
             } : null
           } as unknown as Vendor
-        } as MerchantWithDistance
+          } as MerchantWithDistance
       })
 
-      // Get total count for pagination
-      const countResult = await this.payload.db.drizzle.execute(`
-        SELECT COUNT(*) as total_count
-        FROM merchants m
-        LEFT JOIN vendors v ON m.vendor_id = v.id
-        LEFT JOIN business_zones bz ON m.business_zone_id = bz.id
-        WHERE 
-          m.merchant_coordinates IS NOT NULL
-          AND m.merchant_coordinates::text != 'null'
-          AND m.merchant_coordinates ? 'type'
-          AND m.merchant_coordinates ? 'coordinates'
-          AND m.merchant_coordinates->>'type' = 'Point'
-          AND jsonb_array_length(m.merchant_coordinates->'coordinates') = 2
-          AND m.is_active = true
-          AND m.is_accepting_orders = true
-          AND v.is_active = true
-          AND (m.business_zone_id IS NULL OR bz.is_active = true)
-          AND ST_DWithin(
-            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
-            ST_Transform(${customerPoint}, 3857),
-            ${radiusMeters}
-          )
-          ${categoryId ? `AND EXISTS (
-            SELECT 1 FROM merchants_rels mr2
-            WHERE mr2.parent_id = m.id
-              AND mr2.path = 'merchant_categories'
-              AND mr2.merchant_categories_id = ${categoryId}
-          )` : ''};
-      `)
-
-      const totalCount = parseInt((countResult as CountQueryResult).rows[0]?.total_count || '0')
+      onTiming?.('geospatial_mapping', Date.now() - mappingStartTime, { rowCount: merchantsWithDistance.length })
+      const totalCount = includeTotalCount
+          ? parseInt(resultRows[0]?.total_count || emptyPageCount?.rows[0]?.total_count || '0', 10)
+          : merchantsWithDistance.length
       const endTime = Date.now()
       const queryTime = endTime - startTime
 
@@ -972,11 +1001,8 @@ export class GeospatialService {
       }
 
     } catch (error) {
-      console.error('🚨 Error in findMerchantsWithinRadiusPostGIS:', error)
-      console.error('🔍 Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        params: { latitude, longitude, radiusMeters, limit, offset }
+      console.error('🚨 Error in findMerchantsWithinRadiusPostGIS:', {
+        errorType: error instanceof Error ? error.name : 'UnknownError',
       })
       throw new Error(`Failed to find merchants using PostGIS: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }

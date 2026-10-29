@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { bustCatalogCache, bustProductsCache, bustSearchCache } from '../utils/dashboardCache'
+import { bustCatalogCache, bustCustomerHomeCache, bustProductsCache, bustSearchCache } from '../utils/dashboardCache'
 
 export const Products: CollectionConfig = {
   slug: 'products',
@@ -620,8 +620,21 @@ export const Products: CollectionConfig = {
         console.log(`✅ Product ${operation} completed for product ${doc.id}`);
         try {
           await bustProductsCache()
+          await bustCustomerHomeCache()
           // Product re-categorization moves productCountByCategory in the
           // product-categories stats rollup (same prefix family).
+          await bustCatalogCache()
+          await bustSearchCache()
+        } catch {
+          // ignore cache bust failures
+        }
+      },
+    ],
+    afterDelete: [
+      async () => {
+        try {
+          await bustCustomerHomeCache()
+          await bustProductsCache()
           await bustCatalogCache()
           await bustSearchCache()
         } catch {

@@ -35,6 +35,7 @@ async function redisBustPrefix(prefix: string): Promise<void> {
 // Survives Upstash 1.5s timeouts / misconfig (fail-open Redis -> L1 still serves).
 const L1_FRESH_MS = 5000
 const L1_STALE_MS = 30000
+const L1_MAX_ENTRIES = 1000
 
 type L1Entry = { value: unknown; freshUntil: number; staleUntil: number }
 const l1 = new Map<string, L1Entry>()
@@ -50,6 +51,12 @@ export function bustDashboardL1(prefix = 'admin:dashboard:'): void {
 }
 
 export async function bustDashboardCache(prefix = 'admin:dashboard:'): Promise<void> {
+  bustDashboardL1(prefix)
+  await redisBustPrefix(prefix)
+}
+
+export async function bustCustomerHomeCache(): Promise<void> {
+  const prefix = 'customer:home-overview:'
   bustDashboardL1(prefix)
   await redisBustPrefix(prefix)
 }
@@ -154,6 +161,11 @@ function readL1<T>(key: string): { hit: boolean; stale: boolean; value: T | null
 
 function writeL1(key: string, value: unknown): void {
   const now = Date.now()
+  l1.delete(key)
+  if (l1.size >= L1_MAX_ENTRIES) {
+    const oldestKey = l1.keys().next().value
+    if (oldestKey !== undefined) l1.delete(oldestKey)
+  }
   l1.set(key, { value, freshUntil: now + L1_FRESH_MS, staleUntil: now + L1_STALE_MS })
 }
 
@@ -166,8 +178,11 @@ export async function getOrBuildDashboard<T>(
   key: string,
   ttlSeconds: number,
   builder: () => Promise<T>,
+  options: { bypassCache?: boolean; awaitRedisWrite?: boolean } = {},
 ): Promise<{ data: T; status: 'HIT' | 'STALE' | 'MISS' }> {
-  const l1Res = readL1<T>(key)
+  const l1Res = options.bypassCache
+    ? { hit: false, stale: false, value: null }
+    : readL1<T>(key)
   if (l1Res.hit && !l1Res.stale && l1Res.value != null) {
     return { data: l1Res.value, status: 'HIT' }
   }
@@ -180,14 +195,16 @@ export async function getOrBuildDashboard<T>(
   }
 
   // Fast path: Redis HIT (no builder, no gate queue upstream).
-  try {
-    const redisHit = await redisGet<T>(key)
-    if (redisHit != null) {
-      writeL1(key, redisHit)
-      return { data: redisHit, status: 'HIT' }
+  if (!options.bypassCache) {
+    try {
+      const redisHit = await redisGet<T>(key)
+      if (redisHit != null) {
+        writeL1(key, redisHit)
+        return { data: redisHit, status: 'HIT' }
+      }
+    } catch {
+      // fall through to stale / rebuild
     }
-  } catch {
-    // fall through to stale / rebuild
   }
 
   if (staleFallback != null) {
@@ -199,8 +216,12 @@ export async function getOrBuildDashboard<T>(
       return fresh
     })()
     inflight.set(key, rebuild)
-    void rebuild.finally(() => {
+    const clearRebuild = () => {
       if (inflight.get(key) === rebuild) inflight.delete(key)
+    }
+    void rebuild.then(clearRebuild, (error) => {
+      console.error('[dashboard-cache] stale refresh failed', error)
+      clearRebuild()
     })
     return { data: staleFallback, status: 'STALE' }
   }
@@ -208,7 +229,12 @@ export async function getOrBuildDashboard<T>(
   const build = (async () => {
     const fresh = await builder()
     writeL1(key, fresh)
-    await redisSet(key, fresh, ttlSeconds)
+    const write = redisSet(key, fresh, ttlSeconds)
+    if (options.awaitRedisWrite === false) {
+      void write
+    } else {
+      await write
+    }
     return fresh
   })()
   inflight.set(key, build)

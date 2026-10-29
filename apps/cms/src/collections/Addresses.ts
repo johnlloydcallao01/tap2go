@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { googleMapsService } from '../services/GoogleMapsService'
-import { bustCustomersCache } from '../utils/dashboardCache'
+import { bustCustomerHomeCache, bustCustomersCache } from '../utils/dashboardCache'
 
 export const Addresses: CollectionConfig = {
   slug: 'addresses',
@@ -526,12 +526,16 @@ export const Addresses: CollectionConfig = {
         void bustCustomersCache().catch(() => {
           // ignore cache bust failures
         })
+        void bustCustomerHomeCache().catch(() => {
+          // ignore cache bust failures
+        })
       },
     ],
     afterDelete: [
       async () => {
         try {
           await bustCustomersCache()
+          await bustCustomerHomeCache()
         } catch {
           // ignore
         }

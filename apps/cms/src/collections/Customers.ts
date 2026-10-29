@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
-import { bustAnalyticsCache, bustDashboardCache, bustReportsCache, bustSearchCache } from '../utils/dashboardCache'
+import { bustAnalyticsCache, bustCustomerHomeCache, bustDashboardCache, bustReportsCache, bustSearchCache } from '../utils/dashboardCache'
 
 export const Customers: CollectionConfig = {
   slug: 'customers',
@@ -24,6 +24,7 @@ export const Customers: CollectionConfig = {
         }
         try {
           await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustSearchCache()
+          await bustCustomerHomeCache()
         } catch {
           // ignore
         }
@@ -34,6 +35,7 @@ export const Customers: CollectionConfig = {
       async () => {
         try {
           await bustDashboardCache(); await bustAnalyticsCache(); await bustReportsCache(); await bustSearchCache()
+          await bustCustomerHomeCache()
         } catch {
           // ignore
         }

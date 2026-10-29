@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
   TouchableOpacity,
   Image,
+  LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -42,6 +43,9 @@ interface RecommendedForYouProps {
   overviewCategories?: MarketplaceProductCategory[] | null;
   overviewHasOrphans?: boolean;
   overviewLoading?: boolean;
+  overviewError?: boolean;
+  onRetryOverview?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
 function ProductCardSkeleton({ cardWidth }: { cardWidth: number }) {
@@ -101,6 +105,9 @@ export default function RecommendedForYou({
   overviewCategories,
   overviewHasOrphans,
   overviewLoading = false,
+  overviewError = false,
+  onRetryOverview,
+  onLayout,
 }: RecommendedForYouProps) {
   const colors = useThemeColors();
   const navigation = useNavigation();
@@ -231,8 +238,10 @@ export default function RecommendedForYou({
   // Filtered merchant search shows merchants only — same as Newly Updated.
   if (categoryId) return null;
 
-  const loading = isLoading && allProducts.length === 0;
-  if (!loading && allProducts.length === 0) return null;
+  const loading = useBff
+    ? isLoading
+    : isLoading && allProducts.length === 0;
+  if (!loading && allProducts.length === 0 && !overviewError) return null;
 
   // 2-column grid width (copies MerchantScreen renderItem formula:
   // parent padding 16 each side + 12 column gap + gridList padding 2 each
@@ -257,7 +266,7 @@ export default function RecommendedForYou({
   };
 
   return (
-    <View style={styles.sectionContainer}>
+    <View style={styles.sectionContainer} onLayout={onLayout}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={{ flex: 1 }}>
@@ -301,7 +310,20 @@ export default function RecommendedForYou({
         </ScrollView>
       )}
 
-      {loading ? (
+      {overviewError ? (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+            Recommendations couldn&apos;t load.
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={onRetryOverview}
+            style={styles.showMoreBtn}
+          >
+            <Text style={styles.showMoreText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={styles.gridList}>
           {[1, 2, 3, 4].map((key) => (
             <ProductCardSkeleton key={key} cardWidth={gridItemWidth} />

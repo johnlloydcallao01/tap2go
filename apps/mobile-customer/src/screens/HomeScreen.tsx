@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { View, Image, useWindowDimensions, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { View, Image, useWindowDimensions, Text, TouchableOpacity, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
 import {
-  HOME_OVERVIEW_KEYS,
   useHomeOverview,
-  dataCache,
+  HOME_OVERVIEW_KEYS,
+  clearHomeOverviewCache,
   type RecommendedProduct
 } from '@encreasl/client-services';
 import LocationBasedProductCategoriesCarousel from '../components/LocationBasedProductCategoriesCarousel';
@@ -20,8 +20,8 @@ export default function HomeScreen() {
   // console.log('🏠 HomeScreen: Component initializing...');
 
   const navigation = useNavigation();
-
   const queryClient = useQueryClient();
+
   const colors = useThemeColors();
   const { customerId } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,40 +31,83 @@ export default function HomeScreen() {
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const refreshInProgress = useRef(false);
+  const [recommendationsVisible, setRecommendationsVisible] = useState(false);
+  const scrollOffset = useRef(0);
+  const viewportHeight = useRef(0);
+  const recommendationsTop = useRef<number | null>(null);
+
+  const maybeLoadRecommendations = () => {
+    if (
+      recommendationsTop.current !== null &&
+      recommendationsTop.current <= scrollOffset.current + viewportHeight.current + 400
+    ) {
+      setRecommendationsVisible(true);
+    }
+  };
 
   // No need for local customerId fetching logic anymore as it's handled in AuthContext
 
-  // BFF single query (docs/BFF-pattern.md): one aggregation endpoint drives
-  // Categories + Nearby + Newly Updated + Recommended. Thin frontend.
+  // Load above-the-fold data first; the recommendations section is fetched
+  // separately when its layout approaches the viewport.
   const {
     data: overview = null,
     isLoading: overviewLoading,
+    isFetching: overviewFetching,
     isError: overviewError,
     refetch: refetchOverview,
   } = useHomeOverview(
     customerId,
     20,
     selectedCategoryId,
-    { staleTime: 1000 * 60 * 5 },
+    {
+      staleTime: 1000 * 60 * 5,
+      section: 'primary',
+      forceRefresh: () => refreshInProgress.current,
+    },
+  );
+  const recommendationsQuery = useHomeOverview(
+    customerId,
+    20,
+    selectedCategoryId,
+    {
+      staleTime: 1000 * 60 * 5,
+      enabled: recommendationsVisible && !overviewFetching && !selectedCategoryId,
+      section: 'recommendations',
+      forceRefresh: () => refreshInProgress.current,
+    },
   );
 
   const onRefresh = async () => {
+    if (refreshInProgress.current) return;
+    refreshInProgress.current = true;
     setRefreshing(true);
     try {
       console.log('🔄 Pull-to-refresh triggered (TanStack Query)');
 
-      // Clear internal service memory cache to ensure fresh data fetch
-      dataCache.clear();
-
-      // Reset queries to clear cache and force fresh fetch
+      // Show section skeletons and make refresh supersede any in-flight Home
+      // request, ensuring the new request bypasses the server cache.
+      clearHomeOverviewCache();
+      const queryKeys = [
+        HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'primary'),
+        HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'recommendations'),
+      ];
+      await Promise.all(
+        queryKeys.map((queryKey) =>
+          queryClient.cancelQueries({ queryKey, exact: true }),
+        ),
+      );
       await Promise.all([
-        queryClient.resetQueries({ queryKey: HOME_OVERVIEW_KEYS.all }),
-        // Customer ID is now managed by AuthContext and is stable
+        refetchOverview(),
+        ...(!selectedCategoryId
+          ? [recommendationsQuery.refetch()]
+          : []),
       ]);
 
     } catch (error) {
       console.error('Pull-to-refresh error:', error);
     } finally {
+      refreshInProgress.current = false;
       setRefreshing(false);
     }
   };
@@ -112,10 +155,21 @@ export default function HomeScreen() {
       />
 
       {/* Content area with theme background - Clean white screen as requested */}
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <View
+        style={{ flex: 1, backgroundColor: colors.background }}
+        onLayout={(event) => {
+          viewportHeight.current = event.nativeEvent.layout.height;
+          maybeLoadRecommendations();
+        }}
+      >
         <PullToRefreshLayout
           isRefreshing={refreshing}
           onRefresh={onRefresh}
+          onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            scrollOffset.current = event.nativeEvent.contentOffset.y;
+            maybeLoadRecommendations();
+          }}
+          scrollEventThrottle={100}
           contentContainerStyle={{ flexGrow: 1, padding: 0, margin: 0 }}
         >
           {/* Banner Image */}
@@ -132,7 +186,7 @@ export default function HomeScreen() {
 
           {/* Categories Carousel (BFF-driven) */}
           {customerId ? (
-            overviewError ? (
+            overviewError && !overview ? (
               <View style={{ alignItems: 'center', paddingHorizontal: 24, paddingVertical: 32 }}>
                 <Text style={{ color: colors.text, fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
                   We couldn&apos;t load nearby merchants right now.
@@ -150,12 +204,24 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
+                {overviewError && overview ? (
+                  <Text
+                    accessibilityRole="alert"
+                    style={{
+                      color: colors.textSecondary,
+                      paddingHorizontal: 16,
+                      paddingTop: 8,
+                    }}
+                  >
+                    Couldn&apos;t refresh right now. Showing your last loaded results.
+                  </Text>
+                ) : null}
                 <LocationBasedProductCategoriesCarousel
                   customerId={customerId}
                   selectedCategorySlug={selectedCategorySlug}
                   onCategorySelect={handleCategorySelect}
                   overviewCategories={overview?.categories ?? null}
-                  overviewLoading={overviewLoading}
+                  overviewLoading={overviewLoading || refreshing}
                 />
                 <LocationBasedMerchants
                   customerId={customerId}
@@ -163,7 +229,23 @@ export default function HomeScreen() {
                   onMerchantPress={handleMerchantPress}
                   onProductPress={handleProductPress}
                   overview={overview}
-                  overviewLoading={overviewLoading}
+                  overviewLoading={overviewLoading || refreshing}
+                  recommendationsOverview={recommendationsQuery.data}
+                  recommendationsLoading={
+                    refreshing ||
+                    overviewLoading ||
+                    overviewFetching ||
+                    !recommendationsVisible ||
+                    recommendationsQuery.isLoading
+                  }
+                  recommendationsError={
+                    recommendationsQuery.isError && !recommendationsQuery.data
+                  }
+                  onRetryRecommendations={() => void recommendationsQuery.refetch()}
+                  onRecommendationsLayout={(top) => {
+                    recommendationsTop.current = top;
+                    maybeLoadRecommendations();
+                  }}
                 />
               </>
             )

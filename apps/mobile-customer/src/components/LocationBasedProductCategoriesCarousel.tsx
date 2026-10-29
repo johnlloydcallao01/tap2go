@@ -52,7 +52,9 @@ export default function LocationBasedProductCategoriesCarousel({
   
   // Skeleton only on first load with no rows: background refetches resolve
   // from cache and must not flash skeletons over rendered cells.
-  const loading = loadingSource && categoriesSource.length === 0;
+  const loading = useBff
+    ? loadingSource
+    : loadingSource && categoriesSource.length === 0;
   
   const colors = useThemeColors();
 

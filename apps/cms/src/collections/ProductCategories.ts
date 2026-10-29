@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { bustCatalogCache } from '../utils/dashboardCache'
+import { bustCatalogCache, bustCustomerHomeCache } from '../utils/dashboardCache'
 
 export const ProductCategories: CollectionConfig = {
   slug: 'product-categories',
@@ -287,6 +287,7 @@ export const ProductCategories: CollectionConfig = {
       async () => {
         try {
           await bustCatalogCache()
+          await bustCustomerHomeCache()
         } catch {
           // ignore cache bust failures
         }
@@ -296,6 +297,7 @@ export const ProductCategories: CollectionConfig = {
       async () => {
         try {
           await bustCatalogCache()
+          await bustCustomerHomeCache()
         } catch {
           // ignore
         }

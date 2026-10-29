@@ -6,9 +6,9 @@ import type { RecommendedProduct } from './marketplace-product-service';
 /**
  * BFF consumer for the mobile customer home screen (docs/BFF-pattern.md).
  *
- * The page calls ONE aggregation endpoint —
- * `GET {API_BASE}/customer/home-overview?customerId=&limit=[&categoryId=]` —
- * and renders the prepared sections. No raw collection stitching on home.
+ * The page calls the aggregation endpoint with a section selector —
+ * `GET {API_BASE}/customer/home-overview?customerId=&section=...` — and
+ * renders prepared sections without raw collection stitching on home.
  *
  * BFF shapes are mapped back onto the existing client types
  * (`LocationBasedMerchant`, `MerchantCategoryDisplay`, `RecommendedProduct`)
@@ -38,6 +38,12 @@ export interface HomeOverviewOptions {
   customerId: string;
   limit?: number;
   categoryId?: string | null;
+  section?: 'all' | 'primary' | 'recommendations';
+  forceRefresh?: boolean;
+}
+
+function createRequestId(): string {
+  return `home-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function getApiBase(): string {
@@ -159,33 +165,85 @@ function toProduct(
 }
 
 export class HomeOverviewService {
-  static async getHomeOverview(options: HomeOverviewOptions): Promise<HomeOverview | null> {
-    const { customerId, limit = 20, categoryId = null } = options;
+  static async getHomeOverview(
+    options: HomeOverviewOptions,
+    signal?: AbortSignal,
+  ): Promise<HomeOverview | null> {
+    const {
+      customerId,
+      limit = 20,
+      categoryId = null,
+      section = 'all',
+      forceRefresh = false,
+    } = options;
     if (!customerId) return null;
+    if (signal?.aborted) {
+      const error = new Error('Home overview request was cancelled');
+      error.name = 'AbortError';
+      throw error;
+    }
 
-    const cacheKey = `${CACHE_KEYS.MERCHANTS}-home-overview-${customerId}-${limit}-${categoryId || 'all'}`;
+    const cacheKey = `${CACHE_KEYS.MERCHANTS}-home-overview-${customerId}-${limit}-${categoryId || 'all'}-${section}`;
     const cached = dataCache.get<HomeOverview>(cacheKey);
     if (cached) return cached;
 
-    // Singleflight (copies location-based-merchant-service).
-    return dataCache.dedupe<HomeOverview | null>(cacheKey, async () => {
+    const fetchOverview = async (): Promise<HomeOverview> => {
+      const requestStart = Date.now();
+      const requestId = createRequestId();
+      let fetchMs = 0;
+      let bodyParseMs = 0;
+      let status: number | null = null;
+      let serverCacheStatus: string | null = null;
+      let serverTimings: {
+        responseTime?: number;
+        cacheStatus?: string;
+        phaseTimings?: Array<{ phase: string; durationMs: number; [key: string]: unknown }>;
+      } | null = null;
+      let outcome = 'error';
       try {
         const params = new URLSearchParams({
           customerId: customerId.toString(),
           limit: String(limit),
+          section,
         });
         if (categoryId) params.append('categoryId', categoryId.toString());
+        if (forceRefresh) params.append('refresh', 'true');
 
         const url = `${getApiBase()}/customer/home-overview?${params.toString()}`;
-        const response = await fetch(url, {
-          headers: getHeaders(),
-          credentials: 'omit',
-        });
+        const fetchStart = Date.now();
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            headers: { ...getHeaders(), 'X-Request-ID': requestId },
+            credentials: 'omit',
+            signal,
+          });
+        } finally {
+          fetchMs = Date.now() - fetchStart;
+        }
+        status = response.status;
+        serverCacheStatus = response.headers.get('X-Customer-Home-Cache');
         if (!response.ok) throw new Error(`home-overview: ${response.status}`);
-        const json = await response.json();
+        const parseStart = Date.now();
+        let json: {
+          success?: boolean;
+          data?: unknown;
+          error?: string;
+          metadata?: {
+            responseTime?: number;
+            cacheStatus?: string;
+            phaseTimings?: Array<{ phase: string; durationMs: number; [key: string]: unknown }>;
+          };
+        } | null;
+        try {
+          json = await response.json();
+        } finally {
+          bodyParseMs = Date.now() - parseStart;
+        }
         if (!json?.success || !json?.data) {
           throw new Error(json?.error || 'Invalid home overview response');
         }
+        serverTimings = json.metadata ?? null;
         const data = json.data as Record<string, unknown>;
 
         const merchants = ((data.nearbyMerchants as unknown[]) || []).map((m) =>
@@ -233,13 +291,31 @@ export class HomeOverviewService {
           filteredMerchants: filtered,
           totalCount: typeof data.totalCount === 'number' ? (data.totalCount as number) : 0,
         };
+        if (signal?.aborted) {
+          const error = new Error('Home overview request was cancelled');
+          error.name = 'AbortError';
+          throw error;
+        }
         dataCache.set(cacheKey, overview, CACHE_TTL.MERCHANTS);
+        outcome = 'success';
         return overview;
-      } catch (err) {
-        console.error('Error fetching home overview:', err);
-        throw err;
+      } finally {
+        console.info('[home-overview] request timing', {
+          requestId,
+          fetchMs,
+          bodyParseMs,
+          totalMs: Date.now() - requestStart,
+          status,
+          serverCacheStatus,
+          serverTimings,
+          outcome,
+        });
       }
-    });
+    };
+
+    // React Query already coalesces identical hook requests. Avoid sharing a
+    // signal-bound promise so cancellation cannot poison a pull-to-refresh.
+    return signal ? fetchOverview() : dataCache.dedupe<HomeOverview | null>(cacheKey, fetchOverview);
   }
 
   static clearCache(): void {

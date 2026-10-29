@@ -2,9 +2,17 @@ import type { Payload } from 'payload'
 import type { Merchant } from '../payload-types'
 import { GeospatialService } from './GeospatialService'
 
+export type HomeOverviewTiming = (
+  phase: string,
+  durationMs: number,
+  counts?: Record<string, number>,
+) => void
+
 export interface MerchantLocationRequest {
   customerId: number
   categoryId?: string
+  includeTotalCount?: boolean
+  onTiming?: HomeOverviewTiming
 }
 
 export interface MerchantLocationResponse {
@@ -37,19 +45,22 @@ export class MerchantLocationService {
   }
 
   async getMerchantsForLocationDisplay(request: MerchantLocationRequest): Promise<MerchantLocationResponse> {
-    const { customerId, categoryId } = request
-
-    console.log(`🔍 [MerchantLocationService] Getting merchants for customer ${customerId}`)
-    
-    if (categoryId) {
-      console.log(`🏷️ [MerchantLocationService] Category filter: "${categoryId}"`)
-    }
+    const { customerId, categoryId, includeTotalCount = true, onTiming } = request
 
     // Step 1: Get customer data
-    const customer = await this.payload.findByID({
-      collection: 'customers',
-      id: customerId,
-    })
+    const customerLookupStart = Date.now()
+    let customer
+    try {
+      customer = await this.payload.findByID({
+        collection: 'customers',
+        id: customerId,
+        depth: 1,
+      })
+    } finally {
+      onTiming?.('customer_lookup', Date.now() - customerLookupStart, {
+        documentCount: customer ? 1 : 0,
+      })
+    }
 
     if (!customer) {
       throw new Error('Customer not found')
@@ -59,10 +70,17 @@ export class MerchantLocationService {
       throw new Error('Customer has no active address')
     }
 
+    // Depth 1 loads the active address with the customer, avoiding a serial
+    // second database round trip on the home request.
+    let address =
+      typeof customer.activeAddress === 'object' && customer.activeAddress !== null
+        ? customer.activeAddress
+        : null
+
     // Extract activeAddressId with proper validation
     let activeAddressId: number
-    if (typeof customer.activeAddress === 'object' && customer.activeAddress !== null) {
-      activeAddressId = customer.activeAddress.id
+    if (address) {
+      activeAddressId = address.id
     } else if (typeof customer.activeAddress === 'number') {
       activeAddressId = customer.activeAddress
     } else if (typeof customer.activeAddress === 'string') {
@@ -79,11 +97,21 @@ export class MerchantLocationService {
       throw new Error('Invalid activeAddress ID')
     }
 
-    // Step 2: Get active address coordinates
-    const address = await this.payload.findByID({
-      collection: 'addresses',
-      id: activeAddressId,
-    })
+    // Step 2: Read address coordinates from the populated relationship. Keep
+    // the fallback for Payload configurations that return only the relation ID.
+    const addressLookupStart = Date.now()
+    try {
+      if (!address) {
+        address = await this.payload.findByID({
+          collection: 'addresses',
+          id: activeAddressId,
+        })
+      }
+    } finally {
+      onTiming?.('address_lookup', Date.now() - addressLookupStart, {
+        documentCount: address ? 1 : 0,
+      })
+    }
 
     if (!address) {
       throw new Error('Address not found')
@@ -120,10 +148,10 @@ export class MerchantLocationService {
       radiusMeters: 50000,
       limit: 50,
       offset: 0,
-      categoryId: typeof parsedCategoryId === 'number' && !isNaN(parsedCategoryId) ? parsedCategoryId : undefined
+      categoryId: typeof parsedCategoryId === 'number' && !isNaN(parsedCategoryId) ? parsedCategoryId : undefined,
+      includeTotalCount,
+      onTiming,
     })
-
-    console.log(`📍 [MerchantLocationService] Found ${result.merchants.length} nearby merchants`)
 
     const filteredMerchants = result.merchants
 

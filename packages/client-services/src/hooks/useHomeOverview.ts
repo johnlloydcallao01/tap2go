@@ -3,8 +3,13 @@ import { HomeOverviewService } from '../services/home-overview-service';
 
 export const HOME_OVERVIEW_KEYS = {
   all: ['home-overview'] as const,
-  detail: (customerId: string, limit?: number, categoryId?: string | null) =>
-    [...HOME_OVERVIEW_KEYS.all, 'detail', customerId, limit, categoryId ?? 'all'] as const,
+  detail: (
+    customerId: string,
+    limit?: number,
+    categoryId?: string | null,
+    section: 'all' | 'primary' | 'recommendations' = 'all',
+  ) =>
+    [...HOME_OVERVIEW_KEYS.all, 'detail', customerId, limit, categoryId ?? 'all', section] as const,
 };
 
 interface HomeOverviewOptions {
@@ -12,6 +17,8 @@ interface HomeOverviewOptions {
   enabled?: boolean;
   /** Override TanStack staleTime (ms). Defaults to the shared client default. */
   staleTime?: number;
+  section?: 'all' | 'primary' | 'recommendations';
+  forceRefresh?: () => boolean;
 }
 
 /**
@@ -26,15 +33,18 @@ export function useHomeOverview(
   options?: HomeOverviewOptions,
 ) {
   const enabled = (options?.enabled ?? true) && !!customerId;
+  const section = options?.section ?? 'all';
   return useQuery({
-    queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', limit, categoryId),
-    queryFn: async () => {
+    queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', limit, categoryId, section),
+    queryFn: async ({ signal }) => {
       if (!customerId) return null;
       return HomeOverviewService.getHomeOverview({
         customerId,
         limit,
         categoryId: categoryId || null,
-      });
+        section,
+        forceRefresh: options?.forceRefresh?.() ?? false,
+      }, signal);
     },
     enabled,
     // Match the service memory-cache TTL (5 min): background revalidations

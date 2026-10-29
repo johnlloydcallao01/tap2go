@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -27,6 +27,11 @@ interface LocationBasedMerchantsProps {
    */
   overview?: HomeOverview | null;
   overviewLoading?: boolean;
+  recommendationsOverview?: HomeOverview;
+  recommendationsLoading?: boolean;
+  recommendationsError?: boolean;
+  onRetryRecommendations?: () => void;
+  onRecommendationsLayout?: (top: number) => void;
 }
 
 function MerchantCardSkeleton({ width }: { width: number }) {
@@ -119,10 +124,25 @@ export default function LocationBasedMerchants({
   onMerchantPress,
   onProductPress,
   overview,
-  overviewLoading = false
+  overviewLoading = false,
+  recommendationsOverview,
+  recommendationsLoading = false,
+  recommendationsError = false,
+  onRetryRecommendations,
+  onRecommendationsLayout,
 }: LocationBasedMerchantsProps) {
   const { isWishlisted, toggleWishlist } = useWishlist({ includeDocs: false });
   const navigation = useNavigation();
+  const containerTop = useRef(0);
+  const recommendationsOffset = useRef(0);
+  const hasContainerLayout = useRef(false);
+  const hasRecommendationsLayout = useRef(false);
+
+  const reportRecommendationsLayout = () => {
+    if (hasContainerLayout.current && hasRecommendationsLayout.current) {
+      onRecommendationsLayout?.(containerTop.current + recommendationsOffset.current);
+    }
+  };
   // BFF mode: single overview response drives all sections (no raw queries).
   const useBff = overview !== undefined;
 
@@ -173,9 +193,11 @@ export default function LocationBasedMerchants({
   }, [useBff, legacyAddressMap, merchants]);
 
   // Skeleton only on first load with no rows: background refetches resolve
-  // from cache and must not flash skeletons over rendered cards.
+  // from cache and must not flash skeletons over rendered cards. Home passes
+  // an explicit loading state for pull-to-refresh to replace cards with
+  // skeletons during that user-requested fetch.
   const loading = useBff
-    ? (overviewLoading && merchants.length === 0)
+    ? overviewLoading
     : (isLoading && allMerchants.length === 0);
 
   const colors = useThemeColors();
@@ -213,7 +235,14 @@ export default function LocationBasedMerchants({
   const showNewlyUpdatedSection = !categoryId && (loading || newlyUpdatedMerchants.length > 0);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(event) => {
+        containerTop.current = event.nativeEvent.layout.y;
+        hasContainerLayout.current = true;
+        reportRecommendationsLayout();
+      }}
+    >
       {/* ================= Nearby Merchants Section ================= */}
       <View style={styles.sectionContainer}>
         <View style={styles.header}>
@@ -312,10 +341,17 @@ export default function LocationBasedMerchants({
         categoryId={categoryId}
         onProductPress={onProductPress}
         eligibleMerchants={useBff ? null : allMerchants}
-        overviewProducts={useBff ? (overview?.recommendedProducts ?? null) : undefined}
-        overviewCategories={useBff ? (overview?.recommendedCategories ?? null) : undefined}
-        overviewHasOrphans={useBff ? (overview?.recommendedHasOrphans === true) : undefined}
-        overviewLoading={useBff ? overviewLoading : undefined}
+        overviewProducts={useBff ? (recommendationsOverview?.recommendedProducts ?? null) : undefined}
+        overviewCategories={useBff ? (recommendationsOverview?.recommendedCategories ?? null) : undefined}
+        overviewHasOrphans={useBff ? (recommendationsOverview?.recommendedHasOrphans === true) : undefined}
+        overviewLoading={useBff ? recommendationsLoading : undefined}
+        overviewError={useBff ? recommendationsError : undefined}
+        onRetryOverview={onRetryRecommendations}
+        onLayout={(event) => {
+          recommendationsOffset.current = event.nativeEvent.layout.y;
+          hasRecommendationsLayout.current = true;
+          reportRecommendationsLayout();
+        }}
       />
 
       {/* Newly Updated Section - Independent skeleton rendered in its real position */}

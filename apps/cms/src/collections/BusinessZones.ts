@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { bustBusinessZonesCache } from '../utils/dashboardCache'
+import { bustBusinessZonesCache, bustCustomerHomeCache } from '../utils/dashboardCache'
 
 export const BusinessZones: CollectionConfig = {
   slug: 'business-zones',
@@ -130,12 +130,18 @@ export const BusinessZones: CollectionConfig = {
     ],
     afterChange: [
       async () => {
-        try { await bustBusinessZonesCache() } catch { /* ignore */ }
+        try {
+          await bustBusinessZonesCache()
+          await bustCustomerHomeCache()
+        } catch { /* ignore */ }
       },
     ],
     afterDelete: [
       async () => {
-        try { await bustBusinessZonesCache() } catch { /* ignore */ }
+        try {
+          await bustBusinessZonesCache()
+          await bustCustomerHomeCache()
+        } catch { /* ignore */ }
       },
     ],
   },
