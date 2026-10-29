@@ -36,8 +36,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="account" />
       
       {/* Hidden tabs that still show the footer */}
-      <Tabs.Screen name="search" options={{ href: null }} />
-      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="nearby-restaurants" options={{ href: null }} />
       <Tabs.Screen name="newly-updated" options={{ href: null }} />
     </Tabs>

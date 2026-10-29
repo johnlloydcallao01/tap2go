@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useResponsiveStyles, createResponsiveValue, createResponsiveSpacing, createResponsiveFontSize } from '../hooks/useResponsiveStyles';
 import { useThemeColors } from '../contexts/ThemeContext';
@@ -24,7 +25,6 @@ interface MobileHeaderProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   onSearchPress?: () => void;
-  onNotificationPress?: () => void;
   onWishlistPress?: () => void;
   navigation?: any;
 }
@@ -33,10 +33,10 @@ export default function MobileHeader({
   searchQuery,
   onSearchChange,
   onSearchPress,
-  onNotificationPress,
   onWishlistPress,
   navigation,
 }: MobileHeaderProps) {
+  const router = useRouter();
   const colors = useThemeColors();
   const { user, token } = useAuth();
   const { unseenCount, markAllAsSeen } = useNotifications();
@@ -179,7 +179,7 @@ export default function MobileHeader({
               // Facebook-style: clicking the bell clears the badge (seen) but
               // the notifications stay unread until individually read.
               markAllAsSeen();
-              if (onNotificationPress) onNotificationPress();
+              router.push('/notifications');
             }}
             style={styles.iconButton}
           >

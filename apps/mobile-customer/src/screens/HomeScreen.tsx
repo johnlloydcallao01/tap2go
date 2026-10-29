@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Image, useWindowDimensions, Text } from 'react-native';
+import { View, Image, useWindowDimensions, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useThemeColors } from '../contexts/ThemeContext';
@@ -36,7 +36,12 @@ export default function HomeScreen() {
 
   // BFF single query (docs/BFF-pattern.md): one aggregation endpoint drives
   // Categories + Nearby + Newly Updated + Recommended. Thin frontend.
-  const { data: overview = null, isLoading: overviewLoading } = useHomeOverview(
+  const {
+    data: overview = null,
+    isLoading: overviewLoading,
+    isError: overviewError,
+    refetch: refetchOverview,
+  } = useHomeOverview(
     customerId,
     20,
     selectedCategoryId,
@@ -101,9 +106,6 @@ export default function HomeScreen() {
           // TODO: Implement search modal or toggle search bar
           console.log('Search pressed');
         }}
-        onNotificationPress={() => {
-          navigation.navigate('Notifications');
-        }}
         onWishlistPress={() => {
           navigation.navigate('Wishlist');
         }}
@@ -130,28 +132,41 @@ export default function HomeScreen() {
 
           {/* Categories Carousel (BFF-driven) */}
           {customerId ? (
-            <LocationBasedProductCategoriesCarousel
-              customerId={customerId}
-              selectedCategorySlug={selectedCategorySlug}
-              onCategorySelect={handleCategorySelect}
-              overviewCategories={overview?.categories ?? null}
-              overviewLoading={overviewLoading}
-            />
-          ) : (
-            // Placeholder or empty while loading customer
-            <View style={{ height: 20 }} />
-          )}
-
-          {/* Merchants List + Recommended For You (inside, between Nearby / Newly Updated) */}
-          {customerId ? (
-            <LocationBasedMerchants
-              customerId={customerId}
-              categoryId={selectedCategoryId}
-              onMerchantPress={handleMerchantPress}
-              onProductPress={handleProductPress}
-              overview={overview}
-              overviewLoading={overviewLoading}
-            />
+            overviewError ? (
+              <View style={{ alignItems: 'center', paddingHorizontal: 24, paddingVertical: 32 }}>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
+                  We couldn&apos;t load nearby merchants right now.
+                </Text>
+                <Text style={{ color: colors.textSecondary, marginTop: 8, textAlign: 'center' }}>
+                  Check your connection and try again.
+                </Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={() => void refetchOverview()}
+                  style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.primary }}
+                >
+                  <Text style={{ color: colors.surface, fontWeight: '600' }}>Try again</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <LocationBasedProductCategoriesCarousel
+                  customerId={customerId}
+                  selectedCategorySlug={selectedCategorySlug}
+                  onCategorySelect={handleCategorySelect}
+                  overviewCategories={overview?.categories ?? null}
+                  overviewLoading={overviewLoading}
+                />
+                <LocationBasedMerchants
+                  customerId={customerId}
+                  categoryId={selectedCategoryId}
+                  onMerchantPress={handleMerchantPress}
+                  onProductPress={handleProductPress}
+                  overview={overview}
+                  overviewLoading={overviewLoading}
+                />
+              </>
+            )
           ) : (
             <View style={{ padding: 20, alignItems: 'center' }}>
               <Text style={{ color: colors.textSecondary }}>Please log in to see nearby merchants.</Text>

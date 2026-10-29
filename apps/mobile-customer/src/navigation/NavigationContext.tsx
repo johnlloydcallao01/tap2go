@@ -64,9 +64,9 @@ export const useNavigation = (): NavigationContextType => {
         break;
       case 'Search': 
         if (params) {
-          router.push({ pathname: '/(tabs)/search', params });
+          router.push({ pathname: '/search', params });
         } else {
-          router.push('/(tabs)/search');
+          router.push('/search');
         }
         break;
       case 'Account': 
@@ -97,13 +97,13 @@ export const useNavigation = (): NavigationContextType => {
          else console.warn('Product ID missing');
          break;
       case 'Notifications': 
-        router.push('/notifications'); 
+        router.push('/notifications');
         break;
       case 'NearbyRestaurants': 
-        router.push('/nearby-restaurants'); 
+        router.push('/(tabs)/nearby-restaurants');
         break;
       case 'NewlyUpdated': 
-        router.push('/newly-updated'); 
+        router.push('/(tabs)/newly-updated');
         break;
       default: 
         console.warn(`Unknown screen: ${screenName}`);

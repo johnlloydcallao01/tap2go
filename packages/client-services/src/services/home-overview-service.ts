@@ -50,9 +50,7 @@ function getApiBase(): string {
 
 function getHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const apiKey =
-    process.env.NEXT_PUBLIC_PAYLOAD_API_KEY ||
-    (process.env as Record<string, string | undefined>).EXPO_PUBLIC_PAYLOAD_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_PAYLOAD_API_KEY || process.env.EXPO_PUBLIC_PAYLOAD_API_KEY;
   if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
   return headers;
 }
@@ -185,7 +183,9 @@ export class HomeOverviewService {
         });
         if (!response.ok) throw new Error(`home-overview: ${response.status}`);
         const json = await response.json();
-        if (!json?.success || !json?.data) return null;
+        if (!json?.success || !json?.data) {
+          throw new Error(json?.error || 'Invalid home overview response');
+        }
         const data = json.data as Record<string, unknown>;
 
         const merchants = ((data.nearbyMerchants as unknown[]) || []).map((m) =>
@@ -237,7 +237,7 @@ export class HomeOverviewService {
         return overview;
       } catch (err) {
         console.error('Error fetching home overview:', err);
-        return null;
+        throw err;
       }
     });
   }

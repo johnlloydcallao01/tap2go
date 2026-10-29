@@ -23,12 +23,12 @@ Along with the keystore file, we need the exact credentials used to unlock it:
 
 ## Next production release
 
-Google Play Console currently shows active release `17 (1.17)`. Use the next code for the following upload:
+Google Play Console previously showed active release `17 (1.17)`. Builds using codes `18` and `19` were created afterward; code `19` has not yet been uploaded. Use a code higher than both for the next release:
 
 - **Application ID:** `com.wnapp.id1721090048598`
 - **Current Play release:** `versionCode` `17`, `versionName` `1.17`
-- **Next versionCode:** `18`
-- **versionName:** `2.1.9` (current app config; change only if choosing a new customer-facing release label)
+- **Next versionCode:** `20`
+- **versionName:** `2.1.11`
 - **Signing key:** Use the existing upload key at `C:\Users\User\Desktop\tap2go\keys\keystore.jks`, after confirming its certificate matches the Play Console upload key.
 
-The earlier answer `16` above is historical. The app config should use version code `18` for the next production build and Google Play upload.
+The earlier answers `16`, `18`, and `19` above are historical. The app config should use version code `20` for the next production build and Google Play upload.

@@ -162,10 +162,9 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
     try {
       // 1. Try to get cached customer ID first
       const cachedCid = await AsyncStorage.getItem('current-customer-id');
-      // If we have a cached ID, we return it immediately for speed,
-      // but strictly speaking we should verify it matches the user.
-      // For now, assuming single user device usage mostly.
-      if (cachedCid) {
+      const cachedUserId = await AsyncStorage.getItem('current-customer-user-id');
+      // Do not reuse a customer ID cached for a different signed-in account.
+      if (cachedCid && cachedUserId === String(userId)) {
         return cachedCid;
       }
 
@@ -188,7 +187,10 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
         const data = await res.json();
         const customer = data.docs?.[0];
         if (customer?.id) {
-          await AsyncStorage.setItem('current-customer-id', String(customer.id));
+          await AsyncStorage.multiSet([
+            ['current-customer-id', String(customer.id)],
+            ['current-customer-user-id', String(userId)],
+          ]);
           return String(customer.id);
         }
       }
@@ -214,15 +216,20 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
           const user = JSON.parse(storedUser);
           
           // Fetch customer ID concurrently if possible, or just await it
-          let customerId = await AsyncStorage.getItem('current-customer-id');
-          if (!customerId && user.id) {
+          let customerId = null;
+          if (user.id) {
              customerId = await fetchCustomerId(user.id);
           }
 
           dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user, customerId } });
         } catch {
           // Invalid JSON
-          await AsyncStorage.multiRemove(['grandline_auth_token', 'grandline_auth_user', 'current-customer-id']);
+          await AsyncStorage.multiRemove([
+            'grandline_auth_token',
+            'grandline_auth_user',
+            'current-customer-id',
+            'current-customer-user-id',
+          ]);
           dispatch({ type: 'AUTH_INIT_SUCCESS', payload: { user: null } });
         }
       } else {
@@ -296,7 +303,12 @@ export const AuthProvider = ({ children }: AuthProviderProps): React.ReactNode =
     } catch {
       // Ignore logout errors
     } finally {
-      await AsyncStorage.multiRemove(['grandline_auth_token', 'grandline_auth_user', 'current-customer-id']);
+      await AsyncStorage.multiRemove([
+        'grandline_auth_token',
+        'grandline_auth_user',
+        'current-customer-id',
+        'current-customer-user-id',
+      ]);
       dispatch({ type: 'LOGOUT_SUCCESS' });
     }
   }, []);
