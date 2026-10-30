@@ -694,162 +694,45 @@ export default function CheckoutScreen() {
         throw new Error('Missing intent/client_key from CMS response');
       }
 
-      // 3. Create Pending Order in CMS
-      const orderPayload = {
-        customer: Number(customerId),
-        merchant: merchantId,
-        status: 'pending',
-        fulfillment_type: 'delivery',
-        total: orderTotal,
-        subtotal: totalSubtotal,
-        delivery_fee: deliveryFee,
-        platform_fee: 0,
-        // Must mirror orderTotal (subtotal + delivery + priority when
-        // delivery is available) or the CMS beforeValidate total check fails.
-        priority_fee: deliveryAvailable ? priorityFee : 0,
-        placed_at: new Date().toISOString(),
-      };
-      
-      const orderRes = await fetch(`${apiConfig.baseUrl}/orders`, {
-        method: 'POST',
-        headers: cmsHeaders,
-        body: JSON.stringify(orderPayload),
-      });
-      const orderDataRes = await orderRes.json();
-      if (!orderRes.ok) throw new Error('Failed to create pending order');
-      const createdOrderId = orderDataRes.doc.id;
-
-      // 4. Fetch Address Details and Create Delivery Location Snapshot
-      const addrRes = await fetch(`${apiConfig.baseUrl}/addresses/${activeAddressId}`, { headers: cmsHeaders });
-      if (addrRes.ok) {
-        const addrData = await addrRes.json();
-        const addressText =
-          addrData.formatted_address ||
-          [addrData.street_number, addrData.route, addrData.barangay, addrData.locality, addrData.country]
-            .filter(Boolean).join(', ');
-
-        // Fetch merchant address for snapshot
-        let merchantAddrData: any = {};
-        try {
-          const merchantRes = await fetch(
-            `${apiConfig.baseUrl}/merchants/${merchantId}?depth=1`,
-            { headers: cmsHeaders },
-          );
-          if (merchantRes.ok) {
-            const merchantData = await merchantRes.json();
-            const merchantAddrId =
-              typeof merchantData?.activeAddress === 'object'
-                ? merchantData.activeAddress?.id
-                : merchantData?.activeAddress;
-            if (merchantAddrId) {
-              const mAddrRes = await fetch(
-                `${apiConfig.baseUrl}/addresses/${merchantAddrId}`,
-                { headers: cmsHeaders },
-              );
-              if (mAddrRes.ok) {
-                merchantAddrData = await mAddrRes.json();
-              }
-            }
-          }
-        } catch { /* non-critical */ }
-            
-        await fetch(`${apiConfig.baseUrl}/delivery-locations`, {
-          method: 'POST',
-          headers: cmsHeaders,
-          body: JSON.stringify({
-            order: createdOrderId,
-            formatted_address: addressText || 'Unknown Address',
-            coordinates: {
-              lat: addrData.latitude || 0,
-              lng: addrData.longitude || 0,
-            },
-            street: addrData.street || null,
-            floor_unit_room: addrData.floor_unit_room || null,
-            delivery_instructions: addrData.delivery_instructions || null,
-            notes: addrData.notes || addrData.accessibility_notes || null,
-            contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
-            contact_phone: user.phone || null,
-            label: normalizeLabel(addrData.label || addrData.address_type || ''),
-            merchant_formatted_address: merchantAddrData.formatted_address || null,
-            merchant_coordinates: (merchantAddrData.latitude && merchantAddrData.longitude)
-              ? { lat: merchantAddrData.latitude, lng: merchantAddrData.longitude }
-              : null,
-            merchant_street: merchantAddrData.street || null,
-            merchant_floor_unit_room: merchantAddrData.floor_unit_room || null,
-            merchant_delivery_instructions: merchantAddrData.delivery_instructions || null,
-            merchant_label: normalizeLabel(merchantAddrData.label || merchantAddrData.address_type || ''),
-          }),
-        });
-      }
-
-      // 5. Create Order Items
-      for (const item of merchantCart.items) {
-        const optionsSnapshot = [
-          ...(item.selectedVariation
-            ? [
-                {
-                  entryType: 'variation',
-                  name: item.selectedVariationName || `Variation #${item.selectedVariation}`,
-                  selectedVariationId: item.selectedVariation,
-                  selectedVariationName: item.selectedVariationName || undefined,
-                  price: 0,
-                },
-              ]
-            : []),
-          ...((item.selectedModifiers || []).map((modifier: any) => ({
-            entryType: 'modifier',
-            sourceType: modifier?.source,
-            groupId: modifier?.groupId,
-            groupName: modifier?.groupName,
-            optionId: modifier?.optionId,
-            optionName: modifier?.name,
-            selectedVariationId: item.selectedVariation || undefined,
-            selectedVariationName: item.selectedVariationName || undefined,
-            name: modifier?.name || 'Modifier',
-            price: typeof modifier?.price === 'number' ? modifier.price : 0,
-          }))),
-        ];
-
-        await fetch(`${apiConfig.baseUrl}/order-items`, {
-          method: 'POST',
-          headers: cmsHeaders,
-          body: JSON.stringify({
-            order: createdOrderId,
-            product: item.product,
-            merchant_product: item.merchantProduct || null,
-            product_name_snapshot: item.productName,
-            price_at_purchase: item.priceAtAdd,
-            quantity: item.quantity,
-            options_snapshot: optionsSnapshot,
-            total_price: item.subtotal,
-          }),
-        });
-        
-        // Link Cart Item to Order
-        await fetch(`${apiConfig.baseUrl}/cart-items/${item.id}`, {
-          method: 'PATCH',
-          headers: cmsHeaders,
-          body: JSON.stringify({
-            order_id: createdOrderId,
-          }),
-        });
-      }
-
-      // 5. Create Pending Transaction
-      const txResponse = await fetch(`${apiConfig.baseUrl}/transactions`, {
+      const checkoutPrepareRes = await fetch(`${apiConfig.baseUrl}/checkout/prepare`, {
         method: 'POST',
         headers: cmsHeaders,
         body: JSON.stringify({
-          order: createdOrderId,
-          payment_intent_id: intentId,
-          payment_method: paymentMethod,
-          amount: orderTotal,
-          currency: 'PHP',
-          status: 'pending',
+          customerId: Number(customerId),
+          merchantId,
+          addressId: activeAddressId,
+          paymentIntentId: intentId,
+          paymentMethod,
+          deliveryFee,
+          priorityFee,
+          subtotal: totalSubtotal,
+          total: orderTotal,
+          cartItems: merchantCart.items.map((item: any) => ({
+            id: item.id,
+            product: item.product,
+            merchantProduct: item.merchantProduct || null,
+            productName: item.productName,
+            priceAtAdd: item.priceAtAdd,
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+            selectedVariation: item.selectedVariation,
+            selectedVariationName: item.selectedVariationName,
+            selectedModifiers: item.selectedModifiers || [],
+          })),
+          customerName: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
+          customerPhone: user.phone || null,
         }),
       });
-      const txData = await txResponse.json();
-      const transactionId = txData?.doc?.id;
+      const preparedCheckout = await checkoutPrepareRes.json();
+      if (!checkoutPrepareRes.ok) {
+        throw new Error(preparedCheckout?.error || 'Failed to prepare checkout');
+      }
+
+      const createdOrderId = preparedCheckout?.data?.orderId;
+      const transactionId = preparedCheckout?.data?.transactionId;
+      if (!createdOrderId) {
+        throw new Error('Checkout preparation returned no order ID');
+      }
 
       await savePendingCheckoutSession({
         customerId: String(customerId),

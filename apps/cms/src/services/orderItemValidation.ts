@@ -7,9 +7,31 @@ import {
 } from './orderItemSnapshot'
 
 const PRICE_EPSILON = 0.005
+const validationCache = new Map<string, Promise<void>>()
 
 function nearlyEqual(left: number, right: number): boolean {
   return Math.abs(left - right) < PRICE_EPSILON
+}
+
+function buildValidationCacheKey(args: {
+  productId: number | null
+  merchantProductId: number | null
+  variationId: number | null
+  snapshot: OrderItemSnapshotEntry[]
+}): string {
+  const fingerprint = JSON.stringify(
+    args.snapshot.map((entry) => ({
+      entryType: entry.entryType,
+      groupId: entry.groupId ?? null,
+      optionId: entry.optionId ?? null,
+      selectedVariationId: entry.selectedVariationId ?? null,
+      optionName: entry.optionName ?? null,
+      price: entry.price ?? null,
+      name: entry.name ?? null,
+    })),
+  )
+
+  return [args.productId ?? 'none', args.merchantProductId ?? 'none', args.variationId ?? 'none', fingerprint].join(':')
 }
 
 function getVariationId(snapshot: OrderItemSnapshotEntry[]): number | null {
@@ -73,29 +95,51 @@ export async function validateOrderItemSnapshot(args: {
   optionsSnapshot: unknown
   requireStructuredEntries: boolean
 }): Promise<void> {
-  if (!args.productId || args.optionsSnapshot === undefined || args.optionsSnapshot === null) {
+  const productId = args.productId
+  if (!productId || args.optionsSnapshot === undefined || args.optionsSnapshot === null) {
     return
   }
 
   const snapshot = normalizeOrderItemOptionsSnapshot(args.optionsSnapshot)
   const variationId = getVariationId(snapshot)
+  const cacheKey = buildValidationCacheKey({
+    productId,
+    merchantProductId: args.merchantProductId,
+    variationId,
+    snapshot,
+  })
 
-  if (variationId) {
-    const variation = await args.payload.findByID({
-      collection: 'prod-variations',
-      id: variationId,
-      depth: 0,
-    })
-    const variationProductId = extractRelationshipId(variation.product_id as never)
-    if (variationProductId !== args.productId) {
-      throw new Error('Order item selected variation does not belong to its product')
-    }
+  const existing = validationCache.get(cacheKey)
+  if (existing) {
+    return existing
   }
 
-  const groups = await new ModifierResolverService(args.payload).resolveEffectiveGroups({
-    productId: args.productId,
-    variationId,
-    merchantProductId: args.merchantProductId,
-  })
-  validateModifierEntries(snapshot, groups, args.requireStructuredEntries)
+  const work = (async () => {
+    if (variationId) {
+      const variation = await args.payload.findByID({
+        collection: 'prod-variations',
+        id: variationId,
+        depth: 0,
+      })
+      const variationProductId = extractRelationshipId(variation.product_id as never)
+      if (variationProductId !== args.productId) {
+        throw new Error('Order item selected variation does not belong to its product')
+      }
+    }
+
+    const groups = await new ModifierResolverService(args.payload).resolveEffectiveGroups({
+      productId,
+      variationId,
+      merchantProductId: args.merchantProductId,
+    })
+    validateModifierEntries(snapshot, groups, args.requireStructuredEntries)
+  })()
+
+  validationCache.set(cacheKey, work)
+
+  try {
+    await work
+  } finally {
+    validationCache.delete(cacheKey)
+  }
 }

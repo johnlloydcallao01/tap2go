@@ -1142,6 +1142,222 @@ export default buildConfig({
     },
 
     {
+      path: '/checkout/prepare',
+      method: 'post',
+      handler: (async (req: PayloadRequest) => {
+        const requestId = crypto.randomUUID();
+        try {
+          if (!req.user) {
+            return Response.json({ error: 'Authentication required' }, { status: 401 });
+          }
+
+          const body = (await (typeof (req as any).json === 'function' ? (req as any).json() : Promise.resolve((req as any).body))) ?? {} as any;
+          const {
+            customerId,
+            merchantId,
+            addressId,
+            paymentIntentId,
+            paymentMethod = 'gcash',
+            deliveryFee = 0,
+            priorityFee = 0,
+            subtotal = 0,
+            total = 0,
+            cartItems = [],
+            customerName = 'Customer',
+            customerPhone = null,
+          } = body;
+
+          const normalizedCustomerId = Number(customerId);
+          const normalizedMerchantId = Number(merchantId);
+          const normalizedAddressId = Number(addressId);
+          if (!Number.isFinite(normalizedCustomerId) || !Number.isFinite(normalizedMerchantId) || !Number.isFinite(normalizedAddressId)) {
+            return Response.json({ error: 'customerId, merchantId, and addressId are required', code: 'INVALID_CHECKOUT_INPUT' }, { status: 400 });
+          }
+
+          const normalizedCartItems = Array.isArray(cartItems) ? cartItems : [];
+          if (normalizedCartItems.length === 0) {
+            return Response.json({ error: 'Cannot create checkout for an empty cart', code: 'EMPTY_CART' }, { status: 400 });
+          }
+
+          if (!paymentIntentId) {
+            return Response.json({ error: 'paymentIntentId is required before checkout preparation', code: 'MISSING_PAYMENT_INTENT' }, { status: 400 });
+          }
+
+          const orderPayload: any = {
+            customer: normalizedCustomerId,
+            merchant: normalizedMerchantId,
+            status: 'pending',
+            fulfillment_type: 'delivery',
+            total: Number(total) || Number(subtotal) || 0,
+            subtotal: Number(subtotal) || 0,
+            delivery_fee: Number(deliveryFee) || 0,
+            platform_fee: 0,
+            priority_fee: Number(priorityFee) || 0,
+            discount_total: 0,
+            placed_at: new Date().toISOString(),
+          };
+
+          const order = await req.payload.create({
+            collection: 'orders',
+            data: orderPayload,
+            overrideAccess: true,
+          });
+          const orderId = Number((order as any)?.id ?? (order as any)?.doc?.id ?? 0);
+          if (!orderId) {
+            throw new Error('Failed to create pending order');
+          }
+
+          const addressDoc = await req.payload.findByID({
+            collection: 'addresses',
+            id: normalizedAddressId,
+            depth: 0,
+            overrideAccess: true,
+          });
+          const addressText =
+            String((addressDoc as any)?.formatted_address || '') ||
+            [
+              (addressDoc as any)?.street_number,
+              (addressDoc as any)?.route,
+              (addressDoc as any)?.barangay,
+              (addressDoc as any)?.locality,
+              (addressDoc as any)?.country,
+            ].filter(Boolean).join(', ') || 'Unknown Address';
+
+          let merchantAddressDoc: any = {};
+          try {
+            const merchant = await req.payload.findByID({
+              collection: 'merchants',
+              id: normalizedMerchantId,
+              depth: 1,
+              overrideAccess: true,
+            });
+            const merchantAddressId = typeof (merchant as any)?.activeAddress === 'object'
+              ? (merchant as any)?.activeAddress?.id
+              : (merchant as any)?.activeAddress;
+            if (merchantAddressId) {
+              merchantAddressDoc = await req.payload.findByID({
+                collection: 'addresses',
+                id: merchantAddressId,
+                depth: 0,
+                overrideAccess: true,
+              });
+            }
+          } catch {
+            merchantAddressDoc = {};
+          }
+
+          await req.payload.create({
+            collection: 'delivery-locations',
+            data: {
+              order: orderId,
+              formatted_address: addressText,
+              coordinates: {
+                lat: Number((addressDoc as any)?.latitude || 0),
+                lng: Number((addressDoc as any)?.longitude || 0),
+              },
+              street: (addressDoc as any)?.street || null,
+              floor_unit_room: (addressDoc as any)?.floor_unit_room || null,
+              delivery_instructions: (addressDoc as any)?.delivery_instructions || null,
+              notes: (addressDoc as any)?.notes || (addressDoc as any)?.accessibility_notes || null,
+              contact_name: customerName || 'Customer',
+              contact_phone: customerPhone || null,
+              label: (addressDoc as any)?.label || (addressDoc as any)?.address_type || 'home',
+              merchant_formatted_address: merchantAddressDoc?.formatted_address || null,
+              merchant_coordinates:
+                merchantAddressDoc?.latitude && merchantAddressDoc?.longitude
+                  ? { lat: Number(merchantAddressDoc.latitude), lng: Number(merchantAddressDoc.longitude) }
+                  : null,
+              merchant_street: merchantAddressDoc?.street || null,
+              merchant_floor_unit_room: merchantAddressDoc?.floor_unit_room || null,
+              merchant_delivery_instructions: merchantAddressDoc?.delivery_instructions || null,
+              merchant_label: merchantAddressDoc?.label || merchantAddressDoc?.address_type || 'home',
+            },
+            overrideAccess: true,
+          });
+
+          await Promise.all(normalizedCartItems.map(async (item: any) => {
+            const selectedVariation = item?.selectedVariation ?? null;
+            const selectedModifiers = Array.isArray(item?.selectedModifiers) ? item.selectedModifiers : [];
+            const optionsSnapshot = [
+              ...(selectedVariation
+                ? [{
+                    entryType: 'variation',
+                    name: item?.selectedVariationName || `Variation #${selectedVariation}`,
+                    selectedVariationId: selectedVariation,
+                    selectedVariationName: item?.selectedVariationName || undefined,
+                    price: 0,
+                  }]
+                : []),
+              ...selectedModifiers.map((modifier: any) => ({
+                entryType: 'modifier',
+                sourceType: modifier?.source,
+                groupId: modifier?.groupId,
+                groupName: modifier?.groupName,
+                optionId: modifier?.optionId,
+                optionName: modifier?.name,
+                selectedVariationId: selectedVariation || undefined,
+                selectedVariationName: item?.selectedVariationName || undefined,
+                name: modifier?.name || 'Modifier',
+                price: typeof modifier?.price === 'number' ? modifier.price : 0,
+              })),
+            ];
+
+            await req.payload.create({
+              collection: 'order-items',
+              data: {
+                order: orderId,
+                product: item?.product ?? null,
+                merchant_product: item?.merchantProduct || null,
+                product_name_snapshot: item?.productName || 'Item',
+                price_at_purchase: Number(item?.priceAtAdd) || 0,
+                quantity: Number(item?.quantity) || 1,
+                options_snapshot: optionsSnapshot,
+                total_price: Number(item?.subtotal) || 0,
+              },
+              overrideAccess: true,
+            });
+
+            await req.payload.update({
+              collection: 'cart-items',
+              id: item?.id,
+              data: { order_id: orderId },
+              overrideAccess: true,
+            });
+          }));
+
+          const transaction = await req.payload.create({
+            collection: 'transactions',
+            data: {
+              order: orderId,
+              payment_intent_id: String(paymentIntentId),
+              payment_method: String(paymentMethod),
+              amount: Number(total) || Number(subtotal) || 0,
+              currency: 'PHP',
+              status: 'pending',
+            },
+            overrideAccess: true,
+          });
+
+          return Response.json({
+            success: true,
+            data: {
+              orderId,
+              transactionId: (transaction as any)?.id,
+            },
+            requestId,
+          }, { status: 200 });
+        } catch (error) {
+          console.error(`Error in /checkout/prepare [${requestId}]:`, error);
+          return Response.json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to prepare checkout',
+            requestId,
+          }, { status: 500 });
+        }
+      }),
+    },
+
+    {
       path: '/create-payment-intent',
       method: 'post',
       handler: (async (req: PayloadRequest) => {

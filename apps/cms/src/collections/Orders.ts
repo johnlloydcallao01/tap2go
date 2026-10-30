@@ -54,7 +54,7 @@ export const Orders: CollectionConfig = {
           const previousStatus = previousDoc?.status ?? null
 
           if (operation === 'create') {
-            await createAdminNotificationFanout(req.payload, {
+            void createAdminNotificationFanout(req.payload, {
               typeKey: 'order.created',
               domain: 'order',
               priority: 'info',
@@ -68,8 +68,8 @@ export const Orders: CollectionConfig = {
                 merchantId,
                 customerId: resolveId(doc?.customer),
               },
-            })
-            await createMerchantNotificationFanout(req.payload, merchantId, {
+            }).catch((error) => console.error('[orders] admin notification fanout error:', error))
+            void createMerchantNotificationFanout(req.payload, merchantId, {
               typeKey: 'order.created',
               domain: 'order',
               priority: 'info',
@@ -78,10 +78,10 @@ export const Orders: CollectionConfig = {
               sourceEntityType: 'order',
               sourceEntityId: orderId,
               metadata: { orderId, status, merchantId, customerId: resolveId(doc?.customer) },
-            })
+            }).catch((error) => console.error('[orders] merchant notification fanout error:', error))
           } else if (operation === 'update' && previousStatus && status && previousStatus !== status) {
             const label = getOrderStatusLabel(status, doc?.delivery_status)
-            await createAdminNotificationFanout(req.payload, {
+            void createAdminNotificationFanout(req.payload, {
               typeKey: 'order.status_changed',
               domain: 'order',
               priority: status === 'cancelled' ? 'warning' : 'info',
@@ -96,8 +96,8 @@ export const Orders: CollectionConfig = {
                 merchantId,
                 customerId: resolveId(doc?.customer),
               },
-            })
-            await createMerchantNotificationFanout(req.payload, merchantId, {
+            }).catch((error) => console.error('[orders] status admin notification fanout error:', error))
+            void createMerchantNotificationFanout(req.payload, merchantId, {
               typeKey: 'order.status_changed',
               domain: 'order',
               priority: status === 'cancelled' ? 'warning' : 'info',
@@ -106,7 +106,7 @@ export const Orders: CollectionConfig = {
               sourceEntityType: 'order',
               sourceEntityId: orderId,
               metadata: { orderId, status, previousStatus, merchantId, customerId: resolveId(doc?.customer) },
-            })
+            }).catch((error) => console.error('[orders] status merchant notification fanout error:', error))
           }
 
           const customerId = resolveId(doc?.customer)
@@ -122,7 +122,7 @@ export const Orders: CollectionConfig = {
           if (!userId) return doc
 
           if (operation === 'create') {
-            await createNotificationFanout({
+            void createNotificationFanout({
               payload: req.payload,
               userId,
               typeKey: 'order.created',
@@ -137,11 +137,11 @@ export const Orders: CollectionConfig = {
                 status,
                 merchantId,
               },
-            })
+            }).catch((error) => console.error('[orders] customer notification fanout error:', error))
           } else if (operation === 'update') {
             if (previousStatus && status && previousStatus !== status) {
               const label = getOrderStatusLabel(status, doc?.delivery_status)
-              await createNotificationFanout({
+              void createNotificationFanout({
                 payload: req.payload,
                 userId,
                 typeKey: 'order.status_changed',
@@ -157,7 +157,7 @@ export const Orders: CollectionConfig = {
                   previousStatus,
                   merchantId,
                 },
-              })
+              }).catch((error) => console.error('[orders] customer status notification fanout error:', error))
             }
           }
         } catch (error) {

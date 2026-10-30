@@ -178,22 +178,18 @@ export const OrderItems: CollectionConfig = {
     ],
     afterChange: [
       async () => {
-        try {
-          await bustOrderItemsCache()
-          await bustOrdersCache()
-        } catch {
-          // ignore cache bust failures
-        }
+        void Promise.all([
+          bustOrderItemsCache().catch(() => undefined),
+          bustOrdersCache().catch(() => undefined),
+        ])
       },
     ],
     afterDelete: [
       async () => {
-        try {
-          await bustOrderItemsCache()
-          await bustOrdersCache()
-        } catch {
-          // ignore
-        }
+        void Promise.all([
+          bustOrderItemsCache().catch(() => undefined),
+          bustOrdersCache().catch(() => undefined),
+        ])
       },
     ],
   },

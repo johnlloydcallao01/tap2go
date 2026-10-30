@@ -403,6 +403,18 @@ export const CartItems: CollectionConfig = {
     hooks: {
         beforeChange: [
             async ({ data, operation, req, originalDoc }) => {
+                const isLinkOnlyOrderUpdate =
+                    operation === 'update' &&
+                    data !== undefined &&
+                    data.order_id !== undefined &&
+                    Object.keys(data).every((key) =>
+                        ['order_id', 'ordered_at', 'status', 'updatedAt', 'deleted_at'].includes(key),
+                    )
+
+                if (isLinkOnlyOrderUpdate) {
+                    return data
+                }
+
                 const currentProductId = extractRelationshipId(
                     (data.product ?? originalDoc?.product) as never,
                 )
