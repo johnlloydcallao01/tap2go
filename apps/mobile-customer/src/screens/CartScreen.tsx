@@ -47,7 +47,7 @@ const CartSkeleton = () => {
 
 export default function CartScreen() {
   const navigation = useNavigation();
-  const { getAllMerchantCarts, removeFromCart, reload, isLoading } = useCart();
+  const { getAllMerchantCarts, removeFromCart, reload, isLoading, loadError } = useCart();
   const colors = useThemeColors();
   const merchantCarts = getAllMerchantCarts();
   const [refreshing, setRefreshing] = useState(false);
@@ -109,6 +109,17 @@ export default function CartScreen() {
       >
         {showSkeleton ? (
           <CartSkeleton />
+        ) : loadError && merchantCarts.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>Couldn’t load your cart</Text>
+            <Text style={styles.emptySubtitle}>{loadError}</Text>
+            <TouchableOpacity
+              style={[styles.shopButton, { backgroundColor: colors.primary }]}
+              onPress={reload}
+            >
+              <Text style={styles.shopButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
         ) : merchantCarts.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Image 

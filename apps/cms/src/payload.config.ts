@@ -13,6 +13,7 @@ import { GeospatialService } from './services/GeospatialService'
 import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocationBasedDisplay'
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
 import { customerHomeOverviewHandler } from './endpoints/customerHomeOverview'
+import { customerCartHandler } from './endpoints/customerCart'
 import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
 import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
 import { sendOrderHelp } from './endpoints/sendOrderHelp'
@@ -839,6 +840,11 @@ export default buildConfig({
       path: '/customer/home-overview',
       method: 'get',
       handler: customerHomeOverviewHandler,
+    },
+    {
+      path: '/customer/cart',
+      method: 'get',
+      handler: customerCartHandler,
     },
     {
       path: '/effective-modifiers',

@@ -38,7 +38,7 @@ export default function MerchantCartScreen() {
   const merchantId = typeof params.id === 'string' ? params.id : params.merchantId as string;
   
   const colors = useThemeColors();
-  const { getMerchantCart, updateQuantity, removeFromCart, reload, isLoading } = useCart();
+  const { getMerchantCart, updateQuantity, removeFromCart, reload, isLoading, loadError } = useCart();
   const [refreshing, setRefreshing] = useState(false);
 
   const merchantCart = getMerchantCart(merchantId);
@@ -90,6 +90,18 @@ export default function MerchantCartScreen() {
       >
         {showSkeleton ? (
             <MerchantCartSkeleton />
+        ) : loadError && !merchantCart ? (
+            <View style={styles.emptyContainer}>
+                <Ionicons name="cloud-offline-outline" size={56} color={colors.border} />
+                <Text style={[styles.emptyText, { color: colors.text }]}>Couldn’t load your cart</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{loadError}</Text>
+                <TouchableOpacity
+                    style={[styles.browseButton, { backgroundColor: colors.primary }]}
+                    onPress={reload}
+                >
+                    <Text style={styles.browseButtonText}>Try Again</Text>
+                </TouchableOpacity>
+            </View>
         ) : !merchantCart ? (
              <View style={styles.emptyContainer}>
                 <Ionicons name="cart-outline" size={64} color={colors.border} />

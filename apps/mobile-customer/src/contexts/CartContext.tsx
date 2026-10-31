@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiConfig } from '../config/environment';
 import { useAuth } from './AuthContext';
 
@@ -53,6 +54,7 @@ export interface CartContextType {
   items: CartItem[];
   isLoading: boolean;
   error: string | null;
+  loadError: string | null;
   totalQuantity: number;
   reload: () => Promise<void>;
   addToCart: (payload: AddToCartPayload) => Promise<void>;
@@ -68,6 +70,22 @@ export interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function getCartSnapshotKey(customerId: string) {
+  return `customer-cart:${customerId}`;
+}
+
+function isCartSnapshot(value: unknown, customerId: string): value is CartItem[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        item !== null &&
+        typeof item === 'object' &&
+        String((item as CartItem).customer) === customerId,
+    )
+  );
+}
+
 export function useCart() {
   const context = useContext(CartContext);
   if (context === undefined) {
@@ -81,40 +99,86 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingMerchantIds, setPendingMerchantIds] = useState<Set<number>>(new Set());
-  
-  // Track if initial load is done to avoid loading spinner on background refresh
-  const hasLoadedRef = useRef(false);
+  const [snapshotCustomerId, setSnapshotCustomerId] = useState<string | null>(null);
+  const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(null);
+  const snapshotCustomerIdRef = useRef<string | null>(null);
+  const loadSequenceRef = useRef(0);
 
   const API_BASE = apiConfig.baseUrl;
 
   const loadCart = useCallback(async () => {
+    const sequence = ++loadSequenceRef.current;
     try {
-      // Only show loading state on first load
-      if (!hasLoadedRef.current) setIsLoading(true);
-      setError(null);
-
       if (!customerId) {
         setItems([]);
+        setSnapshotCustomerId(null);
+        setResolvedCustomerId(null);
+        snapshotCustomerIdRef.current = null;
         setIsLoading(false);
-        hasLoadedRef.current = true;
+        setError(null);
+        setLoadError(null);
         return;
       }
+
+      const customerKey = String(customerId);
+      if (snapshotCustomerIdRef.current !== customerKey) setIsLoading(true);
+      setError(null);
+      setLoadError(null);
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const apiKey = apiConfig.payloadApiKey;
       if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
 
-      const url = `${API_BASE}/cart-items?where[customer][equals]=${customerId}&where[status][equals]=active&depth=3&limit=200`;
-      const res = await fetch(url, { headers, cache: 'no-store' });
-      
-      if (!res.ok) {
-        setIsLoading(false);
-        hasLoadedRef.current = true;
-        return;
+      const requestStartedAt = Date.now();
+      const request = fetch(
+        `${API_BASE}/customer/cart?customerId=${encodeURIComponent(customerKey)}`,
+        { headers, cache: 'no-store' },
+      );
+
+      try {
+        const cached = await AsyncStorage.getItem(getCartSnapshotKey(customerKey));
+        if (cached && sequence === loadSequenceRef.current) {
+          const parsed: unknown = JSON.parse(cached);
+          if (isCartSnapshot(parsed, customerKey) && parsed.length > 0) {
+            setItems(parsed);
+            setSnapshotCustomerId(customerKey);
+            snapshotCustomerIdRef.current = customerKey;
+            setResolvedCustomerId(customerKey);
+            setIsLoading(false);
+          }
+        }
+      } catch (cacheError) {
+        console.warn('[CartContext] Failed to read saved cart snapshot:', cacheError);
       }
-      
-      const data = await res.json();
+
+      let res = await request;
+      if (sequence !== loadSequenceRef.current) return;
+
+      let data: any = null;
+      if (res.ok) data = await res.json();
+
+      let fallbackUsed = false;
+      if (!res.ok || !Array.isArray(data?.docs) || data.docs.length === 0) {
+        fallbackUsed = true;
+        if (res.ok) {
+          console.warn('[CartContext] Optimized cart read returned no records; retrying the collection API.');
+        } else {
+          console.warn(`[CartContext] Optimized cart read failed (${res.status}); retrying the collection API.`);
+        }
+        res = await fetch(
+          `${API_BASE}/cart-items?where[customer][equals]=${encodeURIComponent(customerKey)}&where[status][equals]=active&depth=3&limit=200`,
+          { headers, cache: 'no-store' },
+        );
+        if (!res.ok) throw new Error(`Cart request failed (${res.status})`);
+        data = await res.json();
+      }
+
+      if (sequence !== loadSequenceRef.current) return;
+      if (!Array.isArray(data?.docs)) {
+        throw new Error('Cart request returned an invalid response');
+      }
       const docs: any[] = Array.isArray(data?.docs) ? data.docs : [];
       
       const mapped: CartItem[] = docs.map((doc: any) => {
@@ -167,16 +231,33 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
       
       setItems(mapped);
+      setSnapshotCustomerId(customerKey);
+      snapshotCustomerIdRef.current = customerKey;
       setIsLoading(false);
-      hasLoadedRef.current = true;
+      setResolvedCustomerId(customerKey);
+      console.info('[cart] request timing', {
+        durationMs: Date.now() - requestStartedAt,
+        status: res.status,
+        itemCount: mapped.length,
+        fallbackUsed,
+      });
     } catch (e: any) {
+      if (sequence !== loadSequenceRef.current) return;
       setError(e?.message || 'Failed to load cart');
-      // Don't clear items on error — keep the last good snapshot so a
-      // transient network failure doesn't wipe the cart from the UI.
+      setLoadError(e?.message || 'Failed to load cart');
       setIsLoading(false);
-      hasLoadedRef.current = true;
+      if (customerId) setResolvedCustomerId(String(customerId));
     }
   }, [customerId, API_BASE]);
+
+  const visibleItems = useMemo(
+    () => (snapshotCustomerId === (customerId ? String(customerId) : null) ? items : []),
+    [snapshotCustomerId, customerId, items],
+  );
+  const isLoadingForCustomer = Boolean(
+    customerId &&
+    (isLoading || resolvedCustomerId !== String(customerId)),
+  );
 
   const addToCart = useCallback(
     async (payload: AddToCartPayload) => {
@@ -357,40 +438,47 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(async () => {
     try {
-      await Promise.allSettled(items.map((item) => removeItemServer(item.id)));
+      await Promise.allSettled(visibleItems.map((item) => removeItemServer(item.id)));
       await loadCart();
     } catch (e) {
       console.error('Failed to clear cart', e);
     }
-  }, [items, removeItemServer, loadCart]);
+  }, [visibleItems, removeItemServer, loadCart]);
 
   const clearMerchantCart = useCallback(async (merchantId: string | number) => {
     try {
       const mIdStr = String(merchantId);
-      const itemsToDelete = items.filter(item => String(item.merchant) === mIdStr);
+      const itemsToDelete = visibleItems.filter(item => String(item.merchant) === mIdStr);
       await Promise.allSettled(itemsToDelete.map(item => removeItemServer(item.id)));
       await loadCart();
     } catch (e) {
       console.error('Failed to clear merchant cart', e);
     }
-  }, [items, removeItemServer, loadCart]);
+  }, [visibleItems, removeItemServer, loadCart]);
 
   useEffect(() => {
     loadCart();
   }, [loadCart]);
 
+  useEffect(() => {
+    if (!customerId || snapshotCustomerId !== String(customerId)) return;
+    AsyncStorage.setItem(getCartSnapshotKey(String(customerId)), JSON.stringify(items))
+      .catch((cacheError) => {
+        console.warn('[CartContext] Failed to persist cart changes:', cacheError);
+      });
+  }, [customerId, snapshotCustomerId, items]);
+
   const totalQuantity = useMemo(() => {
     let count = 0;
-    for (const item of items) {
+    for (const item of visibleItems) {
       count += Number(item.quantity) || 0;
     }
-    // Rough in-flight feedback for adds that haven't loaded yet.
     count += pendingMerchantIds.size;
     return count;
-  }, [items, pendingMerchantIds]);
+  }, [visibleItems, pendingMerchantIds]);
 
   const getCartTotal = () => {
-    return items.reduce((sum, item) => sum + item.subtotal, 0);
+    return visibleItems.reduce((sum, item) => sum + item.subtotal, 0);
   };
 
   const getCartItemCount = () => {
@@ -400,7 +488,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const getAllMerchantCarts = useCallback((): MerchantCartSummary[] => {
     const groups: Record<string, CartItem[]> = {};
     
-    items.forEach(item => {
+    visibleItems.forEach(item => {
       const mId = String(item.merchant);
       if (!groups[mId]) groups[mId] = [];
       groups[mId].push(item);
@@ -424,11 +512,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         items: groupItems
       };
     });
-  }, [items]);
+  }, [visibleItems]);
 
   const getMerchantCart = useCallback((merchantId: string | number): MerchantCartSummary | null => {
     const mIdStr = String(merchantId);
-    const merchantItems = items.filter(item => String(item.merchant) === mIdStr);
+    const merchantItems = visibleItems.filter(item => String(item.merchant) === mIdStr);
     
     if (merchantItems.length === 0) return null;
 
@@ -445,12 +533,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       subtotal,
       items: merchantItems
     };
-  }, [items]);
+  }, [visibleItems]);
 
   const value: CartContextType = {
-    items,
-    isLoading,
+    items: visibleItems,
+    isLoading: isLoadingForCustomer,
     error,
+    loadError,
     totalQuantity,
     reload: loadCart,
     addToCart,
