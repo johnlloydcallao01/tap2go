@@ -127,6 +127,11 @@ export async function validateOrderItemSnapshot(args: {
       }
     }
 
+    const hasSelectedModifiers = snapshot.some((entry) => entry.entryType === 'modifier')
+    if (!hasSelectedModifiers) {
+      return
+    }
+
     const groups = await new ModifierResolverService(args.payload).resolveEffectiveGroups({
       productId,
       variationId,

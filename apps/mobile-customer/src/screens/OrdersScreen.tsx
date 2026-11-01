@@ -86,6 +86,8 @@ interface Order {
   deliveryStatus?: string;
   priorityFee?: number;
   isPaid?: boolean;
+  paymentStatus?: string;
+  canResumePayment?: boolean;
 }
 
 export default function OrdersScreen() {
@@ -158,6 +160,8 @@ export default function OrdersScreen() {
           deliveryStatus: o.delivery?.status || null,
           priorityFee: o.delivery?.priorityFee || 0,
           isPaid: o.isPaid || false,
+          paymentStatus: o.paymentStatus || 'unpaid',
+          canResumePayment: o.canResumePayment || false,
         };
       });
 
@@ -427,6 +431,30 @@ export default function OrdersScreen() {
                           </Text>
                         </View>
                       )}
+                      {!order.isPaid && order.paymentStatus === 'failed' && (
+                        <View style={{
+                          backgroundColor: '#fef2f2',
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                        }}>
+                          <Text style={{ color: '#b91c1c', fontSize: 12, fontWeight: '700' }}>
+                            Payment failed
+                          </Text>
+                        </View>
+                      )}
+                      {!order.isPaid && order.paymentStatus === 'pending' && (
+                        <View style={{
+                          backgroundColor: '#fffbeb',
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                        }}>
+                          <Text style={{ color: '#b45309', fontSize: 12, fontWeight: '700' }}>
+                            Payment pending
+                          </Text>
+                        </View>
+                      )}
                       {order.priorityFee > 0 && (
                         <View style={{
                           flexDirection: 'row',
@@ -468,6 +496,24 @@ export default function OrdersScreen() {
                         ₱{order.total.toFixed(2)}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {order.canResumePayment && !order.isPaid && (
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: '#0f766e',
+                              paddingHorizontal: 14,
+                              paddingVertical: 8,
+                              borderRadius: 8,
+                              marginRight: 8,
+                            }}
+                            onPress={() => router.push(`/order/${order.orderId}`)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Resume payment"
+                          >
+                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                              Pay now
+                            </Text>
+                          </TouchableOpacity>
+                        )}
                         {canCancelOrder(order) && (
                           <TouchableOpacity
                             style={{

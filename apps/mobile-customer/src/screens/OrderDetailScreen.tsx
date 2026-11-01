@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ExpoLinking from 'expo-linking';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { apiConfig } from '../../src/config/environment';
 import { formatCurrency } from '../../src/utils/format';
@@ -93,6 +94,9 @@ type OrderDetail = {
   deliveryLocation?: DeliveryLocation | null;
   items?: OrderItem[];
   isPaid?: boolean;
+  paymentStatus?: string;
+  paymentMethod?: string | null;
+  canResumePayment?: boolean;
 };
 
 const STATUS_STEPS = [
@@ -264,6 +268,7 @@ export default function OrderDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
+  const [resumingPayment, setResumingPayment] = useState(false);
   const [showRiderInfo, setShowRiderInfo] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -368,6 +373,9 @@ export default function OrderDetailScreen() {
           total_price: item.total,
         })),
         isPaid: agg.isPaid || false,
+        paymentStatus: agg.paymentStatus || 'unpaid',
+        paymentMethod: agg.paymentMethod || null,
+        canResumePayment: agg.canResumePayment || false,
       });
       setError(null);
     } catch (err: any) {
@@ -445,6 +453,176 @@ export default function OrderDetailScreen() {
       ],
     );
   }, [handleCancelOrder]);
+
+  const openPaymentAction = useCallback((payment: any) => {
+    if (payment?.state === 'paid') {
+      router.replace({
+        pathname: '/checkout/return',
+        params: {
+          payment_intent_id: payment.paymentIntentId || '',
+          merchantId: String(
+            payment.merchantId ||
+            (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
+          ),
+          order_id: String(payment.orderId || order?.id || ''),
+        },
+      });
+      return;
+    }
+    if (payment?.state === 'processing') {
+      if (payment.paymentIntentId) {
+        router.replace({
+          pathname: '/checkout/return',
+          params: {
+            payment_intent_id: payment.paymentIntentId,
+            merchantId: String(
+              payment.merchantId ||
+              (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
+            ),
+            order_id: String(payment.orderId || order?.id || ''),
+          },
+        });
+        return;
+      }
+      Alert.alert(
+        'Payment confirmation in progress',
+        payment.message || 'We are waiting for PayMongo to confirm your payment.',
+      );
+      return;
+    }
+    if (payment?.state === 'unavailable') {
+      Alert.alert('Payment unavailable', payment.message || 'Please contact support to continue this order.');
+      return;
+    }
+    if (payment?.state !== 'qr' && payment?.state !== 'redirect') return;
+
+    router.push({
+      pathname: '/checkout/qr',
+      params: {
+        qrImage: payment.state === 'qr' ? payment.qrImage : undefined,
+        redirectUrl: payment.state === 'redirect' ? payment.redirectUrl : undefined,
+        amount: String(payment.amount || order?.total || 0),
+        merchantName:
+          payment.merchantName ||
+          (order?.merchant && typeof order.merchant === 'object'
+            ? order.merchant.outletName || order.merchant.name || 'Merchant'
+            : 'Merchant'),
+        merchantId: String(
+          payment.merchantId ||
+          (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
+        ),
+        orderId: String(payment.orderId || order?.id || ''),
+        paymentIntentId: String(payment.paymentIntentId || ''),
+      },
+    });
+  }, [order?.id, order?.merchant, order?.total, router]);
+
+  const handleResumePayment = useCallback(async () => {
+    if (!id || !user?.id || resumingPayment) return;
+    setResumingPayment(true);
+    try {
+      const resumeResponse = await fetch(`${apiConfig.baseUrl}/checkout/payment-resume`, {
+        method: 'POST',
+        headers: CMS_HEADERS,
+        body: JSON.stringify({ orderId: Number(id), customerId: Number(user.id) }),
+      });
+      const resumeData = await resumeResponse.json().catch(() => ({}));
+      if (!resumeResponse.ok) {
+        throw new Error(resumeData?.error || 'Unable to resume payment.');
+      }
+
+      if (resumeData.state !== 'retry') {
+        openPaymentAction(resumeData);
+        return;
+      }
+
+      const publicKey = apiConfig.paymongoPublicKey;
+      if (!publicKey) throw new Error('Payment is temporarily unavailable.');
+      const customerUser = order?.customer?.user && typeof order.customer.user === 'object'
+        ? order.customer.user
+        : null;
+      const billing = {
+        name: [customerUser?.firstName, customerUser?.lastName].filter(Boolean).join(' ') || 'Tap2Go Customer',
+        email: customerUser?.email || order?.customer?.email || 'customer@example.com',
+        phone: customerUser?.phone || '',
+        address: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'PH' },
+      };
+      const methodResponse = await fetch('https://api.paymongo.com/v1/payment_methods', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${btoa(`${publicKey}:`)}`,
+        },
+        body: JSON.stringify({
+          data: { attributes: { type: resumeData.paymentMethod, billing } },
+        }),
+      });
+      const methodData = await methodResponse.json().catch(() => ({}));
+      if (!methodResponse.ok || !methodData?.data?.id) {
+        throw new Error(methodData?.errors?.[0]?.detail || 'Could not start a new payment attempt.');
+      }
+
+      const merchantId = String(
+        resumeData.merchantId ||
+        (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
+      );
+      const appReturnUrl = ExpoLinking.createURL('checkout/return', {
+        queryParams: {
+          payment_intent_id: resumeData.paymentIntentId,
+          merchantId,
+          order_id: String(id),
+        },
+      });
+      const returnUrl =
+        `https://app.tap2goph.com/checkout/${merchantId}/return?` +
+        `payment_intent_id=${encodeURIComponent(String(resumeData.paymentIntentId))}` +
+        `&order_id=${encodeURIComponent(String(id))}` +
+        `&app_redirect=${encodeURIComponent(appReturnUrl)}`;
+      const attachResponse = await fetch(
+        `https://api.paymongo.com/v1/payment_intents/${encodeURIComponent(String(resumeData.paymentIntentId))}/attach`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${btoa(`${publicKey}:`)}`,
+          },
+          body: JSON.stringify({
+            data: {
+              attributes: {
+                payment_method: methodData.data.id,
+                client_key: resumeData.clientKey,
+                return_url: returnUrl,
+              },
+            },
+          }),
+        },
+      );
+      const attachData = await attachResponse.json().catch(() => ({}));
+      if (!attachResponse.ok) {
+        throw new Error(attachData?.errors?.[0]?.detail || 'PayMongo could not resume this payment.');
+      }
+
+      const confirmationResponse = await fetch(`${apiConfig.baseUrl}/checkout/payment-resume`, {
+        method: 'POST',
+        headers: CMS_HEADERS,
+        body: JSON.stringify({
+          orderId: Number(id),
+          customerId: Number(user.id),
+          transactionId: resumeData.transactionId,
+          confirmAttached: true,
+        }),
+      });
+      const confirmation = await confirmationResponse.json().catch(() => ({}));
+      if (!confirmationResponse.ok) {
+        throw new Error(confirmation?.error || 'Payment was sent, but confirmation is still processing.');
+      }
+      openPaymentAction(confirmation);
+    } catch (err: any) {
+      Alert.alert('Unable to resume payment', err?.message || 'Please try again shortly.');
+    } finally {
+      setResumingPayment(false);
+    }
+  }, [id, openPaymentAction, order?.customer, order?.merchant, resumingPayment, user?.id]);
 
   const showSkeleton = loading || refreshing;
 
@@ -625,6 +803,8 @@ export default function OrderDetailScreen() {
             <Text style={styles.statusText}>
               {isDeliveryCancelled
                 ? deliveryCancelledTitle
+                : !order.isPaid && order.paymentStatus === 'failed'
+                  ? 'Payment failed'
                 : (order.status === 'pending' || order.status === 'accepted')
                   ? (order.isPaid ? 'Accepted' : 'Pending')
                   : formatStatus(delivery?.status || order.delivery_status || order.status || 'pending')}
@@ -648,6 +828,34 @@ export default function OrderDetailScreen() {
             )}
           </View>
         </View>
+
+        {order.canResumePayment && !order.isPaid && (
+          <View style={styles.section}>
+            <View style={styles.paymentRecoveryCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.paymentRecoveryTitle}>
+                  {order.paymentStatus === 'failed' ? 'Payment not completed' : 'Payment pending'}
+                </Text>
+                <Text style={styles.paymentRecoveryText}>
+                  Continue with the existing payment attempt. Your order will remain unpaid until PayMongo confirms it.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.paymentRecoveryButton}
+                onPress={handleResumePayment}
+                disabled={resumingPayment}
+                accessibilityRole="button"
+                accessibilityLabel="Resume payment"
+              >
+                {resumingPayment ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.paymentRecoveryButtonText}>Resume payment</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Priority notice */}
         {order.fulfillment_type === 'delivery' && priorityFee > 0 && (
@@ -1149,6 +1357,25 @@ const styles = {
   cancelledTitle: { fontSize: 15, fontWeight: '700' as const, color: '#ef4444' },
   cancelledNote: { fontSize: 13, color: '#7f1d1d', marginTop: 4, lineHeight: 19 },
   section: { marginBottom: 0 },
+  paymentRecoveryCard: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    gap: 14,
+  },
+  paymentRecoveryTitle: { fontSize: 15, fontWeight: '700' as const, color: '#92400E' },
+  paymentRecoveryText: { fontSize: 13, lineHeight: 19, color: '#78350F', marginTop: 4 },
+  paymentRecoveryButton: {
+    minHeight: 44,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: '#0F766E',
+    borderRadius: 9,
+    paddingHorizontal: 16,
+  },
+  paymentRecoveryButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' as const },
   sectionTitle: { fontSize: 16, fontWeight: '600' as const, color: '#111827', marginBottom: 12 },
   riderCard: {
     flexDirection: 'row' as const,

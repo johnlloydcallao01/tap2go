@@ -1,6 +1,10 @@
 import { PayloadRequest } from 'payload'
 import crypto from 'crypto'
 import { CouponService } from '../services/CouponService'
+import {
+  isLatestFailedPaymentAttempt,
+  isTerminalPaymentFailure,
+} from '../services/orderPaymentRecovery'
 
 export const paymongoWebhook = async (req: PayloadRequest) => {
   try {
@@ -106,8 +110,46 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
           console.warn(`No transaction found for payment_intent_id: ${paymentIntentId}`);
       }
 
-    } else if (type === 'payment.failed') {
-       const paymentIntentId = resource.attributes.payment_intent_id;
+    } else if (type === 'payment.failed' || type === 'qrph.expired') {
+       const paymentIntentId =
+         resource.attributes?.payment_intent_id ||
+         (String(resource.id || '').startsWith('pi_') ? resource.id : null);
+       if (!paymentIntentId) {
+         console.warn(`PayMongo ${type} event did not include a payment intent ID`);
+         return Response.json({ status: 'received' });
+       }
+
+       const secretKey = process.env.PAYMONGO_SANDBOX === 'true'
+         ? process.env.PAYMONGO_SANDBOX_API_KEY
+         : process.env.PAYMONGO_SECRET_KEY_LIVE;
+       if (!secretKey) {
+         console.error(`[paymongo/webhook] cannot verify ${type} without the PayMongo API key`);
+         return Response.json({ error: 'Payment verification is unavailable' }, { status: 503 });
+       }
+       const intentResponse = await fetch(
+         `https://api.paymongo.com/v1/payment_intents/${encodeURIComponent(String(paymentIntentId))}`,
+         {
+           headers: {
+             Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`,
+           },
+         },
+       );
+       const intentBody = await intentResponse.json().catch(() => ({}));
+       if (!intentResponse.ok) {
+         console.error(`[paymongo/webhook] failed to verify ${type} intent`, {
+           paymentIntentId,
+           status: intentResponse.status,
+         });
+         return Response.json({ error: 'Payment verification failed' }, { status: 502 });
+       }
+       const providerStatus = String(intentBody?.data?.attributes?.status || '').toLowerCase();
+       if (!isTerminalPaymentFailure(providerStatus)) {
+         console.info(`[paymongo/webhook] ignoring stale ${type} event`, {
+           paymentIntentId,
+           providerStatus,
+         });
+         return Response.json({ status: 'received' });
+       }
        
        const transactions = await req.payload.find({
            collection: 'transactions',
@@ -120,6 +162,9 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
 
        if (transactions.docs.length > 0) {
            const transaction = transactions.docs[0];
+           if (String((transaction as any).status).toLowerCase() === 'paid') {
+             return Response.json({ status: 'received' });
+           }
            
            await req.payload.update({
                collection: 'transactions',
@@ -130,11 +175,42 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
            });
            console.log(`Transaction ${transaction.id} updated to failed.`);
 
-           // Release held coupon redemptions so limited coupons are not burned.
+           const failedOrder = (transaction as any).order;
+           let failedOrderId: number | string | null = null;
+           let failureIsCurrent = false;
+           if (failedOrder) {
+             failedOrderId = typeof failedOrder === 'object' ? failedOrder.id : failedOrder;
+             const latestAttempts = await req.payload.find({
+               collection: 'transactions',
+               where: { order: { equals: failedOrderId } },
+               sort: '-id',
+               limit: 1,
+               depth: 0,
+               overrideAccess: true,
+             });
+             const latestAttempt = latestAttempts.docs[0] as any;
+             failureIsCurrent = isLatestFailedPaymentAttempt(latestAttempt, transaction.id);
+             if (failureIsCurrent) {
+               await req.payload.update({
+                 collection: 'cart-items',
+                 where: {
+                   and: [
+                     { order_id: { equals: failedOrderId } },
+                     { status: { in: ['active', 'checked_out'] } },
+                   ],
+                 },
+                 data: {
+                   status: 'active',
+                   order_id: null,
+                 },
+                 overrideAccess: true,
+               });
+             }
+             }
+
+             // Release held coupon redemptions so limited coupons are not burned.
            try {
-             const failedOrder = (transaction as any).order;
-             if (failedOrder) {
-               const failedOrderId = typeof failedOrder === 'object' ? failedOrder.id : failedOrder;
+             if (failedOrder && failureIsCurrent && failedOrderId !== null) {
                await new CouponService(req.payload).finalizeForOrder(failedOrderId, false);
              }
            } catch (couponErr) {

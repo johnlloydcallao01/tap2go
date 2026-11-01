@@ -219,7 +219,7 @@ export async function findActiveCartLinkedOrder(
 ): Promise<string | null> {
   const headers = buildCmsHeaders();
   const response = await fetch(
-    `${apiConfig.baseUrl}/cart-items?where[customer][equals]=${customerId}&where[merchant][equals]=${merchantId}&where[status][equals]=active&limit=200&depth=0`,
+    `${apiConfig.baseUrl}/cart-items?where[customer][equals]=${customerId}&where[merchant][equals]=${merchantId}&where[status][in]=active,checked_out&limit=200&depth=0`,
     { headers },
   );
 
@@ -280,16 +280,6 @@ export async function getCheckoutPaymentStatus(args: {
   if (resolvedOrderId) {
     const order = await fetchOrderById(resolvedOrderId, headers);
     const orderStatus = String(order?.status || '').toLowerCase();
-
-    if (isPaidOrderStatus(orderStatus)) {
-      return {
-        status: 'paid',
-        orderId: resolvedOrderId,
-        paymentIntentId: paymentIntentId || undefined,
-        transaction: transaction || undefined,
-        paidAt: transaction?.paid_at || null,
-      };
-    }
 
     if (orderStatus === 'cancelled') {
       return {
@@ -355,16 +345,6 @@ async function fetchOrderById(
   }
 
   return (await response.json()) as OrderDoc;
-}
-
-function isPaidOrderStatus(status: string): boolean {
-  return [
-    'accepted',
-    'preparing',
-    'ready_for_pickup',
-    'on_delivery',
-    'delivered',
-  ].includes(status);
 }
 
 function resolveOrderId(

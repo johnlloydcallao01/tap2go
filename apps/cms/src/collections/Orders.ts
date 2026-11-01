@@ -110,56 +110,67 @@ export const Orders: CollectionConfig = {
           }
 
           const customerId = resolveId(doc?.customer)
-          if (!customerId) return doc
+          const shouldNotifyCustomer =
+            operation === 'create' ||
+            (operation === 'update' && previousStatus && status && previousStatus !== status)
+          if (!customerId || !shouldNotifyCustomer) return doc
 
-          const customer = await req.payload.findByID({
-            collection: 'customers',
-            id: customerId,
-            depth: 0,
-            overrideAccess: true,
-          })
-          const userId = resolveId(customer?.user)
-          if (!userId) return doc
+          void (async () => {
+            const customer = await req.payload.findByID({
+              collection: 'customers',
+              id: customerId,
+              depth: 0,
+              overrideAccess: true,
+            })
+            const userId = resolveId(customer?.user)
+            if (!userId) return
 
-          if (operation === 'create') {
-            void createNotificationFanout({
-              payload: req.payload,
-              userId,
-              typeKey: 'order.created',
-              domain: 'order',
-              priority: 'info',
-              title: 'New order placed',
-              body: `Your order #${orderId} has been placed. We'll let you know as soon as it's confirmed.`,
-              sourceEntityType: 'order',
-              sourceEntityId: orderId,
-              metadata: {
-                orderId,
-                status,
-                merchantId,
-              },
-            }).catch((error) => console.error('[orders] customer notification fanout error:', error))
-          } else if (operation === 'update') {
-            if (previousStatus && status && previousStatus !== status) {
-              const label = getOrderStatusLabel(status, doc?.delivery_status)
-              void createNotificationFanout({
+            if (operation === 'create') {
+              await createNotificationFanout({
                 payload: req.payload,
                 userId,
-                typeKey: 'order.status_changed',
+                typeKey: 'order.created',
                 domain: 'order',
-                priority: status === 'cancelled' ? 'warning' : 'info',
-                title: `Order ${getOrderStatusLabel(status, doc?.delivery_status)}`,
-                body: `Your order #${orderId} is now ${label.toLowerCase()}.`,
+                priority: 'info',
+                title: 'New order placed',
+                body: `Your order #${orderId} has been placed. We'll let you know as soon as it's confirmed.`,
                 sourceEntityType: 'order',
                 sourceEntityId: orderId,
                 metadata: {
                   orderId,
                   status,
-                  previousStatus,
                   merchantId,
                 },
-              }).catch((error) => console.error('[orders] customer status notification fanout error:', error))
+              })
+              return
             }
-          }
+
+            const label = getOrderStatusLabel(status, doc?.delivery_status)
+            await createNotificationFanout({
+              payload: req.payload,
+              userId,
+              typeKey: 'order.status_changed',
+              domain: 'order',
+              priority: status === 'cancelled' ? 'warning' : 'info',
+              title: `Order ${label}`,
+              body: `Your order #${orderId} is now ${label.toLowerCase()}.`,
+              sourceEntityType: 'order',
+              sourceEntityId: orderId,
+              metadata: {
+                orderId,
+                status,
+                previousStatus,
+                merchantId,
+              },
+            })
+          })().catch((error) =>
+            console.error(
+              operation === 'create'
+                ? '[orders] customer notification fanout error:'
+                : '[orders] customer status notification fanout error:',
+              error,
+            ),
+          )
         } catch (error) {
           console.error('[orders] afterChange notification error:', error)
         }

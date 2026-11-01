@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { validateModifierContext } from '@/services/modifierContext'
-import { validateOrderItemSnapshot } from '@/services/orderItemValidation'
+import { validateModifierContext } from '../../src/services/modifierContext'
+import { validateOrderItemSnapshot } from '../../src/services/orderItemValidation'
 
 function createPayload(collections: Record<string, any[]>) {
   return {
@@ -16,6 +16,59 @@ function createPayload(collections: Record<string, any[]>) {
 }
 
 describe('modifier trust boundaries', () => {
+  it('skips modifier catalog reads when an order snapshot has no selected modifiers', async () => {
+    const payload = {
+      find: async () => {
+        throw new Error('Modifier catalog should not be read for an empty selection')
+      },
+      findByID: async () => {
+        throw new Error('Variation lookup should not run when no variation is selected')
+      },
+    }
+
+    await expect(
+      validateOrderItemSnapshot({
+        payload: payload as any,
+        productId: 10,
+        merchantProductId: 30,
+        optionsSnapshot: [],
+        requireStructuredEntries: true,
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('still validates a selected variation without loading modifier catalogs', async () => {
+    const payload = {
+      find: async () => {
+        throw new Error('Modifier catalog should not be read for a variation-only selection')
+      },
+      findByID: async ({ collection, id }: { collection: string; id: number }) => {
+        if (collection === 'prod-variations' && id === 20) {
+          return { id: 20, product_id: 10 }
+        }
+        throw new Error(`Unexpected lookup ${collection}:${id}`)
+      },
+    }
+
+    await expect(
+      validateOrderItemSnapshot({
+        payload: payload as any,
+        productId: 10,
+        merchantProductId: 30,
+        optionsSnapshot: [
+          {
+            entryType: 'variation',
+            selectedVariationId: 20,
+            selectedVariationName: 'Large',
+            name: 'Large',
+            price: 0,
+          },
+        ],
+        requireStructuredEntries: true,
+      }),
+    ).resolves.toBeUndefined()
+  })
+
   it('rejects a variation belonging to another product', async () => {
     const payload = createPayload({
       products: [{ id: 10 }],

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { buildOrderPaymentSummary } from '../../../../services/orderPaymentRecovery'
 
 export async function GET(request: NextRequest) {
   try {
@@ -72,9 +73,10 @@ export async function GET(request: NextRequest) {
       }),
       payload.find({
         collection: 'transactions',
-        where: { order: { in: orderIds as number[] }, status: { equals: 'paid' } },
+        where: { order: { in: orderIds as number[] } },
+        sort: '-id',
         depth: 0,
-        limit: 200,
+        limit: 500,
         overrideAccess: true,
       }),
     ])
@@ -82,10 +84,14 @@ export async function GET(request: NextRequest) {
     const allItems = itemsRes.docs
     const allBookings = bookingsRes.docs
     const allLocations = locationsRes.docs
-    const paidTxSet = new Set(txRes.docs.map((tx: any) => {
-      const oid = typeof tx.order === 'object' ? tx.order.id : tx.order
-      return Number(oid)
-    }))
+    const transactionsByOrder = new Map<number, any[]>()
+    for (const transaction of txRes.docs as any[]) {
+      const oid = typeof transaction.order === 'object' ? transaction.order.id : transaction.order
+      const normalizedOrderId = Number(oid)
+      const groupedTransactions = transactionsByOrder.get(normalizedOrderId) || []
+      groupedTransactions.push(transaction)
+      transactionsByOrder.set(normalizedOrderId, groupedTransactions)
+    }
 
     // 5. Build frontend-ready response
     const mapped = orders.map((order: any) => {
@@ -122,6 +128,10 @@ export async function GET(request: NextRequest) {
         const oid = typeof l.order === 'object' ? l.order.id : l.order
         return Number(oid) === Number(order.id)
       })
+      const paymentSummary = buildOrderPaymentSummary(
+        order.status,
+        transactionsByOrder.get(Number(order.id)) || [],
+      )
 
       return {
         id: order.id,
@@ -136,7 +146,7 @@ export async function GET(request: NextRequest) {
         notes: order.notes || null,
 
         // Payment
-        isPaid: paidTxSet.has(order.id),
+        ...paymentSummary,
 
         // Merchant
         merchant: merchant ? {

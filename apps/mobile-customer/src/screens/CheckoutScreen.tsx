@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -110,6 +110,7 @@ const methodLogos: Record<PaymentMethod, { srcs: any[]; label: string; icon: any
 export default function CheckoutScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const pathname = usePathname();
   const params = useLocalSearchParams();
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
@@ -130,6 +131,7 @@ export default function CheckoutScreen() {
   const [isPaying, setIsPaying] = useState(false);
   const [isCheckingPaymentState, setIsCheckingPaymentState] = useState(false);
   const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
+  const [pendingRecoveryOrderId, setPendingRecoveryOrderId] = useState<string | null>(null);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrIntentId, setQrIntentId] = useState<string | null>(null);
   const [qrOrderId, setQrOrderId] = useState<string | null>(null);
@@ -153,6 +155,30 @@ export default function CheckoutScreen() {
   const deliveryQuoteCacheKeyRef = useRef<string | null>(null);
 
   const orderTotal = totalSubtotal + (deliveryAvailable ? deliveryFee + priorityFee : 0);
+
+  const navigateToQrPayment = useCallback(
+    (imageUrl: string, trace?: {
+      checkoutRequestId?: string;
+      payStartedAt?: number;
+      paymentIntentId?: string;
+      orderId?: string;
+    }) => {
+      router.push({
+        pathname: '/checkout/qr',
+        params: {
+          qrImage: imageUrl,
+          amount: String(orderTotal),
+          merchantId: String(merchantId),
+          merchantName,
+          checkoutRequestId: trace?.checkoutRequestId,
+          payStartedAt: trace?.payStartedAt !== undefined ? String(trace.payStartedAt) : undefined,
+          paymentIntentId: trace?.paymentIntentId,
+          orderId: trace?.orderId,
+        },
+      });
+    },
+    [merchantId, merchantName, orderTotal, router],
+  );
 
   const fetchDeliveryQuote = useCallback(async () => {
     if (!merchantId || !activeAddressId || !customerId || deliveryFeeLoading) return;
@@ -270,13 +296,16 @@ export default function CheckoutScreen() {
       const pendingSession = await getPendingCheckoutSession(customerKey, merchantKey);
       const linkedOrderId = await findActiveCartLinkedOrder(customerKey, merchantKey);
 
-      // Only auto-recover a checkout that this device actually started recently.
-      // Without this guard, any stale order/cart link can hijack a fresh checkout.
-      if (!pendingSession || !isPendingSessionFresh(pendingSession.createdAt)) {
+      // Keep old local sessions only when their cart is still linked to that same order.
+      if (
+        !pendingSession ||
+        (!isPendingSessionFresh(pendingSession.createdAt) && linkedOrderId !== pendingSession.orderId)
+      ) {
         if (pendingSession) {
           await clearPendingCheckoutSession(customerKey, merchantKey);
         }
         setHasPendingRecovery(false);
+        setPendingRecoveryOrderId(null);
         return;
       }
 
@@ -287,6 +316,7 @@ export default function CheckoutScreen() {
       if (linkedOrderId && linkedOrderId !== pendingSession.orderId) {
         await clearPendingCheckoutSession(customerKey, merchantKey);
         setHasPendingRecovery(false);
+        setPendingRecoveryOrderId(null);
         return;
       }
 
@@ -307,10 +337,17 @@ export default function CheckoutScreen() {
       if (paymentStatus.status === 'failed') {
         await clearPendingCheckoutSession(customerKey, merchantKey);
         setHasPendingRecovery(false);
+        setPendingRecoveryOrderId(null);
+        await reload();
         return;
       }
 
       setHasPendingRecovery(blockOnPending && paymentStatus.status === 'pending');
+      setPendingRecoveryOrderId(
+        blockOnPending && paymentStatus.status === 'pending'
+          ? paymentStatus.orderId || pendingSession.orderId
+          : null,
+      );
     } catch (error) {
       console.error('Checkout payment reconciliation failed:', error);
     } finally {
@@ -319,10 +356,10 @@ export default function CheckoutScreen() {
         setIsCheckingPaymentState(false);
       }
     }
-  }, [customerId, merchantId, redirectToCheckoutReturn]);
+  }, [customerId, merchantId, redirectToCheckoutReturn, reload]);
 
   useEffect(() => {
-    reconcileExistingPayment(true).catch(() => undefined);
+    reconcileExistingPayment(true, true).catch(() => undefined);
   }, [reconcileExistingPayment]);
 
   useEffect(() => {
@@ -380,6 +417,9 @@ export default function CheckoutScreen() {
             setQrOrderId(null);
             setHasPendingRecovery(true);
             reconcileExistingPayment(false).catch(() => undefined);
+            if (pathname === '/checkout/qr') {
+              router.back();
+            }
           }
         }
       } catch {
@@ -391,31 +431,7 @@ export default function CheckoutScreen() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [qrIntentId, qrOrderId, customerId, merchantId, redirectToCheckoutReturn, reconcileExistingPayment]);
-
-  const dismissQr = useCallback(() => {
-    setQrImage(null);
-    setQrIntentId(null);
-    setQrOrderId(null);
-    setHasPendingRecovery(true);
-    reconcileExistingPayment(true, true).catch(() => undefined);
-  }, [reconcileExistingPayment]);
-
-  const dismissPendingRecovery = useCallback(() => {
-    if (customerId && !Number.isNaN(merchantId)) {
-      clearPendingCheckoutSession(String(customerId), String(merchantId)).catch(() => undefined);
-    }
-    setHasPendingRecovery(false);
-    setIsCheckingPaymentState(false);
-    setQrImage(null);
-    setQrIntentId(null);
-    setQrOrderId(null);
-    hasNavigatedToReturnRef.current = false;
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  }, [customerId, merchantId]);
+  }, [qrIntentId, qrOrderId, customerId, merchantId, pathname, redirectToCheckoutReturn, reconcileExistingPayment, router]);
 
   const handleSandboxPay = async () => {
     if (!user || !customerId || !activeAddressId) {
@@ -620,7 +636,17 @@ export default function CheckoutScreen() {
       return;
     }
 
+    const checkoutRequestId = `checkout-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const payStartedAt = Date.now();
+    console.info('[checkout-pay] started', {
+      checkoutRequestId,
+      paymentMethod,
+      cartItemCount: merchantCart.items.length,
+    });
+
     setIsPaying(true);
+    let pendingCheckoutSessionSaved = false;
+    let cartUnavailable = false;
     try {
       const pk = apiConfig.paymongoPublicKey;
       if (!pk) {
@@ -630,7 +656,80 @@ export default function CheckoutScreen() {
       const cmsHeaders = {
         'Content-Type': 'application/json',
         Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+        'X-Request-ID': checkoutRequestId,
       };
+
+      const timedRequest = async (step: string, request: () => Promise<Response>) => {
+        const requestStartedAt = Date.now();
+        try {
+          const response = await request();
+          const data = await response.json();
+          console.info('[checkout-pay] request timing', {
+            checkoutRequestId,
+            step,
+            durationMs: Date.now() - requestStartedAt,
+            status: response.status,
+            ...(data?.timings ? { serverTimings: data.timings } : {}),
+          });
+          return { response, data };
+        } catch (error) {
+          console.info('[checkout-pay] request timing', {
+            checkoutRequestId,
+            step,
+            durationMs: Date.now() - requestStartedAt,
+            outcome: 'error',
+          });
+          throw error;
+        }
+      };
+
+      const linkedOrderId = await findActiveCartLinkedOrder(
+        String(customerId),
+        String(merchantId),
+      );
+      if (linkedOrderId) {
+        const resumeResponse = await fetch(`${apiConfig.baseUrl}/checkout/payment-resume`, {
+          method: 'POST',
+          headers: cmsHeaders,
+          body: JSON.stringify({ orderId: Number(linkedOrderId), customerId: Number(user.id) }),
+        });
+        const resumeData = await resumeResponse.json().catch(() => ({}));
+        if (!resumeResponse.ok) {
+          throw new Error(resumeData?.error || 'A pending payment was found but could not be resumed.');
+        }
+        if (resumeData.state === 'qr') {
+          navigateToQrPayment(resumeData.qrImage, {
+            paymentIntentId: resumeData.paymentIntentId,
+            orderId: resumeData.orderId,
+          });
+        } else if (resumeData.state === 'redirect') {
+          router.push({
+            pathname: '/checkout/qr',
+            params: {
+              redirectUrl: resumeData.redirectUrl,
+              amount: String(resumeData.amount || orderTotal),
+              merchantId: String(resumeData.merchantId || merchantId),
+              merchantName: resumeData.merchantName || merchantName,
+              paymentIntentId: resumeData.paymentIntentId,
+              orderId: resumeData.orderId,
+            },
+          });
+        } else if (resumeData.state === 'processing') {
+          Alert.alert(
+            'Payment confirmation in progress',
+            resumeData.message || 'Check this order again shortly.',
+          );
+        } else {
+          router.push(`/order/${linkedOrderId}`);
+          Alert.alert(
+            'Pending order found',
+            resumeData.state === 'retry'
+              ? 'Open the order details to continue the existing payment attempt.'
+              : resumeData.message || 'Open the order details for payment recovery options.',
+          );
+        }
+        return;
+      }
 
       // 1. Create Payment Method directly with PayMongo API
       const billing = {
@@ -649,39 +748,53 @@ export default function CheckoutScreen() {
         },
       };
 
-      const pmResponse = await fetch('https://api.paymongo.com/v1/payment_methods', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${btoa(pk + ':')}`,
-        },
-        body: JSON.stringify(pmPayload),
-      });
-      const pmData = await pmResponse.json();
+      const paymentMethodRequest = timedRequest('payment_method', () =>
+        fetch('https://api.paymongo.com/v1/payment_methods', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${btoa(pk + ':')}`,
+          },
+          body: JSON.stringify(pmPayload),
+        }),
+      );
+
+      const paymentIntentRequest = timedRequest('payment_intent', () =>
+        fetch(`${apiConfig.baseUrl}/create-payment-intent`, {
+          method: 'POST',
+          headers: cmsHeaders,
+          body: JSON.stringify({
+            amount: Math.round(orderTotal * 100),
+            currency: 'PHP',
+            description: `Order from ${merchantName}`,
+            metadata: {
+              userId: user.id,
+              merchantId,
+              addressId: activeAddressId,
+            },
+          }),
+        }),
+      );
+
+      const [pmResult, intentResult] = await Promise.allSettled([
+        paymentMethodRequest,
+        paymentIntentRequest,
+      ]);
+      if (pmResult.status === 'rejected') {
+        throw pmResult.reason;
+      }
+      if (intentResult.status === 'rejected') {
+        throw intentResult.reason;
+      }
+
+      const { response: pmResponse, data: pmData } = pmResult.value;
+      const { response: intentResponse, data: intentData } = intentResult.value;
 
       if (!pmResponse.ok) {
         throw new Error(pmData?.errors?.[0]?.detail || 'Failed to create payment method');
       }
-      
+
       const paymentMethodId = pmData.data.id;
-
-      // 2. Create Payment Intent via CMS
-      const intentResponse = await fetch(`${apiConfig.baseUrl}/create-payment-intent`, {
-        method: 'POST',
-        headers: cmsHeaders,
-        body: JSON.stringify({
-          amount: Math.round(orderTotal * 100),
-          currency: 'PHP',
-          description: `Order from ${merchantName}`,
-          metadata: {
-            userId: user.id,
-            merchantId,
-            addressId: activeAddressId,
-          },
-        }),
-      });
-
-      const intentData = await intentResponse.json();
 
       if (!intentResponse.ok) {
         throw new Error(intentData.error || 'Failed to create payment intent');
@@ -694,37 +807,41 @@ export default function CheckoutScreen() {
         throw new Error('Missing intent/client_key from CMS response');
       }
 
-      const checkoutPrepareRes = await fetch(`${apiConfig.baseUrl}/checkout/prepare`, {
-        method: 'POST',
-        headers: cmsHeaders,
-        body: JSON.stringify({
-          customerId: Number(customerId),
-          merchantId,
-          addressId: activeAddressId,
-          paymentIntentId: intentId,
-          paymentMethod,
-          deliveryFee,
-          priorityFee,
-          subtotal: totalSubtotal,
-          total: orderTotal,
-          cartItems: merchantCart.items.map((item: any) => ({
-            id: item.id,
-            product: item.product,
-            merchantProduct: item.merchantProduct || null,
-            productName: item.productName,
-            priceAtAdd: item.priceAtAdd,
-            quantity: item.quantity,
-            subtotal: item.subtotal,
-            selectedVariation: item.selectedVariation,
-            selectedVariationName: item.selectedVariationName,
-            selectedModifiers: item.selectedModifiers || [],
-          })),
-          customerName: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
-          customerPhone: user.phone || null,
-        }),
-      });
-      const preparedCheckout = await checkoutPrepareRes.json();
+      const { response: checkoutPrepareRes, data: preparedCheckout } = await timedRequest(
+        'checkout_prepare',
+        () =>
+          fetch(`${apiConfig.baseUrl}/checkout/prepare`, {
+            method: 'POST',
+            headers: cmsHeaders,
+            body: JSON.stringify({
+              customerId: Number(customerId),
+              merchantId,
+              addressId: activeAddressId,
+              paymentIntentId: intentId,
+              paymentMethod,
+              deliveryFee,
+              priorityFee,
+              subtotal: totalSubtotal,
+              total: orderTotal,
+              cartItems: merchantCart.items.map((item: any) => ({
+                id: item.id,
+                product: item.product,
+                merchantProduct: item.merchantProduct || null,
+                productName: item.productName,
+                priceAtAdd: item.priceAtAdd,
+                quantity: item.quantity,
+                subtotal: item.subtotal,
+                selectedVariation: item.selectedVariation,
+                selectedVariationName: item.selectedVariationName,
+                selectedModifiers: item.selectedModifiers || [],
+              })),
+              customerName: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
+              customerPhone: user.phone || null,
+            }),
+          }),
+      );
       if (!checkoutPrepareRes.ok) {
+        cartUnavailable = preparedCheckout?.code === 'CHECKOUT_CART_UNAVAILABLE';
         throw new Error(preparedCheckout?.error || 'Failed to prepare checkout');
       }
 
@@ -732,6 +849,15 @@ export default function CheckoutScreen() {
       const transactionId = preparedCheckout?.data?.transactionId;
       if (!createdOrderId) {
         throw new Error('Checkout preparation returned no order ID');
+      }
+      if (preparedCheckout?.existingOrder) {
+        await clearPendingCheckoutSession(String(customerId), String(merchantId));
+        router.push(`/order/${createdOrderId}`);
+        Alert.alert(
+          'Pending order found',
+          'Continue payment from the order details. No duplicate order was created.',
+        );
+        return;
       }
 
       await savePendingCheckoutSession({
@@ -741,6 +867,7 @@ export default function CheckoutScreen() {
         paymentIntentId: intentId,
         createdAt: new Date().toISOString(),
       });
+      pendingCheckoutSessionSaved = true;
 
       // Sandbox: skip PayMongo entirely — mark paid and book Lalamove directly
       if (apiConfig.isPaymongoSandbox) {
@@ -787,28 +914,27 @@ export default function CheckoutScreen() {
         `&order_id=${encodeURIComponent(String(createdOrderId))}` +
         `&app_redirect=${encodeURIComponent(appReturnUrl)}`;
       
-      const attachResponse = await fetch(
-        `https://api.paymongo.com/v1/payment_intents/${intentId}/attach`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Basic ${btoa(pk + ':')}`,
-          },
-          body: JSON.stringify({
-            data: {
-              attributes: {
-                client_key: cKey,
-                payment_method: paymentMethodId,
-                return_url: returnUrlAPI,
-              },
+      const { response: attachResponse, data: attachData } = await timedRequest(
+        'paymongo_attach',
+        () =>
+          fetch(`https://api.paymongo.com/v1/payment_intents/${intentId}/attach`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Basic ${btoa(pk + ':')}`,
             },
+            body: JSON.stringify({
+              data: {
+                attributes: {
+                  client_key: cKey,
+                  payment_method: paymentMethodId,
+                  return_url: returnUrlAPI,
+                },
+              },
+            }),
           }),
-        }
       );
-      
-      const attachData = await attachResponse.json();
-      
+
       if (!attachResponse.ok) {
         throw new Error(attachData?.errors?.[0]?.detail || 'Failed to attach payment method');
       }
@@ -843,6 +969,16 @@ export default function CheckoutScreen() {
           setQrImage(nextAction.code.image_url);
           setQrIntentId(intentId);
           setQrOrderId(String(createdOrderId));
+          console.info('[checkout-pay] qr ready', {
+            checkoutRequestId,
+            durationMs: Date.now() - payStartedAt,
+          });
+          navigateToQrPayment(nextAction.code.image_url, {
+            checkoutRequestId,
+            payStartedAt,
+            paymentIntentId: intentId,
+            orderId: String(createdOrderId),
+          });
           setIsPaying(false);
           return;
         }
@@ -853,8 +989,25 @@ export default function CheckoutScreen() {
       }
       
     } catch (error) {
+      console.info('[checkout-pay] failed', {
+        checkoutRequestId,
+        durationMs: Date.now() - payStartedAt,
+        outcome: 'error',
+      });
       console.error('Payment error:', error);
-      if (customerId && !Number.isNaN(merchantId)) {
+      if (cartUnavailable) {
+        try {
+          await reload();
+        } catch (refreshError) {
+          console.error('[checkout-pay] cart refresh failed after checkout conflict:', refreshError);
+        }
+        try {
+          await reconcileExistingPayment(true, true);
+        } catch (reconcileError) {
+          console.error('[checkout-pay] pending payment recovery failed after checkout conflict:', reconcileError);
+        }
+      }
+      if (pendingCheckoutSessionSaved && customerId && !Number.isNaN(merchantId)) {
         await clearPendingCheckoutSession(String(customerId), String(merchantId));
       }
       Alert.alert('Payment Failed', error instanceof Error ? error.message : 'An unknown error occurred');
@@ -1048,9 +1201,20 @@ export default function CheckoutScreen() {
                 </Text>
                 <Text style={styles.processingText}>
                   {hasPendingRecovery
-                    ? 'We found an existing payment attempt for this checkout. Once PayMongo confirms it, this screen will move automatically to your thank-you page.'
+                    ? 'This unpaid attempt is attached to an existing order. Continue or check its status from Orders; we will only mark it paid after provider confirmation.'
                     : 'Please wait while we verify whether this checkout already has a completed payment.'}
                 </Text>
+                {hasPendingRecovery && pendingRecoveryOrderId ? (
+                  <TouchableOpacity
+                    onPress={() => router.push(`/order/${pendingRecoveryOrderId}`)}
+                    style={{ alignSelf: 'flex-start', marginTop: 10 }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ color: '#0F766E', fontSize: 13, fontWeight: '700' }}>
+                      Resume payment
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
               {hasPendingRecovery ? (
                 <ActivityIndicator color="#F59E0B" />
@@ -1058,87 +1222,79 @@ export default function CheckoutScreen() {
                 <Ionicons name="time-outline" size={20} color="#92400E" />
               )}
             </View>
-            {hasPendingRecovery && (
-              <TouchableOpacity
-                style={styles.startOverButton}
-                onPress={dismissPendingRecovery}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.startOverButtonText}>Start a new payment</Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
 
         {!apiConfig.isPaymongoSandbox && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
-          <View style={styles.paymentMethodsGrid}>
-            {availablePaymentMethods.map((key) => {
-              const isSelected = paymentMethod === key;
-              const config = methodLogos[key];
-              
-              return (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.paymentMethodCard,
-                    isSelected && styles.paymentMethodCardSelected
-                  ]}
-                  onPress={() => setPaymentMethod(key)}
-                  activeOpacity={0.7}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
-                      {config.srcs.length > 0 ? (
-                        config.srcs.map((src, index) => (
-                          <Image 
-                            key={index} 
-                            source={src} 
-                            style={{ width: 32, height: 20, marginRight: index === config.srcs.length - 1 ? 0 : 4 }} 
-                            resizeMode="contain" 
-                          />
-                        ))
-                      ) : (
-                        <Ionicons name={config.icon} size={24} color="#6B7280" style={{ width: 32, textAlign: 'center' }} />
-                      )}
-                    </View>
-                    <Text style={styles.paymentMethodText}>{config.label}</Text>
-                  </View>
-                  {isSelected && (
-                    <View style={styles.selectedIcon}>
-                      <Ionicons name="checkmark-circle" size={16} color="#000" />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-        )}
-
-        {qrImage && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Scan QR Code to Pay</Text>
-            <View style={styles.qrCard}>
-              <Image
-                source={{ uri: qrImage }}
-                style={styles.qrImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.qrInstructions}>
-                Scan this QR code using your preferred banking or e-wallet app{'\n'}
-                (Maya, GCash, BDO, BPI, etc.) to complete your payment.
-              </Text>
+          {qrImage ? (
+            <View style={styles.activeQrPaymentCard}>
+              <View style={styles.activeQrPaymentIcon}>
+                <Ionicons name="qr-code-outline" size={22} color="#0F766E" />
+              </View>
+              <View style={styles.activeQrPaymentContent}>
+                <Text style={styles.activeQrPaymentTitle}>QR Ph payment in progress</Text>
+                <Text style={styles.activeQrPaymentText}>
+                  Your payment is waiting to be scanned and confirmed.
+                </Text>
+              </View>
               <TouchableOpacity
-                style={styles.qrCancelButton}
-                onPress={dismissQr}
+                onPress={() => navigateToQrPayment(qrImage, {
+                  paymentIntentId: qrIntentId || undefined,
+                  orderId: qrOrderId || undefined,
+                })}
+                accessibilityRole="button"
+                accessibilityLabel="Return to QR Ph payment"
                 activeOpacity={0.7}
               >
-                <Text style={styles.qrCancelButtonText}>Cancel Payment</Text>
+                <Ionicons name="chevron-forward" size={20} color="#0F766E" />
               </TouchableOpacity>
             </View>
-          </View>
+          ) : (
+            <View style={styles.paymentMethodsGrid}>
+              {availablePaymentMethods.map((key) => {
+                const isSelected = paymentMethod === key;
+                const config = methodLogos[key];
+
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[
+                      styles.paymentMethodCard,
+                      isSelected && styles.paymentMethodCardSelected
+                    ]}
+                    onPress={() => setPaymentMethod(key)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+                        {config.srcs.length > 0 ? (
+                          config.srcs.map((src, index) => (
+                            <Image
+                              key={index}
+                              source={src}
+                              style={{ width: 32, height: 20, marginRight: index === config.srcs.length - 1 ? 0 : 4 }}
+                              resizeMode="contain"
+                            />
+                          ))
+                        ) : (
+                          <Ionicons name={config.icon} size={24} color="#6B7280" style={{ width: 32, textAlign: 'center' }} />
+                        )}
+                      </View>
+                      <Text style={styles.paymentMethodText}>{config.label}</Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.selectedIcon}>
+                        <Ionicons name="checkmark-circle" size={16} color="#000" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
         )}
 
         {/* Bottom Padding */}
@@ -1150,7 +1306,18 @@ export default function CheckoutScreen() {
           <Text style={styles.footerTotalLabel}>Total</Text>
           <Text style={styles.footerTotalValue}>{formatCurrency(orderTotal)}</Text>
         </View>
-        {apiConfig.isPaymongoSandbox ? (
+        {qrImage ? (
+          <TouchableOpacity
+            style={styles.payButton}
+            onPress={() => navigateToQrPayment(qrImage, {
+              paymentIntentId: qrIntentId || undefined,
+              orderId: qrOrderId || undefined,
+            })}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.payButtonText}>View QR Code</Text>
+          </TouchableOpacity>
+        ) : apiConfig.isPaymongoSandbox ? (
           <TouchableOpacity
             style={[
               styles.payButton,
@@ -1515,6 +1682,38 @@ const styles = StyleSheet.create({
   processingContent: {
     flex: 1,
   },
+  activeQrPaymentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F0FDFA',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+  activeQrPaymentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#CCFBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeQrPaymentContent: {
+    flex: 1,
+  },
+  activeQrPaymentTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#115E59',
+    marginBottom: 4,
+  },
+  activeQrPaymentText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#0F766E',
+  },
   processingTitle: {
     fontSize: 14,
     fontWeight: '700',
@@ -1596,52 +1795,5 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#6B7280',
-  },
-  qrCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  qrImage: {
-    width: 220,
-    height: 220,
-    marginBottom: 16,
-  },
-  qrInstructions: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  qrCancelButton: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignSelf: 'stretch',
-    alignItems: 'center',
-  },
-  qrCancelButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  startOverButton: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  startOverButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
   },
 });

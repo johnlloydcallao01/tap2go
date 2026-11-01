@@ -25,7 +25,15 @@ import { deliveryTrackHandler } from './endpoints/deliveryTrack'
 import { lalamoveWebhookHandler } from './endpoints/lalamoveWebhook'
 import { couponsValidateHandler } from './endpoints/couponsValidate'
 import { couponsAttachHandler } from './endpoints/couponsAttach'
+import { checkoutPaymentResumeHandler } from './endpoints/checkoutPaymentResume'
 import { CouponService, roundMoney } from './services/CouponService'
+import {
+  assertCheckoutCartAvailable,
+  CheckoutCartUnavailableError,
+  findMatchingFailedCheckoutOrder,
+  findLinkedPendingOrder,
+  persistCheckoutSnapshots,
+} from './services/checkoutSnapshotPersistence'
 import type { PayloadRequest } from 'payload'
 import type { User as PayloadUser } from './payload-types'
 // import sharp from 'sharp'
@@ -1151,7 +1159,22 @@ export default buildConfig({
       path: '/checkout/prepare',
       method: 'post',
       handler: (async (req: PayloadRequest) => {
-        const requestId = crypto.randomUUID();
+        const requestedRequestId = req.headers.get('x-request-id');
+        const requestId =
+          requestedRequestId && /^[a-zA-Z0-9_-]{1,64}$/.test(requestedRequestId)
+            ? requestedRequestId
+            : crypto.randomUUID();
+        const requestStartedAt = Date.now();
+        const phaseTimings: Record<string, number> = {};
+        let phaseStartedAt = requestStartedAt;
+        const timePhase = async <T>(phase: string, operation: () => Promise<T>): Promise<T> => {
+          const startedAt = Date.now();
+          try {
+            return await operation();
+          } finally {
+            phaseTimings[phase] = Date.now() - startedAt;
+          }
+        };
         try {
           if (!req.user) {
             return Response.json({ error: 'Authentication required' }, { status: 401 });
@@ -1189,6 +1212,72 @@ export default buildConfig({
             return Response.json({ error: 'paymentIntentId is required before checkout preparation', code: 'MISSING_PAYMENT_INTENT' }, { status: 400 });
           }
 
+          const existingOrderId = await timePhase('existingCheckoutLookupMs', async () =>
+            (await findLinkedPendingOrder({
+              payload: req.payload,
+              customerId: normalizedCustomerId,
+              merchantId: normalizedMerchantId,
+              cartItems: normalizedCartItems,
+            })) || findMatchingFailedCheckoutOrder({
+              payload: req.payload,
+              customerId: normalizedCustomerId,
+              merchantId: normalizedMerchantId,
+              cartItems: normalizedCartItems,
+            }),
+          );
+          if (existingOrderId) {
+            const existingTransactions = await req.payload.find({
+              collection: 'transactions',
+              where: {
+                and: [
+                  { order: { equals: existingOrderId } },
+                  { status: { in: ['pending', 'failed'] } },
+                ],
+              },
+              sort: '-createdAt',
+              limit: 1,
+              depth: 0,
+              overrideAccess: true,
+            });
+            const existingTransaction = existingTransactions.docs[0] as any;
+            console.info('[checkout/prepare] reusing pending order', {
+              requestId,
+              orderId: existingOrderId,
+              transactionId: existingTransaction?.id,
+            });
+            return Response.json({
+              success: true,
+              existingOrder: true,
+              data: {
+                orderId: existingOrderId,
+                transactionId: existingTransaction?.id,
+              },
+              requestId,
+              timings: phaseTimings,
+            });
+          }
+
+          try {
+            await timePhase('cartAvailabilityCheckMs', () =>
+              assertCheckoutCartAvailable({
+                payload: req.payload,
+                customerId: normalizedCustomerId,
+                merchantId: normalizedMerchantId,
+                cartItems: normalizedCartItems,
+              }),
+            );
+          } catch (error) {
+            if (error instanceof CheckoutCartUnavailableError) {
+              return Response.json({
+                success: false,
+                error: error.message,
+                code: 'CHECKOUT_CART_UNAVAILABLE',
+                requestId,
+              }, { status: 409 });
+            }
+            throw error;
+          }
+
           const orderPayload: any = {
             customer: normalizedCustomerId,
             merchant: normalizedMerchantId,
@@ -1203,22 +1292,30 @@ export default buildConfig({
             placed_at: new Date().toISOString(),
           };
 
-          const order = await req.payload.create({
-            collection: 'orders',
-            data: orderPayload,
-            overrideAccess: true,
-          });
+          phaseStartedAt = Date.now();
+          const [order, addressDoc] = await Promise.all([
+            timePhase('orderCreateMs', () =>
+              req.payload.create({
+                collection: 'orders',
+                data: orderPayload,
+                overrideAccess: true,
+              }),
+            ),
+            timePhase('customerAddressReadMs', () =>
+              req.payload.findByID({
+                collection: 'addresses',
+                id: normalizedAddressId,
+                depth: 0,
+                overrideAccess: true,
+              }),
+            ),
+          ]);
+          phaseTimings.orderAndAddressParallelMs = Date.now() - phaseStartedAt;
           const orderId = Number((order as any)?.id ?? (order as any)?.doc?.id ?? 0);
           if (!orderId) {
             throw new Error('Failed to create pending order');
           }
 
-          const addressDoc = await req.payload.findByID({
-            collection: 'addresses',
-            id: normalizedAddressId,
-            depth: 0,
-            overrideAccess: true,
-          });
           const addressText =
             String((addressDoc as any)?.formatted_address || '') ||
             [
@@ -1229,108 +1326,33 @@ export default buildConfig({
               (addressDoc as any)?.country,
             ].filter(Boolean).join(', ') || 'Unknown Address';
 
-          let merchantAddressDoc: any = {};
-          try {
-            const merchant = await req.payload.findByID({
-              collection: 'merchants',
-              id: normalizedMerchantId,
-              depth: 1,
-              overrideAccess: true,
-            });
-            const merchantAddressId = typeof (merchant as any)?.activeAddress === 'object'
-              ? (merchant as any)?.activeAddress?.id
-              : (merchant as any)?.activeAddress;
-            if (merchantAddressId) {
-              merchantAddressDoc = await req.payload.findByID({
-                collection: 'addresses',
-                id: merchantAddressId,
-                depth: 0,
-                overrideAccess: true,
-              });
-            }
-          } catch {
-            merchantAddressDoc = {};
-          }
-
-          await req.payload.create({
-            collection: 'delivery-locations',
-            data: {
-              order: orderId,
-              formatted_address: addressText,
-              coordinates: {
-                lat: Number((addressDoc as any)?.latitude || 0),
-                lng: Number((addressDoc as any)?.longitude || 0),
-              },
+          const snapshotPersistence = await persistCheckoutSnapshots({
+            payload: req.payload,
+            requestId,
+            orderId,
+            customerId: normalizedCustomerId,
+            merchantId: normalizedMerchantId,
+            cartItems: normalizedCartItems,
+            delivery: {
+              formattedAddress: addressText,
+              latitude: Number((addressDoc as any)?.latitude || 0),
+              longitude: Number((addressDoc as any)?.longitude || 0),
               street: (addressDoc as any)?.street || null,
-              floor_unit_room: (addressDoc as any)?.floor_unit_room || null,
-              delivery_instructions: (addressDoc as any)?.delivery_instructions || null,
+              floorUnitRoom: (addressDoc as any)?.floor_unit_room || null,
+              deliveryInstructions: (addressDoc as any)?.delivery_instructions || null,
               notes: (addressDoc as any)?.notes || (addressDoc as any)?.accessibility_notes || null,
-              contact_name: customerName || 'Customer',
-              contact_phone: customerPhone || null,
-              label: (addressDoc as any)?.label || (addressDoc as any)?.address_type || 'home',
-              merchant_formatted_address: merchantAddressDoc?.formatted_address || null,
-              merchant_coordinates:
-                merchantAddressDoc?.latitude && merchantAddressDoc?.longitude
-                  ? { lat: Number(merchantAddressDoc.latitude), lng: Number(merchantAddressDoc.longitude) }
-                  : null,
-              merchant_street: merchantAddressDoc?.street || null,
-              merchant_floor_unit_room: merchantAddressDoc?.floor_unit_room || null,
-              merchant_delivery_instructions: merchantAddressDoc?.delivery_instructions || null,
-              merchant_label: merchantAddressDoc?.label || merchantAddressDoc?.address_type || 'home',
+              contactName: customerName || 'Customer',
+              contactPhone: customerPhone || null,
+              label: (() => {
+                const label = String((addressDoc as any)?.label || (addressDoc as any)?.address_type || '').toLowerCase();
+                return label === 'home' ? 'home' : label === 'office' || label === 'work' ? 'office' : 'other';
+              })(),
             },
-            overrideAccess: true,
           });
+          phaseTimings.orderItemSnapshotValidationMs = snapshotPersistence.validationMs;
+          phaseTimings.checkoutSnapshotWriteMs = snapshotPersistence.writeMs;
 
-          await Promise.all(normalizedCartItems.map(async (item: any) => {
-            const selectedVariation = item?.selectedVariation ?? null;
-            const selectedModifiers = Array.isArray(item?.selectedModifiers) ? item.selectedModifiers : [];
-            const optionsSnapshot = [
-              ...(selectedVariation
-                ? [{
-                    entryType: 'variation',
-                    name: item?.selectedVariationName || `Variation #${selectedVariation}`,
-                    selectedVariationId: selectedVariation,
-                    selectedVariationName: item?.selectedVariationName || undefined,
-                    price: 0,
-                  }]
-                : []),
-              ...selectedModifiers.map((modifier: any) => ({
-                entryType: 'modifier',
-                sourceType: modifier?.source,
-                groupId: modifier?.groupId,
-                groupName: modifier?.groupName,
-                optionId: modifier?.optionId,
-                optionName: modifier?.name,
-                selectedVariationId: selectedVariation || undefined,
-                selectedVariationName: item?.selectedVariationName || undefined,
-                name: modifier?.name || 'Modifier',
-                price: typeof modifier?.price === 'number' ? modifier.price : 0,
-              })),
-            ];
-
-            await req.payload.create({
-              collection: 'order-items',
-              data: {
-                order: orderId,
-                product: item?.product ?? null,
-                merchant_product: item?.merchantProduct || null,
-                product_name_snapshot: item?.productName || 'Item',
-                price_at_purchase: Number(item?.priceAtAdd) || 0,
-                quantity: Number(item?.quantity) || 1,
-                options_snapshot: optionsSnapshot,
-                total_price: Number(item?.subtotal) || 0,
-              },
-              overrideAccess: true,
-            });
-
-            await req.payload.update({
-              collection: 'cart-items',
-              id: item?.id,
-              data: { order_id: orderId },
-              overrideAccess: true,
-            });
-          }));
-
+          phaseStartedAt = Date.now();
           const transaction = await req.payload.create({
             collection: 'transactions',
             data: {
@@ -1343,6 +1365,14 @@ export default buildConfig({
             },
             overrideAccess: true,
           });
+          phaseTimings.transactionCreateMs = Date.now() - phaseStartedAt;
+
+          console.info('[checkout/prepare] completed', {
+            requestId,
+            totalMs: Date.now() - requestStartedAt,
+            cartItemCount: normalizedCartItems.length,
+            ...phaseTimings,
+          });
 
           return Response.json({
             success: true,
@@ -1351,9 +1381,14 @@ export default buildConfig({
               transactionId: (transaction as any)?.id,
             },
             requestId,
+            timings: phaseTimings,
           }, { status: 200 });
         } catch (error) {
-          console.error(`Error in /checkout/prepare [${requestId}]:`, error);
+          console.error(`Error in /checkout/prepare [${requestId}]:`, {
+            totalMs: Date.now() - requestStartedAt,
+            ...phaseTimings,
+            error,
+          });
           return Response.json({
             success: false,
             error: error instanceof Error ? error.message : 'Failed to prepare checkout',
@@ -1367,7 +1402,12 @@ export default buildConfig({
       path: '/create-payment-intent',
       method: 'post',
       handler: (async (req: PayloadRequest) => {
-        const requestId = crypto.randomUUID();
+        const requestedRequestId = req.headers.get('x-request-id');
+        const requestId =
+          requestedRequestId && /^[a-zA-Z0-9_-]{1,64}$/.test(requestedRequestId)
+            ? requestedRequestId
+            : crypto.randomUUID();
+        const requestStartedAt = Date.now();
         try {
           // 1. Authentication Check
           if (!req.user) {
@@ -1464,6 +1504,7 @@ export default buildConfig({
             return Response.json({ error: `Server configuration error: Missing PayMongo Secret Key` }, { status: 500 })
           }
 
+          const paymongoStartedAt = Date.now();
           const response = await fetch('https://api.paymongo.com/v1/payment_intents', {
             method: 'POST',
             headers: {
@@ -1496,6 +1537,11 @@ export default buildConfig({
           });
 
           const data = await response.json();
+          console.info('[create-payment-intent] PayMongo response', {
+            requestId,
+            upstreamMs: Date.now() - paymongoStartedAt,
+            status: response.status,
+          });
 
           if (!response.ok) {
              console.error(`PayMongo Error [${requestId}]:`, JSON.stringify(data));
@@ -1506,13 +1552,26 @@ export default buildConfig({
              return Response.json({ error: errMsg, details: data }, { status: response.status });
           }
 
+          console.info('[create-payment-intent] completed', {
+             requestId,
+             totalMs: Date.now() - requestStartedAt,
+          });
           return Response.json(data);
 
         } catch (error) {
-           console.error(`Error in /create-payment-intent [${requestId}]:`, error);
+           console.error(`Error in /create-payment-intent [${requestId}]:`, {
+             totalMs: Date.now() - requestStartedAt,
+             error,
+           });
            return Response.json({ error: 'Internal server error' }, { status: 500 });
         }
       })
+    },
+
+    {
+      path: '/checkout/payment-resume',
+      method: 'post',
+      handler: checkoutPaymentResumeHandler,
     },
 
     {
