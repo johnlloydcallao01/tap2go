@@ -48,6 +48,11 @@ export const NotificationEvents: CollectionConfig = {
       type: 'text',
     },
     {
+      name: 'idempotency_key',
+      type: 'text',
+      admin: { hidden: true },
+    },
+    {
       name: 'template',
       type: 'relationship',
       relationTo: 'notification-templates',
@@ -113,4 +118,3 @@ export const NotificationEvents: CollectionConfig = {
     },
   ],
 }
-

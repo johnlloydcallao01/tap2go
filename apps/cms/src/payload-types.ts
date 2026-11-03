@@ -809,6 +809,7 @@ export interface NotificationEvent {
   domain: 'order' | 'account' | 'system' | 'marketing' | 'custom';
   sourceEntityType?: string | null;
   sourceEntityId?: string | null;
+  idempotency_key?: string | null;
   template?: (number | null) | NotificationTemplate;
   origin: 'automatic' | 'manual';
   triggeredBy?: (number | null) | User;
@@ -1930,6 +1931,9 @@ export interface Order {
    * Timestamp when order was confirmed
    */
   placed_at: string;
+  checkout_idempotency_key?: string | null;
+  checkout_address_id?: string | null;
+  checkout_context_hash?: string | null;
   /**
    * Lalamove delivery order ID (denormalized for quick lookups)
    */
@@ -2056,6 +2060,7 @@ export interface OrderItem {
    * price_at_purchase * quantity + modifiers
    */
   total_price: number;
+  checkout_cart_item_id?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3724,6 +3729,7 @@ export interface NotificationEventsSelect<T extends boolean = true> {
   domain?: T;
   sourceEntityType?: T;
   sourceEntityId?: T;
+  idempotency_key?: T;
   template?: T;
   origin?: T;
   triggeredBy?: T;
@@ -4046,6 +4052,9 @@ export interface OrdersSelect<T extends boolean = true> {
   free_delivery_applied?: T;
   notes?: T;
   placed_at?: T;
+  checkout_idempotency_key?: T;
+  checkout_address_id?: T;
+  checkout_context_hash?: T;
   lalamove_order_id?: T;
   delivery_service_type?: T;
   delivery_status?: T;
@@ -4066,6 +4075,7 @@ export interface OrderItemsSelect<T extends boolean = true> {
   quantity?: T;
   options_snapshot?: T;
   total_price?: T;
+  checkout_cart_item_id?: T;
   updatedAt?: T;
   createdAt?: T;
 }

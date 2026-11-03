@@ -383,6 +383,21 @@ export const Orders: CollectionConfig = {
         description: 'Timestamp when order was confirmed',
       },
     },
+    {
+      name: 'checkout_idempotency_key',
+      type: 'text',
+      admin: { hidden: true },
+    },
+    {
+      name: 'checkout_address_id',
+      type: 'text',
+      admin: { hidden: true },
+    },
+    {
+      name: 'checkout_context_hash',
+      type: 'text',
+      admin: { hidden: true },
+    },
 
     // ─── Lalamove delivery fields ─────────────────────────────────────────────
     {

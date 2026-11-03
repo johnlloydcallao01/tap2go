@@ -139,6 +139,11 @@ export const OrderItems: CollectionConfig = {
         description: 'price_at_purchase * quantity + modifiers',
       },
     },
+    {
+      name: 'checkout_cart_item_id',
+      type: 'text',
+      admin: { hidden: true },
+    },
   ],
   hooks: {
     beforeValidate: [

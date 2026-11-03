@@ -19,6 +19,7 @@ type NotificationFanoutArgs = {
   body: string
   sourceEntityType?: string
   sourceEntityId?: string | number
+  idempotencyKey?: string
   metadata?: Record<string, unknown>
   priority?: 'info' | 'warning' | 'critical'
 }
@@ -66,6 +67,7 @@ export async function createNotificationFanout({
   body,
   sourceEntityType,
   sourceEntityId,
+  idempotencyKey,
   metadata,
   priority = 'info',
 }: NotificationFanoutArgs) {
@@ -95,7 +97,16 @@ export async function createNotificationFanout({
     // Templates are optional - never fail the fanout over a template lookup.
   }
 
-  const notificationEvent = await payload.create({
+  const existingEvents = idempotencyKey
+    ? await payload.find({
+        collection: 'notification-events',
+        where: { idempotency_key: { equals: idempotencyKey } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+    : null
+  const notificationEvent = existingEvents?.docs[0] ?? await payload.create({
     collection: 'notification-events',
     data: {
       ...(template ? { template } : {}),
@@ -108,12 +119,27 @@ export async function createNotificationFanout({
       priority,
       ...(sourceEntityType ? { sourceEntityType } : {}),
       ...(sourceEntityId != null ? { sourceEntityId: String(sourceEntityId) } : {}),
+      ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
     },
     depth: 0,
     overrideAccess: true,
   })
 
-  const userNotification = await payload.create({
+  const existingNotifications = idempotencyKey
+    ? await payload.find({
+        collection: 'user-notifications',
+        where: {
+          and: [
+            { user: { equals: numericUserId } },
+            { notificationEvent: { equals: notificationEvent.id } },
+          ],
+        },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+    : null
+  const userNotification = existingNotifications?.docs[0] ?? await payload.create({
     collection: 'user-notifications',
     data: {
       user: numericUserId,
