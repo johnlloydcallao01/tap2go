@@ -1,4 +1,14 @@
 import type { CollectionConfig, RelationshipValue } from 'payload'
+import { bustCustomerWishlistCache } from '../utils/dashboardCache'
+
+function getRelationId(value: unknown): string | number | null {
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'id' in value) {
+    const id = (value as { id?: unknown }).id
+    if (typeof id === 'string' || typeof id === 'number') return id
+  }
+  return null
+}
 
 export const Wishlists: CollectionConfig = {
   slug: 'wishlists',
@@ -77,6 +87,24 @@ export const Wishlists: CollectionConfig = {
     { fields: ['user', 'createdAt'] },
   ],
   hooks: {
+    afterChange: [
+      async ({ doc, previousDoc }) => {
+        const affectedUsers = new Set(
+          [getRelationId(doc.user), getRelationId(previousDoc?.user)].filter(
+            (id): id is string | number => id !== null,
+          ),
+        )
+        await Promise.all(Array.from(affectedUsers, bustCustomerWishlistCache))
+        return doc
+      },
+    ],
+    afterDelete: [
+      async ({ doc }) => {
+        const userId = getRelationId(doc.user)
+        if (userId !== null) await bustCustomerWishlistCache(userId)
+        return doc
+      },
+    ],
     beforeValidate: [
       ({ data, req }) => {
         type MutableData = {

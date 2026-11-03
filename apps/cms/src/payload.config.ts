@@ -14,6 +14,7 @@ import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocatio
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
 import { customerHomeOverviewHandler } from './endpoints/customerHomeOverview'
 import { customerCartHandler } from './endpoints/customerCart'
+import { customerWishlistOverviewHandler } from './endpoints/customerWishlistOverview'
 import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
 import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
 import { sendOrderHelp } from './endpoints/sendOrderHelp'
@@ -852,6 +853,11 @@ export default buildConfig({
       path: '/customer/cart',
       method: 'get',
       handler: customerCartHandler,
+    },
+    {
+      path: '/customer/wishlist-overview',
+      method: 'get',
+      handler: customerWishlistOverviewHandler,
     },
     {
       path: '/effective-modifiers',

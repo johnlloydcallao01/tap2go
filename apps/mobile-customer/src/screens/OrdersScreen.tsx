@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { apiConfig } from '../config/environment';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 const OrdersSkeleton = () => {
   return (
@@ -103,8 +103,8 @@ function getEffectiveStatus(order: Order) {
 export default function OrdersScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const userId = user?.id;
+  const forceOrdersRefresh = useRef(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -114,12 +114,22 @@ export default function OrdersScreen() {
   const ordersQuery = useQuery({
     queryKey: ['customer-orders', userId],
     enabled: !!userId,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: async ({ signal }): Promise<Order[]> => {
       if (!userId) throw new Error('A signed-in user is required to load orders');
+      const params = new URLSearchParams({
+        userId: String(userId),
+        view: 'list',
+      });
+      if (forceOrdersRefresh.current) params.set('refresh', 'true');
       const res = await fetch(
-        `${apiConfig.baseUrl}/orders/aggregate?userId=${encodeURIComponent(String(userId))}&view=list`,
-        { headers: { 'Content-Type': 'application/json' }, signal },
+        `${apiConfig.baseUrl}/orders/aggregate?${params.toString()}`,
+        {
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          credentials: 'omit',
+          signal,
+        },
       );
       if (!res.ok) throw new Error('Failed to load orders');
       const data = await res.json();
@@ -159,13 +169,21 @@ export default function OrdersScreen() {
   });
   const orders = ordersQuery.data ?? EMPTY_ORDERS;
   const refetchOrders = ordersQuery.refetch;
+  const refreshOrders = useCallback(async (forceRefresh = false) => {
+    forceOrdersRefresh.current = forceRefresh;
+    try {
+      await refetchOrders();
+    } finally {
+      forceOrdersRefresh.current = false;
+    }
+  }, [refetchOrders]);
   const showSkeleton = ordersQuery.isLoading || ordersQuery.isRefetching;
 
   const filters = ['All', 'pending', 'accepted', 'assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
 
   const handleRefresh = useCallback(async () => {
-    await refetchOrders();
-  }, [refetchOrders]);
+    await refreshOrders(true);
+  }, [refreshOrders]);
 
   const handleCancelOrder = useCallback(async (order: Order) => {
     if (cancelingId) return;
@@ -186,13 +204,13 @@ export default function OrdersScreen() {
         return;
       }
       Alert.alert('Order cancelled', 'Your delivery has been cancelled. The delivery fee was not charged.');
-      await queryClient.invalidateQueries({ queryKey: ['customer-orders', userId] });
+      await refreshOrders(true);
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to cancel the order.');
     } finally {
       setCancelingId(null);
     }
-  }, [cancelingId, queryClient, userId]);
+  }, [cancelingId, refreshOrders]);
 
   const confirmCancel = useCallback((order: Order) => {
     Alert.alert(
@@ -355,7 +373,7 @@ export default function OrdersScreen() {
                 We couldn&apos;t load your orders.
               </Text>
               <TouchableOpacity
-                onPress={() => void ordersQuery.refetch()}
+                onPress={() => void refreshOrders(true)}
                 style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f97316' }}
               >
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Try again</Text>

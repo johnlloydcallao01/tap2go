@@ -106,19 +106,26 @@ export async function removeMerchantFromWishlist(userId: string | number, mercha
   return "removed";
 }
 
-export async function getWishlistDocs(userId: string | number): Promise<WishlistDoc[]> {
+export async function getWishlistDocs(
+  userId: string | number,
+  signal?: AbortSignal,
+  forceRefresh = false,
+): Promise<WishlistDoc[]> {
   if (!userId) return [];
-  const headers = buildHeaders();
-  const params = new URLSearchParams();
-  params.append("where[user][equals]", String(userId));
-  params.append("sort", "-createdAt");
-  params.append("limit", "200");
-  params.append("depth", "3");
-  const url = `${API_BASE}/wishlists?${params.toString()}`;
-  const res = await fetch(url, { headers, cache: "no-store" });
+  const params = new URLSearchParams({ customerId: String(userId) });
+  if (forceRefresh) params.set('refresh', 'true');
+  const res = await fetch(`${API_BASE}/customer/wishlist-overview?${params.toString()}`, {
+    headers: buildHeaders(),
+    cache: 'no-store',
+    credentials: 'omit',
+    signal,
+  });
   if (!res.ok) {
-    throw new Error("Failed to load wishlist");
+    throw new Error(`Failed to load wishlist (${res.status})`);
   }
   const data = await res.json();
-  return Array.isArray(data?.docs) ? data.docs : [];
+  if (!data?.success || !Array.isArray(data?.docs)) {
+    throw new Error(data?.error || 'Invalid wishlist response');
+  }
+  return data.docs as WishlistDoc[];
 }

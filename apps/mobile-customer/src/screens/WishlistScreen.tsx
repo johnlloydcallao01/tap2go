@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import {
+  FlatList,
   View,
   Text,
   TouchableOpacity,
@@ -11,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useWishlist } from '../hooks/useWishlist';
 import LocationMerchantCard from '../components/LocationMerchantCard';
 import { useThemeColors } from '../contexts/ThemeContext';
-import { LocationBasedMerchant, useMerchantAddresses } from '@encreasl/client-services';
+import { LocationBasedMerchant } from '@encreasl/client-services';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
 import { useNavigation } from '../navigation/NavigationContext';
@@ -49,12 +50,6 @@ export default function WishlistScreen() {
       );
   }, [wishlistDocs]);
 
-  const merchantsNeedingAddress = useMemo(
-    () => merchants.filter((merchant) => !getActiveAddressName(merchant)),
-    [merchants],
-  );
-  const { data: addressMap = {} } = useMerchantAddresses(merchantsNeedingAddress);
-
   const handleMerchantPress = (merchant: LocationBasedMerchant) => {
     navigation.navigate('Merchant', { 
       merchantId: merchant.id,
@@ -64,8 +59,7 @@ export default function WishlistScreen() {
   };
 
   const handleRefresh = useCallback(async () => {
-    // Force refetch of wishlist
-    await refetch();
+    await refetch(true);
   }, [refetch]);
 
   const showSkeleton = isLoading || isRefetching;
@@ -94,19 +88,18 @@ export default function WishlistScreen() {
         </Text>
       </View>
 
-      <PullToRefreshLayout 
-        isRefreshing={isRefetching}
-        onRefresh={handleRefresh}
-        contentContainerStyle={contentStyle}
-      >
-        {showSkeleton ? (
-          [1, 2, 3].map(key => (
+      {showSkeleton ? (
+        <PullToRefreshLayout
+          isRefreshing={isRefetching}
+          onRefresh={handleRefresh}
+          contentContainerStyle={contentStyle}
+        >
+          {[1, 2, 3].map(key => (
             <View key={key} style={styles.cardWrapper}>
               <View
                 style={{
                   width: '100%',
-                  // Mimic LocationMerchantCard height roughly
-                  height: width * 0.6, 
+                  height: width * 0.6,
                   borderRadius: 16,
                   backgroundColor: '#F3F4F6',
                   padding: 16,
@@ -117,66 +110,68 @@ export default function WishlistScreen() {
                 <View style={{ width: '40%', height: 16, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
               </View>
             </View>
-          ))
-        ) : isError && merchants.length === 0 ? (
-          <>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="cloud-offline-outline" size={60} color="#9ca3af" />
+          ))}
+        </PullToRefreshLayout>
+      ) : (
+        <FlatList
+          data={merchants}
+          keyExtractor={(merchant) => String(merchant.id)}
+          contentContainerStyle={contentStyle}
+          refreshing={isRefetching}
+          onRefresh={handleRefresh}
+          ListHeaderComponent={isError && merchants.length > 0 ? (
+            <View style={styles.refreshError}>
+              <Text style={styles.refreshErrorText}>Couldn&apos;t refresh your wishlist.</Text>
+              <TouchableOpacity onPress={() => void refetch(true)}>
+                <Text style={styles.refreshErrorAction}>Retry</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              Couldn&apos;t load your wishlist
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              Please check your connection and try again.
-            </Text>
-            <TouchableOpacity onPress={() => void refetch()} style={styles.exploreButton}>
-              <Text style={styles.exploreButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </>
-        ) : merchants.length === 0 ? (
-          <>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="heart-outline" size={60} color="#9ca3af" />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              Your wishlist is empty
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              Save your favorite restaurants to find them easily later!
-            </Text>
-            <TouchableOpacity 
-              onPress={() => navigation.navigate('Home')}
-              style={styles.exploreButton}
-            >
-              <Text style={styles.exploreButtonText}>
-                Explore Restaurants
+          ) : null}
+          ListEmptyComponent={isError ? (
+            <>
+              <View style={styles.emptyIconContainer}>
+                <Ionicons name="cloud-offline-outline" size={60} color="#9ca3af" />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                Couldn&apos;t load your wishlist
               </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            {isError && (
-              <View style={styles.refreshError}>
-                <Text style={styles.refreshErrorText}>Couldn&apos;t refresh your wishlist.</Text>
-                <TouchableOpacity onPress={() => void refetch()}>
-                  <Text style={styles.refreshErrorAction}>Retry</Text>
-                </TouchableOpacity>
+              <Text style={styles.emptySubtitle}>Please check your connection and try again.</Text>
+              <TouchableOpacity onPress={() => void refetch(true)} style={styles.exploreButton}>
+                <Text style={styles.exploreButtonText}>Try Again</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.emptyIconContainer}>
+                <Ionicons name="heart-outline" size={60} color="#9ca3af" />
               </View>
-            )}
-            {merchants.map((merchant) => (
-              <View key={merchant.id} style={styles.cardWrapper}>
-                <LocationMerchantCard
-                  merchant={merchant}
-                  onPress={handleMerchantPress}
-                  addressName={getActiveAddressName(merchant) || addressMap[merchant.id] || null}
-                  isWishlisted={isWishlisted(merchant.id)}
-                  onToggleWishlist={toggleWishlist}
-                />
-              </View>
-            ))}
-          </>
-        )}
-      </PullToRefreshLayout>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                Your wishlist is empty
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Save your favorite restaurants to find them easily later!
+              </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Home')}
+                style={styles.exploreButton}
+              >
+                <Text style={styles.exploreButtonText}>Explore Restaurants</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          renderItem={({ item: merchant }) => (
+            <View style={styles.cardWrapper}>
+              <LocationMerchantCard
+                merchant={merchant}
+                onPress={handleMerchantPress}
+                addressName={getActiveAddressName(merchant)}
+                isWishlisted={isWishlisted(merchant.id)}
+                onToggleWishlist={toggleWishlist}
+              />
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 }

@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { bustCustomerOrdersForOrder } from '../utils/dashboardCache'
 
 export const DeliveryLocations: CollectionConfig = {
   slug: 'delivery-locations',
@@ -26,6 +27,30 @@ export const DeliveryLocations: CollectionConfig = {
     delete: ({ req: { user } }) => {
       return user?.role === 'service' || user?.role === 'admin' || false
     },
+  },
+  hooks: {
+    afterChange: [
+      async ({ doc, req }) => {
+        const orderId = typeof doc.order === 'object' ? doc.order?.id : doc.order
+        if (orderId != null) {
+          void bustCustomerOrdersForOrder(req.payload, orderId).catch((error) =>
+            console.error('[delivery-locations] customer order cache invalidation failed:', error),
+          )
+        }
+        return doc
+      },
+    ],
+    afterDelete: [
+      async ({ doc, req }) => {
+        const orderId = typeof doc.order === 'object' ? doc.order?.id : doc.order
+        if (orderId != null) {
+          void bustCustomerOrdersForOrder(req.payload, orderId).catch((error) =>
+            console.error('[delivery-locations] customer order cache invalidation failed:', error),
+          )
+        }
+        return doc
+      },
+    ],
   },
   fields: [
     {

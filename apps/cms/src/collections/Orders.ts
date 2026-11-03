@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout, createMerchantNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
+import { bustCustomerOrdersForCustomer } from '../utils/dashboardCache'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -105,6 +106,17 @@ export const Orders: CollectionConfig = {
     afterChange: [
       async ({ doc, previousDoc, operation, req }) => {
         try {
+          const affectedCustomers = new Set(
+            [resolveId(doc?.customer), resolveId(previousDoc?.customer)].filter(
+              (id): id is string => id !== null,
+            ),
+          )
+          for (const customerId of affectedCustomers) {
+            void bustCustomerOrdersForCustomer(req.payload, customerId, doc?.id).catch((error) =>
+              console.error('[orders] customer orders cache invalidation failed:', error),
+            )
+          }
+
           const orderId = resolveId(doc?.id) || String(doc?.id ?? '')
           const merchantId = resolveId(doc?.merchant)
           const status = doc?.status ?? null
@@ -230,6 +242,17 @@ export const Orders: CollectionConfig = {
           )
         } catch (error) {
           console.error('[orders] afterChange notification error:', error)
+        }
+        return doc
+      },
+    ],
+    afterDelete: [
+      async ({ doc, req }) => {
+        const customerId = resolveId(doc?.customer)
+        if (customerId) {
+          void bustCustomerOrdersForCustomer(req.payload, customerId, doc?.id).catch((error) =>
+            console.error('[orders] customer orders cache invalidation failed:', error),
+          )
         }
         return doc
       },

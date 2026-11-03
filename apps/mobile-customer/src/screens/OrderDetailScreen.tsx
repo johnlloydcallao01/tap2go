@@ -10,7 +10,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ExpoLinking from 'expo-linking';
@@ -272,12 +272,21 @@ export default function OrderDetailScreen() {
   const [showRiderInfo, setShowRiderInfo] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchOrder = useCallback(async () => {
+  const fetchOrder = useCallback(async (forceRefresh = false) => {
     if (!id || !user?.id) return;
     try {
+      const params = new URLSearchParams({
+        userId: String(user.id),
+        orderId: String(id),
+      });
+      if (forceRefresh) params.set('refresh', 'true');
       const res = await fetch(
-        `${apiConfig.baseUrl}/orders/aggregate?userId=${user.id}&orderId=${id}`,
-        { headers: { 'Content-Type': 'application/json' } },
+        `${apiConfig.baseUrl}/orders/aggregate?${params.toString()}`,
+        {
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          credentials: 'omit',
+        },
       );
       if (!res.ok) throw new Error('Order not found');
       const agg = await res.json();
@@ -392,7 +401,7 @@ export default function OrderDetailScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchOrder();
+      await fetchOrder(true);
     } finally {
       setRefreshing(false);
     }
@@ -405,7 +414,7 @@ export default function OrderDetailScreen() {
       !['delivered', 'completed', 'canceled', 'cancelled', 'expired', 'rejected'].includes(order.status)
     ) {
       pollingRef.current = setInterval(() => {
-        fetchOrder();
+        fetchOrder(true);
       }, 15000);
     }
 
@@ -662,7 +671,7 @@ export default function OrderDetailScreen() {
           <Text style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>
             {error || 'Order not found'}
           </Text>
-          <TouchableOpacity onPress={fetchOrder} style={{ marginTop: 16 }}>
+          <TouchableOpacity onPress={() => void fetchOrder(true)} style={{ marginTop: 16 }}>
             <Text style={{ color: '#f97316', fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -1115,30 +1124,33 @@ export default function OrderDetailScreen() {
       <Modal
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         visible={showRiderInfo}
         onRequestClose={() => setShowRiderInfo(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Information Sent to Rider</Text>
-              <TouchableOpacity
-                onPress={() => setShowRiderInfo(false)}
-                style={styles.modalCloseBtn}
-              >
-                <Ionicons name="close" size={20} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSubtitle}>
-              This is what is shared with the delivery rider when your delivery is
-              booked.
-            </Text>
+        <SafeAreaProvider>
+          <SafeAreaView edges={['bottom']} style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Information Sent to Rider</Text>
+                <TouchableOpacity
+                  onPress={() => setShowRiderInfo(false)}
+                  style={styles.modalCloseBtn}
+                >
+                  <Ionicons name="close" size={20} color="#374151" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalSubtitle}>
+                This is what is shared with the delivery rider when your delivery is
+                booked.
+              </Text>
 
-            <ScrollView
-              contentContainerStyle={styles.modalContent}
-              showsVerticalScrollIndicator={false}
-            >
+              <ScrollView
+                contentContainerStyle={styles.modalContent}
+                showsVerticalScrollIndicator={false}
+              >
               {/* Sender */}
               <View style={styles.infoGroup}>
                 <Text style={styles.infoGroupTitle}>Sender (Pickup)</Text>
@@ -1251,18 +1263,19 @@ export default function OrderDetailScreen() {
                   </View>
                 </View>
               ) : null}
-            </ScrollView>
+              </ScrollView>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.modalDoneBtn}
-                onPress={() => setShowRiderInfo(false)}
-              >
-                <Text style={styles.modalDoneText}>Done</Text>
-              </TouchableOpacity>
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalDoneBtn}
+                  onPress={() => setShowRiderInfo(false)}
+                >
+                  <Text style={styles.modalDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </SafeAreaView>
+        </SafeAreaProvider>
       </Modal>
     </View>
   );

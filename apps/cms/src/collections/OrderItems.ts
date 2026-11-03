@@ -2,7 +2,11 @@ import type { CollectionConfig, Where } from 'payload'
 import { extractRelationshipId } from '../services/modifierUtils'
 import { normalizeOrderItemOptionsSnapshot } from '../services/orderItemSnapshot'
 import { validateOrderItemSnapshot } from '../services/orderItemValidation'
-import { bustOrderItemsCache, bustOrdersCache } from '../utils/dashboardCache'
+import {
+  bustCustomerOrdersForOrder,
+  bustOrderItemsCache,
+  bustOrdersCache,
+} from '../utils/dashboardCache'
 
 export const OrderItems: CollectionConfig = {
   slug: 'order-items',
@@ -182,19 +186,31 @@ export const OrderItems: CollectionConfig = {
       },
     ],
     afterChange: [
-      async () => {
+      async ({ doc, req }) => {
         void Promise.all([
           bustOrderItemsCache().catch(() => undefined),
           bustOrdersCache().catch(() => undefined),
         ])
+        const orderId = typeof doc.order === 'object' ? doc.order?.id : doc.order
+        if (orderId != null) {
+          void bustCustomerOrdersForOrder(req.payload, orderId).catch((error) =>
+            console.error('[order-items] customer orders cache invalidation failed:', error),
+          )
+        }
       },
     ],
     afterDelete: [
-      async () => {
+      async ({ doc, req }) => {
         void Promise.all([
           bustOrderItemsCache().catch(() => undefined),
           bustOrdersCache().catch(() => undefined),
         ])
+        const orderId = typeof doc.order === 'object' ? doc.order?.id : doc.order
+        if (orderId != null) {
+          void bustCustomerOrdersForOrder(req.payload, orderId).catch((error) =>
+            console.error('[order-items] customer orders cache invalidation failed:', error),
+          )
+        }
       },
     ],
   },

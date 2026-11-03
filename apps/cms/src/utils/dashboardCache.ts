@@ -4,6 +4,8 @@
 // Dynamic imports below run only at Next.js runtime, where existing API routes
 // already import '@encreasl/cache' successfully.
 
+import type { Payload } from 'payload'
+
 async function redisGet<T>(key: string): Promise<T | null> {
   try {
     const mod = await import('@encreasl/cache')
@@ -28,6 +30,15 @@ async function redisBustPrefix(prefix: string): Promise<void> {
     await (mod as unknown as { deleteCachedByPrefix: (p: string) => Promise<void> }).deleteCachedByPrefix(prefix)
   } catch {
     // ignore
+  }
+}
+
+async function redisBustKey(key: string): Promise<void> {
+  try {
+    const mod = await import('@encreasl/cache')
+    await (mod as unknown as { deleteCached: (k: string) => Promise<void> }).deleteCached(key)
+  } catch {
+    // TTL convergence is the fallback if Upstash is unavailable.
   }
 }
 
@@ -59,6 +70,75 @@ export async function bustCustomerHomeCache(): Promise<void> {
   const prefix = 'customer:home-overview:'
   bustDashboardL1(prefix)
   await redisBustPrefix(prefix)
+}
+
+export async function bustCustomerWishlistCache(userId: string | number): Promise<void> {
+  const key = `customer:wishlist-overview:v1:${userId}`
+  bustDashboardL1(key)
+  await redisBustKey(key)
+}
+
+export async function bustCustomerOrdersCache(userId: string | number): Promise<void> {
+  const key = `customer:orders-overview:v1:${userId}`
+  bustDashboardL1(key)
+  await redisBustKey(key)
+}
+
+export async function bustCustomerOrderDetailCache(
+  userId: string | number,
+  orderId: string | number,
+): Promise<void> {
+  const key = `customer:order-detail:v1:${userId}:${orderId}`
+  bustDashboardL1(key)
+  await redisBustKey(key)
+}
+
+export async function bustCustomerOrdersForCustomer(
+  payload: Payload,
+  customerId: string | number,
+  orderId?: string | number,
+): Promise<void> {
+  const customer = await payload.findByID({
+    collection: 'customers',
+    id: Number(customerId),
+    depth: 0,
+    overrideAccess: true,
+    select: { user: true },
+  })
+  const user = customer.user
+  const userId =
+    typeof user === 'number' || typeof user === 'string'
+      ? user
+      : user && typeof user === 'object' && 'id' in user
+        ? user.id
+        : null
+  if (typeof userId === 'number' || typeof userId === 'string') {
+    await bustCustomerOrdersCache(userId)
+    if (orderId !== undefined) await bustCustomerOrderDetailCache(userId, orderId)
+  }
+}
+
+export async function bustCustomerOrdersForOrder(
+  payload: Payload,
+  orderId: string | number,
+): Promise<void> {
+  const order = await payload.findByID({
+    collection: 'orders',
+    id: Number(orderId),
+    depth: 0,
+    overrideAccess: true,
+    select: { customer: true },
+  })
+  const customer = order.customer
+  const customerId =
+    typeof customer === 'number' || typeof customer === 'string'
+      ? customer
+      : customer && typeof customer === 'object' && 'id' in customer
+        ? customer.id
+        : null
+  if (typeof customerId === 'number' || typeof customerId === 'string') {
+    await bustCustomerOrdersForCustomer(payload, customerId, orderId)
+  }
 }
 
 export async function bustAnalyticsCache(): Promise<void> {

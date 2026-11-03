@@ -8,7 +8,7 @@ import {
   getWishlistDocs,
 } from '../services/wishlist';
 import type { AccountOverview } from '../services/account';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 export function useWishlist(options?: { includeDocs?: boolean }) {
   // Home/list cards only need IDs for heart state; the 200-doc depth=3
@@ -17,6 +17,7 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id;
+  const forceWishlistRefresh = useRef(false);
 
   const {
     data: queriedWishlistIds = [],
@@ -38,7 +39,10 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
     refetch: refetchDocs
   } = useQuery({
     queryKey: ['wishlist-docs', userId],
-    queryFn: () => userId ? getWishlistDocs(userId) : Promise.resolve([]),
+    queryFn: ({ signal }) =>
+      userId
+        ? getWishlistDocs(userId, signal, forceWishlistRefresh.current)
+        : Promise.resolve([]),
     enabled: !!userId && includeDocs,
   });
 
@@ -48,8 +52,13 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
       : queriedWishlistIds
   ), [includeDocs, wishlistDocs, queriedWishlistIds]);
 
-  const refetch = useCallback(async () => {
-    await (includeDocs ? refetchDocs() : refetchIds());
+  const refetch = useCallback(async (forceRefresh = false) => {
+    if (includeDocs) forceWishlistRefresh.current = forceRefresh;
+    try {
+      await (includeDocs ? refetchDocs() : refetchIds());
+    } finally {
+      forceWishlistRefresh.current = false;
+    }
   }, [refetchIds, refetchDocs, includeDocs]);
 
   const addMutation = useMutation({

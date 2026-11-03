@@ -1,0 +1,31 @@
+Mobile customer performance patterns (2026-11-03)
+
+Use the established Home, Wishlist, Orders, and Order Details implementations as the baseline. Optimize the critical path and response shape first; do not add a parallel API or cache layer when the existing service and cache helper already fit.
+
+Server reads
+- Keep screens on a compact server aggregation endpoint when they need data from multiple collections.
+- Select only fields consumed by the screen, bound collection reads, use the shallowest safe relationship depth, and skip unrelated after-read work such as merchant store-hours calculations.
+- Run independent reads concurrently, batch relationships with `where[id][in]` / `where[order][in]`, then group results once in memory. Avoid serial lookups and N+1 queries.
+- Keep detail and list response shapes distinct when their data needs differ. Do not fetch product images, delivery snapshots, or other detail-only data for list cards.
+
+Caching and correctness
+- Use the existing CMS `getOrBuildDashboard` helper for short-lived server responses. It provides process-local L1 caching, Upstash Redis, and same-key request coalescing.
+- Scope customer data cache keys by user; order-detail keys also include order ID. Keep HTTP responses `private, no-store`.
+- Pair every cached response with targeted invalidation for each source collection that can change it. Wishlist writes invalidate the user's wishlist overview; order, item, transaction, booking, and delivery-location writes invalidate the affected order/list entries.
+- User-initiated refresh and retry must send `refresh=true` and bypass stored server cache. Do not depend on TTL expiry for correctness.
+- Keep React Query keys user-scoped, propagate its abort signal to fetch, and use an explicit short freshness interval where appropriate. Preserve cached data on background errors; surface actionable retry for initial errors.
+
+Mobile rendering and refresh
+- Render large collections with a virtualized list (`FlatList`), not a `ScrollView` that mounts every card.
+- Show skeletons while initial content is loading; avoid rendering placeholder counts or empty states until loading completes.
+- Keep pull-to-refresh connected to a real refetch, and ensure the server refresh bypass is carried through. Preserve existing screen behavior and keep live provider tracking separate from cached order snapshots.
+
+Current implementations
+- Wishlist: `/customer/wishlist-overview`, 60-second server TTL, user invalidation, batched merchant projection, and `FlatList`.
+- Orders list: `/orders/aggregate?view=list`, 30-second per-user server TTL, bounded/projected batched reads, and source-hook invalidation.
+- Order Details: `/orders/aggregate?orderId=...`, 20-second per-user/per-order server TTL, ownership check, projected batched reads, and detail-cache invalidation.
+
+Validation and measurement
+- Run the focused CMS type-check/lint and mobile type-check/lint after implementation; run `git diff --check`.
+- Record cache HIT/STALE/MISS and request duration without logging customer identifiers or sensitive data.
+- Structural reductions in queries or payload size are not measured latency results. Compare representative cold and warm requests and report sample count plus p50/p95 before making numeric performance claims.

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { buildOrderPaymentSummary } from '../../../../services/orderPaymentRecovery'
+import { buildCustomerOrdersOverview } from '../../../../services/customerOrdersOverview'
+import { buildCustomerOrderDetail } from '../../../../services/customerOrderDetail'
+import { getOrBuildDashboard } from '../../../../utils/dashboardCache'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,9 +19,36 @@ export async function GET(request: NextRequest) {
 
     const payload = await getPayload({ config: configPromise })
 
+    if (isListView) {
+      const startedAt = Date.now()
+      const normalizedUserId = Number(userId)
+      if (!Number.isSafeInteger(normalizedUserId) || normalizedUserId <= 0) {
+        return NextResponse.json({ error: 'userId must be a valid positive integer' }, { status: 400 })
+      }
+      const bypassCache = searchParams.get('refresh') === 'true'
+      const cacheKey = `customer:orders-overview:v1:${normalizedUserId}`
+      const { data, status } = await getOrBuildDashboard(
+        cacheKey,
+        30,
+        () => buildCustomerOrdersOverview(payload, normalizedUserId),
+        { bypassCache, awaitRedisWrite: false },
+      )
+      console.info('[orders/aggregate] customer list timing', {
+        cacheStatus: status,
+        orderCount: data.docs.length,
+        durationMs: Date.now() - startedAt,
+      })
+      return NextResponse.json(data, {
+        headers: {
+          'Cache-Control': 'private, no-store',
+          'X-Customer-Orders-Cache': status,
+        },
+      })
+    }
+
     // The list query already scopes through customer.user, so it needs no
     // separate customer lookup. Keep the existing detail path unchanged.
-    if (!isListView) {
+    if (!isListView && !orderId) {
       const { docs: customers } = await payload.find({
         collection: 'customers',
         where: { user: { equals: Number(userId) } },
@@ -29,6 +59,56 @@ export async function GET(request: NextRequest) {
       if (!customers[0]?.id) {
         return NextResponse.json({ docs: [] })
       }
+    }
+
+    if (orderId) {
+      const normalizedUserId = Number(userId)
+      const normalizedOrderId = Number(orderId)
+      if (
+        !Number.isSafeInteger(normalizedUserId) ||
+        normalizedUserId <= 0 ||
+        !Number.isSafeInteger(normalizedOrderId) ||
+        normalizedOrderId <= 0
+      ) {
+        return NextResponse.json({ error: 'userId and orderId must be valid positive integers' }, { status: 400 })
+      }
+
+      const { docs: ownedOrders } = await payload.find({
+        collection: 'orders',
+        where: {
+          and: [
+            { id: { equals: normalizedOrderId } },
+            { 'customer.user': { equals: normalizedUserId } },
+          ],
+        },
+        select: { status: true },
+        depth: 0,
+        limit: 1,
+        pagination: false,
+        overrideAccess: true,
+      })
+      if (ownedOrders.length === 0) return NextResponse.json(null)
+
+      const startedAt = Date.now()
+      const bypassCache = searchParams.get('refresh') === 'true'
+      const cacheKey = `customer:order-detail:v1:${normalizedUserId}:${normalizedOrderId}`
+      const { data, status } = await getOrBuildDashboard(
+        cacheKey,
+        20,
+        () => buildCustomerOrderDetail(payload, normalizedUserId, normalizedOrderId),
+        { bypassCache, awaitRedisWrite: false },
+      )
+      console.info('[orders/aggregate] customer detail timing', {
+        cacheStatus: status,
+        orderId: normalizedOrderId,
+        durationMs: Date.now() - startedAt,
+      })
+      return NextResponse.json(data, {
+        headers: {
+          'Cache-Control': 'private, no-store',
+          'X-Customer-Order-Cache': status,
+        },
+      })
     }
 
     // 2. Fetch orders

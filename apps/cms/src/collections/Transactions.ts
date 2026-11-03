@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { createAdminNotificationFanout, createMerchantNotificationFanout } from '../utils/notificationFanout'
+import { bustCustomerOrdersForOrder } from '../utils/dashboardCache'
 
 export const Transactions: CollectionConfig = {
   slug: 'transactions',
@@ -91,6 +92,12 @@ export const Transactions: CollectionConfig = {
   hooks: {
     afterChange: [
       async ({ doc, previousDoc, operation, req }) => {
+        const orderId = typeof doc.order === 'object' ? doc.order?.id : doc.order
+        if (orderId != null) {
+          void bustCustomerOrdersForOrder(req.payload, orderId).catch((error) =>
+            console.error('[transactions] customer orders cache invalidation failed:', error),
+          )
+        }
         if (operation === 'create' || (operation === 'update' && previousDoc?.status !== doc.status)) {
           const status = doc.status || 'pending'
           const orderId = typeof doc.order === 'object' ? doc.order.id : doc.order
@@ -123,6 +130,17 @@ export const Transactions: CollectionConfig = {
               metadata: { transactionId: doc.id, orderId, status, amount: doc.amount, currency: doc.currency },
             })
           }).catch((error) => console.error('[transactions] merchant notification fanout error:', error))
+        }
+        return doc
+      },
+    ],
+    afterDelete: [
+      async ({ doc, req }) => {
+        const orderId = typeof doc.order === 'object' ? doc.order?.id : doc.order
+        if (orderId != null) {
+          void bustCustomerOrdersForOrder(req.payload, orderId).catch((error) =>
+            console.error('[transactions] customer orders cache invalidation failed:', error),
+          )
         }
         return doc
       },
