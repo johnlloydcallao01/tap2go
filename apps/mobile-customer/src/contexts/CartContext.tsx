@@ -57,6 +57,7 @@ export interface CartContextType {
   loadError: string | null;
   totalQuantity: number;
   reload: () => Promise<void>;
+  markCheckedOut: (itemIds: number[]) => void;
   addToCart: (payload: AddToCartPayload) => Promise<void>;
   removeFromCart: (id: number) => Promise<void>;
   updateQuantity: (id: number, quantity: number) => Promise<void>;
@@ -254,6 +255,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => (snapshotCustomerId === (customerId ? String(customerId) : null) ? items : []),
     [snapshotCustomerId, customerId, items],
   );
+  const markCheckedOut = useCallback((itemIds: number[]) => {
+    const customerKey = customerId ? String(customerId) : null;
+    if (!customerKey || snapshotCustomerId !== customerKey || itemIds.length === 0) return;
+
+    const checkedOutIds = new Set(itemIds);
+    const nextItems = items.filter((item) => !checkedOutIds.has(item.id));
+
+    loadSequenceRef.current += 1;
+    setItems(nextItems);
+    void AsyncStorage.setItem(getCartSnapshotKey(customerKey), JSON.stringify(nextItems))
+      .catch((cacheError) => {
+        console.warn('[CartContext] Failed to persist checked-out cart items:', cacheError);
+      });
+  }, [customerId, items, snapshotCustomerId]);
   const isLoadingForCustomer = Boolean(
     customerId &&
     (isLoading || resolvedCustomerId !== String(customerId)),
@@ -542,6 +557,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     loadError,
     totalQuantity,
     reload: loadCart,
+    markCheckedOut,
     addToCart,
     removeFromCart,
     updateQuantity,

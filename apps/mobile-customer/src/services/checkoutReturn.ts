@@ -213,33 +213,6 @@ export async function clearPendingCheckoutSession(
   await AsyncStorage.removeItem(pendingCheckoutKey(customerId, merchantId));
 }
 
-export async function findActiveCartLinkedOrder(
-  customerId: string,
-  merchantId: string,
-): Promise<string | null> {
-  const headers = buildCmsHeaders();
-  const response = await fetch(
-    `${apiConfig.baseUrl}/cart-items?where[customer][equals]=${customerId}&where[merchant][equals]=${merchantId}&where[status][in]=active,checked_out&limit=200&depth=0`,
-    { headers },
-  );
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = await response.json();
-  const docs = Array.isArray(data?.docs) ? data.docs : [];
-
-  for (const doc of docs) {
-    const orderId = resolveOrderId(doc?.order_id);
-    if (orderId) {
-      return orderId;
-    }
-  }
-
-  return null;
-}
-
 export async function getCheckoutPaymentStatus(args: {
   paymentIntentId?: string;
   orderId?: string;

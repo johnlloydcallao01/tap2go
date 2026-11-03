@@ -8,9 +8,9 @@ import {
 } from '../../src/services/orderPaymentRecovery'
 import {
   findLinkedPendingOrder,
-  findMatchingFailedCheckoutOrder,
 } from '../../src/services/checkoutSnapshotPersistence'
 import { checkoutPaymentResumeHandler } from '../../src/endpoints/checkoutPaymentResume'
+import { paymongoWebhook } from '../../src/endpoints/paymongoWebhook'
 
 describe('pending order payment recovery', () => {
   beforeEach(() => {
@@ -124,6 +124,56 @@ describe('pending order payment recovery', () => {
         status: 'pending',
       }),
     }))
+    expect(request.payload.update).not.toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'cart-items',
+    }))
+  })
+
+  it('keeps checked-out cart items linked to the pending order after payment failure', async () => {
+    vi.stubEnv('PAYMONGO_SECRET_KEY_LIVE', 'test_secret')
+    vi.stubEnv('PAYMONGO_WEBHOOK_SECRET', '')
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      attributes: { status: 'canceled' },
+    })))
+
+    const transaction = {
+      id: 20,
+      order: 17,
+      status: 'pending',
+      payment_intent_id: 'pi_existing',
+    }
+    const payload = {
+      find: vi.fn(async () => ({ docs: [transaction] })),
+      update: vi.fn(async () => transaction),
+    }
+    const req = {
+      headers: new Headers(),
+      text: async () => JSON.stringify({
+        data: {
+          attributes: {
+            type: 'payment.failed',
+            data: {
+              id: 'pay_1',
+              attributes: { payment_intent_id: 'pi_existing' },
+            },
+          },
+        },
+      }),
+      payload,
+    }
+
+    const response = await paymongoWebhook(req as any)
+
+    expect(response.status).toBe(200)
+    expect(payload.update).toHaveBeenCalledTimes(1)
+    expect(payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'transactions',
+      id: 20,
+      data: { status: 'failed' },
+    }))
+    expect(payload.update).not.toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'cart-items',
+    }))
   })
 
   it('does not present a provider-succeeded intent as paid before webhook confirmation', async () => {
@@ -192,55 +242,32 @@ describe('pending order payment recovery', () => {
     })).resolves.toBeNull()
   })
 
-  it('matches an unlinked restored cart to its failed pending order snapshot', async () => {
-    const collections: Record<string, any[]> = {
-      'cart-items': [{
-        id: 9,
-        customer: 2,
-        merchant: 3,
-        status: 'active',
-        order_id: null,
+  it('does not reuse a pending order for a new cart row with the same product snapshot', async () => {
+    const payload = {
+      find: vi.fn(async () => ({ docs: [] })),
+    }
+
+    await expect(findLinkedPendingOrder({
+      payload: payload as any,
+      customerId: 2,
+      merchantId: 3,
+      cartItems: [{
+        id: 10,
         product: 4,
         merchantProduct: 5,
         quantity: 2,
         priceAtAdd: 10,
         subtotal: 20,
-        selectedVariation: null,
-        selectedModifiers: [],
       }],
-      orders: [{ id: 17, status: 'pending' }],
-      transactions: [{ id: 20, order: 17, status: 'failed' }],
-      'order-items': [{
-        id: 30,
-        order: 17,
-        product: 4,
-        merchant_product: 5,
-        quantity: 2,
-        price_at_purchase: 10,
-        total_price: 20,
-        options_snapshot: [],
-      }],
-    }
-    const payload = {
-      find: async ({ collection }: { collection: string }) => ({
-        docs: collections[collection] || [],
-      }),
-    }
-
-    await expect(findMatchingFailedCheckoutOrder({
-      payload: payload as any,
-      customerId: 2,
-      merchantId: 3,
-      cartItems: [{ id: 9 }],
-    })).resolves.toBe(17)
-
-    collections['order-items'][0].total_price = 21
-    await expect(findMatchingFailedCheckoutOrder({
-      payload: payload as any,
-      customerId: 2,
-      merchantId: 3,
-      cartItems: [{ id: 9 }],
     })).resolves.toBeNull()
+    expect(payload.find).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'cart-items',
+      where: expect.objectContaining({
+        and: expect.arrayContaining([
+          { id: { in: [10] } },
+        ]),
+      }),
+    }))
   })
 })
 

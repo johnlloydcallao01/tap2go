@@ -19,6 +19,63 @@ export const Orders: CollectionConfig = {
     description: 'Central entity for all transactions',
   },
   hooks: {
+    beforeDelete: [
+      async ({ id, req }) => {
+        const payments = await req.payload.find({
+          collection: 'transactions',
+          where: {
+            and: [
+              { order: { equals: id } },
+              { status: { in: ['paid', 'refunded'] } },
+            ],
+          },
+          depth: 0,
+          limit: 1,
+          overrideAccess: true,
+          req,
+        })
+
+        if (payments.docs.length > 0) {
+          throw new Error(
+            `Order #${id} has a paid or refunded transaction and cannot be permanently deleted.`,
+          )
+        }
+
+        await req.payload.update({
+          collection: 'cart-items',
+          where: { order_id: { equals: id } },
+          data: {
+            order_id: null,
+            ordered_at: null,
+            status: 'removed',
+            deleted_at: new Date().toISOString(),
+          },
+          overrideAccess: true,
+          req,
+        })
+
+        const dependentCollections = [
+          'order-items',
+          'transactions',
+          'delivery-bookings',
+          'delivery-locations',
+          'order-tracking',
+          'driver-assignments',
+          'order-discounts',
+          'reviews',
+          'coupon-redemptions',
+        ] as const
+
+        for (const collection of dependentCollections) {
+          await req.payload.delete({
+            collection,
+            where: { order: { equals: id } },
+            overrideAccess: true,
+            req,
+          })
+        }
+      },
+    ],
     beforeValidate: [
       ({ data, operation }) => {
         if (!data || typeof data !== 'object') return data

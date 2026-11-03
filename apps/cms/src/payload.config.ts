@@ -30,7 +30,6 @@ import { CouponService, roundMoney } from './services/CouponService'
 import {
   assertCheckoutCartAvailable,
   CheckoutCartUnavailableError,
-  findMatchingFailedCheckoutOrder,
   findLinkedPendingOrder,
   persistCheckoutSnapshots,
 } from './services/checkoutSnapshotPersistence'
@@ -1213,12 +1212,7 @@ export default buildConfig({
           }
 
           const existingOrderId = await timePhase('existingCheckoutLookupMs', async () =>
-            (await findLinkedPendingOrder({
-              payload: req.payload,
-              customerId: normalizedCustomerId,
-              merchantId: normalizedMerchantId,
-              cartItems: normalizedCartItems,
-            })) || findMatchingFailedCheckoutOrder({
+            findLinkedPendingOrder({
               payload: req.payload,
               customerId: normalizedCustomerId,
               merchantId: normalizedMerchantId,

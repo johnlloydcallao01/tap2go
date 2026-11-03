@@ -30,7 +30,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   clearPendingCheckoutSession,
   finalizePaidOrder,
-  findActiveCartLinkedOrder,
   getCheckoutPaymentStatus,
   getPendingCheckoutSession,
   savePendingCheckoutSession,
@@ -115,7 +114,7 @@ export default function CheckoutScreen() {
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
 
-  const { getMerchantCart, reload } = useCart();
+  const { getMerchantCart, isLoading: isCartLoading, markCheckedOut, reload } = useCart();
   const { user, customerId, token } = useAuth();
   const queryClient = useQueryClient();
 
@@ -140,6 +139,8 @@ export default function CheckoutScreen() {
   const hasNavigatedToReturnRef = useRef(false);
 
   const merchantCart = getMerchantCart(String(merchantId));
+  const hasActiveCartItems = Boolean(merchantCart?.items.length);
+  const showExistingPaymentBlock = !hasActiveCartItems && (hasPendingRecovery || isCheckingPaymentState);
   const merchantName = merchantCart?.merchantName || 'Merchant';
   const merchantLogoUrl = merchantCart?.merchantLogoUrl;
   const totalSubtotal = merchantCart?.subtotal || 0;
@@ -293,14 +294,21 @@ export default function CheckoutScreen() {
     try {
       const customerKey = String(customerId);
       const merchantKey = String(merchantId);
-      const pendingSession = await getPendingCheckoutSession(customerKey, merchantKey);
-      const linkedOrderId = await findActiveCartLinkedOrder(customerKey, merchantKey);
+      if (isCartLoading) {
+        setHasPendingRecovery(false);
+        setPendingRecoveryOrderId(null);
+        return;
+      }
 
-      // Keep old local sessions only when their cart is still linked to that same order.
-      if (
-        !pendingSession ||
-        (!isPendingSessionFresh(pendingSession.createdAt) && linkedOrderId !== pendingSession.orderId)
-      ) {
+      if (getMerchantCart(merchantKey)?.items.length) {
+        setHasPendingRecovery(false);
+        setPendingRecoveryOrderId(null);
+        return;
+      }
+
+      const pendingSession = await getPendingCheckoutSession(customerKey, merchantKey);
+
+      if (!pendingSession || !isPendingSessionFresh(pendingSession.createdAt)) {
         if (pendingSession) {
           await clearPendingCheckoutSession(customerKey, merchantKey);
         }
@@ -313,17 +321,16 @@ export default function CheckoutScreen() {
         setIsCheckingPaymentState(true);
       }
 
-      if (linkedOrderId && linkedOrderId !== pendingSession.orderId) {
-        await clearPendingCheckoutSession(customerKey, merchantKey);
-        setHasPendingRecovery(false);
-        setPendingRecoveryOrderId(null);
-        return;
-      }
-
       const paymentStatus = await getCheckoutPaymentStatus({
         paymentIntentId: pendingSession.paymentIntentId,
         orderId: pendingSession.orderId,
       });
+
+      if (getMerchantCart(merchantKey)?.items.length) {
+        setHasPendingRecovery(false);
+        setPendingRecoveryOrderId(null);
+        return;
+      }
 
       if (paymentStatus.status === 'paid') {
         redirectToCheckoutReturn(
@@ -356,7 +363,7 @@ export default function CheckoutScreen() {
         setIsCheckingPaymentState(false);
       }
     }
-  }, [customerId, merchantId, redirectToCheckoutReturn, reload]);
+  }, [customerId, getMerchantCart, isCartLoading, merchantId, redirectToCheckoutReturn, reload]);
 
   useEffect(() => {
     reconcileExistingPayment(true, true).catch(() => undefined);
@@ -683,54 +690,6 @@ export default function CheckoutScreen() {
         }
       };
 
-      const linkedOrderId = await findActiveCartLinkedOrder(
-        String(customerId),
-        String(merchantId),
-      );
-      if (linkedOrderId) {
-        const resumeResponse = await fetch(`${apiConfig.baseUrl}/checkout/payment-resume`, {
-          method: 'POST',
-          headers: cmsHeaders,
-          body: JSON.stringify({ orderId: Number(linkedOrderId), customerId: Number(user.id) }),
-        });
-        const resumeData = await resumeResponse.json().catch(() => ({}));
-        if (!resumeResponse.ok) {
-          throw new Error(resumeData?.error || 'A pending payment was found but could not be resumed.');
-        }
-        if (resumeData.state === 'qr') {
-          navigateToQrPayment(resumeData.qrImage, {
-            paymentIntentId: resumeData.paymentIntentId,
-            orderId: resumeData.orderId,
-          });
-        } else if (resumeData.state === 'redirect') {
-          router.push({
-            pathname: '/checkout/qr',
-            params: {
-              redirectUrl: resumeData.redirectUrl,
-              amount: String(resumeData.amount || orderTotal),
-              merchantId: String(resumeData.merchantId || merchantId),
-              merchantName: resumeData.merchantName || merchantName,
-              paymentIntentId: resumeData.paymentIntentId,
-              orderId: resumeData.orderId,
-            },
-          });
-        } else if (resumeData.state === 'processing') {
-          Alert.alert(
-            'Payment confirmation in progress',
-            resumeData.message || 'Check this order again shortly.',
-          );
-        } else {
-          router.push(`/order/${linkedOrderId}`);
-          Alert.alert(
-            'Pending order found',
-            resumeData.state === 'retry'
-              ? 'Open the order details to continue the existing payment attempt.'
-              : resumeData.message || 'Open the order details for payment recovery options.',
-          );
-        }
-        return;
-      }
-
       // 1. Create Payment Method directly with PayMongo API
       const billing = {
         name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Tap2Go Customer',
@@ -850,6 +809,7 @@ export default function CheckoutScreen() {
       if (!createdOrderId) {
         throw new Error('Checkout preparation returned no order ID');
       }
+      markCheckedOut(merchantCart.items.map((item) => item.id));
       if (preparedCheckout?.existingOrder) {
         await clearPendingCheckoutSession(String(customerId), String(merchantId));
         router.push(`/order/${createdOrderId}`);
@@ -1189,7 +1149,7 @@ export default function CheckoutScreen() {
           </View>
         )}
 
-        {(isCheckingPaymentState || hasPendingRecovery) && (
+        {showExistingPaymentBlock && (
           <View style={styles.section}>
             <View style={styles.processingCard}>
               <View style={styles.processingIconWrap}>
@@ -1344,13 +1304,13 @@ export default function CheckoutScreen() {
           <TouchableOpacity
             style={[
               styles.payButton,
-              (!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
+              (!isFormValid || isPaying || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
                 styles.payButtonDisabled,
             ]}
             onPress={handlePayNow}
-            disabled={!isFormValid || isPaying || hasPendingRecovery || isCheckingPaymentState || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
+            disabled={!isFormValid || isPaying || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
           >
-            {isPaying || isCheckingPaymentState ? (
+            {isPaying || (isCheckingPaymentState && !hasActiveCartItems) ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.payButtonText}>

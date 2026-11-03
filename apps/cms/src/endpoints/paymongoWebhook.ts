@@ -2,7 +2,6 @@ import { PayloadRequest } from 'payload'
 import crypto from 'crypto'
 import { CouponService } from '../services/CouponService'
 import {
-  isLatestFailedPaymentAttempt,
   isTerminalPaymentFailure,
 } from '../services/orderPaymentRecovery'
 
@@ -172,50 +171,9 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
                data: {
                    status: 'failed',
                }
-           });
-           console.log(`Transaction ${transaction.id} updated to failed.`);
-
-           const failedOrder = (transaction as any).order;
-           let failedOrderId: number | string | null = null;
-           let failureIsCurrent = false;
-           if (failedOrder) {
-             failedOrderId = typeof failedOrder === 'object' ? failedOrder.id : failedOrder;
-             const latestAttempts = await req.payload.find({
-               collection: 'transactions',
-               where: { order: { equals: failedOrderId } },
-               sort: '-id',
-               limit: 1,
-               depth: 0,
-               overrideAccess: true,
              });
-             const latestAttempt = latestAttempts.docs[0] as any;
-             failureIsCurrent = isLatestFailedPaymentAttempt(latestAttempt, transaction.id);
-             if (failureIsCurrent) {
-               await req.payload.update({
-                 collection: 'cart-items',
-                 where: {
-                   and: [
-                     { order_id: { equals: failedOrderId } },
-                     { status: { in: ['active', 'checked_out'] } },
-                   ],
-                 },
-                 data: {
-                   status: 'active',
-                   order_id: null,
-                 },
-                 overrideAccess: true,
-               });
-             }
-             }
-
-             // Release held coupon redemptions so limited coupons are not burned.
-           try {
-             if (failedOrder && failureIsCurrent && failedOrderId !== null) {
-               await new CouponService(req.payload).finalizeForOrder(failedOrderId, false);
-             }
-           } catch (couponErr) {
-             console.error('[paymongo/webhook] coupon release error:', couponErr);
-           }
+             console.log(`Transaction ${transaction.id} updated to failed.`);
+             // Keep the cart item and coupon hold linked to the pending order for payment recovery.
        }
      } else if (typeof type === 'string' && type.includes('refund')) {
        // Reverse applied coupon redemptions on refunds (WooCommerce decrease_usage_count parity).

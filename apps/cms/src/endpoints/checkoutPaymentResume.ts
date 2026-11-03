@@ -3,7 +3,6 @@ import {
   classifyPayMongoIntentStatus,
   isOrderOwnedByCustomer,
 } from '../services/orderPaymentRecovery'
-import { relinkRestoredCartForOrder } from '../services/checkoutSnapshotPersistence'
 
 const PAYMENT_METHODS = new Set([
   'qrph',
@@ -246,17 +245,6 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
       (recoveryState === 'terminal' ||
         (recoveryState === 'retryable' && transactionStatus === 'failed'))
     ) {
-      const customerRecordId = Number(relationId(order.customer))
-      const merchantRecordId = Number(relationId(order.merchant))
-      if (customerRecordId > 0 && merchantRecordId > 0) {
-        await relinkRestoredCartForOrder({
-          payload: req.payload,
-          customerId: customerRecordId,
-          merchantId: merchantRecordId,
-          orderId,
-        })
-      }
-
       const method = PAYMENT_METHODS.has(String((transaction as any).payment_method))
         ? String((transaction as any).payment_method)
         : 'qrph'
