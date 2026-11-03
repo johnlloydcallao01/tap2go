@@ -34,6 +34,7 @@ import {
   getPendingCheckoutSession,
   savePendingCheckoutSession,
 } from '../services/checkoutReturn';
+import type { AccountOverview } from '../services/account';
 
 type PaymentMethod =
   | 'card'
@@ -117,6 +118,23 @@ export default function CheckoutScreen() {
   const { getMerchantCart, isLoading: isCartLoading, markCheckedOut, reload } = useCart();
   const { user, customerId, token } = useAuth();
   const queryClient = useQueryClient();
+  const updateAccountOverviewAfterOrder = useCallback((orderTotal: number) => {
+    const userId = user?.id ?? customerId;
+    if (userId == null) return;
+    queryClient.setQueryData<AccountOverview>(
+      ['account-overview', String(userId)],
+      (overview) => overview
+        ? {
+            ...overview,
+            stats: {
+              ...overview.stats,
+              orderCount: overview.stats.orderCount + 1,
+              totalSpent: overview.stats.totalSpent + orderTotal,
+            },
+          }
+        : overview,
+    );
+  }, [customerId, queryClient, user?.id]);
 
   const {
     data: activeAddress = null,
@@ -489,6 +507,7 @@ export default function CheckoutScreen() {
       const orderDataRes = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderDataRes?.error || 'Failed to create order');
       const createdOrderId = orderDataRes.doc.id;
+      updateAccountOverviewAfterOrder(orderTotal);
 
       // 2. Create Delivery Location
       const addrRes = await fetch(`${apiConfig.baseUrl}/addresses/${activeAddressId}`, { headers: cmsHeaders });
@@ -808,6 +827,9 @@ export default function CheckoutScreen() {
       const transactionId = preparedCheckout?.data?.transactionId;
       if (!createdOrderId) {
         throw new Error('Checkout preparation returned no order ID');
+      }
+      if (!preparedCheckout?.existingOrder) {
+        updateAccountOverviewAfterOrder(orderTotal);
       }
       markCheckedOut(merchantCart.items.map((item) => item.id));
       if (preparedCheckout?.existingOrder) {

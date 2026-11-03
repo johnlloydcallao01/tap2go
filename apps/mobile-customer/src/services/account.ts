@@ -25,8 +25,11 @@ function buildHeaders(): Record<string, string> {
   return headers;
 }
 
-async function fetchDocs(url: string): Promise<{ docs: any[]; totalDocs: number }> {
-  const res = await fetch(url, { headers: buildHeaders(), cache: 'no-store' });
+async function fetchDocs(
+  url: string,
+  signal?: AbortSignal,
+): Promise<{ docs: any[]; totalDocs: number }> {
+  const res = await fetch(url, { headers: buildHeaders(), cache: 'no-store', signal });
   if (!res.ok) {
     throw new Error(`Request failed: ${res.status} ${res.statusText}`);
   }
@@ -56,7 +59,11 @@ function resolveMediaUrl(media: any): string | null {
  * - Saved addresses count
  * - Unread in-app notifications count
  */
-export async function fetchAccountOverview(userId: string | number): Promise<AccountOverview> {
+export async function fetchAccountOverview(
+  userId: string | number,
+  signal?: AbortSignal,
+): Promise<AccountOverview> {
+  const encodedUserId = encodeURIComponent(String(userId));
   const [
     customerRes,
     ordersRes,
@@ -65,12 +72,12 @@ export async function fetchAccountOverview(userId: string | number): Promise<Acc
     addressesRes,
     unreadRes,
   ] = await Promise.all([
-    fetchDocs(`${API_BASE}/customers?where[user][equals]=${userId}&depth=2&limit=1`),
-    fetchDocs(`${API_BASE}/orders?where[customer.user][equals]=${userId}&depth=0&sort=-placed_at&limit=100`),
-    fetchDocs(`${API_BASE}/wishlists?where[user][equals]=${userId}&depth=0&limit=1`),
-    fetchDocs(`${API_BASE}/reviews?where[customer.user][equals]=${userId}&depth=0&limit=1`),
-    fetchDocs(`${API_BASE}/addresses?where[user][equals]=${userId}&depth=0&limit=1`),
-    fetchDocs(`${API_BASE}/user-notifications?where[user][equals]=${userId}&where[status][equals]=unread&depth=0&limit=1`),
+    fetchDocs(`${API_BASE}/customers?where[user][equals]=${encodedUserId}&depth=2&limit=1`, signal),
+    fetchDocs(`${API_BASE}/orders?where[customer.user][equals]=${encodedUserId}&depth=0&sort=-placed_at&limit=100&select[total]=true`, signal),
+    fetchDocs(`${API_BASE}/wishlists?where[user][equals]=${encodedUserId}&depth=0&limit=1`, signal),
+    fetchDocs(`${API_BASE}/reviews?where[customer.user][equals]=${encodedUserId}&depth=0&limit=1`, signal),
+    fetchDocs(`${API_BASE}/addresses?where[user][equals]=${encodedUserId}&depth=0&limit=1`, signal),
+    fetchDocs(`${API_BASE}/user-notifications?where[user][equals]=${encodedUserId}&where[status][equals]=unread&depth=0&limit=1`, signal),
   ]);
 
   const totalSpent = ordersRes.docs.reduce((sum: number, order: any) => {

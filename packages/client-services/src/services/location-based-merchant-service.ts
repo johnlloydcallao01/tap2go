@@ -224,25 +224,64 @@ export class LocationBasedMerchantService {
       headers['Authorization'] = `users API-Key ${LocationBasedMerchantService.PAYLOAD_API_KEY}`;
     }
     const base = LocationBasedMerchantService.API_BASE;
-    const jobs = list.map((m) => async () => {
-      const cacheKey = `${CACHE_KEYS.MERCHANTS}-active-address-${m.id}`;
+    const pending = new Map<string, LocationBasedMerchant>();
+    for (const merchant of list) {
+      const id = String(merchant.id);
+      const cacheKey = `${CACHE_KEYS.MERCHANTS}-active-address-${id}`;
       const cached = dataCache.get<string>(cacheKey);
-      if (cached) { out[m.id] = cached; return; }
+      if (cached) {
+        out[id] = cached;
+      } else {
+        pending.set(id, merchant);
+      }
+    }
+
+    if (pending.size === 0) return out;
+
+    const params = new URLSearchParams();
+    params.set('where[id][in]', [...pending.keys()].join(','));
+    params.set('limit', String(pending.size));
+    params.set('depth', '1');
+    params.set('pagination', 'false');
+    params.set('select[id]', 'true');
+    params.set('select[activeAddress]', 'true');
+
+    try {
+      const res = await fetch(`${base}/merchants?${params.toString()}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const docs: Array<{ id?: string | number; activeAddress?: { formatted_address?: string } | null }> =
+          Array.isArray(data?.docs) ? data.docs : [];
+        for (const doc of docs) {
+          if (doc.id === undefined || doc.id === null) continue;
+          const id = String(doc.id);
+          const name = doc.activeAddress?.formatted_address;
+          if (name && typeof name === 'string') {
+            out[id] = name;
+            dataCache.set(`${CACHE_KEYS.MERCHANTS}-active-address-${id}`, name, CACHE_TTL.ACTIVE_ADDRESS);
+          }
+        }
+      }
+    } catch {
+      // Fall back to the existing per-merchant lookup for missing batch results.
+    }
+
+    const missing = [...pending.entries()].filter(([id]) => !out[id]);
+    const jobs = missing.map(([id, merchant]) => async () => {
       try {
-        const res = await fetch(`${base}/merchants/${m.id}?depth=1`, { headers });
+        const res = await fetch(`${base}/merchants/${encodeURIComponent(id)}?depth=1`, { headers });
         if (res.ok) {
           const data = await res.json();
-          const addr = data?.activeAddress;
-          const name = addr?.formatted_address;
+          const name = data?.activeAddress?.formatted_address;
           if (name && typeof name === 'string') {
-            out[m.id] = name;
-            dataCache.set(cacheKey, name, CACHE_TTL.ACTIVE_ADDRESS);
+            out[id] = name;
+            dataCache.set(`${CACHE_KEYS.MERCHANTS}-active-address-${id}`, name, CACHE_TTL.ACTIVE_ADDRESS);
             return;
           }
         }
       } catch {}
-      const lat = (m as any).merchant_latitude ?? (m as any).latitude ?? null;
-      const lng = (m as any).merchant_longitude ?? (m as any).longitude ?? null;
+      const lat = (merchant as any).merchant_latitude ?? (merchant as any).latitude ?? null;
+      const lng = (merchant as any).merchant_longitude ?? (merchant as any).longitude ?? null;
       if (lat != null && lng != null) {
         try {
           const res2 = await fetch(`${base}/addresses?where[latitude][equals]=${lat}&where[longitude][equals]=${lng}&limit=1`, { headers });
@@ -251,8 +290,8 @@ export class LocationBasedMerchantService {
             const doc = j?.docs?.[0];
             const name = doc?.formatted_address;
             if (name && typeof name === 'string') {
-              out[m.id] = name;
-              dataCache.set(cacheKey, name, CACHE_TTL.ACTIVE_ADDRESS);
+              out[id] = name;
+              dataCache.set(`${CACHE_KEYS.MERCHANTS}-active-address-${id}`, name, CACHE_TTL.ACTIVE_ADDRESS);
               return;
             }
           }

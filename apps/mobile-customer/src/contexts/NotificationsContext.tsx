@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { supabaseConfig, isSupabaseRealtimeEnabled } from '../config/environment';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +20,7 @@ import {
   markAllNotificationsAsSeen,
   type NotificationItem,
 } from '../services/notifications';
+import type { AccountOverview } from '../services/account';
 
 interface NotificationsContextValue {
   notifications: NotificationItem[];
@@ -56,6 +58,7 @@ function buildItem(raw: any): NotificationItem | null {
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const userId = user?.id ? String(user.id) : null;
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -66,6 +69,40 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const channelRef = useRef<any>(null);
+
+  const setAccountUnreadCount = useCallback((count: number) => {
+    if (!userId) return;
+    queryClient.setQueryData<AccountOverview>(
+      ['account-overview', userId],
+      (overview) => overview
+        ? {
+            ...overview,
+            stats: {
+              ...overview.stats,
+              unreadNotificationCount: count,
+            },
+          }
+        : overview,
+    );
+  }, [queryClient, userId]);
+  const adjustAccountUnreadCount = useCallback((delta: number) => {
+    if (!userId || delta === 0) return;
+    queryClient.setQueryData<AccountOverview>(
+      ['account-overview', userId],
+      (overview) => overview
+        ? {
+            ...overview,
+            stats: {
+              ...overview.stats,
+              unreadNotificationCount: Math.max(
+                0,
+                overview.stats.unreadNotificationCount + delta,
+              ),
+            },
+          }
+        : overview,
+    );
+  }, [queryClient, userId]);
 
   const loadAll = useCallback(async () => {
     if (!userId) {
@@ -82,22 +119,24 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       setNotifications(docs);
       setUnreadCount(unread);
       setUnseenCount(unseen);
+      setAccountUnreadCount(unread);
     } catch (err) {
       console.error('[NotificationsContext] Failed to load notifications:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [setAccountUnreadCount, userId]);
 
   const syncUnreadOnly = useCallback(async () => {
     if (!userId) return;
     try {
       const count = await fetchUnreadCountApi(userId);
       setUnreadCount(count);
+      setAccountUnreadCount(count);
     } catch {
       // Best-effort - a later poll or realtime event will correct it.
     }
-  }, [userId]);
+  }, [setAccountUnreadCount, userId]);
 
   // Initial load + reload whenever the logged-in user changes.
   useEffect(() => {
@@ -154,6 +193,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
               }
               if (item.status !== 'read') {
                 setUnreadCount((prev) => prev + 1);
+                adjustAccountUnreadCount(1);
               }
             }
           },
@@ -168,6 +208,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
               prev.map((n) => (n.id === id ? { ...n, status: 'read' } : n)),
             );
             setUnreadCount((prev) => Math.max(0, prev - 1));
+            adjustAccountUnreadCount(-1);
           },
         )
         .subscribe((status: string, err?: any) => {
@@ -194,12 +235,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       channelRef.current = null;
       setIsRealtimeConnected(false);
     };
-  }, [userId]);
+  }, [adjustAccountUnreadCount, userId]);
 
   const markAsRead = useCallback(
     async (id: string) => {
       const target = notifications.find((n) => n.id === id);
-      const wasUnread = target?.status !== 'read';
+      const wasUnread = target?.status === 'unread';
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, status: 'read' } : n)),
       );
@@ -208,12 +249,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       }
       try {
         await markNotificationAsRead(id);
+        if (wasUnread) adjustAccountUnreadCount(-1);
       } catch (err) {
         console.error('[NotificationsContext] markAsRead failed:', err);
       }
       syncUnreadOnly();
     },
-    [notifications, syncUnreadOnly],
+    [notifications, syncUnreadOnly, adjustAccountUnreadCount],
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -223,7 +265,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     setNotifications((prev) => prev.map((n) => ({ ...n, status: 'read' })));
     setUnreadCount(0);
     await markNotificationsAsRead(unread.map((n) => n.id));
-  }, [notifications]);
+    adjustAccountUnreadCount(-unread.length);
+  }, [notifications, adjustAccountUnreadCount]);
 
   const markAsUnread = useCallback(async (id: string) => {
     const target = notifications.find((n) => n.id === id);
@@ -236,11 +279,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }
     try {
       await markNotificationAsUnread(id);
+      if (wasRead) adjustAccountUnreadCount(1);
     } catch (err) {
       console.error('[NotificationsContext] markAsUnread failed:', err);
     }
     syncUnreadOnly();
-  }, [notifications, syncUnreadOnly]);
+  }, [notifications, syncUnreadOnly, adjustAccountUnreadCount]);
 
   // Clears the bell badge but keeps notifications unread - Facebook-style.
   const markAllAsSeen = useCallback(async () => {

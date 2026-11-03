@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { apiConfig } from '../config/environment';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const OrdersSkeleton = () => {
   return (
@@ -68,8 +69,6 @@ interface OrderItem {
   id: string | number;
   name: string;
   quantity: number;
-  price: number;
-  image: string;
 }
 
 interface Order {
@@ -90,51 +89,45 @@ interface Order {
   canResumePayment?: boolean;
 }
 
+const EMPTY_ORDERS: Order[] = [];
+const LALAMOVE_STATUSES = ['assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
+
+function getEffectiveStatus(order: Order) {
+  return order.fulfillmentType === 'delivery' &&
+    order.deliveryStatus &&
+    LALAMOVE_STATUSES.includes(order.deliveryStatus)
+      ? order.deliveryStatus
+      : order.status;
+}
+
 export default function OrdersScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+  const userId = user?.id;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(true);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
 
-  const showSkeleton = loading || refreshing;
-
-  const filters = ['All', 'pending', 'accepted', 'assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
-
-  const LALAMOVE_STATUSES = ['assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
-
-  const getEffectiveStatus = (order: Order) =>
-    order.fulfillmentType === 'delivery' &&
-    order.deliveryStatus &&
-    LALAMOVE_STATUSES.includes(order.deliveryStatus)
-      ? order.deliveryStatus
-      : order.status;
-
-  const fetchOrders = useCallback(async () => {
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-
-    try {
+  const ordersQuery = useQuery({
+    queryKey: ['customer-orders', userId],
+    enabled: !!userId,
+    staleTime: 0,
+    queryFn: async ({ signal }): Promise<Order[]> => {
+      if (!userId) throw new Error('A signed-in user is required to load orders');
       const res = await fetch(
-        `${apiConfig.baseUrl}/orders/aggregate?userId=${user.id}`,
-        { headers: { 'Content-Type': 'application/json' } },
+        `${apiConfig.baseUrl}/orders/aggregate?userId=${encodeURIComponent(String(userId))}&view=list`,
+        { headers: { 'Content-Type': 'application/json' }, signal },
       );
       if (!res.ok) throw new Error('Failed to load orders');
       const data = await res.json();
-
-      if (!data.docs || data.docs.length === 0) {
-        setOrders([]);
-        return;
+      if (!Array.isArray(data?.docs)) {
+        throw new Error('Invalid orders response');
       }
 
-      const mappedOrders = data.docs.map((o: any) => {
+      return data.docs.map((o: any) => {
         const placedAtDate = new Date(o.placedAt);
         const formattedDate = !isNaN(placedAtDate.getTime())
           ? placedAtDate.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -151,8 +144,6 @@ export default function OrdersScreen() {
             id: item.id,
             name: item.name || 'Item',
             quantity: item.quantity,
-            price: item.price,
-            image: item.image || 'https://placehold.co/400',
           })),
           restaurant: o.merchant?.name || 'Restaurant',
           merchantLogo: o.merchant?.logo || null,
@@ -164,24 +155,17 @@ export default function OrdersScreen() {
           canResumePayment: o.canResumePayment || false,
         };
       });
+    },
+  });
+  const orders = ordersQuery.data ?? EMPTY_ORDERS;
+  const refetchOrders = ordersQuery.refetch;
+  const showSkeleton = ordersQuery.isLoading || ordersQuery.isRefetching;
 
-      setOrders(mappedOrders);
-    } catch (error) {
-      console.error('Failed to fetch orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id]);
+  const filters = ['All', 'pending', 'accepted', 'assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchOrders();
-    setRefreshing(false);
-  };
+  const handleRefresh = useCallback(async () => {
+    await refetchOrders();
+  }, [refetchOrders]);
 
   const handleCancelOrder = useCallback(async (order: Order) => {
     if (cancelingId) return;
@@ -202,13 +186,13 @@ export default function OrdersScreen() {
         return;
       }
       Alert.alert('Order cancelled', 'Your delivery has been cancelled. The delivery fee was not charged.');
-      fetchOrders();
+      await queryClient.invalidateQueries({ queryKey: ['customer-orders', userId] });
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to cancel the order.');
     } finally {
       setCancelingId(null);
     }
-  }, [cancelingId, fetchOrders]);
+  }, [cancelingId, queryClient, userId]);
 
   const confirmCancel = useCallback((order: Order) => {
     Alert.alert(
@@ -227,12 +211,15 @@ export default function OrdersScreen() {
     order.status !== 'canceled' &&
     ['assigning_driver', 'pending', 'none'].includes(order.deliveryStatus || '');
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.restaurant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === 'All' || getEffectiveStatus(order) === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredOrders = useMemo(() => {
+    const normalizedSearch = searchQuery.toLowerCase();
+    return orders.filter(order => {
+      const matchesSearch = order.restaurant.toLowerCase().includes(normalizedSearch) ||
+                           order.orderNumber.toLowerCase().includes(normalizedSearch);
+      const matchesFilter = selectedFilter === 'All' || getEffectiveStatus(order) === selectedFilter;
+      return matchesSearch && matchesFilter;
+    });
+  }, [orders, searchQuery, selectedFilter]);
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -293,7 +280,7 @@ export default function OrdersScreen() {
           </TouchableOpacity>
         </View>
 
-        <PullToRefreshLayout onRefresh={handleRefresh} isRefreshing={refreshing}>
+        <PullToRefreshLayout onRefresh={handleRefresh} isRefreshing={ordersQuery.isRefetching}>
           {/* Search Bar */}
           <View style={{ padding: 16 }}>
             <View style={{
@@ -361,6 +348,19 @@ export default function OrdersScreen() {
                 Please log in to view your orders.
               </Text>
             </View>
+          ) : ordersQuery.isError && ordersQuery.data === undefined ? (
+            <View style={{ padding: 32, alignItems: 'center' }}>
+              <Ionicons name="cloud-offline-outline" size={48} color="#9ca3af" />
+              <Text style={{ marginTop: 16, color: '#6b7280', fontSize: 16, textAlign: 'center' }}>
+                We couldn&apos;t load your orders.
+              </Text>
+              <TouchableOpacity
+                onPress={() => void ordersQuery.refetch()}
+                style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f97316' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Try again</Text>
+              </TouchableOpacity>
+            </View>
           ) : filteredOrders.length === 0 ? (
             <View style={{ padding: 32, alignItems: 'center' }}>
               <Ionicons name="receipt-outline" size={48} color="#9ca3af" />
@@ -370,6 +370,11 @@ export default function OrdersScreen() {
             </View>
           ) : (
             <View style={{ paddingHorizontal: 16 }}>
+              {ordersQuery.isError && (
+                <View style={{ marginBottom: 16, padding: 12, borderRadius: 8, backgroundColor: '#fef2f2' }}>
+                  <Text style={{ color: '#991b1b' }}>Couldn&apos;t refresh your orders. Showing saved results.</Text>
+                </View>
+              )}
               {filteredOrders.map((order) => (
                 <TouchableOpacity
                   key={order.id}

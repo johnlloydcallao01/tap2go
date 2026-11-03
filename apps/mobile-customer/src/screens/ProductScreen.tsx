@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,6 @@ import ViewCartBar from '../components/shared/ViewCartBar';
 import { formatCurrency } from '../utils/format';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { useQueryClient } from '@tanstack/react-query';
-import { dataCache } from '@encreasl/client-services';
 
 import { useNavigation } from '../navigation/NavigationContext';
 import { useLocalSearchParams } from 'expo-router';
@@ -85,17 +84,22 @@ export default function ProductScreen() {
   const [selectedVariationId, setSelectedVariationId] = useState<string | number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [stagedGroupedItems, setStagedGroupedItems] = useState<Record<string, number>>({});
+  const refreshInProgress = useRef(false);
 
   const onRefresh = useCallback(async () => {
+    if (refreshInProgress.current) return;
+    refreshInProgress.current = true;
     setRefreshing(true);
     try {
       console.log('🔄 ProductScreen: Pull-to-refresh triggered');
-      dataCache.clear();
-      await queryClient.resetQueries({ queryKey: ['product', productId, merchantId] });
+      const queryKey = ['product', productId, merchantId] as const;
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      await queryClient.refetchQueries({ queryKey, exact: true });
     } catch (error) {
       console.error('ProductScreen pull-to-refresh error:', error);
     } finally {
       setRefreshing(false);
+      refreshInProgress.current = false;
     }
   }, [queryClient, productId, merchantId]);
   // Helper function to resolve image URL
@@ -196,6 +200,7 @@ export default function ProductScreen() {
 
   useEffect(() => {
     let isCancelled = false;
+    const controller = new AbortController();
 
     const loadEffectiveModifiers = async () => {
       if (!product) {
@@ -203,9 +208,16 @@ export default function ProductScreen() {
       }
 
       if (isVariableProduct) {
-        if (!selectedVariationId) {
+        if (selectedVariationId === null) {
           setActiveModifierGroups([]);
           setModifierSelection({});
+          return;
+        }
+
+        if (String(selectedVariationId) === String(product.defaultVariationId)) {
+          const groups = product.modifierGroups || [];
+          setActiveModifierGroups(groups);
+          setModifierSelection(buildDefaultModifierSelection(groups));
           return;
         }
 
@@ -214,12 +226,14 @@ export default function ProductScreen() {
             product.id,
             selectedVariationId,
             merchantId,
+            controller.signal,
           );
           if (!isCancelled) {
             setActiveModifierGroups(groups);
             setModifierSelection(buildDefaultModifierSelection(groups));
           }
         } catch (modifierError) {
+          if (controller.signal.aborted) return;
           console.error('Failed to refresh variation modifiers:', modifierError);
           if (!isCancelled) {
             setActiveModifierGroups([]);
@@ -239,6 +253,7 @@ export default function ProductScreen() {
 
     return () => {
       isCancelled = true;
+      controller.abort();
     };
   }, [isVariableProduct, merchantId, product, selectedVariationId]);
 
@@ -555,10 +570,21 @@ export default function ProductScreen() {
     );
   }
 
-  if (error || !product) {
+  if (!product) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={{ color: colors.text }}>Failed to load product details</Text>
+        <TouchableOpacity
+          onPress={() => {
+            void queryClient.refetchQueries({
+              queryKey: ['product', productId, merchantId],
+              exact: true,
+            });
+          }}
+          style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10 }}
+        >
+          <Text style={{ color: colors.primary }}>Try again</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
           <Text style={{ color: colors.primary }}>Go Back</Text>
         </TouchableOpacity>
@@ -575,6 +601,7 @@ export default function ProductScreen() {
       <StatusBar barStyle="light-content" />
 
       <PullToRefreshLayout
+        isRefreshing={refreshing || isRefetching}
         onRefresh={onRefresh}
         contentContainerStyle={{ paddingBottom: bottomContentSpacing }}
       >
@@ -612,6 +639,22 @@ export default function ProductScreen() {
         </View>
 
         <View style={styles.contentContainer}>
+          {error && (
+            <View style={{ marginBottom: 16, padding: 12, borderRadius: 8, backgroundColor: '#fef2f2' }}>
+              <Text style={{ color: '#991b1b' }}>Couldn&apos;t refresh this product. Showing saved information.</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  void queryClient.refetchQueries({
+                    queryKey: ['product', productId, merchantId],
+                    exact: true,
+                  });
+                }}
+                style={{ marginTop: 8, alignSelf: 'flex-start' }}
+              >
+                <Text style={{ color: '#b91c1c', fontWeight: '600' }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={styles.headerRow}>
             <Text style={[styles.title, { color: colors.text }]}>{product.name}</Text>
             <View style={{ alignItems: 'flex-end' }}>

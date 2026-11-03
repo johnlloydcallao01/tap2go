@@ -16,20 +16,44 @@ import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 
 import { useNavigation } from '../navigation/NavigationContext';
 
+type WishlistMerchant = LocationBasedMerchant & {
+  activeAddress?: { formatted_address?: string | null } | null;
+};
+
+function getActiveAddressName(merchant: LocationBasedMerchant): string | null {
+  const activeAddress = (merchant as WishlistMerchant).activeAddress;
+  return typeof activeAddress?.formatted_address === 'string'
+    ? activeAddress.formatted_address
+    : null;
+}
+
 export default function WishlistScreen() {
   const navigation = useNavigation();
-  const { wishlistDocs, isLoading, isRefetching, isWishlisted, toggleWishlist, refetch } = useWishlist();
+  const {
+    wishlistDocs,
+    isLoading,
+    isRefetching,
+    isError,
+    isWishlisted,
+    toggleWishlist,
+    refetch,
+  } = useWishlist({ includeDocs: true });
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
 
   const merchants = useMemo(() => {
     return wishlistDocs
-      .map((doc: any) => doc.merchant)
-      .filter((m: any): m is LocationBasedMerchant => !!m && typeof m === 'object');
+      .map((doc) => doc.merchant)
+      .filter((merchant): merchant is LocationBasedMerchant =>
+        !!merchant && typeof merchant === 'object'
+      );
   }, [wishlistDocs]);
 
-  // Fetch active addresses for merchants
-  const { data: addressMap = {} } = useMerchantAddresses(merchants);
+  const merchantsNeedingAddress = useMemo(
+    () => merchants.filter((merchant) => !getActiveAddressName(merchant)),
+    [merchants],
+  );
+  const { data: addressMap = {} } = useMerchantAddresses(merchantsNeedingAddress);
 
   const handleMerchantPress = (merchant: LocationBasedMerchant) => {
     navigation.navigate('Merchant', { 
@@ -68,11 +92,6 @@ export default function WishlistScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           My Wishlist
         </Text>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>
-            {merchants.length} places
-          </Text>
-        </View>
       </View>
 
       <PullToRefreshLayout 
@@ -99,6 +118,21 @@ export default function WishlistScreen() {
               </View>
             </View>
           ))
+        ) : isError && merchants.length === 0 ? (
+          <>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="cloud-offline-outline" size={60} color="#9ca3af" />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              Couldn&apos;t load your wishlist
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              Please check your connection and try again.
+            </Text>
+            <TouchableOpacity onPress={() => void refetch()} style={styles.exploreButton}>
+              <Text style={styles.exploreButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </>
         ) : merchants.length === 0 ? (
           <>
             <View style={styles.emptyIconContainer}>
@@ -120,17 +154,27 @@ export default function WishlistScreen() {
             </TouchableOpacity>
           </>
         ) : (
-          merchants.map((merchant) => (
-            <View key={merchant.id} style={styles.cardWrapper}>
-              <LocationMerchantCard
-                merchant={merchant}
-                onPress={handleMerchantPress}
-                addressName={addressMap[merchant.id] || null}
-                isWishlisted={isWishlisted(merchant.id)}
-                onToggleWishlist={toggleWishlist}
-              />
-            </View>
-          ))
+          <>
+            {isError && (
+              <View style={styles.refreshError}>
+                <Text style={styles.refreshErrorText}>Couldn&apos;t refresh your wishlist.</Text>
+                <TouchableOpacity onPress={() => void refetch()}>
+                  <Text style={styles.refreshErrorAction}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {merchants.map((merchant) => (
+              <View key={merchant.id} style={styles.cardWrapper}>
+                <LocationMerchantCard
+                  merchant={merchant}
+                  onPress={handleMerchantPress}
+                  addressName={getActiveAddressName(merchant) || addressMap[merchant.id] || null}
+                  isWishlisted={isWishlisted(merchant.id)}
+                  onToggleWishlist={toggleWishlist}
+                />
+              </View>
+            ))}
+          </>
         )}
       </PullToRefreshLayout>
     </View>
@@ -159,17 +203,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
-  },
-  countBadge: {
-    backgroundColor: '#fff3e0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  countText: {
-    color: '#f97316',
-    fontWeight: '600',
-    fontSize: 14,
   },
   listContent: {
     padding: 16,
@@ -222,5 +255,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  refreshError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+  },
+  refreshErrorText: {
+    color: '#991b1b',
+    flex: 1,
+  },
+  refreshErrorAction: {
+    color: '#b91c1c',
+    fontWeight: '600',
+    marginLeft: 12,
   },
 });

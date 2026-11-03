@@ -21,6 +21,7 @@ import {
   ReverseGeocodeDetails,
 } from '../services/geocoding';
 import { invalidateAddressDependentQueries } from '../services/addressQueryInvalidation';
+import type { AccountOverview } from '../services/account';
 
 export default function AddressesScreen() {
   const colors = useThemeColors();
@@ -168,7 +169,22 @@ export default function AddressesScreen() {
             }
 
             setAddresses((prev) => prev.filter((a) => String(a.id) !== id));
-            if (activeAddressId === id) setActiveAddressId(null);
+            queryClient.setQueryData<AccountOverview>(
+              ['account-overview', user?.id == null ? null : String(user.id)],
+              (overview) => overview
+                ? {
+                    ...overview,
+                    stats: {
+                      ...overview.stats,
+                      addressCount: Math.max(0, overview.stats.addressCount - 1),
+                    },
+                  }
+                : overview,
+            );
+            if (activeAddressId === id) {
+              setActiveAddressId(null);
+              await invalidateAddressDependentQueries(queryClient);
+            }
             Alert.alert('Success', 'Address deleted');
           } catch (err) {
             console.error('Failed to delete address:', err);

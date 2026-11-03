@@ -1,7 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
-import { getWishlistMerchantIds, addMerchantToWishlist, removeMerchantFromWishlist, getWishlistDocs } from '../services/wishlist';
-import { useCallback } from 'react';
+import {
+  getWishlistMerchantId,
+  getWishlistMerchantIds,
+  addMerchantToWishlist,
+  removeMerchantFromWishlist,
+  getWishlistDocs,
+} from '../services/wishlist';
+import type { AccountOverview } from '../services/account';
+import { useCallback, useMemo } from 'react';
 
 export function useWishlist(options?: { includeDocs?: boolean }) {
   // Home/list cards only need IDs for heart state; the 200-doc depth=3
@@ -12,20 +19,22 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
   const userId = user?.id;
 
   const {
-    data: wishlistIds = [],
+    data: queriedWishlistIds = [],
     isLoading: isLoadingIds,
     isRefetching: isRefetchingIds,
     refetch: refetchIds
   } = useQuery({
     queryKey: ['wishlist-ids', userId],
     queryFn: () => userId ? getWishlistMerchantIds(userId) : Promise.resolve([]),
-    enabled: !!userId,
+    enabled: !!userId && !includeDocs,
   });
 
   const {
     data: wishlistDocs = [],
     isLoading: isLoadingDocs,
     isRefetching: isRefetchingDocs,
+    isError: isErrorDocs,
+    error: docsError,
     refetch: refetchDocs
   } = useQuery({
     queryKey: ['wishlist-docs', userId],
@@ -33,11 +42,14 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
     enabled: !!userId && includeDocs,
   });
 
+  const wishlistIds = useMemo(() => (
+    includeDocs
+      ? Array.from(new Set(wishlistDocs.map(getWishlistMerchantId).filter((id): id is string => !!id)))
+      : queriedWishlistIds
+  ), [includeDocs, wishlistDocs, queriedWishlistIds]);
+
   const refetch = useCallback(async () => {
-    await Promise.all([
-      refetchIds(),
-      ...(includeDocs ? [refetchDocs()] : []),
-    ]);
+    await (includeDocs ? refetchDocs() : refetchIds());
   }, [refetchIds, refetchDocs, includeDocs]);
 
   const addMutation = useMutation({
@@ -63,9 +75,20 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
         queryClient.setQueryData(['wishlist-ids', userId], context.previousIds);
       }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['wishlist-ids', userId] });
       queryClient.invalidateQueries({ queryKey: ['wishlist-docs', userId] });
+      if (result === 'added' && userId != null) {
+        queryClient.setQueryData<AccountOverview>(
+          ['account-overview', String(userId)],
+          (overview) => overview
+            ? {
+                ...overview,
+                stats: { ...overview.stats, favoriteCount: overview.stats.favoriteCount + 1 },
+              }
+            : overview,
+        );
+      }
     },
   });
 
@@ -76,24 +99,50 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
     },
     onMutate: async (merchantId) => {
       // Cancel any in-flight refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: ['wishlist-ids', userId] });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['wishlist-ids', userId] }),
+        queryClient.cancelQueries({ queryKey: ['wishlist-docs', userId] }),
+      ]);
       // Snapshot the previous value for rollback
       const previousIds = queryClient.getQueryData<string[]>(['wishlist-ids', userId]);
+      const previousDocs = queryClient.getQueryData<Awaited<ReturnType<typeof getWishlistDocs>>>(['wishlist-docs', userId]);
       // Optimistically remove the merchant id from the cache immediately
       queryClient.setQueryData<string[]>(['wishlist-ids', userId], (old = []) =>
         old.filter((id) => id !== String(merchantId))
       );
-      return { previousIds };
+      if (previousDocs !== undefined) {
+        queryClient.setQueryData(['wishlist-docs', userId], previousDocs.filter(
+          (doc) => getWishlistMerchantId(doc) !== String(merchantId)
+        ));
+      }
+      return { previousIds, previousDocs };
     },
     onError: (_err, _merchantId, context) => {
       // Roll back to the snapshot on failure
       if (context?.previousIds !== undefined) {
         queryClient.setQueryData(['wishlist-ids', userId], context.previousIds);
       }
+      if (context?.previousDocs !== undefined) {
+        queryClient.setQueryData(['wishlist-docs', userId], context.previousDocs);
+      }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['wishlist-ids', userId] });
       queryClient.invalidateQueries({ queryKey: ['wishlist-docs', userId] });
+      if (result === 'removed' && userId != null) {
+        queryClient.setQueryData<AccountOverview>(
+          ['account-overview', String(userId)],
+          (overview) => overview
+            ? {
+                ...overview,
+                stats: {
+                  ...overview.stats,
+                  favoriteCount: Math.max(0, overview.stats.favoriteCount - 1),
+                },
+              }
+            : overview,
+        );
+      }
     },
   });
 
@@ -116,8 +165,10 @@ export function useWishlist(options?: { includeDocs?: boolean }) {
   return {
     wishlistIds,
     wishlistDocs,
-    isLoading: isLoadingIds || isLoadingDocs,
-    isRefetching: isRefetchingIds || isRefetchingDocs,
+    isLoading: includeDocs ? isLoadingDocs : isLoadingIds,
+    isRefetching: includeDocs ? isRefetchingDocs : isRefetchingIds,
+    isError: includeDocs ? isErrorDocs : false,
+    error: includeDocs ? docsError : null,
     toggleWishlist,
     isWishlisted,
     isToggling: addMutation.isPending || removeMutation.isPending,

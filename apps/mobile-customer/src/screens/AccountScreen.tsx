@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
-import { fetchAccountOverview, AccountOverview, asObject } from '../services/account';
+import { fetchAccountOverview, asObject } from '../services/account';
 import { formatCurrency } from '../utils/format';
 
 const AccountSkeleton = () => {
@@ -115,8 +116,19 @@ export default function AccountScreen() {
   const { user, customerId, logout } = useAuth();
   const router = useRouter();
 
-  const [overview, setOverview] = useState<AccountOverview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const userId = user?.id ?? customerId;
+  const accountOverviewUserId = userId == null ? null : String(userId);
+  const overviewQuery = useQuery({
+    queryKey: ['account-overview', accountOverviewUserId],
+    enabled: !!userId,
+    queryFn: ({ signal }) => {
+      if (!userId) throw new Error('A signed-in user is required to load account details');
+      return fetchAccountOverview(userId, signal);
+    },
+  });
+  const overview = overviewQuery.data;
+  const refreshInProgress = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const displayName =
@@ -139,34 +151,22 @@ export default function AccountScreen() {
     activeAddress?.formattedAddress ||
     null;
 
-  const loadData = useCallback(async () => {
-    const userId = user?.id ?? customerId;
-    if (!userId) {
-      setOverview(null);
-      setLoading(false);
-      return;
-    }
-    try {
-      const data = await fetchAccountOverview(userId);
-      setOverview(data);
-    } catch (err) {
-      console.error('Failed to load account overview:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, customerId]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
+    if (refreshInProgress.current || !userId || !accountOverviewUserId) return;
+    refreshInProgress.current = true;
     setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
+    try {
+      const queryKey = ['account-overview', accountOverviewUserId] as const;
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      await queryClient.refetchQueries({ queryKey, exact: true });
+    } finally {
+      setRefreshing(false);
+      refreshInProgress.current = false;
+    }
+  }, [accountOverviewUserId, queryClient, userId]);
 
-  const showSkeleton = loading || refreshing;
+  const isRefreshing = refreshing || overviewQuery.isRefetching;
+  const showSkeleton = overviewQuery.isLoading || isRefreshing;
 
   if (showSkeleton) {
     return (
@@ -186,7 +186,7 @@ export default function AccountScreen() {
               Account
             </Text>
           </View>
-          <PullToRefreshLayout isRefreshing={refreshing} onRefresh={handleRefresh}>
+          <PullToRefreshLayout isRefreshing={isRefreshing} onRefresh={handleRefresh}>
             <AccountSkeleton />
           </PullToRefreshLayout>
         </View>
@@ -253,7 +253,36 @@ export default function AccountScreen() {
           </Text>
         </View>
 
-        <PullToRefreshLayout isRefreshing={refreshing} onRefresh={handleRefresh}>
+        <PullToRefreshLayout isRefreshing={isRefreshing} onRefresh={handleRefresh}>
+          {overviewQuery.isError && (
+            <View
+              accessibilityRole="alert"
+              style={{
+                marginHorizontal: 16,
+                marginTop: 16,
+                padding: 12,
+                borderRadius: 8,
+                backgroundColor: '#fef2f2',
+              }}
+            >
+              <Text style={{ color: '#991b1b' }}>
+                {overview
+                  ? 'Couldn&apos;t refresh your account. Showing saved information.'
+                  : 'Couldn&apos;t load your account. Check your connection and try again.'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  void queryClient.refetchQueries({
+                    queryKey: ['account-overview', accountOverviewUserId],
+                    exact: true,
+                  });
+                }}
+                style={{ marginTop: 8, alignSelf: 'flex-start' }}
+              >
+                <Text style={{ color: '#b91c1b', fontWeight: '600' }}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {/* Profile Card */}
           <View
             style={{

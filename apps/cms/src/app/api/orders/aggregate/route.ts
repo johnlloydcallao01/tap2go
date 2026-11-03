@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
     const orderId = searchParams.get('orderId')
+    const isListView = searchParams.get('view') === 'list' && !orderId
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
@@ -15,16 +16,19 @@ export async function GET(request: NextRequest) {
 
     const payload = await getPayload({ config: configPromise })
 
-    // 1. Resolve customer from userId
-    const { docs: customers } = await payload.find({
-      collection: 'customers',
-      where: { user: { equals: Number(userId) } },
-      limit: 1,
-      overrideAccess: true,
-    })
-    const customerId = customers[0]?.id
-    if (!customerId) {
-      return NextResponse.json({ docs: [] })
+    // The list query already scopes through customer.user, so it needs no
+    // separate customer lookup. Keep the existing detail path unchanged.
+    if (!isListView) {
+      const { docs: customers } = await payload.find({
+        collection: 'customers',
+        where: { user: { equals: Number(userId) } },
+        limit: 1,
+        pagination: false,
+        overrideAccess: true,
+      })
+      if (!customers[0]?.id) {
+        return NextResponse.json({ docs: [] })
+      }
     }
 
     // 2. Fetch orders
@@ -36,8 +40,18 @@ export async function GET(request: NextRequest) {
       collection: 'orders',
       where: orderWhere,
       sort: '-placed_at',
-      depth: 2,
+      depth: isListView ? 3 : 2,
       limit: orderId ? 1 : 100,
+      pagination: false,
+      ...(isListView ? {
+        select: {
+          status: true,
+          fulfillment_type: true,
+          total: true,
+          placed_at: true,
+          merchant: true,
+        },
+      } : {}),
       overrideAccess: true,
     })
 
@@ -53,8 +67,16 @@ export async function GET(request: NextRequest) {
       payload.find({
         collection: 'order-items',
         where: { order: { in: orderIds as number[] } },
-        depth: 1,
+        depth: isListView ? 0 : 1,
         limit: 500,
+        pagination: false,
+        ...(isListView ? {
+          select: {
+            order: true,
+            product_name_snapshot: true,
+            quantity: true,
+          },
+        } : {}),
         overrideAccess: true,
       }),
       payload.find({
@@ -62,28 +84,65 @@ export async function GET(request: NextRequest) {
         where: { order: { in: orderIds as number[] } },
         depth: 0,
         limit: 200,
+        pagination: false,
+        ...(isListView ? {
+          select: {
+            order: true,
+            status: true,
+            priority_fee: true,
+          },
+        } : {}),
         overrideAccess: true,
       }),
-      payload.find({
-        collection: 'delivery-locations',
-        where: { order: { in: orderIds as number[] } },
-        depth: 0,
-        limit: 200,
-        overrideAccess: true,
-      }),
+      isListView
+        ? Promise.resolve({ docs: [] })
+        : payload.find({
+            collection: 'delivery-locations',
+            where: { order: { in: orderIds as number[] } },
+            depth: 0,
+            limit: 200,
+            pagination: false,
+            overrideAccess: true,
+          }),
       payload.find({
         collection: 'transactions',
         where: { order: { in: orderIds as number[] } },
         sort: '-id',
         depth: 0,
         limit: 500,
+        pagination: false,
+        ...(isListView ? {
+          select: {
+            order: true,
+            status: true,
+            payment_method: true,
+          },
+        } : {}),
         overrideAccess: true,
       }),
     ])
 
-    const allItems = itemsRes.docs
-    const allBookings = bookingsRes.docs
-    const allLocations = locationsRes.docs
+    const itemsByOrder = new Map<number, any[]>()
+    for (const item of itemsRes.docs as any[]) {
+      const orderValue = typeof item.order === 'object' ? item.order.id : item.order
+      const normalizedOrderId = Number(orderValue)
+      const groupedItems = itemsByOrder.get(normalizedOrderId) || []
+      groupedItems.push(item)
+      itemsByOrder.set(normalizedOrderId, groupedItems)
+    }
+
+    const bookingsByOrder = new Map<number, any>()
+    for (const booking of bookingsRes.docs as any[]) {
+      const orderValue = typeof booking.order === 'object' ? booking.order.id : booking.order
+      bookingsByOrder.set(Number(orderValue), booking)
+    }
+
+    const locationsByOrder = new Map<number, any>()
+    for (const location of locationsRes.docs as any[]) {
+      const orderValue = typeof location.order === 'object' ? location.order.id : location.order
+      locationsByOrder.set(Number(orderValue), location)
+    }
+
     const transactionsByOrder = new Map<number, any[]>()
     for (const transaction of txRes.docs as any[]) {
       const oid = typeof transaction.order === 'object' ? transaction.order.id : transaction.order
@@ -98,17 +157,15 @@ export async function GET(request: NextRequest) {
       const merchant = order.merchant && typeof order.merchant === 'object' ? order.merchant : null
       const vendor = merchant?.vendor && typeof merchant.vendor === 'object' ? merchant.vendor : null
 
-      const items = allItems
-        .filter((item: any) => {
-          const oid = typeof item.order === 'object' ? item.order.id : item.order
-          return Number(oid) === Number(order.id)
-        })
-        .map((item: any) => {
+      const items = (itemsByOrder.get(Number(order.id)) || []).map((item: any) => {
           const product = item.product && typeof item.product === 'object' ? item.product : null
-          return {
+          const mappedItem = {
             id: item.id,
             name: item.product_name_snapshot || product?.name || product?.productName || 'Item',
             quantity: item.quantity || 1,
+          }
+          return isListView ? mappedItem : {
+            ...mappedItem,
             price: item.price_at_purchase || 0,
             total: item.total_price || 0,
             image: product?.media?.primaryImage?.cloudinaryURL
@@ -119,19 +176,34 @@ export async function GET(request: NextRequest) {
           }
         })
 
-      const booking = allBookings.find((b: any) => {
-        const oid = typeof b.order === 'object' ? b.order.id : b.order
-        return Number(oid) === Number(order.id)
-      })
-
-      const location = allLocations.find((l: any) => {
-        const oid = typeof l.order === 'object' ? l.order.id : l.order
-        return Number(oid) === Number(order.id)
-      })
+      const booking = bookingsByOrder.get(Number(order.id))
+      const location = locationsByOrder.get(Number(order.id))
       const paymentSummary = buildOrderPaymentSummary(
         order.status,
         transactionsByOrder.get(Number(order.id)) || [],
       )
+
+      if (isListView) {
+        return {
+          id: order.id,
+          orderNumber: `#${String(order.id).padStart(5, '0')}`,
+          status: order.status || 'pending',
+          fulfillmentType: order.fulfillment_type,
+          total: order.total || 0,
+          placedAt: order.placed_at || null,
+          ...paymentSummary,
+          merchant: merchant ? {
+            id: merchant.id,
+            name: merchant.outletName || merchant.name || vendor?.businessName || 'Restaurant',
+            logo: vendor?.logo?.cloudinaryURL || vendor?.logo?.url || null,
+          } : null,
+          items,
+          delivery: booking ? {
+            status: booking.status || null,
+            priorityFee: booking.priority_fee || 0,
+          } : null,
+        }
+      }
 
       return {
         id: order.id,

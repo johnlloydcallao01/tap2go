@@ -37,5 +37,6 @@ export async function invalidateAddressDependentQueries(
     queryClient.resetQueries({ queryKey: MARKETPLACE_CATEGORY_KEYS.all }),
     // Home BFF overview (single endpoint drives home sections).
     queryClient.resetQueries({ queryKey: HOME_OVERVIEW_KEYS.all }),
+    queryClient.invalidateQueries({ queryKey: ['account-overview'] }),
   ]);
 }

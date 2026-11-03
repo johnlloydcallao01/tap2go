@@ -3,12 +3,33 @@ import { apiConfig } from '../config/environment';
 const API_BASE = apiConfig.baseUrl;
 const API_KEY = apiConfig.payloadApiKey;
 
+export interface WishlistDoc {
+  id?: string | number;
+  merchant?: unknown;
+}
+
 function buildHeaders(): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (API_KEY) {
     headers["Authorization"] = `users API-Key ${API_KEY}`;
   }
   return headers;
+}
+
+export function getWishlistMerchantId(doc: WishlistDoc): string | null {
+  const merchant = doc.merchant;
+  if (typeof merchant === "number" || typeof merchant === "string") {
+    return String(merchant);
+  }
+  if (
+    merchant &&
+    typeof merchant === "object" &&
+    "id" in merchant &&
+    (typeof merchant.id === "number" || typeof merchant.id === "string")
+  ) {
+    return String(merchant.id);
+  }
+  return null;
 }
 
 export async function getWishlistMerchantIds(userId: string | number): Promise<string[]> {
@@ -23,17 +44,8 @@ export async function getWishlistMerchantIds(userId: string | number): Promise<s
     const res = await fetch(url, { headers, cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
-    const docs: any[] = Array.isArray(data?.docs) ? data.docs : [];
-    const ids = docs
-      .map((doc) => {
-        const m = (doc as any).merchant;
-        if (!m) return null;
-        if (typeof m === "number") return String(m);
-        if (typeof m === "string") return m;
-        const mid = (m as any).id;
-        return mid ? String(mid) : null;
-      })
-      .filter((v): v is string => typeof v === "string" && v.length > 0);
+    const docs: WishlistDoc[] = Array.isArray(data?.docs) ? data.docs : [];
+    const ids = docs.map(getWishlistMerchantId).filter((id): id is string => !!id);
     return Array.from(new Set(ids));
   } catch {
     return [];
@@ -94,7 +106,7 @@ export async function removeMerchantFromWishlist(userId: string | number, mercha
   return "removed";
 }
 
-export async function getWishlistDocs(userId: string | number): Promise<any[]> {
+export async function getWishlistDocs(userId: string | number): Promise<WishlistDoc[]> {
   if (!userId) return [];
   const headers = buildHeaders();
   const params = new URLSearchParams();
@@ -103,13 +115,10 @@ export async function getWishlistDocs(userId: string | number): Promise<any[]> {
   params.append("limit", "200");
   params.append("depth", "3");
   const url = `${API_BASE}/wishlists?${params.toString()}`;
-  try {
-    const res = await fetch(url, { headers, cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const docs: any[] = Array.isArray(data?.docs) ? data.docs : [];
-    return docs;
-  } catch {
-    return [];
+  const res = await fetch(url, { headers, cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Failed to load wishlist");
   }
+  const data = await res.json();
+  return Array.isArray(data?.docs) ? data.docs : [];
 }

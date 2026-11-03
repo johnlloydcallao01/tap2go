@@ -27,7 +27,7 @@ import {
   getMerchantMenuClient,
   MerchantProductDisplay,
   MerchantCategoryDisplay,
-  dataCache
+  clearMerchantDataCache
 } from '@encreasl/client-services';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '../contexts/CartContext';
@@ -101,6 +101,7 @@ export default function MerchantScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | string | null>(null);
+  const refreshInProgress = useRef(false);
   const sectionListRef = useRef<SectionList>(null);
   const stickyCategoryListRef = useRef<FlatList>(null);
   const headerCategoryListRef = useRef<FlatList>(null);
@@ -184,23 +185,21 @@ export default function MerchantScreen() {
   });
 
   // 1. Fetch Merchant Details
-  const { data: merchant, isLoading: isLoadingMerchant, isRefetching: isRefetchingMerchant } = useQuery({
+  const merchantQuery = useQuery({
     queryKey: ['merchant', merchantId],
-    queryFn: () => getMerchantByIdClient(String(merchantId)),
+    queryFn: ({ signal }) => getMerchantByIdClient(String(merchantId), signal),
     enabled: !!merchantId,
+    staleTime: 1000 * 60 * 15,
   });
+  const merchant = merchantQuery.data;
+  const isLoadingMerchant = merchantQuery.isLoading;
+  const isRefetchingMerchant = merchantQuery.isRefetching;
 
   // 2. Fetch Merchant Menu with Infinite Scroll
-  const {
-    data: menuData,
-    isLoading: isLoadingMenu,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isRefetching: isRefetchingMenu
-  } = useInfiniteQuery({
-    queryKey: ['merchant-menu', merchantId],
-    queryFn: ({ pageParam = 1 }) => getMerchantMenuClient(String(merchantId), pageParam, 20),
+  const merchantMenuQuery = useInfiniteQuery({
+    queryKey: ['merchant-menu', merchantId, 20],
+    queryFn: ({ pageParam = 1, signal }) =>
+      getMerchantMenuClient(String(merchantId), pageParam, 20, signal),
     getNextPageParam: (lastPage) => {
       if (lastPage.pagination?.hasNextPage) {
         return lastPage.pagination.page + 1;
@@ -209,32 +208,54 @@ export default function MerchantScreen() {
     },
     initialPageParam: 1,
     enabled: !!merchantId,
+    staleTime: 1000 * 60 * 5,
   });
+  const {
+    data: menuData,
+    isLoading: isLoadingMenu,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isRefetching: isRefetchingMenu,
+  } = merchantMenuQuery;
 
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = useCallback(async () => {
+    if (refreshInProgress.current) return;
+    refreshInProgress.current = true;
     setRefreshing(true);
     try {
       console.log('🔄 MerchantScreen: Pull-to-refresh triggered');
 
-      // Clear internal service memory cache to ensure fresh data fetch
-      dataCache.clear();
+      clearMerchantDataCache(String(merchantId));
 
-      // Reset queries to clear cache and force fresh fetch (same pattern as HomeScreen)
+      // Cancel only this merchant's detail/menu reads before forcing fresh data.
       await Promise.all([
-        queryClient.resetQueries({ queryKey: ['merchant', merchantId] }),
-        queryClient.resetQueries({ queryKey: ['merchant-menu', merchantId] }),
+        queryClient.cancelQueries({ queryKey: ['merchant', merchantId], exact: true }),
+        queryClient.cancelQueries({ queryKey: ['merchant-menu', merchantId, 20], exact: true }),
+      ]);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['merchant', merchantId], exact: true }),
+        queryClient.refetchQueries({ queryKey: ['merchant-menu', merchantId, 20], exact: true }),
       ]);
     } catch (error) {
       console.error('MerchantScreen pull-to-refresh error:', error);
     } finally {
       setRefreshing(false);
+      refreshInProgress.current = false;
     }
   }, [queryClient, merchantId]);
 
   const isRefreshing = refreshing || isRefetchingMerchant || isRefetchingMenu;
   const isLoading = isLoadingMerchant || isLoadingMenu;
+  const hasRefreshError =
+    !!merchant &&
+    (merchantQuery.isError || merchantMenuQuery.isError);
+  const hasInitialLoadError =
+    !isLoading &&
+    !merchant &&
+    (merchantQuery.isError || merchantMenuQuery.isError);
 
   // 3. Group Products by Category and Chunk for Grid
   const { sections, categories, allProducts } = useMemo(() => {
@@ -489,6 +510,19 @@ export default function MerchantScreen() {
 
     return (
       <View style={{ backgroundColor: '#fff', paddingBottom: 10 }}>
+        {hasRefreshError && (
+          <View style={{ margin: 16, marginBottom: 0, padding: 12, borderRadius: 8, backgroundColor: '#fef2f2' }}>
+            <Text style={{ color: '#991b1b' }}>Couldn&apos;t refresh this merchant. Showing saved information.</Text>
+            <TouchableOpacity
+              onPress={() => {
+                void Promise.all([merchantQuery.refetch(), merchantMenuQuery.refetch()]);
+              }}
+              style={{ marginTop: 8, alignSelf: 'flex-start' }}
+            >
+              <Text style={{ color: '#b91c1c', fontWeight: '600' }}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {/* Cover Image */}
         <ImageBackground
           source={{ uri: coverImage || 'https://via.placeholder.com/800x400' }}
@@ -681,6 +715,26 @@ export default function MerchantScreen() {
         >
           <MerchantSkeleton />
         </PullToRefreshLayout>
+      </View>
+    );
+  }
+
+  if (hasInitialLoadError) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+        <StatusBar barStyle="dark-content" />
+        <Ionicons name="cloud-offline-outline" size={48} color="#9ca3af" />
+        <Text style={{ marginTop: 16, color: '#6b7280', fontSize: 16, textAlign: 'center' }}>
+          Couldn&apos;t load this merchant. Check your connection and try again.
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            void Promise.all([merchantQuery.refetch(), merchantMenuQuery.refetch()]);
+          }}
+          style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.primary }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Try again</Text>
+        </TouchableOpacity>
       </View>
     );
   }

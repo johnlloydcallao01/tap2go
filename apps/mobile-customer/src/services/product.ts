@@ -62,6 +62,7 @@ export async function fetchEffectiveModifierGroups(
   productId: string | number,
   variationId?: string | number | null,
   merchantId?: string | number | null,
+  signal?: AbortSignal,
 ): Promise<ModifierGroup[]> {
   const headers = buildHeaders();
   const query = new URLSearchParams({
@@ -78,6 +79,7 @@ export async function fetchEffectiveModifierGroups(
 
   const response = await fetch(`${API_BASE}/effective-modifiers?${query.toString()}`, {
     headers,
+    signal,
   });
 
   if (!response.ok) {
@@ -88,20 +90,23 @@ export async function fetchEffectiveModifierGroups(
   return mapEffectiveModifierGroups(data?.data?.groups || []);
 }
 
-export async function fetchProductWithMerchantContext(productId: string, merchantId: string | number): Promise<Product | null> {
+export async function fetchProductWithMerchantContext(
+  productId: string,
+  merchantId: string | number,
+  signal?: AbortSignal,
+): Promise<Product | null> {
   const headers = buildHeaders();
 
   try {
     // 1. Fetch Merchant Product by querying with product_id and merchant_id
     // This mirrors apps/web logic which finds the link between merchant and product
     const mpRes = await fetch(
-      `${API_BASE}/merchant-products?where[product_id][equals]=${productId}&where[merchant_id][equals]=${merchantId}&depth=2&limit=1`, 
-      { headers }
+      `${API_BASE}/merchant-products?where[product_id][equals]=${encodeURIComponent(productId)}&where[merchant_id][equals]=${encodeURIComponent(String(merchantId))}&depth=2&limit=1`,
+      { headers, signal }
     );
 
     if (!mpRes.ok) {
-      console.error('Failed to load merchant product:', mpRes.status);
-      return null;
+      throw new Error(`Failed to load merchant product (${mpRes.status})`);
     }
 
     const mpData = await mpRes.json();
@@ -145,54 +150,82 @@ export async function fetchProductWithMerchantContext(productId: string, merchan
     let variations: ProductVariation[] = [];
     let defaultVariationId: string | number | undefined;
     if (finalProduct.productType === 'variable') {
-      const variationsRes = await fetch(`${API_BASE}/prod-variations?where[product_id][equals]=${productData.id}&where[is_visible][equals]=true&limit=100&sort=sort_order&depth=1`, {
+      const variationsRes = await fetch(`${API_BASE}/prod-variations?where[product_id][equals]=${encodeURIComponent(String(productData.id))}&where[is_visible][equals]=true&limit=100&sort=sort_order&depth=1`, {
         headers,
+        signal,
       });
 
-      if (variationsRes.ok) {
+      if (!variationsRes.ok) {
+        throw new Error(`Failed to load product variations (${variationsRes.status})`);
+      }
+
+      {
         const varData = await variationsRes.json();
         const rawVariations = varData.docs || [];
-        const variationIds = rawVariations
+        const variationIds: (string | number)[] = rawVariations
           .map((v: any) => getRelationId(v?.id))
           .filter((id: string | number | undefined): id is string | number => id !== undefined);
 
-        let variationValueMap = new Map<string, ProductVariation['attributeItems']>();
+        const firstInStockVariation = rawVariations.find((variation: any) => (variation.stock_quantity ?? 0) > 0);
+        defaultVariationId = firstInStockVariation?.id ?? rawVariations[0]?.id;
 
+        const variationValueMap = new Map<string, ProductVariation['attributeItems']>();
         if (variationIds.length > 0) {
-          const valuesRes = await fetch(
-            `${API_BASE}/prod-variation-values?where[variation_id][in]=${variationIds.join(',')}&limit=500&depth=2`,
-            { headers }
+          const valuesQuery = new URLSearchParams({
+            'where[variation_id][in]': variationIds.join(','),
+            limit: '500',
+            depth: '2',
+          });
+          const modifierPromise = fetchEffectiveModifierGroups(
+            productData.id,
+            defaultVariationId ?? null,
+            merchantId,
+            signal,
           );
+          const [valuesRes, effectiveGroups] = await Promise.all([
+            fetch(`${API_BASE}/prod-variation-values?${valuesQuery.toString()}`, { headers, signal }),
+            modifierPromise,
+          ]);
 
-          if (valuesRes.ok) {
-            const valuesData = await valuesRes.json();
-            variationValueMap = (valuesData.docs || []).reduce(
-              (map: Map<string, ProductVariation['attributeItems']>, item: any) => {
-                const variationKey = String(getRelationId(item?.variation_id));
-                const attribute = item?.attribute_id;
-                const term = item?.term_id;
-
-                if (!variationKey || !attribute || !term) {
-                  return map;
-                }
-
-                const existing = map.get(variationKey) || [];
-                existing.push({
-                  attributeId: getRelationId(attribute),
-                  attributeName: attribute?.name || 'Option',
-                  attributeSlug: attribute?.slug,
-                  attributeType: attribute?.type,
-                  termId: getRelationId(term),
-                  termName: term?.name || '',
-                  termSlug: term?.slug,
-                  termValue: term?.value,
-                });
-                map.set(variationKey, existing);
-                return map;
-              },
-              new Map<string, ProductVariation['attributeItems']>()
-            );
+          if (!valuesRes.ok) {
+            throw new Error(`Failed to load variation attributes (${valuesRes.status})`);
           }
+          const valuesData = await valuesRes.json();
+          const mappedValues = (valuesData.docs || []).reduce(
+            (map: Map<string, ProductVariation['attributeItems']>, item: any) => {
+              const variationKey = String(getRelationId(item?.variation_id));
+              const attribute = item?.attribute_id;
+              const term = item?.term_id;
+
+              if (!variationKey || !attribute || !term) {
+                return map;
+              }
+
+              const existing = map.get(variationKey) || [];
+              existing.push({
+                attributeId: getRelationId(attribute),
+                attributeName: attribute?.name || 'Option',
+                attributeSlug: attribute?.slug,
+                attributeType: attribute?.type,
+                termId: getRelationId(term),
+                termName: term?.name || '',
+                termSlug: term?.slug,
+                termValue: term?.value,
+              });
+              map.set(variationKey, existing);
+              return map;
+            },
+            new Map<string, ProductVariation['attributeItems']>()
+          );
+          mappedValues.forEach((items, key) => variationValueMap.set(key, items));
+          modifierGroups = effectiveGroups;
+        } else {
+          modifierGroups = await fetchEffectiveModifierGroups(
+            productData.id,
+            defaultVariationId ?? null,
+            merchantId,
+            signal,
+          );
         }
 
         variations = rawVariations.map((v: any) => {
@@ -217,9 +250,6 @@ export async function fetchProductWithMerchantContext(productId: string, merchan
           };
         });
 
-        const firstInStockVariation = variations.find((variation) => (variation.stock_quantity ?? 0) > 0);
-        defaultVariationId = firstInStockVariation?.id ?? variations[0]?.id;
-
         const defaultVariation = variations.find((variation) => String(variation.id) === String(defaultVariationId));
         if (defaultVariation) {
           // Merchant price override takes precedence, matching the simple-product
@@ -237,23 +267,25 @@ export async function fetchProductWithMerchantContext(productId: string, merchan
       }
     }
 
-    // 3. Fetch effective modifiers using the default variation for variable products
-    try {
-      modifierGroups = await fetchEffectiveModifierGroups(productData.id, defaultVariationId ?? null, merchantId);
-    } catch (modifierError) {
-      console.error('Failed to load effective modifiers:', modifierError);
-      modifierGroups = [];
-    }
-
-    // 4. Fetch grouped child items if Product is Grouped
+    // Fetch effective modifiers and grouped items independently when both apply.
     let groupedItems: GroupedProductItem[] = [];
-    if (finalProduct.productType === 'grouped') {
-      const groupedRes = await fetch(
-        `${API_BASE}/prod-grouped-items?where[parent_product_id][equals]=${productData.id}&limit=100&sort=sort_order&depth=2`,
-        { headers }
-      );
+    const modifierGroupsPromise = finalProduct.productType === 'variable'
+      ? Promise.resolve(modifierGroups)
+      : fetchEffectiveModifierGroups(productData.id, null, merchantId, signal).catch((modifierError) => {
+          if (signal?.aborted) throw modifierError;
+          console.error('Failed to load effective modifiers:', modifierError);
+          return [];
+        });
+    const groupedItemsPromise = finalProduct.productType === 'grouped'
+      ? (async () => {
+        const groupedRes = await fetch(
+          `${API_BASE}/prod-grouped-items?where[parent_product_id][equals]=${encodeURIComponent(String(productData.id))}&limit=100&sort=sort_order&depth=2`,
+          { headers, signal }
+        );
+        if (!groupedRes.ok) {
+          throw new Error(`Failed to load grouped product items (${groupedRes.status})`);
+        }
 
-      if (groupedRes.ok) {
         const groupedData = await groupedRes.json();
         const rawGroupedItems = groupedData.docs || [];
         const childIds = rawGroupedItems
@@ -262,44 +294,45 @@ export async function fetchProductWithMerchantContext(productId: string, merchan
 
         const uniqueChildIds = Array.from(new Set(childIds.map(String)));
 
-        let merchantProductMap = new Map<string, any>();
-        if (uniqueChildIds.length > 0) {
-          const childMerchantProductsRes = await fetch(
-            `${API_BASE}/merchant-products?where[merchant_id][equals]=${merchantId}&where[product_id][in]=${uniqueChildIds.join(',')}&limit=200&depth=2`,
-            { headers }
-          );
+        const merchantProductsQuery = new URLSearchParams({
+          'where[merchant_id][equals]': String(merchantId),
+          'where[product_id][in]': uniqueChildIds.join(','),
+          limit: '200',
+          depth: '2',
+        });
+        const requiredModifiersQuery = new URLSearchParams({
+          'where[product_id][in]': uniqueChildIds.join(','),
+          'where[or][0][is_required][equals]': 'true',
+          'where[or][1][min_selections][greater_than]': '0',
+          limit: '500',
+          depth: '0',
+        });
+        const [childMerchantProductsRes, modifierGroupsRes] = uniqueChildIds.length > 0
+          ? await Promise.all([
+              fetch(`${API_BASE}/merchant-products?${merchantProductsQuery.toString()}`, { headers, signal }),
+              fetch(`${API_BASE}/modifier-groups?${requiredModifiersQuery.toString()}`, { headers, signal }),
+            ])
+          : [null, null];
 
-          if (childMerchantProductsRes.ok) {
-            const childMerchantProductsData = await childMerchantProductsRes.json();
-            merchantProductMap = (childMerchantProductsData.docs || []).reduce((map: Map<string, any>, doc: any) => {
-              const childId = getRelationId(doc?.product_id);
-              if (childId !== undefined) {
-                map.set(String(childId), doc);
-              }
-              return map;
-            }, new Map<string, any>());
-          }
+        const merchantProductMap = new Map<string, any>();
+        if (childMerchantProductsRes?.ok) {
+          const childMerchantProductsData = await childMerchantProductsRes.json();
+          (childMerchantProductsData.docs || []).forEach((doc: any) => {
+            const childId = getRelationId(doc?.product_id);
+            if (childId !== undefined) merchantProductMap.set(String(childId), doc);
+          });
         }
 
         const requiredModifierProductIds = new Set<string>();
-        if (uniqueChildIds.length > 0) {
-          const modifierGroupsRes = await fetch(
-            `${API_BASE}/modifier-groups?where[product_id][in]=${uniqueChildIds.join(',')}&where[or][0][is_required][equals]=true&where[or][1][min_selections][greater_than]=0&limit=500&depth=0`,
-            { headers }
-          );
-
-          if (modifierGroupsRes.ok) {
-            const modifierGroupsData = await modifierGroupsRes.json();
-            (modifierGroupsData.docs || []).forEach((group: any) => {
-              const childId = getRelationId(group?.product_id);
-              if (childId !== undefined) {
-                requiredModifierProductIds.add(String(childId));
-              }
-            });
-          }
+        if (modifierGroupsRes?.ok) {
+          const modifierGroupsData = await modifierGroupsRes.json();
+          (modifierGroupsData.docs || []).forEach((group: any) => {
+            const childId = getRelationId(group?.product_id);
+            if (childId !== undefined) requiredModifierProductIds.add(String(childId));
+          });
         }
 
-        groupedItems = rawGroupedItems
+        const mappedGroupedItems: GroupedProductItem[] = rawGroupedItems
           .map((item: any) => {
             const childProduct = item?.child_product_id;
             if (!childProduct || typeof childProduct !== 'object') {
@@ -333,14 +366,17 @@ export async function fetchProductWithMerchantContext(productId: string, merchan
           })
           .filter((item: GroupedProductItem | null): item is GroupedProductItem => item !== null);
 
-        if (groupedItems.length > 0) {
-          finalProduct.basePrice = groupedItems.reduce(
-            (sum, item) => sum + (item.basePrice || 0) * (item.defaultQuantity || 1),
-            0
-          );
-        }
-      }
-    }
+          if (mappedGroupedItems.length > 0) {
+            finalProduct.basePrice = mappedGroupedItems.reduce(
+              (sum, item) => sum + (item.basePrice || 0) * (item.defaultQuantity || 1),
+              0
+            );
+          }
+          return mappedGroupedItems;
+        })()
+        : Promise.resolve([]);
+
+    [modifierGroups, groupedItems] = await Promise.all([modifierGroupsPromise, groupedItemsPromise]);
 
     return {
       ...finalProduct,
@@ -350,7 +386,8 @@ export async function fetchProductWithMerchantContext(productId: string, merchan
       defaultVariationId,
     };
   } catch (error) {
+    if (signal?.aborted) throw error;
     console.error('Error fetching merchant product details:', error);
-    return null;
+    throw error;
   }
 }
