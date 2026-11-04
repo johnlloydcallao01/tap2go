@@ -433,7 +433,7 @@ export default function MerchantScreen() {
           (!item.selectedModifiers || item.selectedModifiers.length === 0)
         );
 
-        if (existingItem) {
+        if (existingItem && !existingItem.isPending) {
           await updateQuantity(existingItem.id, existingItem.quantity + 1);
           Alert.alert('Cart Updated', `${product.name} quantity increased.`);
           return;
@@ -446,12 +446,21 @@ export default function MerchantScreen() {
           merchantProductId: Number(merchantProductId),
           quantity: 1,
           priceAtAdd: product.basePrice || 0,
+          productName: product.name,
+          imageUrl: product.imageUrl,
+          merchantName: merchant?.outletName || '',
+          merchantLogoUrl:
+            getImageUrl(merchant?.vendor?.logo) ||
+            getImageUrl(merchant?.media?.thumbnail),
           compareAtPrice: product.compareAtPrice || null,
           selectedModifiers: [],
         };
 
-        await addToCart(payload);
         Alert.alert('Added to Cart', `${product.name} added to your cart.`);
+        void addToCart(payload).catch((error) => {
+          console.error('Error adding to cart:', error);
+          Alert.alert('Error', 'Failed to add item to cart. Please try again.');
+        });
       } catch (error) {
         console.error('Error adding to cart:', error);
         Alert.alert('Error', 'Failed to add item to cart. Please try again.');

@@ -772,7 +772,7 @@ export class GeospatialService {
           m.created_at,
           m.updated_at,
           ST_Distance(
-            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
+            ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857),
             ST_Transform(${customerPoint}, 3857)
           ) as distance_meters,
           ${includeTotalCount ? 'COUNT(*) OVER() as total_count,' : ''}
@@ -821,7 +821,9 @@ export class GeospatialService {
         LEFT JOIN media ms ON m.media_store_front_image_id = ms.id
         LEFT JOIN media vl ON v.logo_id = vl.id
         WHERE 
-          m.merchant_coordinates IS NOT NULL
+          m.merchant_latitude IS NOT NULL
+          AND m.merchant_longitude IS NOT NULL
+          AND m.merchant_coordinates IS NOT NULL
           AND m.merchant_coordinates::text != 'null'
           AND m.merchant_coordinates ? 'type'
           AND m.merchant_coordinates ? 'coordinates'
@@ -832,7 +834,7 @@ export class GeospatialService {
           AND v.is_active = true
           AND (m.business_zone_id IS NULL OR bz.is_active = true)
           AND ST_DWithin(
-            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
+            ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857),
             ST_Transform(${customerPoint}, 3857),
             ${radiusMeters}
           )
@@ -844,7 +846,7 @@ export class GeospatialService {
           )` : ''}
         ORDER BY 
           ST_Distance(
-            ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
+            ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857),
             ST_Transform(${customerPoint}, 3857)
           )
         LIMIT ${limit}
@@ -859,7 +861,9 @@ export class GeospatialService {
             LEFT JOIN vendors v ON m.vendor_id = v.id
             LEFT JOIN business_zones bz ON m.business_zone_id = bz.id
             WHERE
-              m.merchant_coordinates IS NOT NULL
+              m.merchant_latitude IS NOT NULL
+              AND m.merchant_longitude IS NOT NULL
+              AND m.merchant_coordinates IS NOT NULL
               AND m.merchant_coordinates::text != 'null'
               AND m.merchant_coordinates ? 'type'
               AND m.merchant_coordinates ? 'coordinates'
@@ -870,7 +874,7 @@ export class GeospatialService {
               AND v.is_active = true
               AND (m.business_zone_id IS NULL OR bz.is_active = true)
               AND ST_DWithin(
-                ST_Transform(ST_GeomFromGeoJSON(m.merchant_coordinates::text), 3857),
+                ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857),
                 ST_Transform(${customerPoint}, 3857),
                 ${radiusMeters}
               )

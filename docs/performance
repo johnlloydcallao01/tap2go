@@ -19,11 +19,14 @@ Mobile rendering and refresh
 - Render large collections with a virtualized list (`FlatList`), not a `ScrollView` that mounts every card.
 - Show skeletons while initial content is loading; avoid rendering placeholder counts or empty states until loading completes.
 - Keep pull-to-refresh connected to a real refetch, and ensure the server refresh bypass is carried through. Preserve existing screen behavior and keep live provider tracking separate from cached order snapshots.
+- For cart mutations, project pending adds into the shared cart UI immediately, reconcile with the server write response, and remove optimistic changes on failure. Avoid full-cart refetches after successful writes; disable checkout only while that merchant has unconfirmed additions.
 
 Current implementations
+- Home: `/customer/home-overview` uses a 30-second server cache and lazy-loads recommendations; its spatial merchant lookup uses a PostGIS expression index on denormalized merchant coordinates. Client freshness is aligned to 30 seconds, forced retries bypass the in-memory and server caches, and background refresh preserves loaded sections.
 - Wishlist: `/customer/wishlist-overview`, 60-second server TTL, user invalidation, batched merchant projection, and `FlatList`.
 - Orders list: `/orders/aggregate?view=list`, 30-second per-user server TTL, bounded/projected batched reads, and source-hook invalidation.
 - Order Details: `/orders/aggregate?orderId=...`, 20-second per-user/per-order server TTL, ownership check, projected batched reads, and detail-cache invalidation.
+- Add to cart: temporary shared cart state appears immediately, successful creates reconcile from the saved document, failures roll back, and checkout waits for pending additions for its merchant.
 
 Validation and measurement
 - Run the focused CMS type-check/lint and mobile type-check/lint after implementation; run `git diff --check`.

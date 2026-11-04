@@ -142,10 +142,10 @@ export default function QrPaymentScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.backToCheckoutButton}
-            onPress={() => router.back()}
+            onPress={() => router.replace('/(tabs)/orders')}
             activeOpacity={0.75}
           >
-            <Text style={styles.backToCheckoutText}>Back to checkout</Text>
+            <Text style={styles.backToCheckoutText}>Back to orders</Text>
           </TouchableOpacity>
           {orderId ? (
             <TouchableOpacity

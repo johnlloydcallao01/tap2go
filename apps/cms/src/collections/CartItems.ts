@@ -403,6 +403,39 @@ export const CartItems: CollectionConfig = {
     hooks: {
         beforeChange: [
             async ({ data, operation, req, originalDoc }) => {
+                if (
+                    operation === 'update' &&
+                    data.quantity !== undefined &&
+                    Object.keys(data).every((key) => ['quantity', 'updatedAt'].includes(key))
+                ) {
+                    if (data.quantity < 1 || data.quantity > 999) {
+                        throw new Error('Quantity must be between 1 and 999')
+                    }
+
+                    const modifierTotal = Array.isArray(originalDoc?.selectedModifiers)
+                        ? originalDoc.selectedModifiers.reduce(
+                            (sum: number, modifier: NormalizedSelectedModifier) =>
+                                sum + toFiniteNumber(modifier.price),
+                            0,
+                        )
+                        : 0
+                    const addonTotal = Array.isArray(originalDoc?.selectedAddons)
+                        ? originalDoc.selectedAddons.reduce(
+                            (sum: number, addon: any) =>
+                                sum + ((addon.price || 0) * (addon.quantity || 1)),
+                            0,
+                        )
+                        : 0
+
+                    data.subtotal =
+                        ((originalDoc?.priceAtAdd ?? 0) + modifierTotal + addonTotal) *
+                        data.quantity
+                    const expiryDate = new Date()
+                    expiryDate.setDate(expiryDate.getDate() + 30)
+                    data.expiresAt = expiryDate
+                    return data
+                }
+
                 const isLinkOnlyOrderUpdate =
                     operation === 'update' &&
                     data !== undefined &&
@@ -423,6 +456,8 @@ export const CartItems: CollectionConfig = {
                 )
                 const rawSelectedVariation = data.selectedVariation ?? originalDoc?.selectedVariation
                 const currentVariationId = normalizeSelectedVariationInput(rawSelectedVariation)
+                let currentProduct: any = null
+                let currentMerchant: any = null
 
                 if (data.selectedVariation !== undefined) {
                     data.selectedVariation = currentVariationId
@@ -431,11 +466,22 @@ export const CartItems: CollectionConfig = {
                 let effectiveModifierGroups: EffectiveModifierGroup[] = []
 
                 if (currentProductId) {
-                    const product = await req.payload.findByID({
-                        collection: 'products',
-                        id: currentProductId,
-                        depth: 0,
-                    })
+                    const [product, merchant] = await Promise.all([
+                        req.payload.findByID({
+                            collection: 'products',
+                            id: currentProductId,
+                            depth: 0,
+                        }),
+                        operation === 'create' && data.merchant
+                            ? req.payload.findByID({
+                                collection: 'merchants',
+                                id: data.merchant,
+                                depth: 0,
+                            })
+                            : Promise.resolve(null),
+                    ])
+                    currentProduct = product
+                    currentMerchant = merchant
 
                     if (product.productType === 'variable' && !currentVariationId) {
                         throw new Error('Variable products require a selectedVariation')
@@ -561,22 +607,10 @@ export const CartItems: CollectionConfig = {
 
                 // === VALIDATE: Merchant-Vendor Relationship ===
                 if (operation === 'create' && data.merchant && data.product) {
-                    const merchant = await req.payload.findByID({
-                        collection: 'merchants',
-                        id: data.merchant,
-                        depth: 1
-                    })
+                    const merchantVendorId = typeof currentMerchant?.vendor === 'object' ? currentMerchant.vendor?.id : currentMerchant?.vendor
 
-                    const product = await req.payload.findByID({
-                        collection: 'products',
-                        id: data.product,
-                        depth: 0
-                    })
-
-                    const merchantVendorId = typeof merchant.vendor === 'object' ? merchant.vendor?.id : merchant.vendor
-
-                    const productVendorId = typeof product.createdByVendor === 'object' ? product.createdByVendor?.id : product.createdByVendor;
-                    const productMerchantId = typeof product.createdByMerchant === 'object' ? product.createdByMerchant?.id : product.createdByMerchant;
+                    const productVendorId = typeof currentProduct?.createdByVendor === 'object' ? currentProduct.createdByVendor?.id : currentProduct?.createdByVendor;
+                    const productMerchantId = typeof currentProduct?.createdByMerchant === 'object' ? currentProduct.createdByMerchant?.id : currentProduct?.createdByMerchant;
 
                     // A product is valid if:
                     // 1. It was created by the same vendor as the merchant
@@ -584,15 +618,15 @@ export const CartItems: CollectionConfig = {
                     // 3. Or if it has no vendor/merchant (e.g. global admin product) - optional, but let's be strict for now and require match if set
                     if (productVendorId && String(merchantVendorId) !== String(productVendorId)) {
                         throw new Error(
-                            `Cannot add product "${product.name}" (vendor ${productVendorId}) ` +
-                            `to cart for merchant "${merchant.outletName}" (vendor ${merchantVendorId}). ` +
+                            `Cannot add product "${currentProduct?.name}" (vendor ${productVendorId}) ` +
+                            `to cart for merchant "${currentMerchant?.outletName}" (vendor ${merchantVendorId}). ` +
                             `Product must belong to merchant's vendor.`
                         )
                     }
 
-                    if (productMerchantId && String(merchant.id) !== String(productMerchantId)) {
+                    if (productMerchantId && String(currentMerchant?.id) !== String(productMerchantId)) {
                         throw new Error(
-                            `Cannot add product "${product.name}" to cart for merchant "${merchant.outletName}". ` +
+                            `Cannot add product "${currentProduct?.name}" to cart for merchant "${currentMerchant?.outletName}". ` +
                             `Product is exclusive to a different merchant.`
                         )
                     }

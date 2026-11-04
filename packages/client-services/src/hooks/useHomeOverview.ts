@@ -47,8 +47,7 @@ export function useHomeOverview(
       }, signal);
     },
     enabled,
-    // Match the service memory-cache TTL (5 min): background revalidations
-    // resolve from memory instead of churning (copies Nearby caller).
+    // Keep client freshness aligned with the Home endpoint's short cache TTL.
     ...(options?.staleTime !== undefined ? { staleTime: options.staleTime } : {}),
   });
 }

@@ -16,6 +16,8 @@ import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { useNavigation } from '../navigation/NavigationContext';
 import LocationBasedMerchants from '../components/LocationBasedMerchants';
 
+const HOME_OVERVIEW_STALE_TIME_MS = 30_000;
+
 export default function HomeScreen() {
   // console.log('🏠 HomeScreen: Component initializing...');
 
@@ -61,7 +63,7 @@ export default function HomeScreen() {
     20,
     selectedCategoryId,
     {
-      staleTime: 1000 * 60 * 5,
+      staleTime: HOME_OVERVIEW_STALE_TIME_MS,
       section: 'primary',
       forceRefresh: () => refreshInProgress.current,
     },
@@ -71,46 +73,68 @@ export default function HomeScreen() {
     20,
     selectedCategoryId,
     {
-      staleTime: 1000 * 60 * 5,
+      staleTime: HOME_OVERVIEW_STALE_TIME_MS,
       enabled: recommendationsVisible && !overviewFetching && !selectedCategoryId,
       section: 'recommendations',
       forceRefresh: () => refreshInProgress.current,
     },
   );
 
-  const onRefresh = async () => {
+  const forceRefetchHome = async (
+    requests: {
+      queryKey: ReturnType<typeof HOME_OVERVIEW_KEYS.detail>;
+      refetch: () => Promise<unknown>;
+    }[],
+    showRefreshIndicator = false,
+  ) => {
     if (refreshInProgress.current) return;
     refreshInProgress.current = true;
-    setRefreshing(true);
+    if (showRefreshIndicator) setRefreshing(true);
     try {
-      console.log('🔄 Pull-to-refresh triggered (TanStack Query)');
-
-      // Show section skeletons and make refresh supersede any in-flight Home
-      // request, ensuring the new request bypasses the server cache.
       clearHomeOverviewCache();
-      const queryKeys = [
-        HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'primary'),
-        HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'recommendations'),
-      ];
       await Promise.all(
-        queryKeys.map((queryKey) =>
-          queryClient.cancelQueries({ queryKey, exact: true }),
-        ),
+        requests.map(({ queryKey }) => queryClient.cancelQueries({ queryKey, exact: true })),
       );
-      await Promise.all([
-        refetchOverview(),
-        ...(!selectedCategoryId
-          ? [recommendationsQuery.refetch()]
-          : []),
-      ]);
-
+      await Promise.all(requests.map(({ refetch }) => refetch()));
     } catch (error) {
-      console.error('Pull-to-refresh error:', error);
+      console.error('Home refresh failed:', error);
     } finally {
       refreshInProgress.current = false;
-      setRefreshing(false);
+      if (showRefreshIndicator) setRefreshing(false);
     }
   };
+
+  const onRefresh = () => {
+    const requests = [
+      {
+        queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'primary'),
+        refetch: refetchOverview,
+      },
+    ];
+    if (!selectedCategoryId) {
+      requests.push({
+        queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'recommendations'),
+        refetch: recommendationsQuery.refetch,
+      });
+    }
+    return forceRefetchHome(requests, true);
+  };
+
+  const retryOverview = () =>
+    forceRefetchHome([
+      {
+        queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'primary'),
+        refetch: refetchOverview,
+      },
+    ]);
+
+  const retryRecommendations = () =>
+    forceRefetchHome([
+      {
+        queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'recommendations'),
+        refetch: recommendationsQuery.refetch,
+      },
+    ]);
 
   const handleCategorySelect = (categoryId: string | null, categorySlug: string | null) => {
     setSelectedCategoryId(categoryId);
@@ -196,7 +220,7 @@ export default function HomeScreen() {
                 </Text>
                 <TouchableOpacity
                   accessibilityRole="button"
-                  onPress={() => void refetchOverview()}
+                  onPress={() => void retryOverview()}
                   style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.primary }}
                 >
                   <Text style={{ color: colors.surface, fontWeight: '600' }}>Try again</Text>
@@ -221,7 +245,7 @@ export default function HomeScreen() {
                   selectedCategorySlug={selectedCategorySlug}
                   onCategorySelect={handleCategorySelect}
                   overviewCategories={overview?.categories ?? null}
-                  overviewLoading={overviewLoading || refreshing}
+                  overviewLoading={overviewLoading && !overview}
                 />
                 <LocationBasedMerchants
                   customerId={customerId}
@@ -229,19 +253,20 @@ export default function HomeScreen() {
                   onMerchantPress={handleMerchantPress}
                   onProductPress={handleProductPress}
                   overview={overview}
-                  overviewLoading={overviewLoading || refreshing}
+                  overviewLoading={overviewLoading && !overview}
                   recommendationsOverview={recommendationsQuery.data}
                   recommendationsLoading={
-                    refreshing ||
-                    overviewLoading ||
-                    overviewFetching ||
-                    !recommendationsVisible ||
-                    recommendationsQuery.isLoading
+                    !recommendationsQuery.data &&
+                    (refreshing ||
+                      overviewLoading ||
+                      overviewFetching ||
+                      !recommendationsVisible ||
+                      recommendationsQuery.isLoading)
                   }
                   recommendationsError={
                     recommendationsQuery.isError && !recommendationsQuery.data
                   }
-                  onRetryRecommendations={() => void recommendationsQuery.refetch()}
+                  onRetryRecommendations={() => void retryRecommendations()}
                   onRecommendationsLayout={(top) => {
                     recommendationsTop.current = top;
                     maybeLoadRecommendations();

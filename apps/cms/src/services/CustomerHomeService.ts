@@ -243,10 +243,8 @@ export class CustomerHomeService {
       })
     }
 
-    // Full pool, no per-merchant cap and no pool cut: the rail must show
-    // ALL valid products of the eligible merchants (mixed below). Keep the
-    // established limit; project fields the rail actually consumes and skip
-    // the unused per-document effective-modifier preview hook.
+    // Load a bounded candidate pool, then interleave by merchant and return
+    // at most 40 products. Skip unused per-document modifier previews.
     const productsQuery =
       includeRecommendations && !categoryId && eligibleIds.length > 0
         ? this.payload.find({
@@ -260,7 +258,9 @@ export class CustomerHomeService {
         },
         sort: '-updatedAt',
         depth: 2,
-        limit: 500,
+        // The rail returns at most 40 products; a bounded candidate pool
+        // keeps merchant interleaving effective without loading 500 documents.
+        limit: 120,
         pagination: false,
         context: { skipEffectiveModifierPreview: true },
         select: {

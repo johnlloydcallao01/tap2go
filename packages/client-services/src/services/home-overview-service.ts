@@ -1,4 +1,4 @@
-import { dataCache, CACHE_KEYS, CACHE_TTL } from '../cache/data-cache';
+import { dataCache, CACHE_KEYS } from '../cache/data-cache';
 import type { MerchantCategoryDisplay } from '../types/merchant';
 import type { LocationBasedMerchant } from './location-based-merchant-service';
 import type { RecommendedProduct } from './marketplace-product-service';
@@ -41,6 +41,8 @@ export interface HomeOverviewOptions {
   section?: 'all' | 'primary' | 'recommendations';
   forceRefresh?: boolean;
 }
+
+const HOME_OVERVIEW_CACHE_TTL_MINUTES = 0.5;
 
 function createRequestId(): string {
   return `home-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -184,7 +186,7 @@ export class HomeOverviewService {
     }
 
     const cacheKey = `${CACHE_KEYS.MERCHANTS}-home-overview-${customerId}-${limit}-${categoryId || 'all'}-${section}`;
-    const cached = dataCache.get<HomeOverview>(cacheKey);
+    const cached = forceRefresh ? null : dataCache.get<HomeOverview>(cacheKey);
     if (cached) return cached;
 
     const fetchOverview = async (): Promise<HomeOverview> => {
@@ -296,7 +298,7 @@ export class HomeOverviewService {
           error.name = 'AbortError';
           throw error;
         }
-        dataCache.set(cacheKey, overview, CACHE_TTL.MERCHANTS);
+        dataCache.set(cacheKey, overview, HOME_OVERVIEW_CACHE_TTL_MINUTES);
         outcome = 'success';
         return overview;
       } finally {

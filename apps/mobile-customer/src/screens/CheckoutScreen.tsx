@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -115,7 +115,13 @@ export default function CheckoutScreen() {
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
 
-  const { getMerchantCart, isLoading: isCartLoading, markCheckedOut, reload } = useCart();
+  const {
+    getMerchantCart,
+    isLoading: isCartLoading,
+    loadError: cartLoadError,
+    markCheckedOut,
+    reload,
+  } = useCart();
   const { user, customerId, token } = useAuth();
   const queryClient = useQueryClient();
   const updateAccountOverviewAfterOrder = useCallback((orderTotal: number) => {
@@ -146,6 +152,7 @@ export default function CheckoutScreen() {
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [hasResolvedInitialPaymentCheck, setHasResolvedInitialPaymentCheck] = useState(false);
   const [isCheckingPaymentState, setIsCheckingPaymentState] = useState(false);
   const [hasPendingRecovery, setHasPendingRecovery] = useState(false);
   const [pendingRecoveryOrderId, setPendingRecoveryOrderId] = useState<string | null>(null);
@@ -155,6 +162,7 @@ export default function CheckoutScreen() {
   const reconcileInFlightRef = useRef(false);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasNavigatedToReturnRef = useRef(false);
+  const qrNavigationInProgressRef = useRef(false);
 
   const merchantCart = getMerchantCart(String(merchantId));
   const hasActiveCartItems = Boolean(merchantCart?.items.length);
@@ -384,8 +392,27 @@ export default function CheckoutScreen() {
   }, [customerId, getMerchantCart, isCartLoading, merchantId, redirectToCheckoutReturn, reload]);
 
   useEffect(() => {
-    reconcileExistingPayment(true, true).catch(() => undefined);
-  }, [reconcileExistingPayment]);
+    if (isCartLoading) return;
+    let active = true;
+    reconcileExistingPayment(true, true)
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setHasResolvedInitialPaymentCheck(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isCartLoading, reconcileExistingPayment]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (qrNavigationInProgressRef.current) {
+        qrNavigationInProgressRef.current = false;
+        setIsPaying(false);
+      }
+    }, []),
+  );
 
   useEffect(() => {
     if (!hasPendingRecovery) {
@@ -671,6 +698,7 @@ export default function CheckoutScreen() {
     });
 
     setIsPaying(true);
+    qrNavigationInProgressRef.current = false;
     let pendingCheckoutSessionSaved = false;
     let cartUnavailable = false;
     try {
@@ -961,7 +989,7 @@ export default function CheckoutScreen() {
             paymentIntentId: intentId,
             orderId: String(createdOrderId),
           });
-          setIsPaying(false);
+          qrNavigationInProgressRef.current = true;
           return;
         }
       } else if (status === 'succeeded') {
@@ -994,11 +1022,101 @@ export default function CheckoutScreen() {
       }
       Alert.alert('Payment Failed', error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
-      setIsPaying(false);
+      if (!qrNavigationInProgressRef.current) {
+        setIsPaying(false);
+      }
     }
   };
 
+  if (isPaying) {
+    return (
+      <SafeAreaView style={styles.paymentStateContainer}>
+        <ActivityIndicator size="large" color="#F3A823" />
+        <Text style={styles.paymentStateTitle}>
+          {paymentMethod === 'qrph' ? 'Preparing your QR Ph payment' : 'Preparing your payment'}
+        </Text>
+        <Text style={styles.paymentStateMessage}>
+          Please wait while we securely prepare your payment.
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (isCartLoading || !hasResolvedInitialPaymentCheck) {
+    return (
+      <SafeAreaView style={styles.paymentStateContainer}>
+        <ActivityIndicator size="large" color="#F3A823" />
+        <Text style={styles.paymentStateTitle}>Loading checkout</Text>
+        <Text style={styles.paymentStateMessage}>
+          Please wait while we load your cart and check for an existing payment.
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (cartLoadError) {
+    return (
+      <SafeAreaView style={styles.paymentStateContainer}>
+        <Ionicons name="cloud-offline-outline" size={40} color="#B45309" />
+        <Text style={styles.paymentStateTitle}>We couldn’t load your cart</Text>
+        <Text style={styles.paymentStateMessage}>
+          Check your connection and try again. Your cart has not been treated as empty.
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            setHasResolvedInitialPaymentCheck(false);
+            void reload();
+          }}
+          style={styles.paymentStateButton}
+        >
+          <Text style={styles.paymentStateButtonText}>Try again</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   if (!merchantCart || merchantCart.items.length === 0) {
+    if (qrImage) {
+      return (
+        <SafeAreaView style={styles.paymentStateContainer}>
+          <Ionicons name="qr-code-outline" size={40} color="#0F766E" />
+          <Text style={styles.paymentStateTitle}>Your QR Ph payment is ready</Text>
+          <Text style={styles.paymentStateMessage}>
+            Return to the QR payment screen to scan and complete your payment.
+          </Text>
+          <TouchableOpacity
+            onPress={() => navigateToQrPayment(qrImage, {
+              paymentIntentId: qrIntentId || undefined,
+              orderId: qrOrderId || undefined,
+            })}
+            style={styles.paymentStateButton}
+          >
+            <Text style={styles.paymentStateButtonText}>View QR code</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      );
+    }
+
+    if (hasPendingRecovery) {
+      return (
+        <SafeAreaView style={styles.paymentStateContainer}>
+          <ActivityIndicator size="large" color="#F59E0B" />
+          <Text style={styles.paymentStateTitle}>Payment confirmation in progress</Text>
+          <Text style={styles.paymentStateMessage}>
+            Your payment is linked to an existing order. We will only mark it paid after provider confirmation.
+          </Text>
+          {pendingRecoveryOrderId ? (
+            <TouchableOpacity
+              onPress={() => router.push(`/order/${pendingRecoveryOrderId}`)}
+              style={styles.paymentStateButton}
+            >
+              <Text style={styles.paymentStateButtonText}>View order</Text>
+            </TouchableOpacity>
+          ) : null}
+        </SafeAreaView>
+      );
+    }
+
     return (
       <View style={styles.container}>
         <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -1768,6 +1886,39 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  paymentStateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#F9FAFB',
+  },
+  paymentStateTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  paymentStateMessage: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  paymentStateButton: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#0F766E',
+  },
+  paymentStateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   emptyContainer: {
     flex: 1,

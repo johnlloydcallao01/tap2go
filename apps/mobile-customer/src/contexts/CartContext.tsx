@@ -27,6 +27,8 @@ export type CartItem = {
   merchantName?: string;
   imageUrl?: string | null;
   merchantLogoUrl?: string | null;
+  specialInstructions?: string | null;
+  isPending?: boolean;
 };
 
 export type AddToCartPayload = {
@@ -35,9 +37,20 @@ export type AddToCartPayload = {
   merchantProductId: number;
   quantity: number;
   priceAtAdd: number;
+  productName?: string;
+  imageUrl?: string | null;
+  merchantName?: string;
+  merchantLogoUrl?: string | null;
   compareAtPrice?: number | null;
   selectedModifiers?: any[] | null;
   selectedVariation?: { relationTo: string; value: number | string } | null;
+};
+
+type PendingCartAdd = {
+  id: number;
+  customerId: string;
+  payload: AddToCartPayload;
+  optimisticId: number;
 };
 
 // Mobile specific helper types for UI grouping
@@ -55,6 +68,7 @@ export interface CartContextType {
   isLoading: boolean;
   error: string | null;
   loadError: string | null;
+  hasPendingAddsForMerchant: (merchantId: string | number) => boolean;
   totalQuantity: number;
   reload: () => Promise<void>;
   markCheckedOut: (itemIds: number[]) => void;
@@ -87,6 +101,150 @@ function isCartSnapshot(value: unknown, customerId: string): value is CartItem[]
   );
 }
 
+function getModifierIdentity(modifiers: unknown): string | null {
+  if (!Array.isArray(modifiers)) return null;
+
+  const identities: string[] = [];
+  for (const modifier of modifiers) {
+    if (!modifier || typeof modifier !== 'object') return null;
+    const value = modifier as Record<string, unknown>;
+    const groupId = value.groupId ?? value.group_id;
+    const optionId = value.optionId ?? value.option_id;
+    if (groupId == null || optionId == null) return null;
+    identities.push(`${String(groupId)}:${String(optionId)}`);
+  }
+  return identities.join('|');
+}
+
+function getVariationId(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== 'object') return String(value);
+
+  const variation = value as Record<string, unknown>;
+  const relationValue = variation.value;
+  if (relationValue && typeof relationValue === 'object') {
+    const id = (relationValue as Record<string, unknown>).id;
+    return id == null ? null : String(id);
+  }
+  const id = relationValue ?? variation.id;
+  return id == null ? null : String(id);
+}
+
+function getCartItemIdentity(item: CartItem): string | null {
+  if (
+    item.productSize ||
+    item.specialInstructions?.trim() ||
+    (Array.isArray(item.selectedAddons) && item.selectedAddons.length > 0) ||
+    (Array.isArray(item.selectedModifiers) && item.selectedModifiers.length > 0)
+  ) {
+    return null;
+  }
+
+  return [
+    item.merchant,
+    item.product,
+    item.merchantProduct,
+    getVariationId(item.selectedVariation),
+    '',
+  ].join(':');
+}
+
+function getAddPayloadIdentity(payload: AddToCartPayload): string | null {
+  const modifiers = getModifierIdentity(payload.selectedModifiers ?? []);
+  if (modifiers === null || modifiers !== '') return null;
+
+  return [
+    payload.merchantId,
+    payload.productId,
+    payload.merchantProductId,
+    getVariationId(payload.selectedVariation),
+    modifiers,
+  ].join(':');
+}
+
+function getAddUnitPrice(payload: AddToCartPayload): number {
+  const modifierTotal = Array.isArray(payload.selectedModifiers)
+    ? payload.selectedModifiers.reduce((total, modifier) => {
+        const price = Number(modifier?.price);
+        return total + (Number.isFinite(price) ? price : 0);
+      }, 0)
+    : 0;
+  return payload.priceAtAdd + modifierTotal;
+}
+
+function mapCartItem(doc: any, fallback?: AddToCartPayload, customerId?: number): CartItem {
+  const product = doc.product || null;
+  const merchant = doc.merchant || null;
+  const media = product?.media?.primaryImage || null;
+  const imageUrl =
+    media?.cloudinaryURL ||
+    media?.url ||
+    media?.thumbnailURL ||
+    fallback?.imageUrl ||
+    null;
+  const merchantLogoMedia = merchant?.vendor?.logo || null;
+  const merchantLogoUrl =
+    merchantLogoMedia?.cloudinaryURL ||
+    merchantLogoMedia?.url ||
+    merchantLogoMedia?.thumbnailURL ||
+    null;
+  const selectedVariation = doc.selectedVariation;
+  const selectedVariationId = selectedVariation
+    ? typeof selectedVariation === 'object' && selectedVariation !== null
+      ? 'value' in selectedVariation
+        ? typeof selectedVariation.value === 'object'
+          ? selectedVariation.value?.id
+          : selectedVariation.value
+        : selectedVariation.id
+      : selectedVariation
+    : fallback?.selectedVariation?.value ?? null;
+
+  return {
+    id: Number(doc.id),
+    customer:
+      typeof doc.customer === 'object' && doc.customer !== null
+        ? Number(doc.customer.id)
+        : Number(doc.customer ?? customerId),
+    merchant:
+      typeof doc.merchant === 'object' && doc.merchant !== null
+        ? Number(doc.merchant.id)
+        : Number(doc.merchant ?? fallback?.merchantId),
+    product:
+      typeof doc.product === 'object' && doc.product !== null
+        ? Number(doc.product.id)
+        : Number(doc.product ?? fallback?.productId),
+    merchantProduct:
+      typeof doc.merchantProduct === 'object' && doc.merchantProduct !== null
+        ? Number(doc.merchantProduct.id)
+        : Number(doc.merchantProduct ?? fallback?.merchantProductId),
+    quantity: Number(doc.quantity ?? fallback?.quantity ?? 1),
+    priceAtAdd: Number(doc.priceAtAdd ?? fallback?.priceAtAdd ?? 0),
+    compareAtPrice: doc.compareAtPrice ?? fallback?.compareAtPrice ?? null,
+    subtotal: Number(doc.subtotal ?? 0),
+    productSize: doc.productSize || null,
+    selectedVariation: selectedVariationId ? Number(selectedVariationId) : null,
+    selectedVariationName:
+      typeof selectedVariation === 'object' && selectedVariation !== null
+        ? ('value' in selectedVariation
+            ? typeof selectedVariation.value === 'object'
+              ? selectedVariation.value?.name || null
+              : null
+            : selectedVariation.name || null)
+        : null,
+    selectedModifiers: doc.selectedModifiers ?? fallback?.selectedModifiers ?? null,
+    selectedAddons: doc.selectedAddons || null,
+    isAvailable: typeof doc.isAvailable === 'boolean' ? doc.isAvailable : true,
+    unavailableReason: doc.unavailableReason || null,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+    productName: product?.name || fallback?.productName || '',
+    merchantName: merchant?.outletName || merchant?.name || fallback?.merchantName || '',
+    imageUrl,
+    merchantLogoUrl: merchantLogoUrl || fallback?.merchantLogoUrl || null,
+    specialInstructions: doc.specialInstructions || null,
+  };
+}
+
 export function useCart() {
   const context = useContext(CartContext);
   if (context === undefined) {
@@ -101,11 +259,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [pendingMerchantIds, setPendingMerchantIds] = useState<Set<number>>(new Set());
+  const [pendingAdds, setPendingAdds] = useState<PendingCartAdd[]>([]);
   const [snapshotCustomerId, setSnapshotCustomerId] = useState<string | null>(null);
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(null);
   const snapshotCustomerIdRef = useRef<string | null>(null);
   const loadSequenceRef = useRef(0);
+  const nextOptimisticIdRef = useRef(-1);
+  const nextPendingAddIdRef = useRef(1);
 
   const API_BASE = apiConfig.baseUrl;
 
@@ -182,54 +342,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       const docs: any[] = Array.isArray(data?.docs) ? data.docs : [];
       
-      const mapped: CartItem[] = docs.map((doc: any) => {
-        const product = doc.product || null;
-        const merchant = doc.merchant || null;
-        const media = product?.media?.primaryImage || null;
-        const imageUrl = media?.cloudinaryURL || media?.url || media?.thumbnailURL || null;
-        const merchantLogoMedia = merchant?.vendor?.logo || null;
-        const merchantLogoUrl =
-          merchantLogoMedia?.cloudinaryURL ||
-          merchantLogoMedia?.url ||
-          merchantLogoMedia?.thumbnailURL ||
-          null;
-          
-        return {
-          id: doc.id,
-          customer: typeof doc.customer === 'object' ? doc.customer.id : doc.customer,
-          merchant: typeof doc.merchant === 'object' ? doc.merchant.id : doc.merchant,
-          product: typeof doc.product === 'object' ? doc.product.id : doc.product,
-          merchantProduct: typeof doc.merchantProduct === 'object' ? doc.merchantProduct.id : doc.merchantProduct,
-          quantity: doc.quantity,
-          priceAtAdd: doc.priceAtAdd,
-          compareAtPrice: doc.compareAtPrice ?? null,
-          subtotal: doc.subtotal,
-          productSize: doc.productSize || null,
-          selectedVariation: doc.selectedVariation
-            ? (typeof doc.selectedVariation === 'object' && doc.selectedVariation !== null
-                ? ('value' in doc.selectedVariation
-                    ? (typeof doc.selectedVariation.value === 'object' ? doc.selectedVariation.value.id : doc.selectedVariation.value)
-                    : doc.selectedVariation.id)
-                : doc.selectedVariation)
-            : null,
-          selectedVariationName:
-            typeof doc.selectedVariation === 'object' && doc.selectedVariation !== null
-              ? ('value' in doc.selectedVariation
-                  ? (typeof doc.selectedVariation.value === 'object' ? doc.selectedVariation.value?.name || null : null)
-                  : doc.selectedVariation.name || null)
-              : null,
-          selectedModifiers: doc.selectedModifiers || null,
-          selectedAddons: doc.selectedAddons || null,
-          isAvailable: typeof doc.isAvailable === 'boolean' ? doc.isAvailable : true,
-          unavailableReason: doc.unavailableReason || null,
-          createdAt: doc.createdAt,
-          updatedAt: doc.updatedAt,
-          productName: product?.name || '',
-          merchantName: merchant?.outletName || merchant?.name || '',
-          imageUrl,
-          merchantLogoUrl,
-        };
-      });
+      const mapped: CartItem[] = docs.map((doc: any) => mapCartItem(doc));
       
       setItems(mapped);
       setSnapshotCustomerId(customerKey);
@@ -251,9 +364,71 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [customerId, API_BASE]);
 
-  const visibleItems = useMemo(
-    () => (snapshotCustomerId === (customerId ? String(customerId) : null) ? items : []),
-    [snapshotCustomerId, customerId, items],
+  const visibleItems = useMemo(() => {
+    const customerKey = customerId ? String(customerId) : null;
+    const confirmedItems =
+      snapshotCustomerId === customerKey ? items : [];
+    const optimisticItems = [...confirmedItems];
+    const customerPendingAdds = pendingAdds.filter(
+      (pendingAdd) => pendingAdd.customerId === customerKey,
+    );
+
+    for (const pendingAdd of customerPendingAdds) {
+      const { payload } = pendingAdd;
+      const identity = getAddPayloadIdentity(payload);
+      const existingIndex =
+        identity === null
+          ? -1
+          : optimisticItems.findIndex(
+              (item) => getCartItemIdentity(item) === identity,
+            );
+      const unitPrice = getAddUnitPrice(payload);
+
+      if (existingIndex >= 0) {
+        const existingItem = optimisticItems[existingIndex];
+        const quantity = existingItem.quantity + payload.quantity;
+        optimisticItems[existingIndex] = {
+          ...existingItem,
+          quantity,
+          subtotal: existingItem.subtotal + unitPrice * payload.quantity,
+          isPending: true,
+        };
+        continue;
+      }
+
+      optimisticItems.push({
+        id: pendingAdd.optimisticId,
+        customer: Number(pendingAdd.customerId),
+        merchant: payload.merchantId,
+        product: payload.productId,
+        merchantProduct: payload.merchantProductId,
+        quantity: payload.quantity,
+        priceAtAdd: payload.priceAtAdd,
+        compareAtPrice: payload.compareAtPrice ?? null,
+        subtotal: unitPrice * payload.quantity,
+        selectedVariation: Number(getVariationId(payload.selectedVariation)) || null,
+        selectedModifiers: payload.selectedModifiers ?? [],
+        isAvailable: true,
+        productName: payload.productName || '',
+        merchantName: payload.merchantName || '',
+        imageUrl: payload.imageUrl ?? null,
+        merchantLogoUrl: payload.merchantLogoUrl ?? null,
+        isPending: true,
+      });
+    }
+
+    return optimisticItems;
+  }, [customerId, items, pendingAdds, snapshotCustomerId]);
+
+  const hasPendingAddsForMerchant = useCallback(
+    (merchantId: string | number) =>
+      Boolean(customerId) &&
+      pendingAdds.some(
+        (pendingAdd) =>
+          pendingAdd.customerId === String(customerId) &&
+          String(pendingAdd.payload.merchantId) === String(merchantId),
+      ),
+    [customerId, pendingAdds],
   );
   const markCheckedOut = useCallback((itemIds: number[]) => {
     const customerKey = customerId ? String(customerId) : null;
@@ -276,19 +451,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addToCart = useCallback(
     async (payload: AddToCartPayload) => {
+      let pendingAddId: number | null = null;
       try {
         setError(null);
-        setPendingMerchantIds((prev) => {
-          const next = new Set(prev);
-          if (!next.has(payload.merchantId)) {
-            next.add(payload.merchantId);
-          }
-          return next;
-        });
 
         if (!customerId) {
           throw new Error('Please login to add items to cart');
         }
+
+        pendingAddId = nextPendingAddIdRef.current++;
+        const pendingAdd: PendingCartAdd = {
+          id: pendingAddId,
+          customerId: String(customerId),
+          payload,
+          optimisticId: nextOptimisticIdRef.current--,
+        };
+        setPendingAdds((previous) => [...previous, pendingAdd]);
 
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         const apiKey = apiConfig.payloadApiKey;
@@ -351,16 +529,37 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           throw new Error(text || `Add to cart failed (${res.status})`);
         }
 
-        await loadCart();
+        let responseData: any = null;
+        try {
+          responseData = await res.json();
+        } catch {
+          // A successful create response should include its saved document.
+        }
+
+        const savedDoc = responseData?.doc;
+        if (savedDoc && (typeof savedDoc.id === 'number' || typeof savedDoc.id === 'string')) {
+          const savedItem = mapCartItem(savedDoc, payload, Number(customerId));
+          loadSequenceRef.current += 1;
+          setItems((previous) => [
+            ...previous.filter((item) => item.id !== savedItem.id),
+            savedItem,
+          ]);
+          setSnapshotCustomerId(String(customerId));
+          snapshotCustomerIdRef.current = String(customerId);
+          setResolvedCustomerId(String(customerId));
+          setIsLoading(false);
+        } else {
+          await loadCart();
+        }
       } catch (e: any) {
         setError(e?.message || 'Failed to add to cart');
         throw e; // Re-throw so UI can handle it
       } finally {
-        setPendingMerchantIds((prev) => {
-          const next = new Set(prev);
-          next.delete(payload.merchantId);
-          return next;
-        });
+        if (pendingAddId !== null) {
+          setPendingAdds((previous) =>
+            previous.filter((pendingAdd) => pendingAdd.id !== pendingAddId),
+          );
+        }
       }
     },
     [customerId, loadCart, API_BASE]
@@ -391,6 +590,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const removeFromCart = useCallback(
     async (id: number) => {
+      if (id < 0 || visibleItems.find((item) => item.id === id)?.isPending) return;
       try {
         setError(null);
         await removeItemServer(id);
@@ -399,11 +599,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setError(e?.message || 'Failed to remove from cart');
       }
     },
-    [removeItemServer, loadCart]
+    [removeItemServer, loadCart, visibleItems]
   );
 
   const updateQuantity = useCallback(
     async (id: number, quantity: number) => {
+      if (id < 0 || visibleItems.find((item) => item.id === id)?.isPending) return;
       try {
         setError(null);
 
@@ -443,17 +644,26 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           throw new Error(text || `Update quantity failed (${res.status})`);
         }
 
-        await loadCart();
       } catch (e: any) {
+        const originalItem = items.find((item) => item.id === id);
+        if (originalItem) {
+          setItems((prev) =>
+            prev.map((item) => (item.id === id ? originalItem : item)),
+          );
+        }
         setError(e?.message || 'Failed to update quantity');
       }
     },
-    [removeFromCart, loadCart, API_BASE]
+    [removeFromCart, items, API_BASE, visibleItems]
   );
 
   const clearCart = useCallback(async () => {
     try {
-      await Promise.allSettled(visibleItems.map((item) => removeItemServer(item.id)));
+      await Promise.allSettled(
+        visibleItems
+          .filter((item) => item.id > 0 && !item.isPending)
+          .map((item) => removeItemServer(item.id)),
+      );
       await loadCart();
     } catch (e) {
       console.error('Failed to clear cart', e);
@@ -463,7 +673,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearMerchantCart = useCallback(async (merchantId: string | number) => {
     try {
       const mIdStr = String(merchantId);
-      const itemsToDelete = visibleItems.filter(item => String(item.merchant) === mIdStr);
+      const itemsToDelete = visibleItems.filter(
+        (item) => String(item.merchant) === mIdStr && item.id > 0 && !item.isPending,
+      );
       await Promise.allSettled(itemsToDelete.map(item => removeItemServer(item.id)));
       await loadCart();
     } catch (e) {
@@ -488,9 +700,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     for (const item of visibleItems) {
       count += Number(item.quantity) || 0;
     }
-    count += pendingMerchantIds.size;
     return count;
-  }, [visibleItems, pendingMerchantIds]);
+  }, [visibleItems]);
 
   const getCartTotal = () => {
     return visibleItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -555,6 +766,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     isLoading: isLoadingForCustomer,
     error,
     loadError,
+    hasPendingAddsForMerchant,
     totalQuantity,
     reload: loadCart,
     markCheckedOut,

@@ -38,10 +38,19 @@ export default function MerchantCartScreen() {
   const merchantId = typeof params.id === 'string' ? params.id : params.merchantId as string;
   
   const colors = useThemeColors();
-  const { getMerchantCart, updateQuantity, removeFromCart, reload, isLoading, loadError } = useCart();
+  const {
+    getMerchantCart,
+    updateQuantity,
+    removeFromCart,
+    reload,
+    isLoading,
+    loadError,
+    hasPendingAddsForMerchant,
+  } = useCart();
   const [refreshing, setRefreshing] = useState(false);
 
   const merchantCart = getMerchantCart(merchantId);
+  const hasPendingAdds = hasPendingAddsForMerchant(merchantId);
   const isBelowPayMongoMinimum = Boolean(merchantCart && merchantCart.subtotal < PAYMONGO_MINIMUM_AMOUNT_PHP);
 
   const handleRefresh = useCallback(async () => {
@@ -53,7 +62,7 @@ export default function MerchantCartScreen() {
     }
   }, [reload]);
 
-  const showSkeleton = isLoading || refreshing;
+  const showSkeleton = refreshing || (isLoading && !merchantCart);
 
   const handleQuantityChange = (itemId: number, newQuantity: number) => {
     updateQuantity(itemId, newQuantity);
@@ -64,7 +73,12 @@ export default function MerchantCartScreen() {
   };
 
   const handleCheckout = () => {
-    if (!merchantId || !merchantCart || merchantCart.subtotal < PAYMONGO_MINIMUM_AMOUNT_PHP) return;
+    if (
+      !merchantId ||
+      !merchantCart ||
+      hasPendingAdds ||
+      merchantCart.subtotal < PAYMONGO_MINIMUM_AMOUNT_PHP
+    ) return;
     navigation.navigate('Checkout', { merchantId });
   };
 
@@ -143,11 +157,18 @@ export default function MerchantCartScreen() {
                                             {item.selectedModifiers.map((m: any) => m.name).join(', ')}
                                         </Text>
                                     )}
+                                    {item.isPending && (
+                                        <Text style={styles.pendingText}>Adding to cart…</Text>
+                                    )}
                                 </View>
                             </View>
                             
                             <View style={styles.actionsRow}>
-                                <TouchableOpacity onPress={() => handleRemoveItem(item.id)}>
+                                <TouchableOpacity
+                                    onPress={() => handleRemoveItem(item.id)}
+                                    disabled={item.isPending}
+                                    style={item.isPending ? styles.pendingAction : undefined}
+                                >
                                     <Text style={styles.removeText}>Remove</Text>
                                 </TouchableOpacity>
                                 
@@ -155,6 +176,7 @@ export default function MerchantCartScreen() {
                                     <TouchableOpacity 
                                         onPress={() => handleQuantityChange(item.id, item.quantity - 1)}
                                         style={styles.qtyButton}
+                                        disabled={item.isPending}
                                     >
                                         <Text style={styles.qtyButtonText}>-</Text>
                                     </TouchableOpacity>
@@ -162,6 +184,7 @@ export default function MerchantCartScreen() {
                                     <TouchableOpacity 
                                         onPress={() => handleQuantityChange(item.id, item.quantity + 1)}
                                         style={styles.qtyButton}
+                                        disabled={item.isPending}
                                     >
                                         <Text style={styles.qtyButtonText}>+</Text>
                                     </TouchableOpacity>
@@ -197,11 +220,16 @@ export default function MerchantCartScreen() {
       {merchantCart && merchantCart.items.length > 0 && (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <TouchableOpacity 
-            style={[styles.checkoutButton, isBelowPayMongoMinimum && styles.checkoutButtonDisabled]}
+            style={[
+              styles.checkoutButton,
+              (isBelowPayMongoMinimum || hasPendingAdds) && styles.checkoutButtonDisabled,
+            ]}
             onPress={handleCheckout}
-            disabled={isBelowPayMongoMinimum}
+            disabled={isBelowPayMongoMinimum || hasPendingAdds}
           >
-            <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+            <Text style={styles.checkoutButtonText}>
+              {hasPendingAdds ? 'Adding items…' : 'Proceed to Checkout'}
+            </Text>
             <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal)}</Text>
           </TouchableOpacity>
         </View>
@@ -330,6 +358,14 @@ const styles = StyleSheet.create({
       fontSize: 12,
       color: '#888',
       marginTop: 2,
+  },
+  pendingText: {
+      fontSize: 12,
+      color: '#6B7280',
+      marginTop: 4,
+  },
+  pendingAction: {
+      opacity: 0.5,
   },
   actionsRow: {
       flexDirection: 'row',

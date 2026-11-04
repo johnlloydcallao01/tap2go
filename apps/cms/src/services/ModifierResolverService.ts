@@ -188,6 +188,10 @@ export class ModifierResolverService {
       }
     }
 
+    if (resolvedGroups.length === 0) {
+      return resolvedGroups
+    }
+
     const resolvedMerchantProductId = await this.resolveMerchantProductId({
       productId,
       merchantId,

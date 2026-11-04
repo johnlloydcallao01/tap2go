@@ -411,6 +411,7 @@ export default function ProductScreen() {
         merchantProductId: Number(product.merchantProductId),
         quantity,
         priceAtAdd: effectiveBasePrice,
+        productName: product.name,
         compareAtPrice: effectiveCompareAtPrice ?? null,
         selectedModifiers: selectedModifierPayload,
         selectedVariation: selectedVariation
@@ -481,6 +482,7 @@ export default function ProductScreen() {
           merchantProductId: Number(item.merchantProductId),
           quantity,
           priceAtAdd: item.basePrice || 0,
+          productName: item.name,
           compareAtPrice: item.compareAtPrice ?? null,
           selectedModifiers: [],
         });
