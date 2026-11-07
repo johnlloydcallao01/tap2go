@@ -317,7 +317,9 @@ export class HomeOverviewService {
 
     // React Query already coalesces identical hook requests. Avoid sharing a
     // signal-bound promise so cancellation cannot poison a pull-to-refresh.
-    return signal ? fetchOverview() : dataCache.dedupe<HomeOverview | null>(cacheKey, fetchOverview);
+    return signal || forceRefresh
+      ? fetchOverview()
+      : dataCache.dedupe<HomeOverview | null>(cacheKey, fetchOverview);
   }
 
   static clearCache(): void {

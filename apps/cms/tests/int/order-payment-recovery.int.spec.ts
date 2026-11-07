@@ -116,6 +116,13 @@ describe('pending order payment recovery', () => {
       clientKey: 'pi_replacement_secret_key',
     })
     expect(fetch).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toMatchObject({
+      data: {
+        attributes: {
+          statement_descriptor: 'TAP2GO',
+        },
+      },
+    })
     expect(request.payload.create).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'transactions',
       data: expect.objectContaining({

@@ -122,17 +122,18 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
 
     // Sender = merchant (pickup)
     let senderName = merchant.outletName || 'Merchant'
-    let senderPhone = merchant.contactInfo?.phone || '+639000000000'
+    const senderPhone =
+      typeof merchant.contactInfo?.phone === 'string' ? merchant.contactInfo.phone.trim() : ''
 
     // Recipient = customer (dropoff)
     let recipientName = 'Tap2Go Customer'
-    let recipientPhone = '+639000000000'
+    let recipientPhone = ''
 
     if (customer) {
       if (customer.user && typeof customer.user === 'object') {
         const user = customer.user as any
         recipientName = [user.firstName, user.lastName].filter(Boolean).join(' ') || recipientName
-        recipientPhone = user.phone || recipientPhone
+        recipientPhone = typeof user.phone === 'string' ? user.phone.trim() : ''
       }
       if (customer.email) {
         recipientName = recipientName || customer.email
@@ -141,7 +142,21 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
 
     // Override with delivery-location snapshot if available
     const finalRecipientName = deliveryLocation?.contact_name || recipientName
-    const finalRecipientPhone = deliveryLocation?.contact_phone || recipientPhone
+    const finalRecipientPhone =
+      typeof deliveryLocation?.contact_phone === 'string' && deliveryLocation.contact_phone.trim()
+        ? deliveryLocation.contact_phone.trim()
+        : recipientPhone
+
+    if (!senderPhone || !finalRecipientPhone) {
+      return Response.json(
+        {
+          error: !senderPhone
+            ? 'Merchant pickup phone number is missing. Add a contact phone before booking delivery.'
+            : 'Customer phone number is missing. Add a phone number to the customer profile before booking delivery.',
+        },
+        { status: 422 },
+      )
+    }
 
     // Dropoff fallback = customer.active_address_id → addresses
     if (!dropoffLat || !dropoffLng) {

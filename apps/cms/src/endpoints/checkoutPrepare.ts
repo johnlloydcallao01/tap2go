@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import type { PayloadRequest } from 'payload'
 import { getCheckoutDeliveryQuote } from '../services/checkoutDeliveryQuote'
 import { CheckoutValidationError, priceCheckoutCart } from '../services/checkoutPricing'
+import { PAYMONGO_STATEMENT_DESCRIPTOR } from '../services/paymongo'
 
 const PAYMENT_METHODS = new Set(['gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph', 'card'])
 const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
@@ -154,6 +155,7 @@ async function createPaymentIntent(args: {
             amount: Math.round(args.amount * 100),
             currency: args.currency,
             description: `Tap2Go order #${args.orderId}`,
+            statement_descriptor: PAYMONGO_STATEMENT_DESCRIPTOR,
             payment_method_allowed: ['card', 'gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph'],
             payment_method_options: { card: { request_three_d_secure: 'any' } },
             metadata: { orderId: String(args.orderId) },

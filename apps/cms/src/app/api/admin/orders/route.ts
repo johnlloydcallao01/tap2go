@@ -218,6 +218,7 @@ async function oRows(payload: Payload, query: string | SQL): Promise<Array<Recor
 
 type OrdersStats = {
   totalAll: number
+  paidOrderCount: number
   statusBreakdown: Record<string, number>
   fulfillmentBreakdown: Record<string, number>
   deliveryStatusBreakdown: Record<string, number>
@@ -233,7 +234,7 @@ type OrdersStats = {
  */
 async function getOrdersStats(payload: Payload): Promise<OrdersStats> {
   const { data } = await getOrBuildDashboard<OrdersStats>(
-    'admin:orders:stats:v1',
+    'admin:orders:stats:v2',
     300,
     async () => {
       const [aggRows, revRows] = await Promise.all([
@@ -241,8 +242,8 @@ async function getOrdersStats(payload: Payload): Promise<OrdersStats> {
           payload,
           sql`SELECT COALESCE(status::text,'pending') AS s, COALESCE(fulfillment_type::text,'delivery') AS f, COALESCE(delivery_status::text,'none') AS d, COUNT(*)::int AS c, GROUPING(status::text)::int AS g_s, GROUPING(fulfillment_type::text)::int AS g_f, GROUPING(delivery_status::text)::int AS g_d FROM orders GROUP BY GROUPING SETS ((status::text),(fulfillment_type::text),(delivery_status::text),()) ORDER BY g_s, g_f, g_d`,
         ),
-        // Revenue counts verified (paid) transactions only — same as dashboard analytics.
-        oRows(payload, sql`SELECT COALESCE(SUM(amount::numeric),0) AS revenue FROM transactions WHERE status='paid'`),
+        // Revenue counts verified transactions; the average denominator counts their distinct orders.
+        oRows(payload, sql`SELECT COALESCE(SUM(amount::numeric),0) AS revenue, COUNT(DISTINCT order_id)::int AS paid_order_count FROM transactions WHERE status='paid'`),
       ])
       const statusBreakdown: Record<string, number> = {}
       for (const s of STATUS_SET) statusBreakdown[s] = 0
@@ -270,6 +271,7 @@ async function getOrdersStats(payload: Payload): Promise<OrdersStats> {
       }
       return {
         totalAll,
+        paidOrderCount: Number(revRows[0]?.paid_order_count ?? 0),
         statusBreakdown,
         fulfillmentBreakdown,
         deliveryStatusBreakdown,
@@ -360,8 +362,8 @@ async function buildOrdersList(payload: Payload, searchParams: URLSearchParams) 
 
     const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeOrderDoc(d))
 
-    const { totalAll, statusBreakdown, fulfillmentBreakdown, deliveryStatusBreakdown, totalRevenue } = stats
-    const avgOrderValue = totalAll > 0 ? totalRevenue / totalAll : 0
+    const { totalAll, paidOrderCount, statusBreakdown, fulfillmentBreakdown, deliveryStatusBreakdown, totalRevenue } = stats
+    const avgOrderValue = paidOrderCount > 0 ? totalRevenue / paidOrderCount : 0
     const filteredTotal = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
 
     const responseBody = {

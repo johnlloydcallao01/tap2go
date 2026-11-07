@@ -191,7 +191,7 @@ export default function MobileHeader({
                     position: 'absolute',
                     top: -6,
                     right: -8,
-                    backgroundColor: colors.notification,
+                    backgroundColor: colors.primary,
                     borderRadius: 9,
                     minWidth: 18,
                     height: 18,

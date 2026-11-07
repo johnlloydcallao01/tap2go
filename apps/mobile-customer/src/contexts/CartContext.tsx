@@ -491,7 +491,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           body.selectedVariation = payload.selectedVariation;
         }
 
-        const res = await fetch(`${API_BASE}/cart-items`, {
+        const res = await fetch(`${API_BASE}/customer/cart`, {
           method: 'POST',
           headers,
           body: JSON.stringify(body),
@@ -521,11 +521,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
 
           const text = rawText || '';
-          if (text.includes('CART_ITEM_MERGED:')) {
-            await loadCart();
-            return;
-          }
-
           throw new Error(text || `Add to cart failed (${res.status})`);
         }
 
@@ -549,7 +544,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           setResolvedCustomerId(String(customerId));
           setIsLoading(false);
         } else {
-          await loadCart();
+          throw new Error('Add-to-cart response did not include the saved item');
         }
       } catch (e: any) {
         setError(e?.message || 'Failed to add to cart');
@@ -562,7 +557,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [customerId, loadCart, API_BASE]
+    [customerId, API_BASE]
   );
 
   const removeItemServer = useCallback(

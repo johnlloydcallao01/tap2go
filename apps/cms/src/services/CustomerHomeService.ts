@@ -165,11 +165,12 @@ export class CustomerHomeService {
     const includeRecommendations = section !== 'primary'
     const safeLimit = Math.min(Math.max(limit || 20, 1), 50)
 
-    // Step 1: customer → active address → eligible merchants (PostGIS, ≤50).
+    // Step 1: customer → active address → only the merchant candidates Home needs.
     const locationCacheKey = [
-      'customer:home-overview:location:v1',
+      'customer:home-overview:location:v2',
       customerId,
       categoryId || 'all',
+      safeLimit,
     ].join(':')
     const locationCacheStart = Date.now()
     const { data: location, status: locationCacheStatus } = await getOrBuildDashboard(
@@ -179,6 +180,7 @@ export class CustomerHomeService {
         this.merchantLocationService.getMerchantsForLocationDisplay({
           customerId,
           categoryId: categoryId || undefined,
+          limit: safeLimit,
           includeTotalCount: false,
           onTiming,
         }),

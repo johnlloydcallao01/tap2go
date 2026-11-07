@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
 import {
   useHomeOverview,
+  HomeOverviewService,
   HOME_OVERVIEW_KEYS,
   clearHomeOverviewCache,
   type RecommendedProduct
@@ -57,7 +58,6 @@ export default function HomeScreen() {
     isLoading: overviewLoading,
     isFetching: overviewFetching,
     isError: overviewError,
-    refetch: refetchOverview,
   } = useHomeOverview(
     customerId,
     20,
@@ -65,7 +65,6 @@ export default function HomeScreen() {
     {
       staleTime: HOME_OVERVIEW_STALE_TIME_MS,
       section: 'primary',
-      forceRefresh: () => refreshInProgress.current,
     },
   );
   const recommendationsQuery = useHomeOverview(
@@ -76,26 +75,71 @@ export default function HomeScreen() {
       staleTime: HOME_OVERVIEW_STALE_TIME_MS,
       enabled: recommendationsVisible && !overviewFetching && !selectedCategoryId,
       section: 'recommendations',
-      forceRefresh: () => refreshInProgress.current,
     },
   );
 
   const forceRefetchHome = async (
     requests: {
       queryKey: ReturnType<typeof HOME_OVERVIEW_KEYS.detail>;
-      refetch: () => Promise<unknown>;
+      section: 'all' | 'primary' | 'recommendations';
+      mirrorRecommendations?: boolean;
     }[],
     showRefreshIndicator = false,
   ) => {
+    if (!customerId) return;
     if (refreshInProgress.current) return;
     refreshInProgress.current = true;
     if (showRefreshIndicator) setRefreshing(true);
     try {
+      if (showRefreshIndicator) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
       clearHomeOverviewCache();
+      const queryKeysToCancel = requests.flatMap(({ queryKey, mirrorRecommendations }) => [
+        queryKey,
+        ...(mirrorRecommendations
+          ? [
+              HOME_OVERVIEW_KEYS.detail(
+                String(customerId),
+                20,
+                selectedCategoryId,
+                'recommendations',
+              ),
+            ]
+          : []),
+      ]);
       await Promise.all(
-        requests.map(({ queryKey }) => queryClient.cancelQueries({ queryKey, exact: true })),
+        queryKeysToCancel.map((queryKey) => queryClient.cancelQueries({ queryKey, exact: true })),
       );
-      await Promise.all(requests.map(({ refetch }) => refetch()));
+      const results = await Promise.all(
+        requests.map(({ queryKey, section }) =>
+          queryClient.fetchQuery({
+            queryKey,
+            staleTime: 0,
+            queryFn: () =>
+              HomeOverviewService.getHomeOverview({
+                customerId: String(customerId),
+                limit: 20,
+                categoryId: selectedCategoryId,
+                section,
+                forceRefresh: true,
+              }),
+          }),
+        ),
+      );
+      requests.forEach((request, index) => {
+        if (request.mirrorRecommendations && results[index]) {
+          queryClient.setQueryData(
+            HOME_OVERVIEW_KEYS.detail(
+              String(customerId),
+              20,
+              selectedCategoryId,
+              'recommendations',
+            ),
+            results[index],
+          );
+        }
+      });
     } catch (error) {
       console.error('Home refresh failed:', error);
     } finally {
@@ -105,18 +149,17 @@ export default function HomeScreen() {
   };
 
   const onRefresh = () => {
-    const requests = [
+    const requests: {
+      queryKey: ReturnType<typeof HOME_OVERVIEW_KEYS.detail>;
+      section: 'all' | 'primary' | 'recommendations';
+      mirrorRecommendations?: boolean;
+    }[] = [
       {
         queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'primary'),
-        refetch: refetchOverview,
+        section: selectedCategoryId ? 'primary' : 'all',
+        mirrorRecommendations: !selectedCategoryId,
       },
     ];
-    if (!selectedCategoryId) {
-      requests.push({
-        queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'recommendations'),
-        refetch: recommendationsQuery.refetch,
-      });
-    }
     return forceRefetchHome(requests, true);
   };
 
@@ -124,7 +167,7 @@ export default function HomeScreen() {
     forceRefetchHome([
       {
         queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'primary'),
-        refetch: refetchOverview,
+        section: 'primary',
       },
     ]);
 
@@ -132,7 +175,7 @@ export default function HomeScreen() {
     forceRefetchHome([
       {
         queryKey: HOME_OVERVIEW_KEYS.detail(customerId || '', 20, selectedCategoryId, 'recommendations'),
-        refetch: recommendationsQuery.refetch,
+        section: 'recommendations',
       },
     ]);
 
@@ -245,7 +288,7 @@ export default function HomeScreen() {
                   selectedCategorySlug={selectedCategorySlug}
                   onCategorySelect={handleCategorySelect}
                   overviewCategories={overview?.categories ?? null}
-                  overviewLoading={overviewLoading && !overview}
+                  overviewLoading={overviewLoading || refreshing}
                 />
                 <LocationBasedMerchants
                   customerId={customerId}
@@ -253,15 +296,14 @@ export default function HomeScreen() {
                   onMerchantPress={handleMerchantPress}
                   onProductPress={handleProductPress}
                   overview={overview}
-                  overviewLoading={overviewLoading && !overview}
+                  overviewLoading={overviewLoading || refreshing}
                   recommendationsOverview={recommendationsQuery.data}
                   recommendationsLoading={
-                    !recommendationsQuery.data &&
-                    (refreshing ||
-                      overviewLoading ||
-                      overviewFetching ||
-                      !recommendationsVisible ||
-                      recommendationsQuery.isLoading)
+                    refreshing ||
+                    overviewLoading ||
+                    overviewFetching ||
+                    !recommendationsVisible ||
+                    recommendationsQuery.isLoading
                   }
                   recommendationsError={
                     recommendationsQuery.isError && !recommendationsQuery.data

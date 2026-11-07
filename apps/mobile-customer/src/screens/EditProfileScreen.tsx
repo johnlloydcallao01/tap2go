@@ -14,7 +14,7 @@ import {
   Pressable,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useThemeColors } from '../contexts/ThemeContext';
@@ -26,10 +26,12 @@ export default function EditProfileScreen() {
   const colors = useThemeColors();
   const { user, updateUser, token } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [middleName, setMiddleName] = useState(user?.middleName ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -46,10 +48,11 @@ export default function EditProfileScreen() {
       firstName !== (user?.firstName ?? '') ||
       lastName !== (user?.lastName ?? '') ||
       (middleName || '') !== (user?.middleName ?? '') ||
+      phone !== (user?.phone ?? '') ||
       (username || '') !== (user?.username ?? '');
     const photoChanged = !!pickedImage || removePhoto;
     setHasChanges(textChanged || photoChanged);
-  }, [firstName, lastName, middleName, username, user, pickedImage, removePhoto]);
+  }, [firstName, lastName, middleName, phone, username, user, pickedImage, removePhoto]);
 
   const handleRemovePhoto = () => {
     setPickedImage(null);
@@ -136,6 +139,7 @@ export default function EditProfileScreen() {
         firstName: trimmedFirst,
         lastName: trimmedLast,
         middleName: middleName.trim() || null,
+        phone: phone.trim() || null,
         username: username.trim() || null,
       };
 
@@ -215,7 +219,8 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: colors.background }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={10}
       >
         <View style={{ flex: 1, backgroundColor: colors.background }}>
           {/* Header */}
@@ -275,7 +280,7 @@ export default function EditProfileScreen() {
 
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}
             keyboardShouldPersistTaps="handled"
           >
             {/* Profile Picture */}
@@ -395,6 +400,20 @@ export default function EditProfileScreen() {
                 placeholder="Optional"
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="words"
+                autoCorrect={false}
+              />
+            </View>
+
+            <View style={{ marginBottom: 20 }}>
+              <Text style={labelStyle}>Phone Number</Text>
+              <TextInput
+                style={fieldStyle}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="Enter your phone number"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>

@@ -7,8 +7,10 @@ import {
   ActivityIndicator,
   StyleSheet,
   Linking,
+  Animated,
+  PanResponder,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -145,6 +147,59 @@ export default function TrackingScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const cardTranslateY = useRef(new Animated.Value(0)).current;
+  const mapBottomInset = useRef(new Animated.Value(0)).current;
+  const collapsedOffset = useRef(0);
+  const expandedMapBottom = useRef(0);
+  const isCardMinimized = useRef(false);
+  const [isCardMinimizedState, setIsCardMinimizedState] = useState(false);
+
+  const animateCard = useCallback((minimized: boolean) => {
+    isCardMinimized.current = minimized;
+    setIsCardMinimizedState(minimized);
+    const targetOffset = minimized ? collapsedOffset.current : 0;
+    Animated.parallel([
+      Animated.spring(cardTranslateY, {
+        toValue: targetOffset,
+        useNativeDriver: true,
+        damping: 24,
+        stiffness: 220,
+        mass: 0.8,
+      }),
+      Animated.spring(mapBottomInset, {
+        toValue: Math.max(0, expandedMapBottom.current - targetOffset),
+        useNativeDriver: false,
+        damping: 24,
+        stiffness: 220,
+        mass: 0.8,
+      }),
+    ]).start();
+  }, [cardTranslateY, mapBottomInset]);
+
+  const cardHandleResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_, gesture) => {
+        const startOffset = isCardMinimized.current ? collapsedOffset.current : 0;
+        const maxOffset = collapsedOffset.current;
+        const nextOffset = Math.max(0, Math.min(maxOffset, startOffset + gesture.dy));
+        cardTranslateY.setValue(nextOffset);
+        mapBottomInset.setValue(Math.max(0, expandedMapBottom.current - nextOffset));
+      },
+      onPanResponderRelease: (_, gesture) => {
+        const startOffset = isCardMinimized.current ? collapsedOffset.current : 0;
+        const endOffset = Math.max(
+          0,
+          Math.min(collapsedOffset.current, startOffset + gesture.dy),
+        );
+        const minimized = endOffset >= collapsedOffset.current / 2;
+        animateCard(minimized);
+      },
+      onPanResponderTerminate: () => animateCard(isCardMinimized.current),
+    }),
+  ).current;
 
   const [data, setData] = useState<TrackingData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -299,27 +354,28 @@ export default function TrackingScreen() {
 
     return (
       <View style={styles.mapContainer}>
-        {IN_EXPO_GO ? (
-          <GoMapView
-            style={{ flex: 1 }}
-            center={{ latitude: initialRegion.latitude, longitude: initialRegion.longitude }}
-            latitudeDelta={initialRegion.latitudeDelta}
-            interactive
-            markers={goMarkers}
-            polyline={goRoute}
-            autoFit
-          />
-        ) : (
-          <MapView
-            style={{ flex: 1 }}
-            initialRegion={initialRegion}
-            showsUserLocation={false}
-            showsCompass
-            showsScale
-            loadingEnabled
-            loadingBackgroundColor="#f9fafb"
-            loadingIndicatorColor="#f97316"
-          >
+        <Animated.View style={[styles.mapViewport, { bottom: mapBottomInset }]}>
+          {IN_EXPO_GO ? (
+            <GoMapView
+              style={{ flex: 1 }}
+              center={{ latitude: initialRegion.latitude, longitude: initialRegion.longitude }}
+              latitudeDelta={initialRegion.latitudeDelta}
+              interactive
+              markers={goMarkers}
+              polyline={goRoute}
+              autoFit
+            />
+          ) : (
+            <MapView
+              style={{ flex: 1 }}
+              initialRegion={initialRegion}
+              showsUserLocation={false}
+              showsCompass
+              showsScale
+              loadingEnabled
+              loadingBackgroundColor="#f9fafb"
+              loadingIndicatorColor="#f97316"
+            >
           {pickup.lat != null && pickup.lng != null && (
             <Marker
               coordinate={{ latitude: pickup.lat, longitude: pickup.lng }}
@@ -368,8 +424,8 @@ export default function TrackingScreen() {
               lineJoin="round"
             />
           )}
-          </MapView>
-        )}
+            </MapView>
+          )}
 
         {/* Status pill overlay */}
         <View style={styles.statusPillRow}>
@@ -384,9 +440,49 @@ export default function TrackingScreen() {
             </View>
           )}
         </View>
+        </Animated.View>
 
         {/* Bottom card */}
-        <View style={styles.bottomCard}>
+        <Animated.View
+          {...cardHandleResponder.panHandlers}
+          onLayout={(event) => {
+            const height = event.nativeEvent.layout.height;
+            collapsedOffset.current = Math.max(0, height - styles.cardHandleArea.height);
+            expandedMapBottom.current = height + insets.bottom + 32;
+            mapBottomInset.setValue(
+              Math.max(
+                0,
+                expandedMapBottom.current -
+                  (isCardMinimized.current ? collapsedOffset.current : 0),
+              ),
+            );
+            if (isCardMinimized.current) {
+              cardTranslateY.setValue(collapsedOffset.current);
+            }
+          }}
+          style={[
+            styles.bottomCard,
+            {
+              bottom: insets.bottom + 24,
+              transform: [{ translateY: cardTranslateY }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.cardHandleArea}
+            activeOpacity={0.7}
+            onPress={() => animateCard(!isCardMinimized.current)}
+            accessibilityRole="button"
+            accessibilityLabel={isCardMinimizedState ? 'Expand delivery details' : 'Minimize delivery details'}
+            accessibilityHint={isCardMinimizedState ? 'Swipe up to show rider and address details' : 'Swipe down to focus on the map'}
+          >
+            <Ionicons
+              name={isCardMinimizedState ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color="#9ca3af"
+            />
+            <View style={styles.cardHandle} />
+          </TouchableOpacity>
           {hasDriver ? (
             <>
               <View style={styles.driverRow}>
@@ -447,7 +543,7 @@ export default function TrackingScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
       </View>
     );
   };
@@ -489,6 +585,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: { flex: 1, textAlign: 'center' as const, fontSize: 16, fontWeight: '600' as const, color: '#111827' },
   mapContainer: { flex: 1, position: 'relative' as const },
+  mapViewport: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden' as const,
+  },
   stopMarker: {
     width: 30,
     height: 30,
@@ -557,7 +660,6 @@ const styles = StyleSheet.create({
     position: 'absolute' as const,
     left: 12,
     right: 12,
-    bottom: 24,
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
@@ -566,6 +668,20 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
+  },
+  cardHandleArea: {
+    height: 30,
+    marginTop: -8,
+    marginBottom: 4,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 1,
+  },
+  cardHandle: {
+    width: 32,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#d1d5db',
   },
   driverRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
   driverAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F3F4F6' },

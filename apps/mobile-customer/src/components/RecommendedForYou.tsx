@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   LayoutChangeEvent,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -21,6 +22,9 @@ import {
 } from '@encreasl/client-services';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import { useCart } from '../contexts/CartContext';
+import { fetchEffectiveModifierGroups } from '../services/product';
+import { apiConfig } from '../config/environment';
 import { formatCurrency } from '../utils/format';
 
 interface RecommendedForYouProps {
@@ -89,13 +93,6 @@ function ProductCardSkeleton({ cardWidth }: { cardWidth: number }) {
   );
 }
 
-function formatDistance(distanceKm: number | null | undefined): string | null {
-  if (typeof distanceKm !== 'number') return null;
-  if (distanceKm <= 0) return '0m';
-  if (distanceKm < 1) return `${Math.round(distanceKm * 1000)}m`;
-  return `${distanceKm.toFixed(1)}km`;
-}
-
 export default function RecommendedForYou({
   customerId,
   categoryId,
@@ -112,6 +109,7 @@ export default function RecommendedForYou({
   const colors = useThemeColors();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
+  const { addToCart, getMerchantCart, updateQuantity } = useCart();
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   // BFF mode: overview response drives products + pills (no raw queries).
   const useBff = overviewProducts !== undefined;
@@ -243,10 +241,8 @@ export default function RecommendedForYou({
     : isLoading && allProducts.length === 0;
   if (!loading && allProducts.length === 0 && !overviewError) return null;
 
-  // 2-column grid width (copies MerchantScreen renderItem formula:
-  // parent padding 16 each side + 12 column gap + gridList padding 2 each
-  // side). Every horizontal inset must be subtracted or the row overflows
-  // by a few px and wraps to one card per line.
+  // Match MerchantScreen's two-column product-card width while allowing for
+  // this grid's 2px shadow padding on either side.
   const gridItemWidth = (width - 32 - 12 - 4) / 2;
 
   const handlePress = (product: RecommendedProduct) => {
@@ -259,6 +255,86 @@ export default function RecommendedForYou({
       merchantId: product.merchantId,
       merchantProductId: product.merchantProductId,
     });
+  };
+
+  const handleAddToCart = async (product: RecommendedProduct) => {
+    const openProductDetails = () => handlePress(product);
+    if (product.productType === 'variable' || product.productType === 'grouped') {
+      openProductDetails();
+      return;
+    }
+
+    try {
+      if (product.hasRequiredModifiers) {
+        openProductDetails();
+        return;
+      }
+
+      const modifierGroups = await fetchEffectiveModifierGroups(
+        product.id,
+        null,
+        product.merchantId,
+      );
+      if (modifierGroups.some((group) => group.is_required || group.min_selections > 0)) {
+        openProductDetails();
+        return;
+      }
+
+      let merchantProductId = product.merchantProductId;
+      if (!merchantProductId) {
+        const query = new URLSearchParams({
+          'where[merchant_id][equals]': String(product.merchantId),
+          'where[product_id][equals]': String(product.id),
+          depth: '0',
+        });
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (apiConfig.payloadApiKey) {
+          headers.Authorization = `users API-Key ${apiConfig.payloadApiKey}`;
+        }
+        const response = await fetch(`${apiConfig.baseUrl}/merchant-products?${query}`, { headers });
+        if (!response.ok) {
+          throw new Error('Failed to fetch merchant product details');
+        }
+        const data = await response.json();
+        merchantProductId = data.docs?.[0]?.id;
+        if (!merchantProductId) {
+          Alert.alert('Error', 'Product not available at this merchant.');
+          return;
+        }
+      }
+
+      const merchantCart = getMerchantCart(String(product.merchantId));
+      const existingItem = merchantCart?.items.find(
+        (item) =>
+          Number(item.merchantProduct) === Number(merchantProductId) &&
+          (!item.selectedModifiers || item.selectedModifiers.length === 0),
+      );
+      if (existingItem && !existingItem.isPending) {
+        await updateQuantity(existingItem.id, existingItem.quantity + 1);
+        Alert.alert('Cart Updated', `${product.name} quantity increased.`);
+        return;
+      }
+
+      await addToCart({
+        merchantId: Number(product.merchantId),
+        productId: Number(product.id),
+        merchantProductId: Number(merchantProductId),
+        quantity: 1,
+        priceAtAdd: product.basePrice ?? 0,
+        productName: product.name,
+        imageUrl: product.imageUrl,
+        merchantName: product.merchantName,
+        compareAtPrice: product.compareAtPrice,
+        selectedModifiers: [],
+      });
+      Alert.alert('Added to Cart', `${product.name} added to your cart.`);
+    } catch (error) {
+      console.error('Error adding home product to cart:', error);
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to add item to cart. Please try again.',
+      );
+    }
   };
 
   const handleSelectCategory = (id: string) => {
@@ -333,7 +409,6 @@ export default function RecommendedForYou({
         <>
           <View style={styles.gridList}>
             {visibleProducts.map((product) => {
-              const distance = formatDistance(product.distanceKm);
               return (
                 <TouchableOpacity
                   key={`${product.merchantProductId}-${product.id}`}
@@ -347,38 +422,42 @@ export default function RecommendedForYou({
                     style={styles.productImage}
                     resizeMode="cover"
                   />
-                  {product.compareAtPrice != null &&
-                    product.basePrice != null &&
-                    product.compareAtPrice > product.basePrice && (
-                      <View style={styles.discountBadge}>
-                        <Text style={styles.discountText}>
-                          -
-                          {Math.round(
-                            ((product.compareAtPrice - product.basePrice) /
-                              product.compareAtPrice) *
-                              100,
-                          )}
-                          %
-                        </Text>
-                      </View>
-                    )}
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${product.name} to cart`}
+                    style={styles.addButton}
+                    onPress={() => void handleAddToCart(product)}
+                  >
+                    <Ionicons name="add" size={20} color="#333" />
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.productContent}>
-                  <Text style={[styles.productName, { color: colors.text }]} numberOfLines={2}>
+                  <Text style={styles.productName} numberOfLines={2}>
                     {product.name}
                   </Text>
-                  {product.basePrice !== null ? (
-                    <Text style={styles.price}>{formatCurrency(product.basePrice)}</Text>
+                  {product.productType === 'simple' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {product.basePrice !== null && (
+                        <Text style={styles.price}>{formatCurrency(product.basePrice)}</Text>
+                      )}
+                      {product.compareAtPrice != null &&
+                        product.basePrice != null &&
+                        product.compareAtPrice > product.basePrice && (
+                          <Text style={styles.comparePrice}>
+                            {formatCurrency(product.compareAtPrice)}
+                          </Text>
+                        )}
+                    </View>
                   ) : (
-                    <Text style={styles.variableText}>Price varies</Text>
-                  )}
-                  <View style={styles.metaRow}>
-                    <Ionicons name="storefront-outline" size={11} color="#9CA3AF" />
-                    <Text style={styles.merchantName} numberOfLines={1}>
-                      {product.merchantName}
-                      {distance ? ` • ${distance}` : ''}
+                    <Text style={styles.variableText}>
+                      {product.productType === 'grouped' ? 'Show Grouped Items' : 'Show Variations'}
                     </Text>
-                  </View>
+                  )}
+                  {product.shortDescription ? (
+                    <Text style={styles.shortDescription} numberOfLines={2}>
+                      {product.shortDescription}
+                    </Text>
+                  ) : null}
                 </View>
                 </TouchableOpacity>
               );
@@ -511,76 +590,75 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   productCard: {
-    marginBottom: 4,
+    marginBottom: 16,
     backgroundColor: '#fff',
     borderRadius: 12,
     // NOTE: no overflow:'hidden' here — it kills the box shadow.
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   imageContainer: {
+    position: 'relative',
     width: '100%',
-    aspectRatio: 1,
-    backgroundColor: '#F3F4F6',
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     overflow: 'hidden',
   },
   productImage: {
     width: '100%',
-    height: '100%',
+    aspectRatio: 1,
+    backgroundColor: '#f0f0f0',
   },
-  discountBadge: {
+  addButton: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: '#EF4444',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  discountText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
   productContent: {
     padding: 10,
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    overflow: 'hidden',
   },
   productName: {
-    fontSize: 13,
-    lineHeight: 17,
-    minHeight: 34,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+    height: 36,
   },
   price: {
-    marginTop: 4,
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#ee4d2d',
+    color: '#333',
+  },
+  comparePrice: {
+    fontSize: 12,
+    color: '#999',
+    textDecorationLine: 'line-through',
+    marginLeft: 6,
   },
   variableText: {
-    marginTop: 4,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
-    color: '#239459',
+    color: '#eba236',
   },
-  metaRow: {
+  shortDescription: {
+    fontSize: 12,
+    color: '#666',
     marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  merchantName: {
-    flex: 1,
-    fontSize: 11,
-    color: '#6B7280',
+    lineHeight: 16,
   },
   emptyContainer: {
     padding: 20,

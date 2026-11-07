@@ -324,7 +324,7 @@ export function OrdersPageContent() {
           <KpiCard title="Pending" value={pendingVal} sub="awaiting acceptance" icon={<Clock className="w-5 h-5 text-white" />} iconBg="bg-amber-500" />
           <KpiCard title="In Progress" value={inProgressVal} sub="preparing + delivery" icon={<Package className="w-5 h-5 text-white" />} iconBg="bg-blue-600" />
           <KpiCard title="Delivered" value={deliveredVal} sub={`${Math.round(((stats.statusBreakdown?.delivered||0)/Math.max(1,stats.totalAll))*100)}% completed`} icon={<CheckCircle className="w-5 h-5 text-white" />} iconBg="bg-emerald-500" />
-          <KpiCard title="Revenue" value={revenueVal} sub={avgVal ? `avg ${avgVal}` : 'total revenue'} icon={<Receipt className="w-5 h-5 text-white" />} iconBg="bg-[#c88a20]" trend={avgVal ? `avg ${avgVal}` : undefined} />
+          <KpiCard title="Revenue" value={revenueVal} sub={avgVal ? `avg per paid order ${avgVal}` : 'total revenue'} icon={<Receipt className="w-5 h-5 text-white" />} iconBg="bg-[#c88a20]" />
         </div>
       ) : isInitialLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">

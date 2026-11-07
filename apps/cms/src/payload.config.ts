@@ -14,9 +14,11 @@ import { merchantLocationBasedDisplayHandler } from './endpoints/merchantLocatio
 import { merchantLocationBasedProductCategoriesHandler } from './endpoints/merchantLocationBasedProductCategories'
 import { customerHomeOverviewHandler } from './endpoints/customerHomeOverview'
 import { customerCartHandler } from './endpoints/customerCart'
+import { customerCartAddHandler } from './endpoints/customerCartAdd'
 import { customerWishlistOverviewHandler } from './endpoints/customerWishlistOverview'
 import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
 import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
+import { PAYMONGO_STATEMENT_DESCRIPTOR } from './services/paymongo'
 import { sendOrderHelp } from './endpoints/sendOrderHelp'
 import { paymongoWebhook } from './endpoints/paymongoWebhook'
 import { deliveryQuoteHandler } from './endpoints/deliveryQuote'
@@ -855,6 +857,11 @@ export default buildConfig({
       handler: customerCartHandler,
     },
     {
+      path: '/customer/cart',
+      method: 'post',
+      handler: customerCartAddHandler,
+    },
+    {
       path: '/customer/wishlist-overview',
       method: 'get',
       handler: customerWishlistOverviewHandler,
@@ -1530,6 +1537,7 @@ export default buildConfig({
                       request_three_d_secure: 'any',
                     },
                   },
+                  statement_descriptor: PAYMONGO_STATEMENT_DESCRIPTOR,
                   currency
                 }
               }

@@ -3,6 +3,7 @@ import {
   classifyPayMongoIntentStatus,
   isOrderOwnedByCustomer,
 } from '../services/orderPaymentRecovery'
+import { PAYMONGO_STATEMENT_DESCRIPTOR } from '../services/paymongo'
 
 const PAYMENT_METHODS = new Set([
   'qrph',
@@ -265,6 +266,7 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
               currency: String((transaction as any).currency || 'PHP'),
               payment_method_allowed: [method],
               description: `Order #${orderId}`,
+              statement_descriptor: PAYMONGO_STATEMENT_DESCRIPTOR,
             },
           },
         }),

@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  KeyboardAvoidingView,
   PanResponder,
+  Platform,
   ScrollView,
 } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
@@ -229,7 +231,11 @@ export function AddressEditView({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+    <View style={[styles.container, fullBleed && styles.fullBleedContainer]}>
       {/* ── Map ── */}
       <Animated.View style={[styles.mapWrap, { bottom: sheetHeight }]}>
         {IN_EXPO_GO ? (
@@ -294,9 +300,14 @@ export function AddressEditView({
 
         <ScrollView
           style={styles.sheetBody}
-          contentContainerStyle={styles.sheetBodyContent}
+          contentContainerStyle={[
+            styles.sheetBodyContent,
+            { paddingBottom: insets.bottom + 34 },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         >
           <View style={styles.sheetHeader}>
             <Text style={styles.editLabel}>{headerLabel}</Text>
@@ -391,6 +402,7 @@ export function AddressEditView({
         </ScrollView>
       </Animated.View>
     </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -400,6 +412,9 @@ const styles = StyleSheet.create({
     minHeight: 380,
     backgroundColor: '#F9FAFB',
     overflow: 'hidden',
+  },
+  fullBleedContainer: {
+    minHeight: 0,
   },
   mapWrap: {
     position: 'absolute',

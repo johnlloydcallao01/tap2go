@@ -845,10 +845,8 @@ export class GeospatialService {
               AND mr2.merchant_categories_id = ${categoryId}
           )` : ''}
         ORDER BY 
-          ST_Distance(
-            ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857),
-            ST_Transform(${customerPoint}, 3857)
-          )
+          ST_Transform(ST_SetSRID(ST_MakePoint(m.merchant_longitude, m.merchant_latitude), 4326), 3857)
+          <-> ST_Transform(${customerPoint}, 3857)
         LIMIT ${limit}
         OFFSET ${offset};
       `)) as DatabaseQueryResult

@@ -684,7 +684,7 @@ export default function OrderDetailScreen() {
       ? order.merchant
       : null;
   const merchantPhone =
-    merchant?.contactInfo?.phone || '+639000000000';
+    typeof merchant?.phone === 'string' ? merchant.phone.trim() || null : null;
   const merchantName =
     merchant?.outletName || merchant?.vendor?.businessName || 'Restaurant';
   const merchantLogo =
@@ -730,7 +730,10 @@ export default function OrderDetailScreen() {
   const recipientName = deliveryLocation?.contact_name ||
     [customerUser?.firstName, customerUser?.lastName].filter(Boolean).join(' ') ||
     (order.customer?.email ? order.customer.email : 'Tap2Go Customer');
-  const recipientPhone = deliveryLocation?.contact_phone || customerUser?.phone || '+639000000000';
+  const recipientPhone =
+    [deliveryLocation?.contact_phone, customerUser?.phone].find(
+      (phone) => typeof phone === 'string' && phone.trim(),
+    )?.trim() || null;
   const notesForRider = [
     deliveryLocation?.merchant_delivery_instructions,
     deliveryLocation?.delivery_instructions,
@@ -1158,10 +1161,12 @@ export default function OrderDetailScreen() {
                   <Ionicons name="person-outline" size={16} color="#6b7280" />
                   <Text style={styles.infoValue}>{senderName}</Text>
                 </View>
-                <View style={styles.infoRow}>
-                  <Ionicons name="call-outline" size={16} color="#6b7280" />
-                  <Text style={styles.infoValue}>{senderPhone}</Text>
-                </View>
+                {senderPhone ? (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="call-outline" size={16} color="#6b7280" />
+                    <Text style={styles.infoValue}>{senderPhone}</Text>
+                  </View>
+                ) : null}
                 <View style={styles.infoRow}>
                   <Ionicons name="location-outline" size={16} color="#6b7280" />
                   <Text style={styles.infoValue}>{pickupAddress}</Text>
@@ -1193,10 +1198,12 @@ export default function OrderDetailScreen() {
                   <Ionicons name="person-outline" size={16} color="#6b7280" />
                   <Text style={styles.infoValue}>{recipientName}</Text>
                 </View>
-                <View style={styles.infoRow}>
-                  <Ionicons name="call-outline" size={16} color="#6b7280" />
-                  <Text style={styles.infoValue}>{recipientPhone}</Text>
-                </View>
+                {recipientPhone ? (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="call-outline" size={16} color="#6b7280" />
+                    <Text style={styles.infoValue}>{recipientPhone}</Text>
+                  </View>
+                ) : null}
                 <View style={styles.infoRow}>
                   <Ionicons name="location-outline" size={16} color="#6b7280" />
                   <Text style={styles.infoValue}>{dropoffAddress}</Text>

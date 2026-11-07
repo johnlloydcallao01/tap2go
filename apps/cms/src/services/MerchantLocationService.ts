@@ -11,6 +11,7 @@ export type HomeOverviewTiming = (
 export interface MerchantLocationRequest {
   customerId: number
   categoryId?: string
+  limit?: number
   includeTotalCount?: boolean
   onTiming?: HomeOverviewTiming
 }
@@ -45,7 +46,7 @@ export class MerchantLocationService {
   }
 
   async getMerchantsForLocationDisplay(request: MerchantLocationRequest): Promise<MerchantLocationResponse> {
-    const { customerId, categoryId, includeTotalCount = true, onTiming } = request
+    const { customerId, categoryId, limit = 50, includeTotalCount = true, onTiming } = request
 
     // Step 1: Get customer data
     const customerLookupStart = Date.now()
@@ -146,7 +147,7 @@ export class MerchantLocationService {
       latitude: lat,
       longitude: lng,
       radiusMeters: 50000,
-      limit: 50,
+      limit: Math.min(Math.max(limit, 1), 50),
       offset: 0,
       categoryId: typeof parsedCategoryId === 'number' && !isNaN(parsedCategoryId) ? parsedCategoryId : undefined,
       includeTotalCount,
