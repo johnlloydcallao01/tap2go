@@ -85,7 +85,6 @@ interface Order {
   merchantLogo: string | null;
   fulfillmentType?: string;
   deliveryStatus?: string;
-  priorityFee?: number;
   isPaid?: boolean;
   paymentStatus?: string;
   canResumePayment?: boolean;
@@ -161,7 +160,6 @@ export default function OrdersScreen() {
           merchantLogo: o.merchant?.logo || null,
           fulfillmentType: o.fulfillmentType,
           deliveryStatus: o.delivery?.status || null,
-          priorityFee: o.delivery?.priorityFee || 0,
           isPaid: o.isPaid || false,
           paymentStatus: o.paymentStatus || 'unpaid',
           canResumePayment: o.canResumePayment || false,
@@ -329,12 +327,6 @@ export default function OrdersScreen() {
           {!order.isPaid && order.paymentStatus === 'pending' && (
             <View style={{ backgroundColor: '#fffbeb', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
               <Text style={{ color: '#b45309', fontSize: 12, fontWeight: '700' }}>Payment pending</Text>
-            </View>
-          )}
-          {order.priorityFee > 0 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f97316', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, gap: 3 }}>
-              <Ionicons name="flash" size={11} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Priority</Text>
             </View>
           )}
         </View>

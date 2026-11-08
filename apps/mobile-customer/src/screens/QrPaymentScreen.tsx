@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatCurrency } from '../utils/format';
 import { getCheckoutPaymentStatus } from '../services/checkoutReturn';
+import { useAuth } from '../contexts/AuthContext';
+import { apiConfig } from '../config/environment';
 
 export default function QrPaymentScreen() {
   const router = useRouter();
@@ -16,7 +18,10 @@ export default function QrPaymentScreen() {
   const orderId = typeof params.orderId === 'string' ? params.orderId : '';
   const paymentIntentId = typeof params.paymentIntentId === 'string' ? params.paymentIntentId : '';
   const merchantId = typeof params.merchantId === 'string' ? params.merchantId : '';
+  const isPriorityFeePayment = params.priorityFeePayment === 'true';
+  const { user } = useAuth();
   const [paymentFailed, setPaymentFailed] = useState(false);
+  const [priorityFeeRefunded, setPriorityFeeRefunded] = useState(false);
   const checkoutRequestId =
     typeof params.checkoutRequestId === 'string' ? params.checkoutRequestId : '';
   const payStartedAt = typeof params.payStartedAt === 'string' ? Number(params.payStartedAt) : NaN;
@@ -32,12 +37,40 @@ export default function QrPaymentScreen() {
 
   useEffect(() => {
     if (!paymentIntentId && !orderId) return;
+    if (isPriorityFeePayment && (!orderId || !paymentIntentId || !user?.id)) return;
     let active = true;
     let checking = false;
     const checkPayment = async () => {
       if (checking) return;
       checking = true;
       try {
+        if (isPriorityFeePayment) {
+          const response = await fetch(`${apiConfig.baseUrl}/delivery/priority-fee/status`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+            },
+            body: JSON.stringify({
+              orderId: Number(orderId),
+              customerId: Number(user?.id),
+              paymentIntentId,
+            }),
+          });
+          const status = await response.json().catch(() => ({}));
+          if (!active) return;
+          if (!response.ok) {
+            throw new Error(status?.error || 'Unable to check priority-fee payment.');
+          }
+          if (status.status === 'applied') {
+            router.replace(`/order/${orderId}`);
+          } else if (status.status === 'failed') {
+            setPriorityFeeRefunded(Boolean(status.refunded));
+            setPaymentFailed(true);
+          }
+          return;
+        }
+
         const status = await getCheckoutPaymentStatus({
           paymentIntentId: paymentIntentId || undefined,
           orderId: orderId || undefined,
@@ -67,7 +100,7 @@ export default function QrPaymentScreen() {
       active = false;
       clearInterval(interval);
     };
-  }, [merchantId, orderId, paymentIntentId, router]);
+  }, [isPriorityFeePayment, merchantId, orderId, paymentIntentId, router, user?.id]);
 
   return (
     <View style={styles.container}>
@@ -81,7 +114,9 @@ export default function QrPaymentScreen() {
           >
             <Ionicons name="arrow-back" size={22} color="#374151" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{redirectUrl ? 'Payment' : 'QR Ph Payment'}</Text>
+          <Text style={styles.headerTitle}>
+            {isPriorityFeePayment ? 'Priority Fee' : redirectUrl ? 'Payment' : 'QR Ph Payment'}
+          </Text>
           <View style={styles.headerSpacer} />
         </View>
       </SafeAreaView>
@@ -92,9 +127,13 @@ export default function QrPaymentScreen() {
           <Text style={styles.merchantName} numberOfLines={1}>{merchantName}</Text>
         </View>
 
-        <Text style={styles.title}>{redirectUrl ? 'Continue your payment' : 'Scan to pay'}</Text>
+        <Text style={styles.title}>
+          {isPriorityFeePayment ? 'Scan to add the priority fee' : redirectUrl ? 'Continue your payment' : 'Scan to pay'}
+        </Text>
         <Text style={styles.subtitle}>
-          {redirectUrl
+          {isPriorityFeePayment
+            ? 'Scan this QR code to pay the additional fee. We’ll apply it to your Lalamove delivery after payment is confirmed.'
+            : redirectUrl
             ? 'Continue in the payment provider to complete this order.'
             : 'Use your banking or e-wallet app on another device to scan this QR Ph code.'}
         </Text>
@@ -120,7 +159,9 @@ export default function QrPaymentScreen() {
 
         {Number.isFinite(amount) && (
           <View style={styles.amountCard}>
-            <Text style={styles.amountLabel}>Amount due</Text>
+            <Text style={styles.amountLabel}>
+              {isPriorityFeePayment ? 'Additional priority fee' : 'Amount due'}
+            </Text>
             <Text style={styles.amountValue}>{formatCurrency(amount)}</Text>
           </View>
         )}
@@ -128,7 +169,13 @@ export default function QrPaymentScreen() {
         {paymentFailed ? (
           <View style={styles.failedStatus}>
             <Ionicons name="alert-circle-outline" size={18} color="#b91c1c" />
-            <Text style={styles.failedText}>Payment was not completed. You can retry from this order.</Text>
+            <Text style={styles.failedText}>
+              {isPriorityFeePayment
+                ? priorityFeeRefunded
+                  ? 'The priority fee could not be applied. A refund has been initiated; check the order for details.'
+                  : 'Payment could not be confirmed or applied. Check the order before trying again.'
+                : 'Payment was not completed. You can retry from this order.'}
+            </Text>
           </View>
         ) : (qrImage || redirectUrl) ? (
           <View style={styles.pendingStatus}>

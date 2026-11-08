@@ -4,6 +4,7 @@ import { CouponService } from '../services/CouponService'
 import {
   isTerminalPaymentFailure,
 } from '../services/orderPaymentRecovery'
+import { applyPaidPriorityFee } from './deliveryPriorityFee'
 
 export const paymongoWebhook = async (req: PayloadRequest) => {
   try {
@@ -54,21 +55,40 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
 
       if (transactions.docs.length > 0) {
           const transaction = transactions.docs[0];
+          const isPriorityFee = (transaction as any).transaction_type === 'priority_fee'
+          if (isPriorityFee && String((transaction as any).status).toLowerCase() === 'refunded') {
+            return Response.json({ status: 'received' })
+          }
           
           // Update Transaction
-          await req.payload.update({
+          const updatedTransaction = await req.payload.update({
               collection: 'transactions',
               id: transaction.id,
               data: {
                   status: 'paid',
                   paid_at: new Date(resource.attributes.paid_at * 1000).toISOString(),
+                  ...(isPriorityFee
+                    ? {
+                        payment_id: String(resource.id || ''),
+                        priority_fee_fulfillment_status: 'pending',
+                      }
+                    : {}),
               }
           });
           
           console.log(`Transaction ${transaction.id} updated to paid.`);
 
+          if (isPriorityFee) {
+            const result = await applyPaidPriorityFee(
+              req,
+              updatedTransaction as unknown as Parameters<typeof applyPaidPriorityFee>[1],
+            )
+            console.log(
+              `Priority-fee payment ${transaction.id} ${result.state}.`,
+            )
+          } else if (transaction.order) {
+
           // Update Order
-          if (transaction.order) {
               const orderId = typeof transaction.order === 'object' ? transaction.order.id : transaction.order;
               // Check current order status to avoid overwriting advanced states (e.g. if it's already 'delivered')
               // But usually 'pending' -> 'accepted' is safe.
@@ -170,6 +190,9 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
                id: transaction.id,
                data: {
                    status: 'failed',
+                   ...((transaction as any).transaction_type === 'priority_fee'
+                     ? { priority_fee_fulfillment_status: 'failed' }
+                     : {}),
                }
              });
              console.log(`Transaction ${transaction.id} updated to failed.`);

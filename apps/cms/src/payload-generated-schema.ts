@@ -299,6 +299,72 @@ export const enum_order_discounts_type = pgEnum('enum_order_discounts_type', [
   'percentage',
   'fixed',
 ])
+export const enum_order_discounts_funded_by = pgEnum('enum_order_discounts_funded_by', [
+  'platform',
+  'vendor',
+  'split',
+])
+export const enum_order_discounts_source = pgEnum('enum_order_discounts_source', [
+  'manual',
+  'coupon',
+  'auto_campaign',
+])
+export const enum_coupons_allowed_payment_methods = pgEnum('enum_coupons_allowed_payment_methods', [
+  'card',
+  'gcash',
+  'grab_pay',
+  'paymaya',
+  'billease',
+  'dob',
+  'brankas',
+  'qrph',
+])
+export const enum_coupons_time_windows_days = pgEnum('enum_coupons_time_windows_days', [
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+  'sun',
+])
+export const enum_coupons_status = pgEnum('enum_coupons_status', [
+  'draft',
+  'scheduled',
+  'published',
+  'paused',
+  'archived',
+])
+export const enum_coupons_discount_type = pgEnum('enum_coupons_discount_type', [
+  'percent',
+  'fixed_cart',
+  'fixed_product',
+])
+export const enum_coupons_applies_to = pgEnum('enum_coupons_applies_to', [
+  'food_subtotal',
+  'delivery_fee',
+  'both',
+])
+export const enum_coupons_merchant_scope = pgEnum('enum_coupons_merchant_scope', [
+  'all_vendor_branches',
+  'selected_branches',
+])
+export const enum_coupons_funded_by = pgEnum('enum_coupons_funded_by', [
+  'platform',
+  'vendor',
+  'split',
+])
+export const enum_coupon_redemptions_funded_by = pgEnum('enum_coupon_redemptions_funded_by', [
+  'platform',
+  'vendor',
+  'split',
+])
+export const enum_coupon_redemptions_status = pgEnum('enum_coupon_redemptions_status', [
+  'held',
+  'applied',
+  'refunded',
+  'cancelled',
+])
 export const enum_prod_attributes_type = pgEnum('enum_prod_attributes_type', [
   'select',
   'color',
@@ -507,6 +573,8 @@ export const users = pgTable(
     users_updated_at_idx: index('users_updated_at_idx').on(columns.updatedAt),
     users_created_at_idx: index('users_created_at_idx').on(columns.createdAt),
     users_email_idx: uniqueIndex('users_email_idx').on(columns.email),
+    role_idx: index('role_idx').on(columns.role),
+    isActive_idx: index('isActive_idx').on(columns.isActive),
   }),
 )
 
@@ -544,6 +612,7 @@ export const customers = pgTable(
     customers_active_address_idx: index('customers_active_address_idx').on(columns.activeAddress),
     customers_updated_at_idx: index('customers_updated_at_idx').on(columns.updatedAt),
     customers_created_at_idx: index('customers_created_at_idx').on(columns.createdAt),
+    currentLevel_idx: index('currentLevel_idx').on(columns.currentLevel),
   }),
 )
 
@@ -669,6 +738,8 @@ export const emergency_contacts = pgTable(
     emergency_contacts_created_at_idx: index('emergency_contacts_created_at_idx').on(
       columns.createdAt,
     ),
+    relationship_idx: index('relationship_idx').on(columns.relationship),
+    isPrimary_idx: index('isPrimary_idx').on(columns.isPrimary),
   }),
 )
 
@@ -743,6 +814,8 @@ export const addresses = pgTable(
     geocoding_accuracy_idx: index('geocoding_accuracy_idx').on(columns.geocoding_accuracy),
     coordinate_source_idx: index('coordinate_source_idx').on(columns.coordinate_source),
     verification_method_idx: index('verification_method_idx').on(columns.verification_method),
+    address_type_idx: index('address_type_idx').on(columns.address_type),
+    is_default_idx: index('is_default_idx').on(columns.is_default),
   }),
 )
 
@@ -992,6 +1065,7 @@ export const notification_events = pgTable(
     domain: enum_notification_events_domain('domain').notNull(),
     sourceEntityType: varchar('source_entity_type'),
     sourceEntityId: varchar('source_entity_id'),
+    idempotency_key: varchar('idempotency_key'),
     template: integer('template_id').references(() => notification_templates.id, {
       onDelete: 'set null',
     }),
@@ -1093,7 +1167,7 @@ export const business_zones = pgTable(
     business_zones_slug_idx: uniqueIndex('business_zones_slug_idx').on(columns.slug),
     business_zones_updated_at_idx: index('business_zones_updated_at_idx').on(columns.updatedAt),
     business_zones_created_at_idx: index('business_zones_created_at_idx').on(columns.createdAt),
-    isActive_idx: index('isActive_idx').on(columns.isActive),
+    isActive_1_idx: index('isActive_1_idx').on(columns.isActive),
     displayOrder_idx: index('displayOrder_idx').on(columns.displayOrder),
   }),
 )
@@ -1164,6 +1238,9 @@ export const vendors = pgTable(
     vendors_logo_idx: index('vendors_logo_idx').on(columns.logo),
     vendors_updated_at_idx: index('vendors_updated_at_idx').on(columns.updatedAt),
     vendors_created_at_idx: index('vendors_created_at_idx').on(columns.createdAt),
+    businessType_idx: index('businessType_idx').on(columns.businessType),
+    verificationStatus_idx: index('verificationStatus_idx').on(columns.verificationStatus),
+    isActive_2_idx: index('isActive_2_idx').on(columns.isActive),
   }),
 )
 
@@ -1266,10 +1343,17 @@ export const merchants = pgTable(
     merchants_created_at_idx: index('merchants_created_at_idx').on(columns.createdAt),
     vendor_idx: index('vendor_idx').on(columns.vendor),
     outletCode_idx: index('outletCode_idx').on(columns.outletCode),
+    isActive_3_idx: index('isActive_3_idx').on(columns.isActive),
     isActive_isAcceptingOrders_idx: index('isActive_isAcceptingOrders_idx').on(
       columns.isActive,
       columns.isAcceptingOrders,
     ),
+    isActive_operationalStatus_createdAt_idx: index('isActive_operationalStatus_createdAt_idx').on(
+      columns.isActive,
+      columns.operationalStatus,
+      columns.createdAt,
+    ),
+    outletName_idx: index('outletName_idx').on(columns.outletName),
     operationalStatus_idx: index('operationalStatus_idx').on(columns.operationalStatus),
     delivery_radius_meters_idx: index('delivery_radius_meters_idx').on(
       columns.delivery_radius_meters,
@@ -1382,7 +1466,7 @@ export const drivers = pgTable(
     drivers_created_at_idx: index('drivers_created_at_idx').on(columns.createdAt),
     user_1_idx: index('user_1_idx').on(columns.user),
     status_idx: index('status_idx').on(columns.status),
-    isActive_1_idx: index('isActive_1_idx').on(columns.isActive),
+    isActive_4_idx: index('isActive_4_idx').on(columns.isActive),
     current_latitude_current_longitude_idx: index('current_latitude_current_longitude_idx').on(
       columns.current_latitude,
       columns.current_longitude,
@@ -1566,6 +1650,9 @@ export const products = pgTable(
     products_media_media_primary_image_idx: index('products_media_media_primary_image_idx').on(
       columns.media_primaryImage,
     ),
+    productType_idx: index('productType_idx').on(columns.productType),
+    isActive_5_idx: index('isActive_5_idx').on(columns.isActive),
+    catalogVisibility_idx: index('catalogVisibility_idx').on(columns.catalogVisibility),
   }),
 )
 
@@ -1693,12 +1780,19 @@ export const orders = pgTable(
     subtotal: numeric('subtotal').notNull(),
     delivery_fee: numeric('delivery_fee').notNull().default('0'),
     platform_fee: numeric('platform_fee').notNull().default('0'),
+    priority_fee: numeric('priority_fee').notNull().default('0'),
+    discount_total: numeric('discount_total').notNull().default('0'),
+    coupon_code: varchar('coupon_code'),
+    free_delivery_applied: boolean('free_delivery_applied').default(false),
     notes: varchar('notes'),
     placed_at: timestamp('placed_at', {
       mode: 'string',
       withTimezone: true,
       precision: 3,
     }).notNull(),
+    checkout_idempotency_key: varchar('checkout_idempotency_key'),
+    checkout_address_id: varchar('checkout_address_id'),
+    checkout_context_hash: varchar('checkout_context_hash'),
     lalamove_order_id: varchar('lalamove_order_id'),
     delivery_service_type: varchar('delivery_service_type').default('MOTORCYCLE'),
     delivery_status: enum_orders_delivery_status('delivery_status').default('none'),
@@ -1738,6 +1832,7 @@ export const order_items = pgTable(
     quantity: numeric('quantity').notNull(),
     options_snapshot: jsonb('options_snapshot'),
     total_price: numeric('total_price').notNull(),
+    checkout_cart_item_id: varchar('checkout_cart_item_id'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1808,7 +1903,14 @@ export const transactions = pgTable(
         onDelete: 'set null',
       }),
     payment_intent_id: varchar('payment_intent_id'),
+    payment_id: varchar('payment_id'),
+    refund_id: varchar('refund_id'),
     payment_method: varchar('payment_method'),
+    transaction_type: varchar('transaction_type').default('order'),
+    priority_fee_total: numeric('priority_fee_total'),
+    priority_fee_fulfillment_status: varchar('priority_fee_fulfillment_status').default(
+      'not_applicable',
+    ),
     amount: numeric('amount').notNull(),
     currency: varchar('currency').default('PHP'),
     status: enum_transactions_status('status').notNull().default('pending'),
@@ -1858,6 +1960,7 @@ export const order_tracking = pgTable(
     order_tracking_actor_idx: index('order_tracking_actor_idx').on(columns.actor),
     order_tracking_updated_at_idx: index('order_tracking_updated_at_idx').on(columns.updatedAt),
     order_tracking_created_at_idx: index('order_tracking_created_at_idx').on(columns.createdAt),
+    order_timestamp_idx: index('order_timestamp_idx').on(columns.order, columns.timestamp),
   }),
 )
 
@@ -1970,6 +2073,17 @@ export const order_discounts = pgTable(
     code: varchar('code').notNull(),
     amount_off: numeric('amount_off').notNull(),
     type: enum_order_discounts_type('type').notNull(),
+    coupon: integer('coupon_id').references(() => coupons.id, {
+      onDelete: 'set null',
+    }),
+    coupon_snapshot: jsonb('coupon_snapshot'),
+    food_discount: numeric('food_discount').default('0'),
+    delivery_discount: numeric('delivery_discount').default('0'),
+    funded_by: enum_order_discounts_funded_by('funded_by').default('platform'),
+    vendor_share_pct: numeric('vendor_share_pct').default('0'),
+    platform_share: numeric('platform_share').default('0'),
+    vendor_share: numeric('vendor_share').default('0'),
+    source: enum_order_discounts_source('source').default('coupon'),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1979,8 +2093,241 @@ export const order_discounts = pgTable(
   },
   (columns) => ({
     order_discounts_order_idx: index('order_discounts_order_idx').on(columns.order),
+    order_discounts_coupon_idx: index('order_discounts_coupon_idx').on(columns.coupon),
     order_discounts_updated_at_idx: index('order_discounts_updated_at_idx').on(columns.updatedAt),
     order_discounts_created_at_idx: index('order_discounts_created_at_idx').on(columns.createdAt),
+    order_coupon_idx: index('order_coupon_idx').on(columns.order, columns.coupon),
+    coupon_idx: index('coupon_idx').on(columns.coupon),
+  }),
+)
+
+export const coupons_allowed_payment_methods = pgTable(
+  'coupons_allowed_payment_methods',
+  {
+    order: integer('order').notNull(),
+    parent: integer('parent_id').notNull(),
+    value: enum_coupons_allowed_payment_methods('value'),
+    id: serial('id').primaryKey(),
+  },
+  (columns) => ({
+    orderIdx: index('coupons_allowed_payment_methods_order_idx').on(columns.order),
+    parentIdx: index('coupons_allowed_payment_methods_parent_idx').on(columns.parent),
+    parentFk: foreignKey({
+      columns: [columns['parent']],
+      foreignColumns: [coupons.id],
+      name: 'coupons_allowed_payment_methods_parent_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const coupons_time_windows_days = pgTable(
+  'coupons_time_windows_days',
+  {
+    order: integer('order').notNull(),
+    parent: varchar('parent_id').notNull(),
+    value: enum_coupons_time_windows_days('value'),
+    id: serial('id').primaryKey(),
+  },
+  (columns) => ({
+    orderIdx: index('coupons_time_windows_days_order_idx').on(columns.order),
+    parentIdx: index('coupons_time_windows_days_parent_idx').on(columns.parent),
+    parentFk: foreignKey({
+      columns: [columns['parent']],
+      foreignColumns: [coupons_time_windows.id],
+      name: 'coupons_time_windows_days_parent_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const coupons_time_windows = pgTable(
+  'coupons_time_windows',
+  {
+    _order: integer('_order').notNull(),
+    _parentID: integer('_parent_id').notNull(),
+    id: varchar('id').primaryKey(),
+    start_time: varchar('start_time').notNull(),
+    end_time: varchar('end_time').notNull(),
+  },
+  (columns) => ({
+    _orderIdx: index('coupons_time_windows_order_idx').on(columns._order),
+    _parentIDIdx: index('coupons_time_windows_parent_id_idx').on(columns._parentID),
+    _parentIDFk: foreignKey({
+      columns: [columns['_parentID']],
+      foreignColumns: [coupons.id],
+      name: 'coupons_time_windows_parent_id_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const coupons = pgTable(
+  'coupons',
+  {
+    id: serial('id').primaryKey(),
+    code: varchar('code').notNull(),
+    description: varchar('description'),
+    status: enum_coupons_status('status').notNull().default('draft'),
+    discount_type: enum_coupons_discount_type('discount_type').notNull().default('fixed_cart'),
+    amount: numeric('amount').notNull(),
+    max_discount_amount: numeric('max_discount_amount'),
+    applies_to: enum_coupons_applies_to('applies_to').notNull().default('food_subtotal'),
+    free_delivery: boolean('free_delivery').default(false),
+    delivery_discount_cap: numeric('delivery_discount_cap'),
+    vendor: integer('vendor_id').references(() => vendors.id, {
+      onDelete: 'set null',
+    }),
+    merchant_scope: enum_coupons_merchant_scope('merchant_scope')
+      .notNull()
+      .default('all_vendor_branches'),
+    exclude_promo_items: boolean('exclude_promo_items').default(false),
+    minimum_basket: numeric('minimum_basket'),
+    maximum_basket: numeric('maximum_basket'),
+    limit_per_order_items: numeric('limit_per_order_items'),
+    individual_use: boolean('individual_use').default(true),
+    max_coupons_per_order: numeric('max_coupons_per_order').default('1'),
+    starts_at: timestamp('starts_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    expires_at: timestamp('expires_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    usage_limit: numeric('usage_limit').default('0'),
+    usage_limit_per_user: numeric('usage_limit_per_user').default('0'),
+    usage_count: numeric('usage_count').default('0'),
+    first_order_only: boolean('first_order_only').default(false),
+    funded_by: enum_coupons_funded_by('funded_by').notNull().default('platform'),
+    vendor_share_pct: numeric('vendor_share_pct').default('0'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    coupons_vendor_idx: index('coupons_vendor_idx').on(columns.vendor),
+    coupons_updated_at_idx: index('coupons_updated_at_idx').on(columns.updatedAt),
+    coupons_created_at_idx: index('coupons_created_at_idx').on(columns.createdAt),
+    code_vendor_idx: uniqueIndex('code_vendor_idx').on(columns.code, columns.vendor),
+    status_expires_at_idx: index('status_expires_at_idx').on(columns.status, columns.expires_at),
+    vendor_1_idx: index('vendor_1_idx').on(columns.vendor),
+    code_idx: index('code_idx').on(columns.code),
+  }),
+)
+
+export const coupons_texts = pgTable(
+  'coupons_texts',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order').notNull(),
+    parent: integer('parent_id').notNull(),
+    path: varchar('path').notNull(),
+    text: varchar('text'),
+  },
+  (columns) => ({
+    orderParentIdx: index('coupons_texts_order_parent_idx').on(columns.order, columns.parent),
+    parentFk: foreignKey({
+      columns: [columns['parent']],
+      foreignColumns: [coupons.id],
+      name: 'coupons_texts_parent_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const coupons_rels = pgTable(
+  'coupons_rels',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order'),
+    parent: integer('parent_id').notNull(),
+    path: varchar('path').notNull(),
+    merchantsID: integer('merchants_id'),
+    productsID: integer('products_id'),
+    'product-categoriesID': integer('prod_categories_id'),
+  },
+  (columns) => ({
+    order: index('coupons_rels_order_idx').on(columns.order),
+    parentIdx: index('coupons_rels_parent_idx').on(columns.parent),
+    pathIdx: index('coupons_rels_path_idx').on(columns.path),
+    coupons_rels_merchants_id_idx: index('coupons_rels_merchants_id_idx').on(columns.merchantsID),
+    coupons_rels_products_id_idx: index('coupons_rels_products_id_idx').on(columns.productsID),
+    coupons_rels_prod_categories_id_idx: index('coupons_rels_prod_categories_id_idx').on(
+      columns['product-categoriesID'],
+    ),
+    parentFk: foreignKey({
+      columns: [columns['parent']],
+      foreignColumns: [coupons.id],
+      name: 'coupons_rels_parent_fk',
+    }).onDelete('cascade'),
+    merchantsIdFk: foreignKey({
+      columns: [columns['merchantsID']],
+      foreignColumns: [merchants.id],
+      name: 'coupons_rels_merchants_fk',
+    }).onDelete('cascade'),
+    productsIdFk: foreignKey({
+      columns: [columns['productsID']],
+      foreignColumns: [products.id],
+      name: 'coupons_rels_products_fk',
+    }).onDelete('cascade'),
+    'product-categoriesIdFk': foreignKey({
+      columns: [columns['product-categoriesID']],
+      foreignColumns: [prod_categories.id],
+      name: 'coupons_rels_product_categories_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const coupon_redemptions = pgTable(
+  'coupon_redemptions',
+  {
+    id: serial('id').primaryKey(),
+    coupon: integer('coupon_id')
+      .notNull()
+      .references(() => coupons.id, {
+        onDelete: 'set null',
+      }),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    customer: integer('customer_id')
+      .notNull()
+      .references(() => customers.id, {
+        onDelete: 'set null',
+      }),
+    customer_email: varchar('customer_email'),
+    customer_phone: varchar('customer_phone'),
+    code_snapshot: varchar('code_snapshot').notNull(),
+    coupon_snapshot: jsonb('coupon_snapshot'),
+    food_discount: numeric('food_discount').notNull().default('0'),
+    delivery_discount: numeric('delivery_discount').notNull().default('0'),
+    total_discount: numeric('total_discount').notNull(),
+    funded_by: enum_coupon_redemptions_funded_by('funded_by').notNull().default('platform'),
+    vendor_share_pct: numeric('vendor_share_pct').default('0'),
+    platform_share: numeric('platform_share').notNull().default('0'),
+    vendor_share: numeric('vendor_share').notNull().default('0'),
+    status: enum_coupon_redemptions_status('status').notNull().default('held'),
+    held_until: timestamp('held_until', { mode: 'string', withTimezone: true, precision: 3 }),
+    hold_key: varchar('hold_key'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    coupon_redemptions_coupon_idx: index('coupon_redemptions_coupon_idx').on(columns.coupon),
+    coupon_redemptions_order_idx: index('coupon_redemptions_order_idx').on(columns.order),
+    coupon_redemptions_customer_idx: index('coupon_redemptions_customer_idx').on(columns.customer),
+    coupon_redemptions_updated_at_idx: index('coupon_redemptions_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    coupon_redemptions_created_at_idx: index('coupon_redemptions_created_at_idx').on(
+      columns.createdAt,
+    ),
+    coupon_order_idx: uniqueIndex('coupon_order_idx').on(columns.coupon, columns.order),
+    coupon_customer_idx: index('coupon_customer_idx').on(columns.coupon, columns.customer),
+    coupon_status_idx: index('coupon_status_idx').on(columns.coupon, columns.status),
+    order_idx: index('order_idx').on(columns.order),
+    customer_idx: index('customer_idx').on(columns.customer),
+    held_until_idx: index('held_until_idx').on(columns.held_until),
   }),
 )
 
@@ -3051,6 +3398,8 @@ export const payload_locked_documents_rels = pgTable(
     'driver-assignmentsID': integer('driver_assignments_id'),
     'delivery-bookingsID': integer('delivery_bookings_id'),
     'order-discountsID': integer('order_discounts_id'),
+    couponsID: integer('coupons_id'),
+    'coupon-redemptionsID': integer('coupon_redemptions_id'),
     reviewsID: integer('reviews_id'),
     'prod-attributesID': integer('prod_attributes_id'),
     'prod-attribute-termsID': integer('prod_attribute_terms_id'),
@@ -3171,6 +3520,12 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_order_discounts_id_idx: index(
       'payload_locked_documents_rels_order_discounts_id_idx',
     ).on(columns['order-discountsID']),
+    payload_locked_documents_rels_coupons_id_idx: index(
+      'payload_locked_documents_rels_coupons_id_idx',
+    ).on(columns.couponsID),
+    payload_locked_documents_rels_coupon_redemptions_id_idx: index(
+      'payload_locked_documents_rels_coupon_redemptions_id_idx',
+    ).on(columns['coupon-redemptionsID']),
     payload_locked_documents_rels_reviews_id_idx: index(
       'payload_locked_documents_rels_reviews_id_idx',
     ).on(columns.reviewsID),
@@ -3385,6 +3740,16 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [order_discounts.id],
       name: 'payload_locked_documents_rels_order_discounts_fk',
     }).onDelete('cascade'),
+    couponsIdFk: foreignKey({
+      columns: [columns['couponsID']],
+      foreignColumns: [coupons.id],
+      name: 'payload_locked_documents_rels_coupons_fk',
+    }).onDelete('cascade'),
+    'coupon-redemptionsIdFk': foreignKey({
+      columns: [columns['coupon-redemptionsID']],
+      foreignColumns: [coupon_redemptions.id],
+      name: 'payload_locked_documents_rels_coupon_redemptions_fk',
+    }).onDelete('cascade'),
     reviewsIdFk: foreignKey({
       columns: [columns['reviewsID']],
       foreignColumns: [reviews.id],
@@ -3582,6 +3947,7 @@ export const payload_migrations = pgTable(
 export const system_settings = pgTable('system_settings', {
   id: serial('id').primaryKey(),
   maintenanceMode: boolean('maintenance_mode').default(false),
+  couponsEnabled: boolean('coupons_enabled').default(true),
   deliveryProvider: enum_system_settings_delivery_provider('delivery_provider')
     .notNull()
     .default('lalamove'),
@@ -4058,6 +4424,106 @@ export const relations_order_discounts = relations(order_discounts, ({ one }) =>
     references: [orders.id],
     relationName: 'order',
   }),
+  coupon: one(coupons, {
+    fields: [order_discounts.coupon],
+    references: [coupons.id],
+    relationName: 'coupon',
+  }),
+}))
+export const relations_coupons_allowed_payment_methods = relations(
+  coupons_allowed_payment_methods,
+  ({ one }) => ({
+    parent: one(coupons, {
+      fields: [coupons_allowed_payment_methods.parent],
+      references: [coupons.id],
+      relationName: 'allowed_payment_methods',
+    }),
+  }),
+)
+export const relations_coupons_time_windows_days = relations(
+  coupons_time_windows_days,
+  ({ one }) => ({
+    parent: one(coupons_time_windows, {
+      fields: [coupons_time_windows_days.parent],
+      references: [coupons_time_windows.id],
+      relationName: 'days',
+    }),
+  }),
+)
+export const relations_coupons_time_windows = relations(coupons_time_windows, ({ one, many }) => ({
+  _parentID: one(coupons, {
+    fields: [coupons_time_windows._parentID],
+    references: [coupons.id],
+    relationName: 'time_windows',
+  }),
+  days: many(coupons_time_windows_days, {
+    relationName: 'days',
+  }),
+}))
+export const relations_coupons_texts = relations(coupons_texts, ({ one }) => ({
+  parent: one(coupons, {
+    fields: [coupons_texts.parent],
+    references: [coupons.id],
+    relationName: '_texts',
+  }),
+}))
+export const relations_coupons_rels = relations(coupons_rels, ({ one }) => ({
+  parent: one(coupons, {
+    fields: [coupons_rels.parent],
+    references: [coupons.id],
+    relationName: '_rels',
+  }),
+  merchantsID: one(merchants, {
+    fields: [coupons_rels.merchantsID],
+    references: [merchants.id],
+    relationName: 'merchants',
+  }),
+  productsID: one(products, {
+    fields: [coupons_rels.productsID],
+    references: [products.id],
+    relationName: 'products',
+  }),
+  'product-categoriesID': one(prod_categories, {
+    fields: [coupons_rels['product-categoriesID']],
+    references: [prod_categories.id],
+    relationName: 'product-categories',
+  }),
+}))
+export const relations_coupons = relations(coupons, ({ one, many }) => ({
+  vendor: one(vendors, {
+    fields: [coupons.vendor],
+    references: [vendors.id],
+    relationName: 'vendor',
+  }),
+  allowed_payment_methods: many(coupons_allowed_payment_methods, {
+    relationName: 'allowed_payment_methods',
+  }),
+  time_windows: many(coupons_time_windows, {
+    relationName: 'time_windows',
+  }),
+  _texts: many(coupons_texts, {
+    relationName: '_texts',
+  }),
+  _rels: many(coupons_rels, {
+    relationName: '_rels',
+  }),
+}))
+export const relations_coupon_redemptions = relations(coupon_redemptions, ({ one }) => ({
+  coupon: one(coupons, {
+    fields: [coupon_redemptions.coupon],
+    references: [coupons.id],
+    relationName: 'coupon',
+  }),
+  order: one(orders, {
+    fields: [coupon_redemptions.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+  customer: one(customers, {
+    fields: [coupon_redemptions.customer],
+    references: [customers.id],
+    relationName: 'customer',
+  }),
 }))
 export const relations_reviews = relations(reviews, ({ one }) => ({
   order: one(orders, {
@@ -4515,6 +4981,16 @@ export const relations_payload_locked_documents_rels = relations(
       references: [order_discounts.id],
       relationName: 'order-discounts',
     }),
+    couponsID: one(coupons, {
+      fields: [payload_locked_documents_rels.couponsID],
+      references: [coupons.id],
+      relationName: 'coupons',
+    }),
+    'coupon-redemptionsID': one(coupon_redemptions, {
+      fields: [payload_locked_documents_rels['coupon-redemptionsID']],
+      references: [coupon_redemptions.id],
+      relationName: 'coupon-redemptions',
+    }),
     reviewsID: one(reviews, {
       fields: [payload_locked_documents_rels.reviewsID],
       references: [reviews.id],
@@ -4716,6 +5192,17 @@ type DatabaseSchema = {
   enum_driver_assignments_status: typeof enum_driver_assignments_status
   enum_delivery_bookings_status: typeof enum_delivery_bookings_status
   enum_order_discounts_type: typeof enum_order_discounts_type
+  enum_order_discounts_funded_by: typeof enum_order_discounts_funded_by
+  enum_order_discounts_source: typeof enum_order_discounts_source
+  enum_coupons_allowed_payment_methods: typeof enum_coupons_allowed_payment_methods
+  enum_coupons_time_windows_days: typeof enum_coupons_time_windows_days
+  enum_coupons_status: typeof enum_coupons_status
+  enum_coupons_discount_type: typeof enum_coupons_discount_type
+  enum_coupons_applies_to: typeof enum_coupons_applies_to
+  enum_coupons_merchant_scope: typeof enum_coupons_merchant_scope
+  enum_coupons_funded_by: typeof enum_coupons_funded_by
+  enum_coupon_redemptions_funded_by: typeof enum_coupon_redemptions_funded_by
+  enum_coupon_redemptions_status: typeof enum_coupon_redemptions_status
   enum_prod_attributes_type: typeof enum_prod_attributes_type
   enum_prod_variations_modifier_behavior_mode: typeof enum_prod_variations_modifier_behavior_mode
   enum_merchant_products_added_by: typeof enum_merchant_products_added_by
@@ -4778,6 +5265,13 @@ type DatabaseSchema = {
   driver_assignments: typeof driver_assignments
   delivery_bookings: typeof delivery_bookings
   order_discounts: typeof order_discounts
+  coupons_allowed_payment_methods: typeof coupons_allowed_payment_methods
+  coupons_time_windows_days: typeof coupons_time_windows_days
+  coupons_time_windows: typeof coupons_time_windows
+  coupons: typeof coupons
+  coupons_texts: typeof coupons_texts
+  coupons_rels: typeof coupons_rels
+  coupon_redemptions: typeof coupon_redemptions
   reviews: typeof reviews
   prod_attributes: typeof prod_attributes
   prod_attribute_terms: typeof prod_attribute_terms
@@ -4844,6 +5338,13 @@ type DatabaseSchema = {
   relations_driver_assignments: typeof relations_driver_assignments
   relations_delivery_bookings: typeof relations_delivery_bookings
   relations_order_discounts: typeof relations_order_discounts
+  relations_coupons_allowed_payment_methods: typeof relations_coupons_allowed_payment_methods
+  relations_coupons_time_windows_days: typeof relations_coupons_time_windows_days
+  relations_coupons_time_windows: typeof relations_coupons_time_windows
+  relations_coupons_texts: typeof relations_coupons_texts
+  relations_coupons_rels: typeof relations_coupons_rels
+  relations_coupons: typeof relations_coupons
+  relations_coupon_redemptions: typeof relations_coupon_redemptions
   relations_reviews: typeof relations_reviews
   relations_prod_attributes: typeof relations_prod_attributes
   relations_prod_attribute_terms: typeof relations_prod_attribute_terms

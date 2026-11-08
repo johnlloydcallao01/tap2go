@@ -79,6 +79,7 @@ import * as migration_20260918_143000_merchants_vendors_trgm from './20260918_14
 import * as migration_20260918_144500_products_trgm from './20260918_144500_products_trgm';
 import * as migration_20260918_150000_vendors_business_name_btree from './20260918_150000_vendors_business_name_btree';
 import * as migration_20261104_191500_customer_home_spatial_index from './20261104_191500_customer_home_spatial_index';
+import * as migration_20261108_112800_add_priority_fee_payments from './20261108_112800_add_priority_fee_payments';
 
 export const migrations = [
   {
@@ -485,5 +486,10 @@ export const migrations = [
     up: migration_20261104_191500_customer_home_spatial_index.up,
     down: migration_20261104_191500_customer_home_spatial_index.down,
     name: '20261104_191500_customer_home_spatial_index'
+  },
+  {
+    up: migration_20261108_112800_add_priority_fee_payments.up,
+    down: migration_20261108_112800_add_priority_fee_payments.down,
+    name: '20261108_112800_add_priority_fee_payments'
   },
 ];

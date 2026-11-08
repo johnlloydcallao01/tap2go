@@ -130,6 +130,8 @@ export type LalamoveServiceType =
   | 'TRUCK550'
   | string
 
+export type LalamovePricingTierCode = '1' | '2'
+
 // ─── API Methods ──────────────────────────────────────────────────────────────
 
 export async function getCityInfo(market?: string): Promise<any> {
@@ -159,6 +161,7 @@ export async function getQuotation(
     scheduleAt?: string
     language?: string
     specialRequests?: string[]
+    pricingTierCode?: LalamovePricingTierCode
     item?: {
       quantity?: string
       weight?: string
@@ -179,6 +182,7 @@ export async function getQuotation(
       language: options?.language || 'en_PH',
       stops,
       isRouteOptimized: false,
+      pricingTierCode: options?.pricingTierCode ?? '2',
       item,
     },
   }

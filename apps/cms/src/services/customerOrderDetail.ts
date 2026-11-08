@@ -113,6 +113,8 @@ export async function buildCustomerOrderDetail(
         order: true,
         status: true,
         payment_method: true,
+        transaction_type: true,
+        priority_fee_fulfillment_status: true,
       },
     }),
   ])
@@ -141,6 +143,26 @@ export async function buildCustomerOrderDetail(
     order.status,
     transactionsResult.docs as Array<Record<string, unknown>>,
   )
+  const priorityFeePaymentPending = (transactionsResult.docs as Array<Record<string, unknown>>)
+    .some((transaction) =>
+      transaction.transaction_type === 'priority_fee' &&
+      (
+        transaction.status === 'pending' ||
+        ['pending', 'applying'].includes(String(transaction.priority_fee_fulfillment_status || ''))
+      ),
+    )
+  const priorityFeePaymentFailed = (transactionsResult.docs as Array<Record<string, unknown>>)
+    .some((transaction) =>
+      transaction.transaction_type === 'priority_fee' &&
+      transaction.status === 'paid' &&
+      transaction.priority_fee_fulfillment_status === 'failed',
+    )
+  const priorityFeePaymentRefunded = (transactionsResult.docs as Array<Record<string, unknown>>)
+    .some((transaction) =>
+      transaction.transaction_type === 'priority_fee' &&
+      transaction.status === 'refunded' &&
+      transaction.priority_fee_fulfillment_status === 'failed',
+    )
 
   return {
     id: order.id,
@@ -154,6 +176,9 @@ export async function buildCustomerOrderDetail(
     placedAt: order.placed_at || null,
     notes: order.notes || null,
     ...paymentSummary,
+    priorityFeePaymentPending,
+    priorityFeePaymentFailed,
+    priorityFeePaymentRefunded,
     merchant: merchant
       ? {
           id: merchant.id,

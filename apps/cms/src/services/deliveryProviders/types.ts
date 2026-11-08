@@ -1,4 +1,10 @@
-import type { LalamoveStop, LalamoveQuotationResponse, LalamoveOrderResponse, LalamoveDriverDetails } from '../lalamoveClient'
+import type {
+  LalamoveStop,
+  LalamoveQuotationResponse,
+  LalamoveOrderResponse,
+  LalamoveDriverDetails,
+  LalamovePricingTierCode,
+} from '../lalamoveClient'
 
 export type DeliveryStatus = 
   | 'pending'
@@ -100,7 +106,7 @@ export interface DeliveryProvider {
   getQuotation(
     stops: LalamoveStop[],
     serviceType?: string,
-    options?: { language?: string },
+    options?: { language?: string; pricingTierCode?: LalamovePricingTierCode },
   ): Promise<LalamoveQuotationResponse>
 
   getQuotationResponse(): Omit<LalamoveQuotationResponse, never>

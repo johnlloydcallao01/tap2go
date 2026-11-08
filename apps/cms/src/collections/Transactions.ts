@@ -47,10 +47,49 @@ export const Transactions: CollectionConfig = {
       },
     },
     {
+      name: 'payment_id',
+      type: 'text',
+      admin: {
+        description: 'PayMongo payment ID used for refunds',
+      },
+    },
+    {
+      name: 'refund_id',
+      type: 'text',
+      admin: {
+        description: 'PayMongo refund ID, when a payment is refunded',
+      },
+    },
+    {
       name: 'payment_method',
       type: 'text',
       admin: {
         description: 'e.g., card, gcash, grab_pay',
+      },
+    },
+    {
+      name: 'transaction_type',
+      type: 'text',
+      defaultValue: 'order',
+      admin: {
+        description: 'Payment purpose: original order or a post-checkout priority fee',
+      },
+    },
+    {
+      name: 'priority_fee_total',
+      type: 'number',
+      admin: {
+        description: 'Final Lalamove priority fee after this payment is applied',
+        condition: (data) => data?.transaction_type === 'priority_fee',
+      },
+    },
+    {
+      name: 'priority_fee_fulfillment_status',
+      type: 'text',
+      defaultValue: 'not_applicable',
+      admin: {
+        description: 'Lalamove application state for a priority-fee payment',
+        condition: (data) => data?.transaction_type === 'priority_fee',
       },
     },
     {

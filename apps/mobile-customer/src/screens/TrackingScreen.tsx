@@ -53,7 +53,6 @@ type TrackingData = {
   pickup: StopInfo;
   dropoff: StopInfo;
   distanceMeters: number | null;
-  priorityFee?: number | null;
   shareLink: string | null;
 };
 
@@ -433,12 +432,6 @@ export default function TrackingScreen() {
             <View style={[styles.statusPillDot, { backgroundColor: statusColor(data.deliveryStatus) }]} />
             <Text style={styles.statusPillText}>{statusLabel(data.deliveryStatus)}</Text>
           </View>
-          {data.priorityFee != null && data.priorityFee > 0 && (
-            <View style={styles.priorityPill}>
-              <Ionicons name="flash" size={11} color="#fff" />
-              <Text style={styles.priorityPillText}>Priority</Text>
-            </View>
-          )}
         </View>
         </Animated.View>
 
@@ -638,22 +631,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  priorityPill: {
-    backgroundColor: '#f97316',
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  priorityPillText: { fontSize: 13, fontWeight: '700' as const, color: '#fff' },
   statusPillText: { fontSize: 14, fontWeight: '600' as const, color: '#111827' },
   statusPillDot: { width: 8, height: 8, borderRadius: 4 },
   bottomCard: {

@@ -9,6 +9,7 @@ import {
   Linking,
   Alert,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -97,6 +98,9 @@ type OrderDetail = {
   paymentStatus?: string;
   paymentMethod?: string | null;
   canResumePayment?: boolean;
+  priorityFeePaymentPending?: boolean;
+  priorityFeePaymentFailed?: boolean;
+  priorityFeePaymentRefunded?: boolean;
 };
 
 const STATUS_STEPS = [
@@ -270,6 +274,9 @@ export default function OrderDetailScreen() {
   const [canceling, setCanceling] = useState(false);
   const [resumingPayment, setResumingPayment] = useState(false);
   const [showRiderInfo, setShowRiderInfo] = useState(false);
+  const [showPriorityFeeModal, setShowPriorityFeeModal] = useState(false);
+  const [priorityFeeAmount, setPriorityFeeAmount] = useState('');
+  const [addingPriorityFee, setAddingPriorityFee] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchOrder = useCallback(async (forceRefresh = false) => {
@@ -385,6 +392,9 @@ export default function OrderDetailScreen() {
         paymentStatus: agg.paymentStatus || 'unpaid',
         paymentMethod: agg.paymentMethod || null,
         canResumePayment: agg.canResumePayment || false,
+        priorityFeePaymentPending: agg.priorityFeePaymentPending || false,
+        priorityFeePaymentFailed: agg.priorityFeePaymentFailed || false,
+        priorityFeePaymentRefunded: agg.priorityFeePaymentRefunded || false,
       });
       setError(null);
     } catch (err: any) {
@@ -715,7 +725,165 @@ export default function OrderDetailScreen() {
   );
   const deliveryFee = order.delivery_fee || delivery?.delivery_fee || 0;
   const priorityFee = delivery?.priority_fee || 0;
+  const totalDeliveryFee = deliveryFee + priorityFee;
   const platformFee = order.platform_fee || 0;
+  const canAddPriorityFee =
+    order.isPaid === true &&
+    order.fulfillment_type === 'delivery' &&
+    delivery?.status === 'assigning_driver' &&
+    Boolean(delivery?.lalamove_order_id) &&
+    !order.priorityFeePaymentPending &&
+    !order.priorityFeePaymentFailed &&
+    !addingPriorityFee;
+
+  const continuePriorityFeePayment = async (payment: any) => {
+    if (payment?.state === 'failed') {
+      throw new Error(payment.message || 'The payment was received, but the priority fee could not be applied. Please contact support.');
+    }
+    if (payment?.state === 'applied') {
+      setShowPriorityFeeModal(false);
+      setPriorityFeeAmount('');
+      await fetchOrder(true);
+      Alert.alert('Priority fee added', 'The additional fee was added to your Lalamove delivery.');
+      return;
+    }
+
+    let paymentIntentId = String(payment?.paymentIntentId || '');
+    let qrImage = typeof payment?.qrImage === 'string' ? payment.qrImage : '';
+    if (payment?.state === 'attach') {
+      const publicKey = apiConfig.paymongoPublicKey;
+      if (!publicKey) throw new Error('Payment is temporarily unavailable.');
+      const methodResponse = await fetch('https://api.paymongo.com/v1/payment_methods', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${btoa(`${publicKey}:`)}`,
+        },
+        body: JSON.stringify({ data: { attributes: { type: 'qrph' } } }),
+      });
+      const methodData = await methodResponse.json().catch(() => ({}));
+      if (!methodResponse.ok || !methodData?.data?.id) {
+        throw new Error(methodData?.errors?.[0]?.detail || 'Could not prepare the QR Ph payment.');
+      }
+
+      const merchantId = String(
+        order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : '',
+      );
+      const appReturnUrl = ExpoLinking.createURL('checkout/return', {
+        queryParams: {
+          payment_intent_id: paymentIntentId,
+          merchantId,
+          order_id: String(order?.id || ''),
+        },
+      });
+      const returnUrl =
+        `https://app.tap2goph.com/checkout/${merchantId}/return?` +
+        `payment_intent_id=${encodeURIComponent(paymentIntentId)}` +
+        `&order_id=${encodeURIComponent(String(order?.id || ''))}` +
+        `&app_redirect=${encodeURIComponent(appReturnUrl)}`;
+      const attachResponse = await fetch(
+        `https://api.paymongo.com/v1/payment_intents/${encodeURIComponent(paymentIntentId)}/attach`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${btoa(`${publicKey}:`)}`,
+          },
+          body: JSON.stringify({
+            data: {
+              attributes: {
+                payment_method: methodData.data.id,
+                client_key: payment.clientKey,
+                return_url: returnUrl,
+              },
+            },
+          }),
+        },
+      );
+      const attachData = await attachResponse.json().catch(() => ({}));
+      if (!attachResponse.ok) {
+        throw new Error(attachData?.errors?.[0]?.detail || 'Could not start the QR Ph payment.');
+      }
+      qrImage = String(attachData?.data?.attributes?.next_action?.code?.image_url || '');
+      if (String(attachData?.data?.attributes?.status || '') === 'succeeded') {
+        const statusResponse = await fetch(`${apiConfig.baseUrl}/delivery/priority-fee/status`, {
+          method: 'POST',
+          headers: CMS_HEADERS,
+          body: JSON.stringify({
+            orderId: order?.id,
+            customerId: Number(user?.id),
+            paymentIntentId,
+          }),
+        });
+        const statusData = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok) throw new Error(statusData?.error || 'Could not confirm the priority-fee payment.');
+        if (statusData.status === 'applied') {
+          setShowPriorityFeeModal(false);
+          setPriorityFeeAmount('');
+          await fetchOrder(true);
+          Alert.alert('Priority fee added', 'The additional fee was added to your Lalamove delivery.');
+        } else if (statusData.status === 'failed') {
+          throw new Error(statusData.message || 'Payment was received, but the priority fee could not be applied. Please contact support.');
+        } else {
+          setShowPriorityFeeModal(false);
+          Alert.alert('Payment processing', 'We are confirming your payment and applying the priority fee. Check this order again shortly.');
+        }
+        return;
+      }
+    }
+
+    if (!paymentIntentId || !qrImage) {
+      throw new Error(payment?.message || 'The QR Ph payment code is not available.');
+    }
+    setShowPriorityFeeModal(false);
+    router.push({
+      pathname: '/checkout/qr',
+      params: {
+        qrImage,
+        amount: String(payment.amount || 0),
+        merchantName:
+          order?.merchant && typeof order.merchant === 'object'
+            ? order.merchant.outletName || order.merchant.name || 'Merchant'
+            : 'Merchant',
+        merchantId: String(order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
+        orderId: String(order?.id || ''),
+        paymentIntentId,
+        priorityFeePayment: 'true',
+      },
+    });
+  };
+
+  const handleAddPriorityFee = async () => {
+    const additionalAmount = Number(priorityFeeAmount);
+    if (!Number.isFinite(additionalAmount) || additionalAmount < 1 ||
+      Math.round(additionalAmount * 100) !== additionalAmount * 100) {
+      Alert.alert('Invalid amount', 'Enter an additional amount of at least ₱1.00, up to two decimal places.');
+      return;
+    }
+    if (!order?.id || !user?.id || !canAddPriorityFee) return;
+    setAddingPriorityFee(true);
+    try {
+      const response = await fetch(`${apiConfig.baseUrl}/delivery/priority-fee/prepare`, {
+        method: 'POST',
+        headers: CMS_HEADERS,
+        body: JSON.stringify({
+          orderId: order.id,
+          customerId: Number(user.id),
+          additionalAmount,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Could not prepare the priority-fee payment.');
+      await continuePriorityFeePayment(data);
+    } catch (error) {
+      Alert.alert(
+        'Unable to add priority fee',
+        error instanceof Error ? error.message : 'Please try again shortly.',
+      );
+    } finally {
+      setAddingPriorityFee(false);
+    }
+  };
 
   // ── Rider-view info (mirrors what deliveryBook.ts sends to Lalamove) ────────
   const customerUser =
@@ -866,17 +1034,6 @@ export default function OrderDetailScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
-        )}
-
-        {/* Priority notice */}
-        {order.fulfillment_type === 'delivery' && priorityFee > 0 && (
-          <View style={styles.priorityBanner}>
-            <Ionicons name="flash" size={15} color="#fff" />
-            <Text style={styles.priorityBannerText}>
-              Priority Delivery — with a ₱{priorityFee} fee, rider matching is
-              boosted for faster pickup.
-            </Text>
           </View>
         )}
 
@@ -1060,19 +1217,11 @@ export default function OrderDetailScreen() {
                 {formatCurrency(order.subtotal || 0)}
               </Text>
             </View>
-            {deliveryFee > 0 && (
+            {totalDeliveryFee > 0 && (
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Delivery Fee</Text>
                 <Text style={styles.priceValue}>
-                  {formatCurrency(deliveryFee)}
-                </Text>
-              </View>
-            )}
-            {priorityFee > 0 && (
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Priority Fee</Text>
-                <Text style={styles.priceValue}>
-                  {formatCurrency(priorityFee)}
+                  {formatCurrency(totalDeliveryFee)}
                 </Text>
               </View>
             )}
@@ -1092,6 +1241,75 @@ export default function OrderDetailScreen() {
             </View>
           </View>
         </View>
+
+        {order.priorityFeePaymentPending ? (
+          <View style={styles.section}>
+            <View style={styles.priorityFeePendingCard}>
+              <ActivityIndicator size="small" color="#0F766E" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.priorityFeeTitle}>Priority-fee payment in progress</Text>
+                <Text style={styles.priorityFeeDescription}>
+                  We’ll apply the extra fee after PayMongo confirms payment. Refresh this order for updates.
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {order.priorityFeePaymentFailed ? (
+          <View style={styles.section}>
+            <View style={[styles.priorityFeePendingCard, { borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}>
+              <Ionicons name="alert-circle-outline" size={20} color="#B91C1C" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.priorityFeeTitle}>Priority fee needs assistance</Text>
+                <Text style={styles.priorityFeeDescription}>
+                  Your payment was received, but Lalamove did not confirm the fee update. Please contact Tap2Go support before making another payment.
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+        {order.priorityFeePaymentRefunded ? (
+          <View style={styles.section}>
+            <View style={[styles.priorityFeePendingCard, { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#047857" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.priorityFeeTitle}>Priority-fee payment refunded</Text>
+                <Text style={styles.priorityFeeDescription}>
+                  Lalamove could not apply the fee, so a refund has been initiated. It may take time to appear in your payment account.
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {canAddPriorityFee ? (
+          <View style={styles.section}>
+            <View style={styles.priorityFeeCard}>
+              <View style={styles.priorityFeeCardHeader}>
+                <View style={styles.priorityFeeIcon}>
+                  <Ionicons name="bicycle-outline" size={18} color="#0F766E" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.priorityFeeTitle}>Add a priority fee</Text>
+                  <Text style={styles.priorityFeeDescription}>
+                    Add an optional amount to the ₱{priorityFee.toFixed(2)} already included in your order while Lalamove is searching for a rider.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.priorityFeeButton}
+                onPress={() => setShowPriorityFeeModal(true)}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.priorityFeeButtonText}>Add extra fee</Text>
+              </TouchableOpacity>
+              <Text style={styles.priorityFeeHint}>
+                The extra amount is charged separately by QR Ph and sent to Lalamove after payment confirmation.
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* Cancel delivery */}
         {order.fulfillment_type === 'delivery' &&
@@ -1284,6 +1502,60 @@ export default function OrderDetailScreen() {
           </SafeAreaView>
         </SafeAreaProvider>
       </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent
+        visible={showPriorityFeeModal}
+        onRequestClose={() => {
+          if (!addingPriorityFee) setShowPriorityFeeModal(false);
+        }}
+      >
+        <SafeAreaProvider>
+          <SafeAreaView edges={['bottom']} style={styles.modalOverlay}>
+            <View style={styles.priorityFeeModalSheet}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add a priority fee</Text>
+                <TouchableOpacity
+                  onPress={() => setShowPriorityFeeModal(false)}
+                  style={styles.modalCloseBtn}
+                  disabled={addingPriorityFee}
+                >
+                  <Ionicons name="close" size={20} color="#374151" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.priorityFeeModalDescription}>
+                This is an extra amount on top of the ₱{priorityFee.toFixed(2)} already included in your order. You’ll pay it separately using QR Ph.
+              </Text>
+              <Text style={styles.priorityFeeInputLabel}>Additional amount (PHP)</Text>
+              <TextInput
+                value={priorityFeeAmount}
+                onChangeText={setPriorityFeeAmount}
+                placeholder="e.g. 25.00"
+                keyboardType="decimal-pad"
+                editable={!addingPriorityFee}
+                style={styles.priorityFeeInput}
+                accessibilityLabel="Additional priority fee amount"
+              />
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.priorityFeeSubmitButton}
+                  onPress={handleAddPriorityFee}
+                  disabled={addingPriorityFee}
+                  activeOpacity={0.75}
+                >
+                  {addingPriorityFee ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.priorityFeeSubmitText}>Continue to QR Ph payment</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
+        </SafeAreaProvider>
+      </Modal>
     </View>
   );
 }
@@ -1337,16 +1609,6 @@ const styles = {
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusText: { fontSize: 16, fontWeight: '700' as const, color: '#111827' },
   dateText: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  priorityBanner: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    backgroundColor: '#f97316',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  priorityBannerText: { fontSize: 13, color: '#fff', fontWeight: '600' as const, flex: 1 },
   timelineCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -1514,6 +1776,72 @@ const styles = {
   },
   riderInfoTitle: { fontSize: 15, fontWeight: '600' as const, color: '#111827' },
   riderInfoSubtitle: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  priorityFeeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    gap: 12,
+  },
+  priorityFeeCardHeader: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
+  priorityFeeIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#CCFBF1',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  priorityFeeTitle: { fontSize: 14, fontWeight: '700' as const, color: '#111827' },
+  priorityFeeDescription: { fontSize: 12, lineHeight: 18, color: '#6b7280', marginTop: 3 },
+  priorityFeeButton: {
+    minHeight: 42,
+    borderRadius: 9,
+    backgroundColor: '#0F766E',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  priorityFeeButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' as const },
+  priorityFeeHint: { fontSize: 11, lineHeight: 16, color: '#6b7280' },
+  priorityFeePendingCard: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 10,
+    padding: 14,
+    backgroundColor: '#F0FDFA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+  priorityFeeModalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  priorityFeeModalDescription: { fontSize: 13, lineHeight: 19, color: '#6b7280', marginBottom: 18 },
+  priorityFeeInputLabel: { fontSize: 13, fontWeight: '600' as const, color: '#374151', marginBottom: 8 },
+  priorityFeeInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#111827',
+  },
+  priorityFeeSubmitButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 10,
+    backgroundColor: '#0F766E',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  priorityFeeSubmitText: { color: '#fff', fontSize: 14, fontWeight: '700' as const },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(17, 24, 39, 0.5)',

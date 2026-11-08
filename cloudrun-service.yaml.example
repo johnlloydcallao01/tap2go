@@ -127,7 +127,7 @@ spec:
             - name: LALAMOVE_MARKET
               value: PH
             - name: LALAMOVE_PRIORITY_FEE
-              value: '20'
+              value: '25'
             - name: RESET_PASSWORD_BASE_URL
               value: https://app.tap2goph.com
             - name: RESET_PASSWORD_TTL_MINUTES

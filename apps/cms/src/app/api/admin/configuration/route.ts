@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         hasApiSecret: !!(process.env.LALAMOVE_SANDBOX_API_SECRET || process.env.LALAMOVE_API_SECRET),
         market: process.env.LALAMOVE_MARKET || 'PH',
         baseUrl: isLalamoveSandboxEnv ? 'https://rest.sandbox.lalamove.com' : 'https://rest.lalamove.com',
-        priorityFee: process.env.LALAMOVE_PRIORITY_FEE || '20',
+        priorityFee: process.env.LALAMOVE_PRIORITY_FEE || '25',
         hasEnvKeys: !!(process.env.LALAMOVE_API_KEY || process.env.LALAMOVE_SANDBOX_API_KEY),
       },
       paymongo: {

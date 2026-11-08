@@ -23,6 +23,10 @@ import { sendOrderHelp } from './endpoints/sendOrderHelp'
 import { paymongoWebhook } from './endpoints/paymongoWebhook'
 import { deliveryQuoteHandler } from './endpoints/deliveryQuote'
 import { deliveryBookHandler } from './endpoints/deliveryBook'
+import {
+  deliveryPriorityFeePrepareHandler,
+  deliveryPriorityFeeStatusHandler,
+} from './endpoints/deliveryPriorityFee'
 import { deliveryCancelHandler } from './endpoints/deliveryCancel'
 import { deliveryTrackHandler } from './endpoints/deliveryTrack'
 import { lalamoveWebhookHandler } from './endpoints/lalamoveWebhook'
@@ -1147,6 +1151,18 @@ export default buildConfig({
       path: '/delivery/book',
       method: 'post',
       handler: deliveryBookHandler,
+    },
+
+    {
+      path: '/delivery/priority-fee/prepare',
+      method: 'post',
+      handler: deliveryPriorityFeePrepareHandler,
+    },
+
+    {
+      path: '/delivery/priority-fee/status',
+      method: 'post',
+      handler: deliveryPriorityFeeStatusHandler,
     },
 
     {

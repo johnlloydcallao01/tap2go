@@ -2172,9 +2172,29 @@ export interface Transaction {
    */
   payment_intent_id?: string | null;
   /**
+   * PayMongo payment ID used for refunds
+   */
+  payment_id?: string | null;
+  /**
+   * PayMongo refund ID, when a payment is refunded
+   */
+  refund_id?: string | null;
+  /**
    * e.g., card, gcash, grab_pay
    */
   payment_method?: string | null;
+  /**
+   * Payment purpose: original order or a post-checkout priority fee
+   */
+  transaction_type?: string | null;
+  /**
+   * Final Lalamove priority fee after this payment is applied
+   */
+  priority_fee_total?: number | null;
+  /**
+   * Lalamove application state for a priority-fee payment
+   */
+  priority_fee_fulfillment_status?: string | null;
   /**
    * Amount charged
    */
@@ -4110,7 +4130,12 @@ export interface DeliveryLocationsSelect<T extends boolean = true> {
 export interface TransactionsSelect<T extends boolean = true> {
   order?: T;
   payment_intent_id?: T;
+  payment_id?: T;
+  refund_id?: T;
   payment_method?: T;
+  transaction_type?: T;
+  priority_fee_total?: T;
+  priority_fee_fulfillment_status?: T;
   amount?: T;
   currency?: T;
   status?: T;

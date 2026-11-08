@@ -1227,32 +1227,16 @@ export default function CheckoutScreen() {
             </View>
             {deliveryAvailable ? (
               <View style={styles.deliveryFeeRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.subtotalLabel}>Delivery Fee</Text>
-                  {!deliveryFeeLoading && priorityFee > 0 && (
-                    <View style={styles.priorityPill}>
-                      <Ionicons name="flash" size={11} color="#fff" />
-                      <Text style={styles.priorityPillText}>Priority</Text>
-                    </View>
-                  )}
-                </View>
+                <Text style={styles.subtotalLabel}>Delivery Fee</Text>
                 {deliveryFeeLoading ? (
                   <ActivityIndicator size="small" color="#f97316" />
                 ) : (
                   <Text style={styles.subtotalValue}>
-                    {deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Calculating…'}
+                    {deliveryFee > 0 ? formatCurrency(deliveryFee + priorityFee) : 'Calculating…'}
                   </Text>
                 )}
               </View>
             ) : null}
-            {deliveryAvailable && !deliveryFeeLoading && priorityFee > 0 && (
-              <View style={styles.priorityNoticeRow}>
-                <Ionicons name="flash" size={14} color="#f97316" style={{ marginRight: 6, marginTop: 2 }} />
-                <Text style={styles.priorityNoticeText}>
-                  Priority Delivery — faster rider matching ({formatCurrency(priorityFee)} fee)
-                </Text>
-              </View>
-            )}
             {deliveryAvailable && !deliveryFeeLoading && deliveryDistanceMeters != null && deliveryFee > 0 && (
               <View style={styles.deliveryDistanceRow}>
                 <Text style={styles.deliveryDistanceLabel}>Delivery Distance</Text>
@@ -1668,27 +1652,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 12,
-  },
-  priorityPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f97316',
-    borderRadius: 999,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    gap: 3,
-  },
-  priorityPillText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  priorityNoticeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingTop: 8,
-  },
-  priorityNoticeText: {
-    fontSize: 12,
-    color: '#f97316',
-    flex: 1,
-    lineHeight: 17,
   },
   deliveryDistanceRow: {
     flexDirection: 'row',

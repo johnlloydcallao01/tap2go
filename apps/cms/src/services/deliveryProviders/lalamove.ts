@@ -20,7 +20,10 @@ export function createLalamoveProvider(
     name: 'lalamove',
 
     async getQuotation(stops, serviceType, options) {
-      return lalamoveGetQuotation(stops, serviceType as any, options)
+      return lalamoveGetQuotation(stops, serviceType as any, {
+        ...options,
+        pricingTierCode: '2',
+      })
     },
 
     getQuotationResponse(): LalamoveQuotationResponse {
@@ -52,7 +55,7 @@ export function createLalamoveProvider(
     },
 
     getPriorityFeeEnv(): string {
-      return process.env.LALAMOVE_PRIORITY_FEE || '20'
+      return process.env.LALAMOVE_PRIORITY_FEE || '25'
     },
   }
 }
