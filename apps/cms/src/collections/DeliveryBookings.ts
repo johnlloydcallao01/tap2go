@@ -59,6 +59,7 @@ export const DeliveryBookings: CollectionConfig = {
       },
     ],
   },
+  indexes: [{ fields: ['status', 'last_reconciled_at'] }],
   fields: [
     // ─── Order relationship ──────────────────────────────────────────────────
     {
@@ -146,6 +147,8 @@ export const DeliveryBookings: CollectionConfig = {
         description: 'Raw status string from Lalamove webhook',
       },
     },
+    { name: 'last_reconciled_at', type: 'date' },
+    { name: 'last_reconciliation_error', type: 'textarea' },
 
     // ─── Pricing ─────────────────────────────────────────────────────────────
     {

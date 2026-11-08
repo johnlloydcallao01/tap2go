@@ -29,7 +29,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   clearPendingCheckoutSession,
-  finalizePaidOrder,
+  requestDeliveryFulfillment,
   getCheckoutPaymentStatus,
   getPendingCheckoutSession,
   savePendingCheckoutSession,
@@ -640,8 +640,8 @@ export default function CheckoutScreen() {
         }),
       });
 
-      // 5. Finalize + book Lalamove
-      await finalizePaidOrder(String(createdOrderId), new Date().toISOString());
+      // Sandbox transactions bypass the PayMongo webhook, so explicitly enqueue fulfillment.
+      await requestDeliveryFulfillment(String(createdOrderId));
       await reload();
 
       hasNavigatedToReturnRef.current = true;
@@ -893,7 +893,7 @@ export default function CheckoutScreen() {
           });
         }
 
-        await finalizePaidOrder(String(createdOrderId), new Date().toISOString());
+        await requestDeliveryFulfillment(String(createdOrderId));
         await clearPendingCheckoutSession(String(customerId), String(merchantId));
         await reload();
         hasNavigatedToReturnRef.current = true;

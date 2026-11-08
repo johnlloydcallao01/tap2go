@@ -4,10 +4,6 @@ import { getServerToken } from '@/app/actions/auth';
 import { ClientOnly } from '@/components/ClientOnly';
 import { ProductsPageContent, ProductsSkeleton } from './content';
 
-// Default list query — must match the qs ProductsPageContent builds for
-// page=1&limit=10 with no search (URLSearchParams order: page, limit).
-const DEFAULT_QS = 'page=1&limit=10';
-
 /**
  * Server wrapper: prefetches the default first page so cold open paints
  * real rows on the first client commit instead of fetch-after-mount.
@@ -16,18 +12,22 @@ const DEFAULT_QS = 'page=1&limit=10';
  * dehydrated cache is simply empty and the client fetches as before.
  * See performance.md §16 item 3.
  */
-export default async function ProductsPage() {
+export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view } = await searchParams;
+  const defaultView = view === 'all' ? 'all' : 'merchants';
+  // Keep the URLSearchParams order aligned with ProductsPageContent for hydration.
+  const defaultQuery = `page=1&limit=10${defaultView === 'all' ? '&view=all' : ''}`;
   const queryClient = new QueryClient();
   try {
     const token = await getServerToken();
     if (token) {
       const base = (process.env.NEXT_PUBLIC_API_URL || 'https://cms.tap2goph.com/api').replace(/\/+$/, '');
-      const res = await fetch(`${base}/api/admin/merchant-products?${DEFAULT_QS}`, {
+      const res = await fetch(`${base}/api/admin/merchant-products?${defaultQuery}`, {
         headers: { Authorization: `JWT ${token}` },
         next: { revalidate: 30 },
       });
       if (res.ok) {
-        queryClient.setQueryData(QUERY_KEYS.adminMerchantProducts(DEFAULT_QS), await res.json());
+        queryClient.setQueryData(QUERY_KEYS.adminMerchantProducts(defaultQuery), await res.json());
       }
     }
   } catch {

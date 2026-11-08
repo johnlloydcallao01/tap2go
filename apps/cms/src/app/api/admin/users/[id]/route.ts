@@ -81,7 +81,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // fetch related counts for enrichment (optional enterprise context)
     const [customersRes, adminsRes, vendorsRes, driversRes, addressesRes] = await Promise.all([
-      payload.find({ collection: 'customers', where: { user: { equals: doc.id } }, limit: 1, depth: 0, overrideAccess: true }).catch(() => ({ totalDocs: 0, docs: [] } as any)),
+      payload.find({ collection: 'customers', where: { user: { equals: doc.id } }, limit: 1, depth: 1, overrideAccess: true }).catch(() => ({ totalDocs: 0, docs: [] } as any)),
       payload.find({ collection: 'admins', where: { user: { equals: doc.id } }, limit: 1, depth: 0, overrideAccess: true }).catch(() => ({ totalDocs: 0, docs: [] } as any)),
       payload.find({ collection: 'vendors', where: { user: { equals: doc.id } }, limit: 5, depth: 0, overrideAccess: true }).catch(() => ({ totalDocs: 0, docs: [] } as any)),
       payload.find({ collection: 'drivers', where: { user: { equals: doc.id } }, limit: 1, depth: 0, overrideAccess: true }).catch(() => ({ totalDocs: 0, docs: [] } as any)),
@@ -89,6 +89,53 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ])
 
     const sanitized = sanitizeUserDoc(doc)
+    const customer = (customersRes as any).docs?.[0] as Record<string, any> | undefined
+    if (customer) {
+      const customerOrders = await payload.find({
+        collection: 'orders',
+        where: { customer: { equals: customer.id } },
+        limit: 10,
+        sort: '-placed_at',
+        depth: 0,
+        overrideAccess: true,
+      })
+      const activeAddress = customer.activeAddress && typeof customer.activeAddress === 'object'
+        ? customer.activeAddress as Record<string, any>
+        : null
+      sanitized.customerProfile = {
+        id: Number(customer.id),
+        srn: optionalString(customer.srn),
+        couponCode: optionalString(customer.couponCode),
+        enrollmentDate: customer.enrollmentDate ? String(customer.enrollmentDate) : null,
+        currentLevel: optionalString(customer.currentLevel) || 'beginner',
+        activeAddress: activeAddress
+          ? {
+              id: Number(activeAddress.id),
+              formatted_address: str(activeAddress.formatted_address),
+              locality: optionalString(activeAddress.locality),
+              administrative_area_level_1: optionalString(activeAddress.administrative_area_level_1),
+              postal_code: optionalString(activeAddress.postal_code),
+              barangay: optionalString(activeAddress.barangay),
+              latitude: typeof activeAddress.latitude === 'number' ? activeAddress.latitude : null,
+              longitude: typeof activeAddress.longitude === 'number' ? activeAddress.longitude : null,
+              address_type: optionalString(activeAddress.address_type),
+              is_default: !!activeAddress.is_default,
+              is_verified: !!activeAddress.is_verified,
+            }
+          : null,
+        orderCount: customerOrders.totalDocs,
+        addressCount: (addressesRes as any).totalDocs ?? (addressesRes as any).docs?.length ?? 0,
+        createdAt: String(customer.createdAt ?? ''),
+        updatedAt: String(customer.updatedAt ?? ''),
+        recentOrders: (customerOrders.docs as Record<string, any>[]).map((order) => ({
+          id: order.id,
+          status: String(order.status ?? ''),
+          fulfillmentType: String(order.fulfillment_type ?? ''),
+          total: Number(order.total ?? 0),
+          placedAt: String(order.placed_at ?? order.createdAt ?? ''),
+        })),
+      }
+    }
     // enrich with related preview counts
     const related = {
       customerExists: ((customersRes as any).totalDocs ?? (customersRes as any).docs?.length ?? 0) > 0,

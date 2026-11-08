@@ -22,6 +22,22 @@ export type UserDoc = {
   isActive: boolean;
   lastLogin: string | null;
   profilePicture: { id: number; url: string | null; filename: string | null } | null;
+  customerProfile?: {
+    id: number;
+    srn: string | null;
+    couponCode: string | null;
+    enrollmentDate: string | null;
+    currentLevel: string;
+    activeAddress: {
+      id: number;
+      formatted_address: string;
+      locality: string | null;
+      postal_code: string | null;
+      address_type: string | null;
+    } | null;
+    orderCount: number;
+    addressCount: number;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };

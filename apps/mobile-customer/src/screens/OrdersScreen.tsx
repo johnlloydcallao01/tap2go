@@ -106,11 +106,13 @@ export default function OrdersScreen() {
   const router = useRouter();
   const userId = user?.id;
   const forceOrdersRefresh = useRef(false);
+  const refreshInProgress = useRef(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(true);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const ordersQuery = useQuery({
     queryKey: ['customer-orders', userId],
@@ -169,20 +171,28 @@ export default function OrdersScreen() {
   });
   const orders = ordersQuery.data ?? EMPTY_ORDERS;
   const refetchOrders = ordersQuery.refetch;
-  const refreshOrders = useCallback(async (forceRefresh = false) => {
+  const refreshOrders = useCallback(async (forceRefresh = false, showRefreshIndicator = false) => {
+    if (refreshInProgress.current) return;
+    refreshInProgress.current = true;
     forceOrdersRefresh.current = forceRefresh;
+    if (showRefreshIndicator) setRefreshing(true);
     try {
+      if (showRefreshIndicator) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
       await refetchOrders();
     } finally {
       forceOrdersRefresh.current = false;
+      refreshInProgress.current = false;
+      if (showRefreshIndicator) setRefreshing(false);
     }
   }, [refetchOrders]);
-  const showSkeleton = ordersQuery.isLoading && ordersQuery.data === undefined;
+  const showSkeleton = refreshing || (ordersQuery.isLoading && ordersQuery.data === undefined);
 
   const filters = ['All', 'pending', 'accepted', 'assigning_driver', 'driver_assigned', 'picked_up', 'completed', 'canceled', 'rejected', 'expired'];
 
   const handleRefresh = useCallback(async () => {
-    await refreshOrders(true);
+    await refreshOrders(true, true);
   }, [refreshOrders]);
 
   const handleCancelOrder = useCallback(async (order: Order) => {
@@ -419,7 +429,7 @@ export default function OrdersScreen() {
         </View>
 
         <FlatList
-          data={filteredOrders}
+          data={refreshing ? EMPTY_ORDERS : filteredOrders}
           keyExtractor={(order) => order.id}
           renderItem={renderOrder}
           extraData={cancelingId}
@@ -429,7 +439,7 @@ export default function OrdersScreen() {
           contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
           refreshControl={
             <RefreshControl
-              refreshing={ordersQuery.isRefetching}
+              refreshing={refreshing || ordersQuery.isRefetching}
               onRefresh={handleRefresh}
               tintColor="#f97316"
               colors={['#f97316']}

@@ -69,6 +69,29 @@ function sanitizeUserDoc(raw: Record<string, any>): Record<string, any> {
     updatedAt: String(raw.updatedAt ?? ''),
   }
 }
+function sanitizeCustomerProfile(raw: Record<string, any>, orderCount: number, addressCount: number) {
+  const activeAddress = raw.activeAddress && typeof raw.activeAddress === 'object'
+    ? raw.activeAddress as Record<string, any>
+    : null
+  return {
+    id: Number(raw.id),
+    srn: optionalString(raw.srn),
+    couponCode: optionalString(raw.couponCode),
+    enrollmentDate: raw.enrollmentDate ? String(raw.enrollmentDate) : null,
+    currentLevel: optionalString(raw.currentLevel) || 'beginner',
+    activeAddress: activeAddress
+      ? {
+          id: Number(activeAddress.id),
+          formatted_address: str(activeAddress.formatted_address),
+          locality: optionalString(activeAddress.locality),
+          postal_code: optionalString(activeAddress.postal_code),
+          address_type: optionalString(activeAddress.address_type),
+        }
+      : null,
+    orderCount,
+    addressCount,
+  }
+}
 
 function parseCsv(value: string | null): string[] {
   if (!value) return []
@@ -108,6 +131,7 @@ export async function GET(request: NextRequest) {
     const roleCsv = parseCsv(searchParams.get('role'))
     const genderCsv = parseCsv(searchParams.get('gender'))
     const civilCsv = parseCsv(searchParams.get('civilStatus'))
+    const levelCsv = parseCsv(searchParams.get('currentLevel'))
     const isActiveParam = searchParams.get('isActive')
     const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
 
@@ -137,6 +161,26 @@ export async function GET(request: NextRequest) {
     if (civilCsv.length) {
       const filtered = civilCsv.filter((v) => CIVIL_STATUSES.has(v))
       if (filtered.length) where.civilStatus = { in: filtered }
+    }
+    if (levelCsv.length) {
+      const levels = levelCsv.filter((value) => ['beginner', 'intermediate', 'advanced'].includes(value))
+      if (levels.length) {
+        const matchingProfiles = await payload.find({
+          collection: 'customers',
+          where: { currentLevel: { in: levels } },
+          limit: 10000,
+          depth: 0,
+          overrideAccess: true,
+          pagination: false,
+        } as any)
+        const matchingUserIds = (matchingProfiles.docs as Record<string, any>[])
+          .map((profile) => {
+            const user = profile.user
+            return Number(user && typeof user === 'object' ? user.id : user)
+          })
+          .filter((id) => Number.isFinite(id))
+        and.push({ id: { in: matchingUserIds.length ? matchingUserIds : [-1] } })
+      }
     }
 
     const finalWhere = and.length ? { and: [...and, where] } : where
@@ -175,7 +219,77 @@ export async function GET(request: NextRequest) {
     ])
 
     const statsDocs = (statsAll as any).docs as Record<string, any>[] ?? []
-    const docs = (paginated.docs as unknown as Record<string, any>[]).map((d) => sanitizeUserDoc(d))
+    const paginatedDocs = paginated.docs as unknown as Record<string, any>[]
+    const customerView = roleCsv.length === 1 && roleCsv[0] === 'customer'
+    const customerUserIds = customerView
+      ? paginatedDocs.map((user) => Number(user.id)).filter((id) => Number.isFinite(id))
+      : []
+    const customerProfiles = customerUserIds.length
+      ? (await payload.find({
+          collection: 'customers',
+          where: { user: { in: customerUserIds } },
+          limit: customerUserIds.length,
+          depth: 1,
+          overrideAccess: true,
+          pagination: false,
+        } as any)).docs as Record<string, any>[]
+      : []
+    const customerProfileByUserId = new Map<number, Record<string, any>>()
+    for (const profile of customerProfiles) {
+      const userRef = profile.user
+      const userId = Number(userRef && typeof userRef === 'object' ? userRef.id : userRef)
+      if (Number.isFinite(userId)) customerProfileByUserId.set(userId, profile)
+    }
+    const customerIds = customerProfiles.map((profile) => Number(profile.id)).filter((id) => Number.isFinite(id))
+    const [orderRows, addressRows] = customerView && customerUserIds.length
+      ? await Promise.all([
+          customerIds.length
+            ? payload.find({
+                collection: 'orders',
+                where: { customer: { in: customerIds } },
+                limit: 5000,
+                depth: 0,
+                overrideAccess: true,
+                pagination: false,
+              } as any)
+            : Promise.resolve({ docs: [] }),
+          payload.find({
+            collection: 'addresses',
+            where: { user: { in: customerUserIds } },
+            limit: 5000,
+            depth: 0,
+            overrideAccess: true,
+            pagination: false,
+          } as any),
+        ])
+      : [{ docs: [] }, { docs: [] }]
+    const orderCounts = new Map<number, number>()
+    for (const order of orderRows.docs as Record<string, any>[]) {
+      const customerRef = order.customer
+      const customerId = Number(customerRef && typeof customerRef === 'object' ? customerRef.id : customerRef)
+      if (Number.isFinite(customerId)) orderCounts.set(customerId, (orderCounts.get(customerId) || 0) + 1)
+    }
+    const addressCounts = new Map<number, number>()
+    for (const address of addressRows.docs as Record<string, any>[]) {
+      const userRef = address.user
+      const userId = Number(userRef && typeof userRef === 'object' ? userRef.id : userRef)
+      if (Number.isFinite(userId)) addressCounts.set(userId, (addressCounts.get(userId) || 0) + 1)
+    }
+    const docs = paginatedDocs.map((user) => {
+      const doc = sanitizeUserDoc(user)
+      if (!customerView) return doc
+      const profile = customerProfileByUserId.get(Number(user.id))
+      return {
+        ...doc,
+        customerProfile: profile
+          ? sanitizeCustomerProfile(
+              profile,
+              orderCounts.get(Number(profile.id)) || 0,
+              addressCounts.get(Number(user.id)) || 0,
+            )
+          : null,
+      }
+    })
 
     const totalUsers = typeof paginated.totalDocs === 'number' ? paginated.totalDocs : docs.length
     const totalAll = statsDocs.length

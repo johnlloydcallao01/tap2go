@@ -6,7 +6,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCart } from '../contexts/CartContext';
 import {
   clearPendingCheckoutSession,
-  finalizePaidOrder,
   waitForPaidTransaction,
 } from '../services/checkoutReturn';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,12 +44,11 @@ export default function CheckoutReturnScreen() {
       }
 
       try {
-        const { transaction, orderId: resolvedOrderId } = await waitForPaidTransaction(
+        const { orderId: resolvedOrderId } = await waitForPaidTransaction(
           paymentIntentId,
           orderId || undefined,
         );
 
-        await finalizePaidOrder(resolvedOrderId, transaction.paid_at);
         if (customerId && merchantId) {
           await clearPendingCheckoutSession(String(customerId), merchantId);
         }

@@ -1,6 +1,6 @@
 /**
  * @file apps/cms/src/app/api/admin/customers/addresses/route.ts
- * @description BFF aggregation endpoint for web-admin Customer Addresses page (enterprise-grade).
+ * @description BFF aggregation endpoint for customer address management in the web-admin user detail.
  * Follows docs/BFF-pattern.md and apps/cms/src/app/api/admin/vendors/route.ts / customers/route.ts:
  * backend owns context resolution, joins, filtering, pagination, and sanitization
  * with overrideAccess:true. Frontend is thin consumer.
@@ -20,6 +20,7 @@ import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 import { bustCustomersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 import { sql, type SQL } from 'drizzle-orm'
 
 function optionalString(v: unknown): string | null {
@@ -675,7 +676,10 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeAddressDoc(created)
-    try { await bustCustomersCache() } catch { /* ignore */ }
+    try {
+      await bustCustomersCache()
+      await deleteCachedByPrefix('admin:users:')
+    } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: 'Address created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/customers/addresses] POST error:', err)

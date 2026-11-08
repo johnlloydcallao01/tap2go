@@ -73,10 +73,14 @@ import { Transactions } from './collections/Transactions'
 import { OrderTracking } from './collections/OrderTracking'
 import { DriverAssignments } from './collections/DriverAssignments'
 import { DeliveryBookings } from './collections/DeliveryBookings'
+import { DeliveryFulfillmentOutbox } from './collections/DeliveryFulfillmentOutbox'
+import { DeliveryFulfillmentAttempts } from './collections/DeliveryFulfillmentAttempts'
 import { OrderDiscounts } from './collections/OrderDiscounts'
 import { Coupons } from './collections/Coupons'
 import { CouponRedemptions } from './collections/CouponRedemptions'
 import { Reviews } from './collections/Reviews'
+import { deliveryFulfillmentTaskConfig } from './jobs/deliveryFulfillment'
+import { notificationFanoutTaskConfig } from './jobs/notificationFanout'
 
 // Product Management Collections
 import { ProdAttributes } from './collections/ProdAttributes'
@@ -151,6 +155,8 @@ export default buildConfig({
     OrderTracking,
     DriverAssignments,
     DeliveryBookings,
+    DeliveryFulfillmentOutbox,
+    DeliveryFulfillmentAttempts,
     OrderDiscounts,
     Coupons,
     CouponRedemptions,
@@ -217,6 +223,10 @@ export default buildConfig({
       maxUses: parseInt(process.env.DATABASE_MAX_USES || '7500'),
     },
   }),
+  jobs: {
+    tasks: [deliveryFulfillmentTaskConfig, notificationFanoutTaskConfig],
+    autoRun: [{ cron: '* * * * *', queue: 'default' }],
+  },
 
   // ========================================
   // ENTERPRISE-GRADE AUTHENTICATION ENDPOINTS

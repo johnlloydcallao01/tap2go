@@ -78,8 +78,16 @@ import * as migration_20260918_141028 from './20260918_141028';
 import * as migration_20260918_143000_merchants_vendors_trgm from './20260918_143000_merchants_vendors_trgm';
 import * as migration_20260918_144500_products_trgm from './20260918_144500_products_trgm';
 import * as migration_20260918_150000_vendors_business_name_btree from './20260918_150000_vendors_business_name_btree';
+import * as migration_20261030_000000_checkout_idempotency_and_notifications from './20261030_000000_checkout_idempotency_and_notifications';
+import * as migration_20261030_082420_checkout_jobs_checkout from './20261030_082420_checkout_jobs_checkout';
+import * as migration_20261030_082550_checkout_schema_snapshot from './20261030_082550_checkout_schema_snapshot';
 import * as migration_20261104_191500_customer_home_spatial_index from './20261104_191500_customer_home_spatial_index';
+import * as migration_20261108_103221 from './20261108_103221';
 import * as migration_20261108_112800_add_priority_fee_payments from './20261108_112800_add_priority_fee_payments';
+import * as migration_20261108_160000_delivery_fulfillment from './20261108_160000_delivery_fulfillment';
+import * as migration_20261108_183221_add_product_approval_status from './20261108_183221_add_product_approval_status';
+import * as migration_20261108_212500_reconcile_legacy_schema from './20261108_212500_reconcile_legacy_schema';
+import * as migration_20261108_213500_clear_stale_dev_marker from './20261108_213500_clear_stale_dev_marker';
 
 export const migrations = [
   {
@@ -465,31 +473,71 @@ export const migrations = [
   {
     up: migration_20260918_141028.up,
     down: migration_20260918_141028.down,
-    name: '20260918_141028'
+    name: '20260918_141028',
   },
   {
     up: migration_20260918_143000_merchants_vendors_trgm.up,
     down: migration_20260918_143000_merchants_vendors_trgm.down,
-    name: '20260918_143000_merchants_vendors_trgm'
+    name: '20260918_143000_merchants_vendors_trgm',
   },
   {
     up: migration_20260918_144500_products_trgm.up,
     down: migration_20260918_144500_products_trgm.down,
-    name: '20260918_144500_products_trgm'
+    name: '20260918_144500_products_trgm',
   },
   {
     up: migration_20260918_150000_vendors_business_name_btree.up,
     down: migration_20260918_150000_vendors_business_name_btree.down,
-    name: '20260918_150000_vendors_business_name_btree'
+    name: '20260918_150000_vendors_business_name_btree',
+  },
+  {
+    up: migration_20261030_000000_checkout_idempotency_and_notifications.up,
+    down: migration_20261030_000000_checkout_idempotency_and_notifications.down,
+    name: '20261030_000000_checkout_idempotency_and_notifications',
+  },
+  {
+    up: migration_20261030_082420_checkout_jobs_checkout.up,
+    down: migration_20261030_082420_checkout_jobs_checkout.down,
+    name: '20261030_082420_checkout_jobs_checkout',
+  },
+  {
+    up: migration_20261030_082550_checkout_schema_snapshot.up,
+    down: migration_20261030_082550_checkout_schema_snapshot.down,
+    name: '20261030_082550_checkout_schema_snapshot',
   },
   {
     up: migration_20261104_191500_customer_home_spatial_index.up,
     down: migration_20261104_191500_customer_home_spatial_index.down,
-    name: '20261104_191500_customer_home_spatial_index'
+    name: '20261104_191500_customer_home_spatial_index',
+  },
+  {
+    up: migration_20261108_103221.up,
+    down: migration_20261108_103221.down,
+    name: '20261108_103221',
   },
   {
     up: migration_20261108_112800_add_priority_fee_payments.up,
     down: migration_20261108_112800_add_priority_fee_payments.down,
-    name: '20261108_112800_add_priority_fee_payments'
+    name: '20261108_112800_add_priority_fee_payments',
+  },
+  {
+    up: migration_20261108_160000_delivery_fulfillment.up,
+    down: migration_20261108_160000_delivery_fulfillment.down,
+    name: '20261108_160000_delivery_fulfillment',
+  },
+  {
+    up: migration_20261108_183221_add_product_approval_status.up,
+    down: migration_20261108_183221_add_product_approval_status.down,
+    name: '20261108_183221_add_product_approval_status'
+  },
+  {
+    up: migration_20261108_212500_reconcile_legacy_schema.up,
+    down: migration_20261108_212500_reconcile_legacy_schema.down,
+    name: '20261108_212500_reconcile_legacy_schema'
+  },
+  {
+    up: migration_20261108_213500_clear_stale_dev_marker.up,
+    down: migration_20261108_213500_clear_stale_dev_marker.down,
+    name: '20261108_213500_clear_stale_dev_marker'
   },
 ];

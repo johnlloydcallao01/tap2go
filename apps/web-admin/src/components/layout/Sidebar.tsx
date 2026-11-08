@@ -52,7 +52,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
   const [isVendorsExpanded, setIsVendorsExpanded] = React.useState(false);
   const [isMerchantsExpanded, setIsMerchantsExpanded] = React.useState(false);
-  const [isBusinessZonesExpanded, setIsBusinessZonesExpanded] = React.useState(false);
   const [isAttributesExpanded, setIsAttributesExpanded] = React.useState(false);
   const [isModifiersExpanded, setIsModifiersExpanded] = React.useState(false);
   const [isTagsExpanded, setIsTagsExpanded] = React.useState(false);
@@ -60,7 +59,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
   const [isCustomerActivityExpanded, setIsCustomerActivityExpanded] = React.useState(false);
   const hasActiveVendorsChild = dropdownActive(pathname, '/vendors');
   const hasActiveMerchantsChild = dropdownActive(pathname, '/merchants') || dropdownActive(pathname, '/merchant-categories');
-  const hasActiveBusinessZonesChild = dropdownActive(pathname, '/business-zones');
   const hasActiveAttributesChild = dropdownActive(pathname, '/catalog/attributes') || dropdownActive(pathname, '/catalog/attribute-terms') || dropdownActive(pathname, '/catalog/variations') || dropdownActive(pathname, '/catalog/variation-values');
   const hasActiveModifiersChild =
     dropdownActive(pathname, '/catalog/modifier-groups') ||
@@ -81,7 +79,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
   React.useEffect(() => { if (hasActiveVendorsChild) setIsVendorsExpanded(true); }, [hasActiveVendorsChild]);
   React.useEffect(() => { if (hasActiveMerchantsChild) setIsMerchantsExpanded(true); }, [hasActiveMerchantsChild]);
-  React.useEffect(() => { if (hasActiveBusinessZonesChild) setIsBusinessZonesExpanded(true); }, [hasActiveBusinessZonesChild]);
   React.useEffect(() => { if (hasActiveAttributesChild) setIsAttributesExpanded(true); }, [hasActiveAttributesChild]);
   React.useEffect(() => { if (hasActiveModifiersChild) setIsModifiersExpanded(true); }, [hasActiveModifiersChild]);
   React.useEffect(() => { if (hasActiveTagsChild) setIsTagsExpanded(true); }, [hasActiveTagsChild]);
@@ -152,17 +149,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
               {renderChildLink({ label: 'Merchant Categories', href: '/merchant-categories', isActive: dropdownActive(pathname, '/merchant-categories') })}
             </SidebarDropdownGroup>
 
-            <SidebarDropdownGroup
-              icon="shipping"
-              label="Business Zones"
-              isOpen={expanded}
-              isExpanded={isBusinessZonesExpanded}
-              onToggle={() => setIsBusinessZonesExpanded((c) => !c)}
-              active={hasActiveBusinessZonesChild}
-            >
-              {renderChildLink({ label: 'Admin', href: '/business-zones/admin', isActive: dropdownActive(pathname, '/business-zones/admin'), prefetch: true })}
-              {renderChildLink({ label: 'Merchants', href: '/business-zones/merchants', isActive: dropdownActive(pathname, '/business-zones/merchants'), prefetch: true })}
-            </SidebarDropdownGroup>
           </div>
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
@@ -260,31 +246,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
 
-          {/* Customers */}
-          <div className="space-y-1">
-            <SidebarSectionLabel isOpen={expanded}>Customers</SidebarSectionLabel>
-
-            <SidebarItem icon="customers" label="All Customers" active={exactActive(pathname, '/customers')} collapsed={!expanded} href="/customers" />
-            <SidebarItem icon="pages" label="Customer Addresses" active={dropdownActive(pathname, '/customers/addresses')} collapsed={!expanded} href="/customers/addresses" />
-            <SidebarItem icon="support" label="Emergency Contacts" active={dropdownActive(pathname, '/customers/emergency-contacts')} collapsed={!expanded} href="/customers/emergency-contacts" />
-
-            <SidebarDropdownGroup
-              icon="activity"
-              label="Customer Activity"
-              isOpen={expanded}
-              isExpanded={isCustomerActivityExpanded}
-              onToggle={() => setIsCustomerActivityExpanded((c) => !c)}
-              active={hasActiveCustomerActivityChild}
-            >
-              {renderChildLink({ label: 'Wishlists', href: '/activity/wishlists', isActive: dropdownActive(pathname, '/activity/wishlists') })}
-              {renderChildLink({ label: 'Carts (Abandoned)', href: '/activity/carts', isActive: dropdownActive(pathname, '/activity/carts') })}
-              {renderChildLink({ label: 'Recent Searches', href: '/activity/searches', isActive: dropdownActive(pathname, '/activity/searches') })}
-              {renderChildLink({ label: 'Recently Viewed', href: '/activity/views', isActive: dropdownActive(pathname, '/activity/views') })}
-            </SidebarDropdownGroup>
-          </div>
-
-          {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
-
           {/* Content & Media */}
           <div className="space-y-1">
             <SidebarSectionLabel isOpen={expanded}>Content & Media</SidebarSectionLabel>
@@ -308,6 +269,19 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
             <SidebarSectionLabel isOpen={expanded}>System</SidebarSectionLabel>
 
             <SidebarItem icon="users" label="Users" active={dropdownActive(pathname, '/users')} collapsed={!expanded} href="/users" />
+
+            <SidebarDropdownGroup
+              icon="activity"
+              label="Customer Activity"
+              isOpen={expanded}
+              isExpanded={isCustomerActivityExpanded}
+              onToggle={() => setIsCustomerActivityExpanded((c) => !c)}
+              active={hasActiveCustomerActivityChild}
+            >
+              {renderChildLink({ label: 'Wishlists', href: '/activity/wishlists', isActive: dropdownActive(pathname, '/activity/wishlists') })}
+              {renderChildLink({ label: 'Recent Searches', href: '/activity/searches', isActive: dropdownActive(pathname, '/activity/searches') })}
+              {renderChildLink({ label: 'Recently Viewed', href: '/activity/views', isActive: dropdownActive(pathname, '/activity/views') })}
+            </SidebarDropdownGroup>
 
             <SidebarItem
               icon="integrations"

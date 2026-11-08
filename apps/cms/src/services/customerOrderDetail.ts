@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 import { buildOrderPaymentSummary } from './orderPaymentRecovery'
+import { buildLalamoveOrderRemarks } from './lalamoveOrderRemarks'
 
 export async function buildCustomerOrderDetail(
   payload: Payload,
@@ -27,6 +28,8 @@ export async function buildCustomerOrderDetail(
       subtotal: true,
       delivery_fee: true,
       platform_fee: true,
+      priority_fee: true,
+      discount_total: true,
       placed_at: true,
       notes: true,
       customer: true,
@@ -50,6 +53,7 @@ export async function buildCustomerOrderDetail(
         product_name_snapshot: true,
         price_at_purchase: true,
         quantity: true,
+        options_snapshot: true,
         total_price: true,
       },
     }),
@@ -68,6 +72,7 @@ export async function buildCustomerOrderDetail(
         lalamove_raw_status: true,
         delivery_fee: true,
         priority_fee: true,
+        currency: true,
         distance_meters: true,
         driver_name: true,
         driver_phone: true,
@@ -123,6 +128,27 @@ export async function buildCustomerOrderDetail(
   const vendor = merchant?.vendor && typeof merchant.vendor === 'object' ? merchant.vendor : null
   const booking = bookingsResult.docs[0] as Record<string, any> | undefined
   const location = locationsResult.docs[0] as Record<string, any> | undefined
+  const riderRemarks = booking?.lalamove_order_id
+    ? buildLalamoveOrderRemarks({
+        orderId,
+        merchantName: merchant?.outletName || 'Merchant',
+        items: itemsResult.docs as Array<Record<string, any>>,
+        totals: {
+          subtotal: order.subtotal,
+          deliveryFee: order.delivery_fee,
+          total: order.total,
+        },
+        lalamoveQuote: {
+          total: booking.delivery_fee,
+          currency: booking.currency || 'PHP',
+        },
+        instructions: [
+          location?.merchant_delivery_instructions,
+          location?.delivery_instructions,
+          location?.notes,
+        ].filter(Boolean).join(' | ') || '',
+      })
+    : null
   const items = (itemsResult.docs as Array<Record<string, any>>).map((item) => {
     const product = item.product && typeof item.product === 'object' ? item.product : null
     return {
@@ -214,6 +240,7 @@ export async function buildCustomerOrderDetail(
           rawStatus: booking.lalamove_raw_status || null,
           deliveryFee: booking.delivery_fee || 0,
           priorityFee: booking.priority_fee || 0,
+          riderRemarks,
           distanceMeters: booking.distance_meters || null,
           driver: {
             name: booking.driver_name || null,

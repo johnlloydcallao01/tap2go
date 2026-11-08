@@ -1,6 +1,31 @@
 import { MigrateDownArgs, MigrateUpArgs, sql } from '@payloadcms/db-postgres'
 
 export async function up({ db }: MigrateUpArgs): Promise<void> {
+  const { rows } = await db.execute(sql`
+    SELECT
+      to_regclass('public.payload_jobs') IS NOT NULL
+      AND to_regclass('public.payload_jobs_log') IS NOT NULL
+      AND to_regtype('public.enum_payload_jobs_task_slug') IS NOT NULL
+      AND to_regtype('public.enum_payload_jobs_log_task_slug') IS NOT NULL
+      AND (
+        SELECT count(*) = 6
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+            (table_name = 'payload_locked_documents_rels' AND column_name = 'payload_jobs_id')
+            OR (table_name = 'notification_events' AND column_name = 'idempotency_key')
+            OR (table_name = 'orders' AND column_name IN (
+              'checkout_idempotency_key',
+              'checkout_address_id',
+              'checkout_context_hash'
+            ))
+            OR (table_name = 'order_items' AND column_name = 'checkout_cart_item_id')
+          )
+      ) AS schema_already_present
+  `)
+
+  if (rows[0]?.schema_already_present) return
+
   await db.execute(sql`
     CREATE TYPE "public"."enum_payload_jobs_log_task_slug" AS ENUM('inline', 'notification-fanout');
     CREATE TYPE "public"."enum_payload_jobs_log_state" AS ENUM('failed', 'succeeded');

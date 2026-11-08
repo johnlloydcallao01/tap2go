@@ -35,6 +35,7 @@ type DeliveryBooking = {
   delivery_fee?: number | null;
   currency?: string | null;
   priority_fee?: number | null;
+  rider_remarks?: string | null;
   driver_name?: string | null;
   driver_phone?: string | null;
   driver_plate_number?: string | null;
@@ -311,6 +312,7 @@ export default function OrderDetailScreen() {
           lalamove_raw_status: d.rawStatus,
           delivery_fee: d.deliveryFee,
           priority_fee: d.priorityFee,
+          rider_remarks: d.riderRemarks,
           distance_meters: d.distanceMeters,
           driver_name: d.driver?.name,
           driver_phone: d.driver?.phone,
@@ -1465,6 +1467,13 @@ export default function OrderDetailScreen() {
                   </Text>
                 </View>
               </View>
+
+              {delivery?.rider_remarks ? (
+                <View style={styles.infoGroup}>
+                  <Text style={styles.infoGroupTitle}>Order Details Sent to Rider</Text>
+                  <Text style={styles.infoValue}>{delivery.rider_remarks}</Text>
+                </View>
+              ) : null}
 
               {/* Vehicle */}
               <View style={styles.infoGroup}>

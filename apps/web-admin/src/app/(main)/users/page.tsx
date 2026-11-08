@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
 import { useUsers, useUserDependencies, useUserDeleteDependencies, type UserDoc, type UsersResponse } from '@/hooks/useUsers'
@@ -10,7 +11,7 @@ import { ClientOnly } from '@/components/ClientOnly'
 import {
   Users, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
   ShieldCheck, ShieldAlert, Clock, CheckCircle, XCircle, Eye, Pencil, Trash2,
-  Mail, Phone, CalendarDays, Loader2, Layers, Building, Store, ShoppingBag, ShoppingCart, Package, FileText, MapPin, Bell, History, Heart, AlertTriangle, Link as LinkIcon, Info, Truck,
+  Mail, Phone, CalendarDays, Loader2, Layers, Building, Store, ShoppingBag, ShoppingCart, Package, FileText, MapPin, Bell, History, Heart, AlertTriangle, Link as LinkIcon, Info, Truck, GraduationCap,
 } from '@/components/ui/IconWrapper'
 
 const ROLE_OPTS: { value: string; label: string }[] = [
@@ -33,6 +34,16 @@ const CIVIL_OPTS: { value: string; label: string }[] = [
   { value: 'widowed', label: 'Widowed' },
   { value: 'separated', label: 'Separated' },
 ]
+const LEVEL_OPTS: { value: string; label: string }[] = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+]
+const SORT_OPTS = ['-createdAt', 'createdAt', 'firstName', 'lastName', 'email', '-lastLogin']
+
+function parseFilterValues(value: string | null, options: { value: string; label: string }[]) {
+  return [...new Set((value || '').split(',').filter((item) => options.some((option) => option.value === item)))]
+}
 
 function roleBadge(role: string) {
   const r = role.toLowerCase()
@@ -42,6 +53,11 @@ function roleBadge(role: string) {
   if (r === 'customer') return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800'
   if (r === 'service') return 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
   return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-zinc-800 dark:text-zinc-300'
+}
+function levelBadge(level: string) {
+  if (level === 'advanced') return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800'
+  if (level === 'intermediate') return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
+  return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
 }
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
@@ -97,15 +113,22 @@ function UsersSkeleton(){
 }
 
 function UsersPageContent(){
-  // query state
-  const [q, setQ] = useState('')
-  const [debouncedQ, setDebouncedQ] = useState('')
-  const [roleFilter, setRoleFilter] = useState<string[]>([])
-  const [genderFilter, setGenderFilter] = useState<string[]>([])
-  const [civilFilter, setCivilFilter] = useState<string[]>([])
-  const [isActiveFilter, setIsActiveFilter] = useState<boolean | null>(null)
-  const [sort, setSort] = useState<string>('-createdAt')
-  const [page, setPage] = useState(1)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlSearch = searchParams.get('search') || ''
+  const roleFilter = parseFilterValues(searchParams.get('role'), ROLE_OPTS)
+  const genderFilter = parseFilterValues(searchParams.get('gender'), GENDER_OPTS)
+  const civilFilter = parseFilterValues(searchParams.get('civilStatus'), CIVIL_OPTS)
+  const levelFilter = parseFilterValues(searchParams.get('currentLevel'), LEVEL_OPTS)
+  const activeParam = searchParams.get('isActive')
+  const isActiveFilter = activeParam === 'true' ? true : activeParam === 'false' ? false : null
+  const sortParam = searchParams.get('sort')
+  const sort = sortParam && SORT_OPTS.includes(sortParam) ? sortParam : '-createdAt'
+  const pageParam = Number(searchParams.get('page'))
+  const page = Number.isSafeInteger(pageParam) && pageParam > 0 ? pageParam : 1
+  const isCustomerView = roleFilter.length === 1 && roleFilter[0] === 'customer'
+  const [q, setQ] = useState(urlSearch)
+  const [debouncedQ, setDebouncedQ] = useState(urlSearch)
   const limit = 10 // fixed 10 per page as required — pagination must display 10
   const [showFilters, setShowFilters] = useState(false)
 
@@ -119,11 +142,37 @@ function UsersPageContent(){
   // view dependencies — enterprise inspection before delete (read-only)
   const [viewingDeps, setViewingDeps] = useState<UserDoc | null>(null)
 
-  useEffect(() => { const id = setTimeout(() => setDebouncedQ(q.trim()), 400); return () => clearTimeout(id) }, [q])
+  useEffect(() => {
+    setQ(urlSearch)
+    setDebouncedQ(urlSearch)
+  }, [urlSearch])
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const nextSearch = q.trim()
+      setDebouncedQ(nextSearch)
+      const params = new URLSearchParams(window.location.search)
+      if ((params.get('search') || '') === nextSearch) return
+      if (nextSearch) params.set('search', nextSearch)
+      else params.delete('search')
+      params.delete('page')
+      const query = params.toString()
+      router.replace(query ? `/users?${query}` : '/users', { scroll: false })
+    }, 400)
+    return () => clearTimeout(id)
+  }, [q, router])
+
+  const updateUrlParams = (update: (params: URLSearchParams) => void, resetPage = false) => {
+    const params = new URLSearchParams(searchParams.toString())
+    update(params)
+    if (resetPage) params.delete('page')
+    const query = params.toString()
+    router.replace(query ? `/users?${query}` : '/users', { scroll: false })
+  }
 
   const activeFilterCount = useMemo(() => {
-    return roleFilter.length + genderFilter.length + civilFilter.length + (isActiveFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
-  }, [roleFilter, genderFilter, civilFilter, isActiveFilter, debouncedQ])
+    return roleFilter.length + genderFilter.length + civilFilter.length + levelFilter.length + (isActiveFilter !== null ? 1 : 0) + (debouncedQ ? 1 : 0)
+  }, [roleFilter, genderFilter, civilFilter, levelFilter, isActiveFilter, debouncedQ])
 
   const qs = useMemo(() => {
     const p = new URLSearchParams()
@@ -134,9 +183,10 @@ function UsersPageContent(){
     if (roleFilter.length) p.set('role', roleFilter.join(','))
     if (genderFilter.length) p.set('gender', genderFilter.join(','))
     if (civilFilter.length) p.set('civilStatus', civilFilter.join(','))
+    if (levelFilter.length) p.set('currentLevel', levelFilter.join(','))
     if (isActiveFilter !== null) p.set('isActive', String(isActiveFilter))
     return p.toString()
-  }, [page, limit, sort, debouncedQ, roleFilter, genderFilter, civilFilter, isActiveFilter])
+  }, [page, limit, sort, debouncedQ, roleFilter, genderFilter, civilFilter, levelFilter, isActiveFilter])
 
   const queryClient = useQueryClient()
   const [hardRefreshing, setHardRefreshing] = useState(false)
@@ -165,8 +215,6 @@ function UsersPageContent(){
       } finally { setHardRefreshing(false) }
     })()
   }
-
-  useEffect(() => { setPage(1) }, [debouncedQ, roleFilter, genderFilter, civilFilter, isActiveFilter, sort])
 
   // Prevent page scroll when delete confirm is open
   useEffect(() => {
@@ -222,10 +270,37 @@ function UsersPageContent(){
     return () => clearTimeout(t)
   }, [actionError])
 
-  const toggleRole = (v: string) => setRoleFilter((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])
-  const toggleGender = (v: string) => setGenderFilter((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])
-  const toggleCivil = (v: string) => setCivilFilter((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])
-  const clearAll = () => { setQ(''); setDebouncedQ(''); setRoleFilter([]); setGenderFilter([]); setCivilFilter([]); setIsActiveFilter(null) }
+  const toggleFilter = (key: string, values: string[], value: string) => {
+    const next = values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
+    updateUrlParams((params) => {
+      if (next.length) params.set(key, next.join(','))
+      else params.delete(key)
+    }, true)
+  }
+  const toggleRole = (v: string) => {
+    const nextRoles = roleFilter.includes(v) ? roleFilter.filter((role) => role !== v) : [...roleFilter, v]
+    updateUrlParams((params) => {
+      if (nextRoles.length) params.set('role', nextRoles.join(','))
+      else params.delete('role')
+      if (nextRoles.length !== 1 || nextRoles[0] !== 'customer') params.delete('currentLevel')
+    }, true)
+  }
+  const toggleGender = (v: string) => toggleFilter('gender', genderFilter, v)
+  const toggleCivil = (v: string) => toggleFilter('civilStatus', civilFilter, v)
+  const toggleLevel = (v: string) => toggleFilter('currentLevel', levelFilter, v)
+  const setPage = (nextPage: number) => {
+    updateUrlParams((params) => {
+      if (nextPage > 1) params.set('page', String(nextPage))
+      else params.delete('page')
+    })
+  }
+  const clearAll = () => {
+    setQ('')
+    setDebouncedQ('')
+    updateUrlParams((params) => {
+      for (const key of ['search', 'role', 'gender', 'civilStatus', 'currentLevel', 'isActive', 'page', 'sort']) params.delete(key)
+    })
+  }
 
   const handleDelete = async () => {
     if (!deleting || isDeleting) return
@@ -287,9 +362,9 @@ function UsersPageContent(){
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
             <span className="h-8 w-8 rounded-lg bg-[#eba236] text-white flex items-center justify-center"><Users className="w-4 h-4" /></span>
-            Users
+            {isCustomerView ? 'Customers' : 'Users'}
           </h1>
-          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Manage platform users — search by name, email or phone, filter by role and status, and review account details.</p>
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">{isCustomerView ? 'Manage customer accounts and customer profile data — enrollment, learning level, orders, and addresses.' : 'Manage platform users — search by name, email or phone, filter by role and status, and review account details.'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -301,8 +376,8 @@ function UsersPageContent(){
           >
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <Link href="/users/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
-            <Plus className="w-4 h-4" /> New User
+          <Link href={isCustomerView ? '/customers/new' : '/users/new'} className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
+            <Plus className="w-4 h-4" /> {isCustomerView ? 'New Customer' : 'New User'}
           </Link>
         </div>
       </div>
@@ -334,7 +409,10 @@ function UsersPageContent(){
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#0a0a0a] rounded-full border border-gray-200 dark:border-[#262626]">
-              <select value={sort} onChange={(e) => setSort(e.target.value)} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#333] text-gray-700 dark:text-white">
+              <select value={sort} onChange={(e) => updateUrlParams((params) => {
+                if (e.target.value === '-createdAt') params.delete('sort')
+                else params.set('sort', e.target.value)
+              }, true)} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#333] text-gray-700 dark:text-white">
                 <option value="-createdAt">Newest first</option>
                 <option value="createdAt">Oldest first</option>
                 <option value="firstName">First name A–Z</option>
@@ -355,13 +433,17 @@ function UsersPageContent(){
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-[#262626] space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <FilterPills label="Role" options={ROLE_OPTS} value={roleFilter} onToggle={toggleRole} />
+              {isCustomerView && <FilterPills label="Learning Level" options={LEVEL_OPTS} value={levelFilter} onToggle={toggleLevel} />}
               <FilterPills label="Gender" options={GENDER_OPTS} value={genderFilter} onToggle={toggleGender} />
               <div>
                 <p className="text-xs font-semibold text-gray-700 dark:text-[#a1a1aa] mb-2">Account Status</p>
                 <div className="flex flex-wrap gap-1.5">
                   {[['all','All'],['true','Active only'],['false','Inactive only']].map(([v,l]) => {
                     const active = (isActiveFilter===null && v==='all') || String(isActiveFilter)===v
-                    return <button key={v} onClick={() => setIsActiveFilter(v==='all'?null: v==='true')} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${active ? 'bg-[#eba236] text-white border-[#eba236]' : 'bg-white dark:bg-[#0a0a0a] text-gray-700 dark:text-[#a1a1aa] border-gray-200 dark:border-[#262626]'}`}>{l}</button>
+                    return <button key={v} onClick={() => updateUrlParams((params) => {
+                      if (v === 'all') params.delete('isActive')
+                      else params.set('isActive', v)
+                    }, true)} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${active ? 'bg-[#eba236] text-white border-[#eba236]' : 'bg-white dark:bg-[#0a0a0a] text-gray-700 dark:text-[#a1a1aa] border-gray-200 dark:border-[#262626]'}`}>{l}</button>
                   })}
                 </div>
                 <div className="mt-4">
@@ -379,7 +461,8 @@ function UsersPageContent(){
             {roleFilter.map((v) => <span key={v} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] rounded-full text-xs font-medium">role:{v} <button onClick={() => toggleRole(v)}><X className="w-3 h-3" /></button></span>)}
             {genderFilter.map((v) => <span key={v} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] rounded-full text-xs font-medium">gender:{v} <button onClick={() => toggleGender(v)}><X className="w-3 h-3" /></button></span>)}
             {civilFilter.map((v) => <span key={v} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] rounded-full text-xs font-medium">{v} <button onClick={() => toggleCivil(v)}><X className="w-3 h-3" /></button></span>)}
-            {isActiveFilter !== null && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-[#262626] rounded-full text-xs">{isActiveFilter ? 'Active only' : 'Inactive only'} <button onClick={() => setIsActiveFilter(null)}><X className="w-3 h-3" /></button></span>}
+            {levelFilter.map((v) => <span key={v} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-[#262626] text-gray-700 dark:text-[#a1a1aa] rounded-full text-xs font-medium capitalize">Level: {v} <button onClick={() => toggleLevel(v)}><X className="w-3 h-3" /></button></span>)}
+            {isActiveFilter !== null && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-[#262626] rounded-full text-xs">{isActiveFilter ? 'Active only' : 'Inactive only'} <button onClick={() => updateUrlParams((params) => params.delete('isActive'), true)}><X className="w-3 h-3" /></button></span>}
           </div>
         )}
       </div>
@@ -401,9 +484,9 @@ function UsersPageContent(){
         ) : !error && docs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="h-16 w-16 bg-[#eba236]/10 dark:bg-[#eba236]/15 rounded-2xl flex items-center justify-center mb-4"><Users className="w-8 h-8 text-[#eba236]" /></div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">No users found</h3>
-            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1 max-w-md">Try adjusting search or filters, or create your first platform user.</p>
-            <Link href="/users/new" className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-semibold"><Plus className="w-4 h-4" /> Create user</Link>
+            <h3 className="font-semibold text-gray-900 dark:text-white">No {isCustomerView ? 'customers' : 'users'} found</h3>
+            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1 max-w-md">Try adjusting search or filters, or create your first {isCustomerView ? 'customer' : 'platform user'}.</p>
+            <Link href={isCustomerView ? '/customers/new' : '/users/new'} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-semibold"><Plus className="w-4 h-4" /> Create {isCustomerView ? 'customer' : 'user'}</Link>
           </div>
         ) : !error && (
           <>
@@ -413,6 +496,13 @@ function UsersPageContent(){
                   <tr>
                     <th className="text-left px-4 py-3 font-medium">User</th>
                     <th className="text-left px-4 py-3 font-medium">Role</th>
+                    {isCustomerView && <>
+                      <th className="text-left px-4 py-3 font-medium">SRN</th>
+                      <th className="text-left px-4 py-3 font-medium">Level</th>
+                      <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Enrolled</th>
+                      <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Orders</th>
+                      <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Addresses</th>
+                    </>}
                     <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Contact</th>
                     <th className="text-left px-4 py-3 font-medium hidden xl:table-cell">Gender</th>
                     <th className="text-left px-4 py-3 font-medium">Status</th>
@@ -441,6 +531,17 @@ function UsersPageContent(){
                           {u.role}
                         </span>
                       </td>
+                      {isCustomerView && <>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-700 dark:text-[#a1a1aa]">{u.customerProfile?.srn || '—'}</td>
+                        <td className="px-4 py-3">
+                          {u.customerProfile
+                            ? <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border capitalize ${levelBadge(u.customerProfile.currentLevel)}`}>{u.customerProfile.currentLevel}</span>
+                            : <span className="text-xs text-gray-400">No profile</span>}
+                        </td>
+                        <td className="px-4 py-3 hidden md:table-cell text-xs text-gray-700 dark:text-[#a1a1aa]">{fmtDate(u.customerProfile?.enrollmentDate ?? null)}</td>
+                        <td className="px-4 py-3 hidden md:table-cell text-sm text-gray-700 dark:text-[#a1a1aa]">{u.customerProfile?.orderCount ?? '—'}</td>
+                        <td className="px-4 py-3 hidden lg:table-cell text-sm text-gray-700 dark:text-[#a1a1aa]">{u.customerProfile?.addressCount ?? '—'}</td>
+                      </>}
                       <td className="px-4 py-3 hidden lg:table-cell">
                         <div className="text-xs text-gray-900 dark:text-white flex items-center gap-1 truncate max-w-[160px]"><Phone className="w-3 h-3 text-gray-400" /> {u.phone || '—'}</div>
                         <div className="text-xs text-gray-500 truncate max-w-[160px]">{u.completeAddress ? u.completeAddress.slice(0, 40) : '—'}</div>
@@ -466,6 +567,7 @@ function UsersPageContent(){
                         <div className="inline-flex items-center gap-1">
                           <Link href={`/users/${u.id}`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262626] text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white" title="View"><Eye className="w-4 h-4" /></Link>
                           <Link href={`/users/${u.id}/edit`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-blue-600 dark:hover:text-blue-400" title="Edit"><Pencil className="w-4 h-4" /></Link>
+                          {isCustomerView && u.customerProfile && <Link href={`/customers/${u.customerProfile.id}/edit`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-amber-600 dark:hover:text-amber-400" title="Edit customer profile"><GraduationCap className="w-4 h-4" /></Link>}
                           <button onClick={() => setViewingDeps(u)} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-amber-600 dark:hover:text-amber-400" title="View dependencies"><Layers className="w-4 h-4" /></button>
                           <button onClick={() => setDeleting(u)} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-red-600 dark:hover:text-red-400" title="Delete"><Trash2 className="w-4 h-4" /></button>
                         </div>
@@ -481,13 +583,13 @@ function UsersPageContent(){
               <div className="px-4 py-3 border-t border-gray-200 dark:border-[#262626] flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
                 <div className="text-gray-600 dark:text-[#a1a1aa]">Page {pagination.page} of {pagination.totalPages} • {pagination.totalDocs} users • 10 per page</div>
                 <div className="flex items-center gap-1">
-                  <button disabled={loading || !pagination.hasPrevPage} onClick={() => setPage((p) => Math.max(1, p - 1))} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] disabled:opacity-50 text-sm">Prev</button>
+                  <button disabled={loading || !pagination.hasPrevPage} onClick={() => setPage(Math.max(1, page - 1))} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] disabled:opacity-50 text-sm">Prev</button>
                   {Array.from({ length: Math.min(5, pagination.totalPages) }).map((_, i) => {
                     const n = Math.max(1, Math.min(pagination.totalPages - 4, pagination.page - 2)) + i
                     if (n > pagination.totalPages) return null
                     return <button key={n} onClick={() => setPage(n)} className={`h-8 w-8 rounded-lg text-sm font-medium border ${n === pagination.page ? 'bg-[#eba236] text-white border-[#eba236]' : 'bg-white dark:bg-[#0a0a0a] border-gray-200 dark:border-[#262626] text-gray-700 dark:text-white'}`}>{n}</button>
                   })}
-                  <button disabled={loading || !pagination.hasNextPage} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] disabled:opacity-50 text-sm">Next</button>
+                  <button disabled={loading || !pagination.hasNextPage} onClick={() => setPage(page + 1)} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#0a0a0a] disabled:opacity-50 text-sm">Next</button>
                 </div>
               </div>
             )}

@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@encreasl/client-services'
 import {
   Users, Mail, Ticket, CalendarDays, Award, GraduationCap, AlertCircle, RefreshCw, MapPin, Lock
 } from '@/components/ui/IconWrapper'
@@ -26,6 +28,7 @@ const inputCls = 'mt-1 w-full px-3 py-2.5 rounded-lg border border-gray-200 dark
 const labelCls = 'text-xs font-medium text-gray-700 dark:text-[#a1a1aa]'
 
 export function CustomerForm({ initial, onSuccess, onCancel }: { initial?: CustomerDoc | null; onSuccess: () => void; onCancel: () => void }) {
+  const queryClient = useQueryClient()
   const isEdit = !!initial
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -106,6 +109,8 @@ export function CustomerForm({ initial, onSuccess, onCancel }: { initial?: Custo
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || j.details || 'Request failed')
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers('').slice(0, 2) })
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCustomers('').slice(0, 2) })
       onSuccess()
     } catch (e: any) { setError(e?.message || 'Save failed') }
     finally { setSaving(false) }

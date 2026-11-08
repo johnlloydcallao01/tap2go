@@ -1,4 +1,5 @@
 import { PayloadRequest } from 'payload'
+import crypto from 'crypto'
 import { mapLalamoveStatus, mapToOrderStatus, mapToOrderTrackingStatus } from '../services/deliveryProviders'
 
 /**
@@ -14,6 +15,23 @@ import { mapLalamoveStatus, mapToOrderStatus, mapToOrderTrackingStatus } from '.
  */
 export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
   try {
+    const secret = process.env.LALAMOVE_WEBHOOK_SECRET
+    if (!secret) {
+      console.error('[lalamove/webhook] LALAMOVE_WEBHOOK_SECRET is not configured')
+      return Response.json({ error: 'Webhook authentication is unavailable' }, { status: 503 })
+    }
+    const requestUrl = new URL((req as unknown as Request).url)
+    const suppliedSecret =
+      req.headers.get('x-lalamove-webhook-secret')
+      || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+      || requestUrl.searchParams.get('token')
+      || ''
+    const expected = Buffer.from(secret)
+    const supplied = Buffer.from(suppliedSecret)
+    if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) {
+      return Response.json({ error: 'Invalid webhook authentication' }, { status: 401 })
+    }
+
     // 1. Parse body
     const rawBody = await (req as unknown as Request).text()
     let body: any
@@ -26,15 +44,15 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
     const eventType = body.eventType || body.event || body.type || ''
     const payload = body.data || body.payload || body
 
-    console.log(`[lalamove/webhook] Received event: ${eventType}`, JSON.stringify(payload).slice(0, 500))
+    console.log(`[lalamove/webhook] Received event: ${eventType}`)
 
     // 2. Find the delivery booking by Lalamove order ID
     const lalamoveOrderId =
       payload.orderId || payload.lalamove_order_id || payload.id || ''
 
     if (!lalamoveOrderId) {
-      console.warn('[lalamove/webhook] No orderId in payload, acknowledging.')
-      return Response.json({ status: 'received' })
+      console.warn('[lalamove/webhook] No orderId in payload.')
+      return Response.json({ error: 'Order ID is missing' }, { status: 400 })
     }
 
     const bookings = await req.payload.find({
@@ -42,11 +60,35 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
       where: { lalamove_order_id: { equals: String(lalamoveOrderId) } },
       limit: 1,
       depth: 1,
+      overrideAccess: true,
+      req,
     })
 
     if (bookings.docs.length === 0) {
-      console.warn(`[lalamove/webhook] No booking found for lalamove_order_id: ${lalamoveOrderId}`)
-      return Response.json({ status: 'received' })
+      const outboxes = await req.payload.find({
+        collection: 'delivery-fulfillment-outbox',
+        where: { lalamove_order_id: { equals: String(lalamoveOrderId) } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      if (outboxes.docs[0]) {
+        await req.payload.update({
+          collection: 'delivery-fulfillment-outbox',
+          id: outboxes.docs[0].id,
+          data: {
+            status: 'reconciliation_required',
+            manual_intervention_required: false,
+            reconciliation_note: `Lalamove event ${eventType} arrived before the local booking record.`,
+          },
+          overrideAccess: true,
+          req,
+        })
+        return Response.json({ status: 'reconciliation scheduled' }, { status: 202 })
+      }
+      console.error(`[lalamove/webhook] No local record for Lalamove order ${lalamoveOrderId}`)
+      return Response.json({ error: 'Local delivery record not found' }, { status: 503 })
     }
 
     const booking = bookings.docs[0]
@@ -58,6 +100,27 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
       case 'ORDER_STATUS_CHANGED': {
         const newStatus = payload.status || payload.newStatus || ''
         const mappedStatus = mapLalamoveStatus(newStatus)
+        const statusRank: Record<string, number> = {
+          pending: 0,
+          assigning_driver: 1,
+          rejected: 1,
+          driver_assigned: 2,
+          picked_up: 3,
+          completed: 4,
+          canceled: 4,
+          expired: 4,
+        }
+        const currentStatus = String(booking.status || 'pending')
+        const terminal = ['completed', 'canceled', 'expired'].includes(currentStatus)
+        if (
+          (terminal && mappedStatus !== currentStatus)
+          || (statusRank[mappedStatus] ?? 0) < (statusRank[currentStatus] ?? 0)
+        ) {
+          console.info(
+            `[lalamove/webhook] Ignoring out-of-order status ${newStatus} for order ${orderId}; current status is ${currentStatus}.`,
+          )
+          return Response.json({ status: 'received', ignored: 'stale status' })
+        }
 
         // Update delivery booking
         await req.payload.update({
@@ -66,7 +129,11 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
           data: {
             status: mappedStatus as any,
             lalamove_raw_status: newStatus,
+            last_reconciled_at: new Date().toISOString(),
+            last_reconciliation_error: null,
           },
+          overrideAccess: true,
+          req,
         })
 
         // Update order denormalized fields
@@ -98,6 +165,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
           collection: 'orders',
           id: orderId,
           data: orderStatusUpdate,
+          overrideAccess: true,
+          req,
         })
 
         // Create order-tracking entry
@@ -109,6 +178,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
             timestamp: new Date().toISOString(),
             description: `Lalamove status: ${newStatus}`,
           },
+          overrideAccess: true,
+          req,
         })
 
         console.log(`[lalamove/webhook] Order ${orderId}: status → ${mappedStatus} (raw: ${newStatus})`)
@@ -130,6 +201,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
             collection: 'delivery-bookings',
             id: booking.id,
             data: bookingUpdate as any,
+            overrideAccess: true,
+            req,
           })
         }
         console.log(
@@ -147,6 +220,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
           data: {
             status: 'driver_assigned' as any,
             lalamove_raw_status: 'DRIVER_ASSIGNED',
+            last_reconciled_at: new Date().toISOString(),
+            last_reconciliation_error: null,
             driver_name: driver.name || driver.driverName || undefined,
             driver_phone: driver.phone || driver.driverPhone || undefined,
             driver_plate_number: driver.plateNumber || driver.plate_number || undefined,
@@ -155,6 +230,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
             driver_lng: driver.coordinates?.lng ? Number(driver.coordinates.lng) : undefined,
             driver_location_updated_at: driver.coordinates?.updatedAt || undefined,
           },
+          overrideAccess: true,
+          req,
         })
 
         // Keep orders.delivery_status in sync so the order-level status reflects driver assignment
@@ -162,6 +239,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
           collection: 'orders',
           id: orderId,
           data: { delivery_status: 'driver_assigned' as any },
+          overrideAccess: true,
+          req,
         })
 
         console.log(`[lalamove/webhook] Order ${orderId}: driver assigned — ${driver.name || 'unknown'}`)
@@ -178,8 +257,14 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
             id: booking.id,
             data: {
               lalamove_order_id: String(newLalamoveOrderId),
+              status: 'assigning_driver',
+              lalamove_raw_status: 'ASSIGNING_DRIVER',
+              last_reconciled_at: new Date().toISOString(),
+              last_reconciliation_error: null,
               ...(newShareLink ? { share_link: newShareLink } : {}),
             },
+            overrideAccess: true,
+            req,
           })
 
           await req.payload.update({
@@ -189,6 +274,21 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
               lalamove_order_id: String(newLalamoveOrderId),
               ...(newShareLink ? { delivery_tracking_link: newShareLink } : {}),
             },
+            overrideAccess: true,
+            req,
+          })
+
+          await req.payload.update({
+            collection: 'delivery-fulfillment-outbox',
+            where: { order: { equals: orderId } },
+            data: {
+              lalamove_order_id: String(newLalamoveOrderId),
+              status: 'booked',
+              manual_intervention_required: false,
+              reconciliation_note: null,
+            },
+            overrideAccess: true,
+            req,
           })
 
           console.log(`[lalamove/webhook] Order ${orderId}: replaced with new Lalamove order ${newLalamoveOrderId}`)
@@ -208,6 +308,8 @@ export const lalamoveWebhookHandler = async (req: PayloadRequest) => {
             timestamp: new Date().toISOString(),
             description,
           },
+          overrideAccess: true,
+          req,
         })
 
         console.log(`[lalamove/webhook] Order ${orderId}: POD status — ${podStatus}`)

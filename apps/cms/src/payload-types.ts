@@ -94,6 +94,8 @@ export interface Config {
     'order-tracking': OrderTracking;
     'driver-assignments': DriverAssignment;
     'delivery-bookings': DeliveryBooking;
+    'delivery-fulfillment-outbox': DeliveryFulfillmentOutbox;
+    'delivery-fulfillment-attempts': DeliveryFulfillmentAttempt;
     'order-discounts': OrderDiscount;
     coupons: Coupon;
     'coupon-redemptions': CouponRedemption;
@@ -120,6 +122,7 @@ export interface Config {
     'tag-group-memberships': TagGroupMembership;
     'recent-views': RecentView;
     wishlists: Wishlist;
+    'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -153,6 +156,8 @@ export interface Config {
     'order-tracking': OrderTrackingSelect<false> | OrderTrackingSelect<true>;
     'driver-assignments': DriverAssignmentsSelect<false> | DriverAssignmentsSelect<true>;
     'delivery-bookings': DeliveryBookingsSelect<false> | DeliveryBookingsSelect<true>;
+    'delivery-fulfillment-outbox': DeliveryFulfillmentOutboxSelect<false> | DeliveryFulfillmentOutboxSelect<true>;
+    'delivery-fulfillment-attempts': DeliveryFulfillmentAttemptsSelect<false> | DeliveryFulfillmentAttemptsSelect<true>;
     'order-discounts': OrderDiscountsSelect<false> | OrderDiscountsSelect<true>;
     coupons: CouponsSelect<false> | CouponsSelect<true>;
     'coupon-redemptions': CouponRedemptionsSelect<false> | CouponRedemptionsSelect<true>;
@@ -179,6 +184,7 @@ export interface Config {
     'tag-group-memberships': TagGroupMembershipsSelect<false> | TagGroupMembershipsSelect<true>;
     'recent-views': RecentViewsSelect<false> | RecentViewsSelect<true>;
     wishlists: WishlistsSelect<false> | WishlistsSelect<true>;
+    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -188,16 +194,25 @@ export interface Config {
   };
   globals: {
     'system-settings': SystemSetting;
+    'payload-jobs-stats': PayloadJobsStat;
   };
   globalsSelect: {
     'system-settings': SystemSettingsSelect<false> | SystemSettingsSelect<true>;
+    'payload-jobs-stats': PayloadJobsStatsSelect<false> | PayloadJobsStatsSelect<true>;
   };
   locale: null;
   user: User & {
     collection: 'users';
   };
   jobs: {
-    tasks: unknown;
+    tasks: {
+      'delivery-fulfillment': TaskDeliveryFulfillment;
+      'notification-fanout': TaskNotificationFanout;
+      inline: {
+        input: unknown;
+        output: unknown;
+      };
+    };
     workflows: unknown;
   };
 }
@@ -1687,6 +1702,10 @@ export interface Product {
    */
   isActive?: boolean | null;
   /**
+   * Admin approval status for the product catalog
+   */
+  approvalStatus: 'pending' | 'approved' | 'disapproved';
+  /**
    * Controls where the product appears in catalog and search
    */
   catalogVisibility: 'visible' | 'catalog' | 'search' | 'hidden';
@@ -2326,6 +2345,8 @@ export interface DeliveryBooking {
    * Raw status string from Lalamove webhook
    */
   lalamove_raw_status?: string | null;
+  last_reconciled_at?: string | null;
+  last_reconciliation_error?: string | null;
   /**
    * Actual delivery cost from Lalamove
    */
@@ -2394,6 +2415,49 @@ export interface DeliveryBooking {
    * Distance from Lalamove (meters)
    */
   distance_meters?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Durable delivery fulfillment work and reconciliation status
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-fulfillment-outbox".
+ */
+export interface DeliveryFulfillmentOutbox {
+  id: number;
+  order: number | Order;
+  status: 'pending' | 'submitting' | 'booked' | 'retryable' | 'unknown' | 'reconciliation_required' | 'failed';
+  attempt_count: number;
+  next_attempt_at?: string | null;
+  lease_expires_at?: string | null;
+  last_attempt_at?: string | null;
+  lalamove_order_id?: string | null;
+  last_request_id?: string | null;
+  last_error?: string | null;
+  manual_intervention_required?: boolean | null;
+  manual_alerted_at?: string | null;
+  reconciliation_note?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Audit trail for each Lalamove delivery booking attempt
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-fulfillment-attempts".
+ */
+export interface DeliveryFulfillmentAttempt {
+  id: number;
+  outbox: number | DeliveryFulfillmentOutbox;
+  attempt_number: number;
+  status: 'started' | 'booked' | 'retryable' | 'unknown' | 'failed';
+  request_id: string;
+  lalamove_order_id?: string | null;
+  http_status?: number | null;
+  error?: string | null;
+  started_at: string;
+  completed_at?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3251,6 +3315,107 @@ export interface Wishlist {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+  id: number;
+  /**
+   * Input data provided to the job
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  taskStatus?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  completedAt?: string | null;
+  totalTried?: number | null;
+  /**
+   * If hasError is true this job will not be retried
+   */
+  hasError?: boolean | null;
+  /**
+   * If hasError is true, this is the error that caused it
+   */
+  error?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Task execution log
+   */
+  log?:
+    | {
+        executedAt: string;
+        completedAt: string;
+        taskSlug: 'inline' | 'delivery-fulfillment' | 'notification-fanout';
+        taskID: string;
+        input?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        output?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        state: 'failed' | 'succeeded';
+        error?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  taskSlug?: ('inline' | 'delivery-fulfillment' | 'notification-fanout') | null;
+  queue?: string | null;
+  waitUntil?: string | null;
+  processing?: boolean | null;
+  meta?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -3365,6 +3530,14 @@ export interface PayloadLockedDocument {
         value: number | DeliveryBooking;
       } | null)
     | ({
+        relationTo: 'delivery-fulfillment-outbox';
+        value: number | DeliveryFulfillmentOutbox;
+      } | null)
+    | ({
+        relationTo: 'delivery-fulfillment-attempts';
+        value: number | DeliveryFulfillmentAttempt;
+      } | null)
+    | ({
         relationTo: 'order-discounts';
         value: number | OrderDiscount;
       } | null)
@@ -3467,6 +3640,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'wishlists';
         value: number | Wishlist;
+      } | null)
+    | ({
+        relationTo: 'payload-jobs';
+        value: number | PayloadJob;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -4017,6 +4194,7 @@ export interface ProductsSelect<T extends boolean = true> {
             };
       };
   isActive?: T;
+  approvalStatus?: T;
   catalogVisibility?: T;
   assign_to_all_vendor_merchants?: T;
   createdAt?: T;
@@ -4184,6 +4362,8 @@ export interface DeliveryBookingsSelect<T extends boolean = true> {
   expires_at?: T;
   status?: T;
   lalamove_raw_status?: T;
+  last_reconciled_at?: T;
+  last_reconciliation_error?: T;
   delivery_fee?: T;
   currency?: T;
   priority_fee?: T;
@@ -4201,6 +4381,43 @@ export interface DeliveryBookingsSelect<T extends boolean = true> {
   dropoff_lat?: T;
   dropoff_lng?: T;
   distance_meters?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-fulfillment-outbox_select".
+ */
+export interface DeliveryFulfillmentOutboxSelect<T extends boolean = true> {
+  order?: T;
+  status?: T;
+  attempt_count?: T;
+  next_attempt_at?: T;
+  lease_expires_at?: T;
+  last_attempt_at?: T;
+  lalamove_order_id?: T;
+  last_request_id?: T;
+  last_error?: T;
+  manual_intervention_required?: T;
+  manual_alerted_at?: T;
+  reconciliation_note?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-fulfillment-attempts_select".
+ */
+export interface DeliveryFulfillmentAttemptsSelect<T extends boolean = true> {
+  outbox?: T;
+  attempt_number?: T;
+  status?: T;
+  request_id?: T;
+  lalamove_order_id?: T;
+  http_status?: T;
+  error?: T;
+  started_at?: T;
+  completed_at?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4670,6 +4887,38 @@ export interface WishlistsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+  input?: T;
+  taskStatus?: T;
+  completedAt?: T;
+  totalTried?: T;
+  hasError?: T;
+  error?: T;
+  log?:
+    | T
+    | {
+        executedAt?: T;
+        completedAt?: T;
+        taskSlug?: T;
+        taskID?: T;
+        input?: T;
+        output?: T;
+        state?: T;
+        error?: T;
+        id?: T;
+      };
+  taskSlug?: T;
+  queue?: T;
+  waitUntil?: T;
+  processing?: T;
+  meta?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -4747,6 +4996,24 @@ export interface SystemSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs-stats".
+ */
+export interface PayloadJobsStat {
+  id: number;
+  stats?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "system-settings_select".
  */
 export interface SystemSettingsSelect<T extends boolean = true> {
@@ -4769,6 +5036,42 @@ export interface SystemSettingsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs-stats_select".
+ */
+export interface PayloadJobsStatsSelect<T extends boolean = true> {
+  stats?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskDelivery-fulfillment".
+ */
+export interface TaskDeliveryFulfillment {
+  input?: unknown;
+  output?: unknown;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskNotification-fanout".
+ */
+export interface TaskNotificationFanout {
+  input: {
+    event:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

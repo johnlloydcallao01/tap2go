@@ -15,7 +15,7 @@ function NewCustomerContent() {
   const [success, setSuccess] = useState(false)
   return (
     <div className="space-y-6 py-5 px-2.5">
-      <button onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/customers'))} className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white">
+      <button onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/users?role=customer'))} className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white">
         <ArrowLeft className="w-4 h-4" /> Back to customers
       </button>
       <div>
@@ -23,7 +23,7 @@ function NewCustomerContent() {
         <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Onboard a new customer — creates the linked user account and profile in one flow (BFF-owned).</p>
       </div>
       {success && <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-300">Customer created — redirecting…</div>}
-      <CustomerForm onSuccess={() => { setSuccess(true); setTimeout(()=> router.push('/customers'), 700) }} onCancel={() => router.push('/customers')} />
+      <CustomerForm onSuccess={() => { setSuccess(true); setTimeout(()=> router.push('/users?role=customer'), 700) }} onCancel={() => router.push('/users?role=customer')} />
     </div>
   )
 }

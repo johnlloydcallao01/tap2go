@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import crypto from 'crypto'
 import {
   buildOrderPaymentSummary,
   classifyPayMongoIntentStatus,
@@ -138,7 +139,8 @@ describe('pending order payment recovery', () => {
 
   it('keeps checked-out cart items linked to the pending order after payment failure', async () => {
     vi.stubEnv('PAYMONGO_SECRET_KEY_LIVE', 'test_secret')
-    vi.stubEnv('PAYMONGO_WEBHOOK_SECRET', '')
+    const webhookSecret = 'test_webhook_secret'
+    vi.stubEnv('PAYMONGO_WEBHOOK_SECRET', webhookSecret)
     vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
       attributes: { status: 'canceled' },
     })))
@@ -153,9 +155,7 @@ describe('pending order payment recovery', () => {
       find: vi.fn(async () => ({ docs: [transaction] })),
       update: vi.fn(async () => transaction),
     }
-    const req = {
-      headers: new Headers(),
-      text: async () => JSON.stringify({
+    const rawBody = JSON.stringify({
         data: {
           attributes: {
             type: 'payment.failed',
@@ -165,7 +165,17 @@ describe('pending order payment recovery', () => {
             },
           },
         },
+      })
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const signature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(`${timestamp}.${rawBody}`)
+      .digest('hex')
+    const req = {
+      headers: new Headers({
+        'paymongo-signature': `t=${timestamp},li=${signature}`,
       }),
+      text: async () => rawBody,
       payload,
     }
 
@@ -181,6 +191,93 @@ describe('pending order payment recovery', () => {
     expect(payload.update).not.toHaveBeenCalledWith(expect.objectContaining({
       collection: 'cart-items',
     }))
+  })
+
+  it('does not process a webhook when the signing secret is missing', async () => {
+    vi.stubEnv('PAYMONGO_WEBHOOK_SECRET', '')
+    const payload = {
+      find: vi.fn(),
+      update: vi.fn(),
+    }
+    const req = {
+      headers: new Headers(),
+      text: async () => JSON.stringify({
+        data: { attributes: { type: 'payment.failed', data: { id: 'pay_1' } } },
+      }),
+      payload,
+    }
+
+    const response = await paymongoWebhook(req as any)
+
+    expect(response.status).toBe(503)
+    expect(payload.find).not.toHaveBeenCalled()
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('commits paid delivery state and its unique fulfillment request together', async () => {
+    const webhookSecret = 'test_webhook_secret'
+    vi.stubEnv('PAYMONGO_WEBHOOK_SECRET', webhookSecret)
+    const transaction = {
+      id: 20,
+      order: 17,
+      status: 'pending',
+      transaction_type: 'order',
+      amount: 100,
+      currency: 'PHP',
+      payment_intent_id: 'pi_paid',
+    }
+    const order = { id: 17, status: 'pending', fulfillment_type: 'delivery' }
+    const payload = {
+      find: vi.fn(async ({ collection }: { collection: string }) => ({
+        docs: collection === 'transactions' ? [transaction] : [],
+      })),
+      findByID: vi.fn(async () => order),
+      create: vi.fn(async ({ collection, data }: { collection: string; data: object }) => ({
+        id: collection === 'delivery-fulfillment-outbox' ? 40 : 41,
+        ...data,
+      })),
+      update: vi.fn(async () => transaction),
+      db: {
+        beginTransaction: vi.fn(async () => 'payment-tx'),
+        commitTransaction: vi.fn(async () => undefined),
+        rollbackTransaction: vi.fn(async () => undefined),
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      attributes: { status: 'succeeded', amount: 10000, currency: 'PHP' },
+    })))
+    const rawBody = JSON.stringify({
+      data: {
+        attributes: {
+          type: 'payment.paid',
+          data: {
+            id: 'pay_1',
+            attributes: { payment_intent_id: 'pi_paid', paid_at: 1700000000 },
+          },
+        },
+      },
+    })
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const signature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(`${timestamp}.${rawBody}`)
+      .digest('hex')
+    const req = {
+      headers: new Headers({ 'paymongo-signature': `t=${timestamp},li=${signature}` }),
+      text: async () => rawBody,
+      payload,
+      transactionID: undefined,
+    }
+
+    const response = await paymongoWebhook(req as any)
+
+    expect(response.status).toBe(200)
+    expect(payload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'delivery-fulfillment-outbox',
+      data: { order: 17, status: 'pending', attempt_count: 0 },
+    }))
+    expect(payload.db.commitTransaction).toHaveBeenCalledWith('payment-tx')
+    expect(payload.db.rollbackTransaction).not.toHaveBeenCalled()
   })
 
   it('does not present a provider-succeeded intent as paid before webhook confirmation', async () => {

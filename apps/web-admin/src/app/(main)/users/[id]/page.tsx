@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ClientOnly } from '@/components/ClientOnly'
 import { ArrowLeft, RefreshCw, AlertCircle, Users, Mail, Phone, CalendarDays, ShieldCheck } from '@/components/ui/IconWrapper'
+import { CustomerAddresses } from './_components/CustomerAddresses'
 
 type UserDoc = {
   id: number
@@ -22,6 +23,31 @@ type UserDoc = {
   lastLogin: string | null
   profilePicture: { id: number; url: string | null; filename: string | null } | null
   completeAddress: string | null
+  customerProfile?: {
+    id: number
+    srn: string | null
+    couponCode: string | null
+    enrollmentDate: string | null
+    currentLevel: string
+    activeAddress: {
+      id: number
+      formatted_address: string
+      locality: string | null
+      administrative_area_level_1: string | null
+      postal_code: string | null
+      barangay: string | null
+      latitude: number | null
+      longitude: number | null
+      address_type: string | null
+      is_default: boolean
+      is_verified: boolean
+    } | null
+    orderCount: number
+    addressCount: number
+    createdAt: string
+    updatedAt: string
+    recentOrders: { id: number; status: string; fulfillmentType: string; total: number; placedAt: string }[]
+  } | null
 }
 
 function fmtDate(iso: string | null) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year:'numeric', month:'short', day:'numeric'}) } catch { return String(iso).slice(0,10)} }
@@ -71,13 +97,42 @@ function UserDetailContent() {
   return (
     <div className="space-y-6 py-5 px-2.5">
       <div className="flex items-center gap-3">
-        <button onClick={()=> router.push('/users')} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl"><ArrowLeft className="w-4 h-4" /></button>
+        <button onClick={()=> router.push(doc.role === 'customer' ? '/users?role=customer' : '/users')} className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl"><ArrowLeft className="w-4 h-4" /></button>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 truncate"><span className="h-8 w-8 rounded-lg bg-[#eba236] text-white flex items-center justify-center shrink-0"><Users className="w-4 h-4" /></span>{doc.firstName} {doc.lastName}</h1>
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] truncate">{doc.email} • {doc.role}</p>
         </div>
         <Link href={`/users/${doc.id}/edit`} className="px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold">Edit</Link>
+        {doc.customerProfile && <Link href={`/customers/${doc.customerProfile.id}/edit`} className="px-4 py-2.5 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] text-gray-700 dark:text-[#a1a1aa] rounded-xl text-sm font-semibold">Customer Profile</Link>}
       </div>
+
+      {doc.customerProfile && (
+        <Section title="Customer Profile">
+          <Row label="Customer ID" value={`#${doc.customerProfile.id}`} mono />
+          <Row label="SRN" value={doc.customerProfile.srn || '—'} mono />
+          <Row label="Learning Level" value={doc.customerProfile.currentLevel} />
+          <Row label="Coupon Code" value={doc.customerProfile.couponCode || '—'} />
+          <Row label="Enrollment Date" value={fmtDate(doc.customerProfile.enrollmentDate)} />
+          <Row label="Orders" value={String(doc.customerProfile.orderCount)} />
+          <Row label="Addresses" value={String(doc.customerProfile.addressCount)} />
+          <Row label="Active Address" value={doc.customerProfile.activeAddress?.formatted_address || '—'} />
+        </Section>
+      )}
+
+      {doc.customerProfile?.recentOrders.length ? (
+        <Section title={`Recent Orders (${doc.customerProfile.orderCount})`}>
+          {doc.customerProfile.recentOrders.map((order) => (
+            <div key={order.id} className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm">
+              <span className="text-xs text-gray-500 dark:text-[#a1a1aa]">Order #{order.id} · {order.status}</span>
+              <span className="text-gray-900 dark:text-white text-right max-w-[60%] break-words">{order.fulfillmentType} · ₱{order.total.toFixed(2)} · {fmtDate(order.placedAt)}</span>
+            </div>
+          ))}
+        </Section>
+      ) : null}
+
+      {doc.role === 'customer' && doc.customerProfile && (
+        <CustomerAddresses profile={doc.customerProfile} userId={doc.id} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Section title="Account">

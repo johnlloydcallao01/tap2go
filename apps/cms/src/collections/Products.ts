@@ -5,7 +5,7 @@ export const Products: CollectionConfig = {
   slug: 'products',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'sku', 'productType', 'basePrice', 'isActive', 'catalogVisibility', 'createdByVendor', 'createdByMerchant'],
+    defaultColumns: ['name', 'sku', 'productType', 'basePrice', 'isActive', 'approvalStatus', 'catalogVisibility', 'createdByVendor', 'createdByMerchant'],
     group: 'Food Delivery',
     description: 'Master product catalog for vendors and merchants',
   },
@@ -217,6 +217,21 @@ export const Products: CollectionConfig = {
       defaultValue: true,
       admin: {
         description: 'Whether the product is currently active',
+      },
+    },
+
+    {
+      name: 'approvalStatus',
+      type: 'select',
+      required: true,
+      defaultValue: 'approved',
+      options: [
+        { label: 'Pending', value: 'pending' },
+        { label: 'Approved', value: 'approved' },
+        { label: 'Disapproved', value: 'disapproved' },
+      ],
+      admin: {
+        description: 'Admin approval status for the product catalog',
       },
     },
 

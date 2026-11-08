@@ -689,9 +689,6 @@ importers:
       '@lexical/utils':
         specifier: 0.28.0
         version: 0.28.0
-      '@react-google-maps/api':
-        specifier: ^2.20.7
-        version: 2.20.8(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@supabase/supabase-js':
         specifier: ^2
         version: 2.112.2
@@ -722,12 +719,6 @@ importers:
       react-hook-form:
         specifier: ^7.53.2
         version: 7.71.1(react@19.3.0)
-      terra-draw:
-        specifier: ^1.32.3
-        version: 1.32.3
-      terra-draw-google-maps-adapter:
-        specifier: ^1.6.1
-        version: 1.6.1(@googlemaps/js-api-loader@1.16.8)(terra-draw@1.32.3)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -11280,15 +11271,6 @@ packages:
   terminal-link@2.1.1:
     resolution: {integrity: sha512-un0FmiRUQNr5PJqy9kP7c40F5BOfpGlYTrxonDChEZB7pzZxRNp/bt+ymiy9/npwXya9KH99nJ/GXFIiUkYGFQ==}
     engines: {node: '>=8'}
-
-  terra-draw-google-maps-adapter@1.6.1:
-    resolution: {integrity: sha512-YCmMaOUSnltFcRdCTPwfOgb6CMGLK2gIGwuf7Iuk0sX1dzwChpMZWyEhIJDMJeg0f6gN3XNn1OpOz4jfKCQRBQ==}
-    peerDependencies:
-      '@googlemaps/js-api-loader': ^1.14.3 || ^2.0.0
-      terra-draw: ^1.0.0
-
-  terra-draw@1.32.3:
-    resolution: {integrity: sha512-pQpwL8winsDW6/DbBgsaZKeMc83D+HqokxR+t1AbrN4U7C4mGgEfCtmRix1/5L4GfkLh1FE7pq44SWt76vK2Bw==}
 
   terser@5.46.0:
     resolution: {integrity: sha512-jTwoImyr/QbOWFFso3YoU3ik0jBBDJ6JTOQiy/J2YxVJdZCc+5u7skhNwiOR3FQIygFqVUPHl7qbbxtjW2K3Qg==}
@@ -24683,13 +24665,6 @@ snapshots:
     dependencies:
       ansi-escapes: 4.3.2
       supports-hyperlinks: 2.3.0
-
-  terra-draw-google-maps-adapter@1.6.1(@googlemaps/js-api-loader@1.16.8)(terra-draw@1.32.3):
-    dependencies:
-      '@googlemaps/js-api-loader': 1.16.8
-      terra-draw: 1.32.3
-
-  terra-draw@1.32.3: {}
 
   terser@5.46.0:
     dependencies:

@@ -46,10 +46,6 @@ export const QUERY_KEYS = {
     ['admin', 'merchant-categories', params ?? 'default'] as const,
   adminProductCategories: (params?: string) =>
     ['admin', 'product-categories', params ?? 'default'] as const,
-  adminBusinessZones: (params?: string) =>
-    ['admin', 'business-zones', params ?? 'default'] as const,
-  adminBusinessZoneOverview: (params?: string) =>
-    ['admin', 'business-zones', 'overview', params ?? 'default'] as const,
   adminMerchantProducts: (params?: string) =>
     ['admin', 'merchant-products', params ?? 'default'] as const,
   adminOrders: (params?: string) =>

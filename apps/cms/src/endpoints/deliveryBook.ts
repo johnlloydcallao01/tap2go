@@ -1,6 +1,18 @@
 import { PayloadRequest } from 'payload'
 import { getDeliveryProvider, mapLalamoveStatus } from '../services/deliveryProviders'
-import type { LalamoveStop } from '../services/lalamoveClient'
+import { LalamoveApiError, type LalamoveStop } from '../services/lalamoveClient'
+import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
+import {
+  buildLalamoveOrderRemarks,
+  getLalamoveItemQuantity,
+} from '../services/lalamoveOrderRemarks'
+import { submitInitialLalamovePriorityFee } from '../services/initialLalamovePriorityFee'
+
+type FulfillmentCallbacks = {
+  requestId: string
+  onProviderSubmissionStarted: () => void
+  onProviderAccepted: (lalamoveOrderId: string) => Promise<void>
+}
 
 type AnyDoc = {
   id?: number | string
@@ -17,20 +29,29 @@ async function resolveAddressId(payload: PayloadRequest['payload'], field: any):
 /**
  * POST /api/delivery/book
  *
- * Books a Lalamove delivery for a paid order.
- * Called after payment is confirmed (webhook or checkoutReturn).
- * Gets a fresh quotation (valid 5 min) and immediately places the delivery.
+ * Requests or performs delivery fulfillment for a paid order.
  *
  * Body: { orderId: number }
  *
  * Response: { data: { deliveryBookingId, lalamoveOrderId, shareLink, deliveryFee, status } }
  */
-export const deliveryBookHandler = async (req: PayloadRequest) => {
+export const deliveryBookHandler = async (
+  req: PayloadRequest,
+  internalOrderId?: number,
+  fulfillment?: FulfillmentCallbacks,
+) => {
   try {
-    // 1. Parse body
-    const hasJson = typeof (req as any).json === 'function'
-    const parsed = (await (hasJson ? (req as any).json() : Promise.resolve((req as any).body))) ?? {}
-    const { orderId } = parsed as { orderId?: number }
+    let orderId = internalOrderId
+    if (!orderId) {
+      if (!req.user) {
+        return Response.json({ error: 'Authentication required.' }, { status: 401 })
+      }
+
+      const hasJson = typeof (req as any).json === 'function'
+      const parsed = (await (hasJson ? (req as any).json() : Promise.resolve((req as any).body))) ?? {}
+      const parsedId = Number((parsed as { orderId?: unknown }).orderId)
+      orderId = Number.isInteger(parsedId) && parsedId > 0 ? parsedId : undefined
+    }
 
     if (!orderId) {
       return Response.json({ error: 'orderId is required' }, { status: 400 })
@@ -41,29 +62,95 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
       collection: 'orders',
       id: orderId,
       depth: 2,
+      overrideAccess: true,
+      req,
     })
 
     if (!order) {
       return Response.json({ error: 'Order not found' }, { status: 404 })
     }
 
+    if (!fulfillment && req.user?.role !== 'admin') {
+      if (req.user?.role !== 'customer') {
+        return Response.json({ error: 'Customer or admin authentication required.' }, { status: 403 })
+      }
+      const customerDocs = await req.payload.find({
+        collection: 'customers',
+        where: { user: { equals: req.user.id } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      const customerId = customerDocs.docs[0]?.id
+      const orderCustomerId = typeof order.customer === 'object' ? order.customer.id : order.customer
+      if (!customerId || String(customerId) !== String(orderCustomerId)) {
+        return Response.json({ error: 'You may only request fulfillment for your own order.' }, { status: 403 })
+      }
+    }
+
     if (order.fulfillment_type !== 'delivery') {
       return Response.json({ error: 'Order is not a delivery order' }, { status: 422 })
     }
 
-    // Bail if already booked
-    if (order.lalamove_order_id) {
+    const paidTransactions = await req.payload.find({
+      collection: 'transactions',
+      where: {
+        and: [
+          { order: { equals: orderId } },
+          { status: { equals: 'paid' } },
+          { transaction_type: { not_equals: 'priority_fee' } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+    if (paidTransactions.docs.length === 0) {
+      return Response.json({ error: 'A paid order transaction is required.' }, { status: 409 })
+    }
+
+    if (!fulfillment) {
+      const outbox = await ensureDeliveryFulfillment(req, orderId)
       return Response.json(
-        { error: 'Order already has a Lalamove delivery booked' },
-        { status: 409 },
+        { data: { fulfillmentId: outbox.id, status: outbox.status } },
+        { status: 202 },
       )
+    }
+
+    const existingBookings = await req.payload.find({
+      collection: 'delivery-bookings',
+      where: { order: { equals: orderId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+    const existingBooking = existingBookings.docs[0]
+    if (existingBooking?.lalamove_order_id) {
+      return Response.json({
+        data: {
+          deliveryBookingId: existingBooking.id,
+          lalamoveOrderId: existingBooking.lalamove_order_id,
+          shareLink: existingBooking.share_link,
+          deliveryFee: existingBooking.delivery_fee,
+          priorityFee: existingBooking.priority_fee,
+          status: existingBooking.status,
+        },
+      })
     }
 
     // 3. Get merchant (pickup)
     const merchant =
       typeof order.merchant === 'object'
         ? order.merchant
-        : await req.payload.findByID({ collection: 'merchants', id: order.merchant })
+        : await req.payload.findByID({
+            collection: 'merchants',
+            id: order.merchant,
+            overrideAccess: true,
+            req,
+          })
 
     if (!merchant) {
       return Response.json({ error: 'Merchant not found' }, { status: 404 })
@@ -76,7 +163,12 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     let merchantAddress = merchant.outletName || 'Merchant Location'
 
     if (merchantAddrId) {
-      const addr = await req.payload.findByID({ collection: 'addresses', id: merchantAddrId })
+      const addr = await req.payload.findByID({
+        collection: 'addresses',
+        id: merchantAddrId,
+        overrideAccess: true,
+        req,
+      })
       merchantLat = Number(addr?.latitude ?? null)
       merchantLng = Number(addr?.longitude ?? null)
       merchantAddress = addr?.formatted_address || merchantAddress
@@ -100,6 +192,8 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
       collection: 'delivery-locations',
       where: { order: { equals: orderId } },
       limit: 1,
+      overrideAccess: true,
+      req,
     })
 
     const deliveryLocation = deliveryLocations.docs[0]
@@ -118,7 +212,13 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     const customer =
       typeof order.customer === 'object'
         ? order.customer
-        : await req.payload.findByID({ collection: 'customers', id: order.customer, depth: 1 })
+        : await req.payload.findByID({
+            collection: 'customers',
+            id: order.customer,
+            depth: 1,
+            overrideAccess: true,
+            req,
+          })
 
     // Sender = merchant (pickup)
     let senderName = merchant.outletName || 'Merchant'
@@ -162,7 +262,12 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     if (!dropoffLat || !dropoffLng) {
       const customerAddrId = await resolveAddressId(req.payload, (customer as AnyDoc | null)?.activeAddress)
       if (customerAddrId) {
-        const addr = await req.payload.findByID({ collection: 'addresses', id: customerAddrId })
+        const addr = await req.payload.findByID({
+          collection: 'addresses',
+          id: customerAddrId,
+          overrideAccess: true,
+          req,
+        })
         dropoffLat = Number(addr?.latitude ?? null)
         dropoffLng = Number(addr?.longitude ?? null)
         dropoffAddress = addr?.formatted_address || dropoffAddress
@@ -200,20 +305,65 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
       },
     ]
 
+    const orderItemsResult = await req.payload.find({
+      collection: 'order-items',
+      where: { order: { equals: orderId } },
+      limit: 1000,
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+      req,
+      select: {
+        product_name_snapshot: true,
+        price_at_purchase: true,
+        quantity: true,
+        options_snapshot: true,
+        total_price: true,
+      },
+    })
+    const orderItems = orderItemsResult.docs as Array<{
+      product_name_snapshot?: unknown
+      price_at_purchase?: unknown
+      quantity?: unknown
+      options_snapshot?: unknown
+      total_price?: unknown
+    }>
+
     const provider = await getDeliveryProvider(req.payload)
     const serviceType = provider.getServiceTypeDefault()
 
     const quotation = await provider.getQuotation(stops, serviceType, {
       language: 'en_PH',
+      item: {
+        quantity: String(getLalamoveItemQuantity(orderItems) || 1),
+        weight: 'LESS_THAN_20_KG',
+        categories: ['FOOD_AND_BEVERAGES'],
+      },
     })
 
     // 7. Place Lalamove order with that quotation
-    const notesForRider = [
+    const riderInstructions = [
       deliveryLocation?.merchant_delivery_instructions,
       deliveryLocation?.delivery_instructions,
       deliveryLocation?.notes,
     ].filter(Boolean).join(' | ') || ''
+    const remarks = buildLalamoveOrderRemarks({
+      orderId,
+      merchantName: senderName,
+      items: orderItems,
+      totals: {
+        subtotal: order.subtotal,
+        deliveryFee: order.delivery_fee,
+        total: order.total,
+      },
+      lalamoveQuote: {
+        total: quotation.priceBreakdown.total,
+        currency: quotation.priceBreakdown.currency,
+      },
+      instructions: riderInstructions,
+    })
 
+    fulfillment.onProviderSubmissionStarted()
     const lalamoveOrder = await provider.placeOrder({
       quotation,
       senderName,
@@ -222,42 +372,24 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
         {
           name: finalRecipientName,
           phone: finalRecipientPhone,
-          remarks: notesForRider || undefined,
+          remarks,
         },
       ],
       isPODEnabled: true,
       metadata: { orderId: String(orderId) },
+      requestId: fulfillment.requestId,
     })
-
-    // 7b. Always add a priority fee to speed up driver matching. Per Lalamove
-    //      docs, priority fees can ONLY be added before the driver accepts, so we
-    //      do it immediately after placing the order (status = ASSIGNING_DRIVER).
     const priorityFeeAmount = Number(provider.getPriorityFeeEnv())
-    let priorityFee = 0
-    let rawPriorityFee = ''
-    if (priorityFeeAmount > 0) {
-      try {
-        const prioUpdate = await provider.addPriorityFee(
-          lalamoveOrder.orderId,
-          String(priorityFeeAmount),
-        )
-        priorityFee = Number(
-          prioUpdate?.priceBreakdown?.priorityFee || priorityFeeAmount,
-        )
-        rawPriorityFee = prioUpdate?.priceBreakdown?.priorityFee || ''
-        console.log(
-          `[delivery/book] Order ${orderId}: priority fee ₱${priorityFee} added (driver not yet matched)`,
-        )
-      } catch (prioErr: any) {
-        // Priority is a delivery-speed enhancement, not a blocker. Log it clearly
-        // but still honour the delivery if Lalamove rejects the tip (e.g. above max).
-        console.error(
-          `[delivery/book] Priority fee NOT applied for order ${orderId}: ${prioErr?.message}`,
-        )
-      }
-    } else {
-      console.warn(`[delivery/book] LALAMOVE_PRIORITY_FEE unset or 0 → priority fee skipped`)
-    }
+    // Start the fee request as soon as Lalamove returns the order ID. Persist the
+    // ID at the same time so a crash cannot leave an accepted booking untraceable.
+    const priorityFeePromise = submitInitialLalamovePriorityFee({
+      provider,
+      orderId: lalamoveOrder.orderId,
+      requestedFee: priorityFeeAmount,
+      orderStatus: lalamoveOrder.status,
+    })
+    await fulfillment.onProviderAccepted(lalamoveOrder.orderId)
+    const priorityFee = await priorityFeePromise
 
     // 8. Create delivery-bookings record
     const deliveryFee = Number(lalamoveOrder.priceBreakdown.total)
@@ -288,29 +420,16 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
       },
     })
 
-    // 9. Update order with Lalamove data
-    // Preserve any coupon discount: the order total was already net of discounts
-    // at checkout, so re-adding the fresh delivery fee must subtract discount_total
-    // again instead of resurrecting the pre-discount total.
-    const preservedDiscount = Number((order as AnyDoc).discount_total) || 0
+    // The total charged at checkout is immutable; provider repricing is recorded
+    // on the booking and must not silently change the paid order total.
     await req.payload.update({
       collection: 'orders',
       id: orderId,
       data: {
         lalamove_order_id: lalamoveOrder.orderId,
-        delivery_fee: deliveryFee,
-        priority_fee: priorityFee,
         delivery_service_type: serviceType,
         delivery_status: mapLalamoveStatus(lalamoveStatus) as any,
         delivery_tracking_link: lalamoveOrder.shareLink || undefined,
-        // Recalculate total to reflect actual delivery fee + any priority fee,
-        // keeping the coupon discount intact.
-        total: Math.max(
-          0,
-          Math.round(
-            (order.subtotal + deliveryFee + (order.platform_fee || 0) + priorityFee - preservedDiscount) * 100,
-          ) / 100,
-        ),
       },
     })
 
@@ -321,7 +440,9 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
         order: orderId,
         status: 'accepted' as any,
         timestamp: new Date().toISOString(),
-        description: `Delivery booked with Lalamove (${serviceType}). Rider matching in progress. Priority fee of ₱${priorityFee} applied to match a rider faster.`,
+        description: priorityFee > 0
+          ? `Delivery booked with Lalamove (${serviceType}). Rider matching in progress. Lalamove confirmed a priority fee of ₱${priorityFee}.`
+          : `Delivery booked with Lalamove (${serviceType}). Rider matching in progress. No priority fee was confirmed by Lalamove.`,
       },
     })
 
@@ -337,9 +458,20 @@ export const deliveryBookHandler = async (req: PayloadRequest) => {
     })
   } catch (error: any) {
     console.error('[delivery/book] Error:', error)
+    const status = error instanceof LalamoveApiError
+      ? error.status
+      : 500
     return Response.json(
       { error: error?.message || 'Failed to book delivery' },
-      { status: 500 },
+      { status: status >= 400 && status < 600 ? status : 500 },
     )
   }
+}
+
+export function deliveryBookForFulfillment(
+  req: PayloadRequest,
+  orderId: number,
+  fulfillment: FulfillmentCallbacks,
+) {
+  return deliveryBookHandler(req, orderId, fulfillment)
 }

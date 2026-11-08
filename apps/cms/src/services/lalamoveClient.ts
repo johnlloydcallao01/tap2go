@@ -42,10 +42,14 @@ function signRequest(
   return { timestamp, signature }
 }
 
-function buildHeaders(method: string, path: string, body: string = '') {
+function buildHeaders(
+  method: string,
+  path: string,
+  body = '',
+  requestId: string = crypto.randomUUID(),
+) {
   const apiKey = getApiKey()
   const { timestamp, signature } = signRequest(method, path, body)
-  const requestId = crypto.randomUUID()
 
   return {
     Authorization: `hmac ${apiKey}:${timestamp}:${signature}`,
@@ -115,6 +119,16 @@ export interface LalamoveDriverDetails {
     lat: string
     lng: string
     updatedAt: string
+  }
+}
+
+export class LalamoveApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+    this.name = 'LalamoveApiError'
   }
 }
 
@@ -197,11 +211,15 @@ export async function getQuotation(
     method: 'POST',
     headers,
     body,
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`Lalamove getQuotation failed (${response.status}): ${error}`)
+    throw new LalamoveApiError(
+      `Lalamove getQuotation failed (${response.status}): ${error}`,
+      response.status,
+    )
   }
 
   const data = await response.json()
@@ -219,6 +237,7 @@ export async function placeOrder(params: {
   }>
   isPODEnabled?: boolean
   metadata?: Record<string, string>
+  requestId?: string
 }): Promise<LalamoveOrderResponse> {
   const path = '/v3/orders'
   const bodyObj: Record<string, any> = {
@@ -240,17 +259,21 @@ export async function placeOrder(params: {
   if (params.metadata) bodyObj.data.metadata = params.metadata
 
   const body = JSON.stringify(bodyObj)
-  const headers = buildHeaders('POST', path, body)
+  const headers = buildHeaders('POST', path, body, params.requestId)
 
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
     method: 'POST',
     headers,
     body,
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`Lalamove placeOrder failed (${response.status}): ${error}`)
+    throw new LalamoveApiError(
+      `Lalamove placeOrder failed (${response.status}): ${error}`,
+      response.status,
+    )
   }
 
   const data = await response.json()
@@ -266,6 +289,7 @@ export async function getOrderDetails(
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
     method: 'GET',
     headers,
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (!response.ok) {
@@ -372,6 +396,7 @@ export async function addPriorityFee(
     method: 'POST',
     headers,
     body,
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (!response.ok) {

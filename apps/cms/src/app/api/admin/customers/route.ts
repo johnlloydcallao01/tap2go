@@ -17,6 +17,7 @@ import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 import { bustCustomersCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { deleteCachedByPrefix } from '@encreasl/cache'
 import { sql, type SQL } from 'drizzle-orm'
 import crypto from 'crypto'
 
@@ -561,7 +562,10 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = sanitizeCustomerDoc(created, created, new Map(), new Map())
-    try { await bustCustomersCache() } catch { /* ignore */ }
+    try {
+      await bustCustomersCache()
+      await deleteCachedByPrefix('admin:users:')
+    } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: 'Customer created successfully', doc: sanitized }, { status: 201 })
   } catch (err: any) {
     console.error('[admin/customers] POST error:', err)

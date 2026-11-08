@@ -31,6 +31,7 @@ function sanitizeDoc(raw: Record<string, any>): Record<string, any> {
     basePrice: raw.basePrice != null ? Number(raw.basePrice) : null,
     compareAtPrice: raw.compareAtPrice != null ? Number(raw.compareAtPrice) : null,
     isActive: typeof raw.isActive === 'boolean' ? raw.isActive : true,
+    approvalStatus: String(raw.approvalStatus || 'pending'),
     catalogVisibility: String(raw.catalogVisibility || 'visible'),
     categories,
     primaryImage,
@@ -46,6 +47,7 @@ function sanitizeDoc(raw: Record<string, any>): Record<string, any> {
 
 const PRODUCT_TYPES = new Set(['simple', 'variable', 'grouped'])
 const VISIBILITY = new Set(['visible', 'catalog', 'search', 'hidden'])
+const APPROVAL_STATUSES = new Set(['pending', 'approved', 'disapproved'])
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -95,6 +97,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (typeof body.catalogVisibility === 'string') {
       const v = body.catalogVisibility.trim().toLowerCase(); if (!VISIBILITY.has(v)) return NextResponse.json({ error: `catalogVisibility must be one of ${Array.from(VISIBILITY).join(', ')}` }, { status: 400 }); patch.catalogVisibility = v
+    }
+    if (body.approvalStatus !== undefined) {
+      if (typeof body.approvalStatus !== 'string' || !APPROVAL_STATUSES.has(body.approvalStatus)) {
+        return NextResponse.json({ error: `approvalStatus must be one of ${Array.from(APPROVAL_STATUSES).join(', ')}` }, { status: 400 })
+      }
+      patch.approvalStatus = body.approvalStatus
     }
     if (typeof body.isActive === 'boolean') patch.isActive = body.isActive
     else if (body.isActive !== undefined) { const v = String(body.isActive).toLowerCase(); if (v === 'true') patch.isActive = true; else if (v === 'false') patch.isActive = false }

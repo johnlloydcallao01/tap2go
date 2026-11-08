@@ -9,16 +9,12 @@ export { useVendorPayouts, usePayoutsSummary, usePayoutsRows, usePayoutsDaily } 
 export { useMerchants } from './useMerchants';
 export { useMerchantCategories } from './useMerchantCategories';
 export { useProductCategories } from './useProductCategories';
-export { useBusinessZones } from './useBusinessZones';
 export { useMerchantProducts } from './useMerchantProducts';
 export { useOrders } from './useOrders';
 export { useOrderItems } from './useOrderItems';
 export { useTransactions } from './useTransactions';
 export { useCoupons } from './useCoupons';
 export { useCouponRedemptions } from './useCouponRedemptions';
-export { useCustomers } from './useCustomers';
-export { useCustomerAddressStats } from './useCustomerAddressStats';
-export { useEmergencyContacts } from './useEmergencyContacts';
 export { useActivity } from './useActivity';
 export { useMediaLibrary } from './useMediaLibrary';
 export { usePosts } from './usePosts';

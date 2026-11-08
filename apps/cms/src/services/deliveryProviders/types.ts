@@ -30,7 +30,9 @@ export const mapLalamoveStatus = (status: string): DeliveryStatus => {
   }
 }
 
-export function mapToOrderStatus(deliveryStatus: DeliveryStatus): string | null {
+export function mapToOrderStatus(
+  deliveryStatus: DeliveryStatus,
+): 'preparing' | 'ready_for_pickup' | 'on_delivery' | 'delivered' | 'cancelled' | null {
   switch (deliveryStatus) {
     case 'assigning_driver': return 'preparing'
     case 'driver_assigned':  return 'ready_for_pickup'
@@ -106,7 +108,11 @@ export interface DeliveryProvider {
   getQuotation(
     stops: LalamoveStop[],
     serviceType?: string,
-    options?: { language?: string; pricingTierCode?: LalamovePricingTierCode },
+    options?: {
+      language?: string
+      pricingTierCode?: LalamovePricingTierCode
+      item?: { quantity?: string; weight?: string; categories?: string[] }
+    },
   ): Promise<LalamoveQuotationResponse>
 
   getQuotationResponse(): Omit<LalamoveQuotationResponse, never>
@@ -118,6 +124,7 @@ export interface DeliveryProvider {
     recipients: Array<{ name: string; phone: string; remarks?: string }>
     isPODEnabled?: boolean
     metadata?: Record<string, string>
+    requestId?: string
   }): Promise<LalamoveOrderResponse>
 
   cancelOrder(orderId: string): Promise<void>

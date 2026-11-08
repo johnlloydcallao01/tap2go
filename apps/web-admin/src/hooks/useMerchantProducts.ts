@@ -1,6 +1,6 @@
 'use client';
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS, SHARED_QUERY_DEFAULTS } from '@encreasl/client-services';
 
 export type MerchantProductLite = {
@@ -46,10 +46,37 @@ export type MerchantProductStats = {
   totalProducts: number;
 };
 
+export type MerchantProductAssignment = {
+  merchantProductId: number;
+  product: {
+    id: number;
+    name: string;
+    slug: string;
+    sku: string | null;
+    productType: string;
+    approvalStatus: string;
+    basePrice: number | null;
+    primaryImage: { id: number; url: string | null; thumbUrl?: string | null } | null;
+  } | null;
+  vendor: { id: number; businessName: string } | null;
+  merchant: { id: number; outletName: string; outletCode: string } | null;
+  priceOverride: number | null;
+  stockQuantity: number | null;
+  isActive: boolean;
+  isAvailable: boolean;
+};
+
 export type MerchantProductsResponse = {
-  merchants: MerchantBrief[];
+  view?: 'all';
+  merchants?: MerchantBrief[];
+  docs?: MerchantProductAssignment[];
   pagination: MerchantProductPagination | null;
   stats: MerchantProductStats | null;
+  allViewStats?: {
+    totalAssignments: number;
+    activeAssignments: number;
+    filteredAssignments: number;
+  };
 };
 
 async function fetchMerchantProducts(qs: string, signal?: AbortSignal): Promise<MerchantProductsResponse> {
@@ -67,16 +94,21 @@ async function fetchMerchantProducts(qs: string, signal?: AbortSignal): Promise<
 }
 
 /**
- * Merchant-encapsulated catalog list query — 3-min instant-back.
- * Landing (no merchant filter) pages outlets with product counts; passing
- * merchant=<id> returns that outlet's products for the drill-in page.
- * Query key encodes page, limit, sort, search, and filters.
+ * Merchant-encapsulated catalog query: outlet pages, outlet details, and the
+ * all-merchant assignments view. Query key encodes page, limit, search, and filters.
  */
 export function useMerchantProducts(qs: string) {
+  const view = new URLSearchParams(qs).get('view') ?? 'merchant';
   return useQuery({
     queryKey: QUERY_KEYS.adminMerchantProducts(qs),
     queryFn: ({ signal }) => fetchMerchantProducts(qs, signal),
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) => {
+      const previousParams = typeof previousQuery?.queryKey[2] === 'string'
+        ? new URLSearchParams(previousQuery.queryKey[2])
+        : null;
+      const previousView = previousParams?.get('view') ?? 'merchant';
+      return previousView === view ? previousData : undefined;
+    },
     ...SHARED_QUERY_DEFAULTS,
   });
 }

@@ -217,6 +217,11 @@ export const enum_products_product_type = pgEnum('enum_products_product_type', [
   'variable',
   'grouped',
 ])
+export const enum_products_approval_status = pgEnum('enum_products_approval_status', [
+  'pending',
+  'approved',
+  'disapproved',
+])
 export const enum_products_catalog_visibility = pgEnum('enum_products_catalog_visibility', [
   'visible',
   'catalog',
@@ -295,6 +300,14 @@ export const enum_delivery_bookings_status = pgEnum('enum_delivery_bookings_stat
   'rejected',
   'expired',
 ])
+export const enum_delivery_fulfillment_outbox_status = pgEnum(
+  'enum_delivery_fulfillment_outbox_status',
+  ['pending', 'submitting', 'booked', 'retryable', 'unknown', 'reconciliation_required', 'failed'],
+)
+export const enum_delivery_fulfillment_attempts_status = pgEnum(
+  'enum_delivery_fulfillment_attempts_status',
+  ['started', 'booked', 'retryable', 'unknown', 'failed'],
+)
 export const enum_order_discounts_type = pgEnum('enum_order_discounts_type', [
   'percentage',
   'fixed',
@@ -470,6 +483,20 @@ export const enum_recent_views_source = pgEnum('enum_recent_views_source', [
 export const enum_wishlists_item_type = pgEnum('enum_wishlists_item_type', [
   'merchant',
   'merchantProduct',
+])
+export const enum_payload_jobs_log_task_slug = pgEnum('enum_payload_jobs_log_task_slug', [
+  'inline',
+  'delivery-fulfillment',
+  'notification-fanout',
+])
+export const enum_payload_jobs_log_state = pgEnum('enum_payload_jobs_log_state', [
+  'failed',
+  'succeeded',
+])
+export const enum_payload_jobs_task_slug = pgEnum('enum_payload_jobs_task_slug', [
+  'inline',
+  'delivery-fulfillment',
+  'notification-fanout',
 ])
 export const enum_system_settings_delivery_provider = pgEnum(
   'enum_system_settings_delivery_provider',
@@ -1627,6 +1654,7 @@ export const products = pgTable(
       onDelete: 'set null',
     }),
     isActive: boolean('is_active').default(true),
+    approvalStatus: enum_products_approval_status('approval_status').notNull().default('approved'),
     catalogVisibility: enum_products_catalog_visibility('catalog_visibility')
       .notNull()
       .default('visible'),
@@ -2022,6 +2050,12 @@ export const delivery_bookings = pgTable(
     expires_at: timestamp('expires_at', { mode: 'string', withTimezone: true, precision: 3 }),
     status: enum_delivery_bookings_status('status').notNull().default('pending'),
     lalamove_raw_status: varchar('lalamove_raw_status'),
+    last_reconciled_at: timestamp('last_reconciled_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    last_reconciliation_error: varchar('last_reconciliation_error'),
     delivery_fee: numeric('delivery_fee'),
     currency: varchar('currency').default('PHP'),
     priority_fee: numeric('priority_fee').default('0'),
@@ -2058,6 +2092,126 @@ export const delivery_bookings = pgTable(
     delivery_bookings_created_at_idx: index('delivery_bookings_created_at_idx').on(
       columns.createdAt,
     ),
+    status_last_reconciled_at_idx: index('status_last_reconciled_at_idx').on(
+      columns.status,
+      columns.last_reconciled_at,
+    ),
+  }),
+)
+
+export const delivery_fulfillment_outbox = pgTable(
+  'delivery_fulfillment_outbox',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    status: enum_delivery_fulfillment_outbox_status('status').notNull().default('pending'),
+    attempt_count: numeric('attempt_count').notNull().default('0'),
+    next_attempt_at: timestamp('next_attempt_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    lease_expires_at: timestamp('lease_expires_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    last_attempt_at: timestamp('last_attempt_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    lalamove_order_id: varchar('lalamove_order_id'),
+    last_request_id: varchar('last_request_id'),
+    last_error: varchar('last_error'),
+    manual_intervention_required: boolean('manual_intervention_required').default(false),
+    manual_alerted_at: timestamp('manual_alerted_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    reconciliation_note: varchar('reconciliation_note'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    delivery_fulfillment_outbox_order_idx: uniqueIndex('delivery_fulfillment_outbox_order_idx').on(
+      columns.order,
+    ),
+    delivery_fulfillment_outbox_updated_at_idx: index(
+      'delivery_fulfillment_outbox_updated_at_idx',
+    ).on(columns.updatedAt),
+    delivery_fulfillment_outbox_created_at_idx: index(
+      'delivery_fulfillment_outbox_created_at_idx',
+    ).on(columns.createdAt),
+    status_next_attempt_at_idx: index('status_next_attempt_at_idx').on(
+      columns.status,
+      columns.next_attempt_at,
+    ),
+    status_lease_expires_at_idx: index('status_lease_expires_at_idx').on(
+      columns.status,
+      columns.lease_expires_at,
+    ),
+    lalamove_order_id_idx: index('lalamove_order_id_idx').on(columns.lalamove_order_id),
+    status_manual_intervention_required_idx: index('status_manual_intervention_required_idx').on(
+      columns.status,
+      columns.manual_intervention_required,
+    ),
+    manual_alerted_at_idx: index('manual_alerted_at_idx').on(columns.manual_alerted_at),
+  }),
+)
+
+export const delivery_fulfillment_attempts = pgTable(
+  'delivery_fulfillment_attempts',
+  {
+    id: serial('id').primaryKey(),
+    outbox: integer('outbox_id')
+      .notNull()
+      .references(() => delivery_fulfillment_outbox.id, {
+        onDelete: 'set null',
+      }),
+    attempt_number: numeric('attempt_number').notNull(),
+    status: enum_delivery_fulfillment_attempts_status('status').notNull().default('started'),
+    request_id: varchar('request_id').notNull(),
+    lalamove_order_id: varchar('lalamove_order_id'),
+    http_status: numeric('http_status'),
+    error: varchar('error'),
+    started_at: timestamp('started_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    completed_at: timestamp('completed_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    delivery_fulfillment_attempts_outbox_idx: index('delivery_fulfillment_attempts_outbox_idx').on(
+      columns.outbox,
+    ),
+    delivery_fulfillment_attempts_updated_at_idx: index(
+      'delivery_fulfillment_attempts_updated_at_idx',
+    ).on(columns.updatedAt),
+    delivery_fulfillment_attempts_created_at_idx: index(
+      'delivery_fulfillment_attempts_created_at_idx',
+    ).on(columns.createdAt),
+    outbox_attempt_number_idx: index('outbox_attempt_number_idx').on(
+      columns.outbox,
+      columns.attempt_number,
+    ),
+    request_id_idx: uniqueIndex('request_id_idx').on(columns.request_id),
   }),
 )
 
@@ -3338,6 +3492,74 @@ export const wishlists = pgTable(
   }),
 )
 
+export const payload_jobs_log = pgTable(
+  'payload_jobs_log',
+  {
+    _order: integer('_order').notNull(),
+    _parentID: integer('_parent_id').notNull(),
+    id: varchar('id').primaryKey(),
+    executedAt: timestamp('executed_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    completedAt: timestamp('completed_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    taskSlug: enum_payload_jobs_log_task_slug('task_slug').notNull(),
+    taskID: varchar('task_i_d').notNull(),
+    input: jsonb('input'),
+    output: jsonb('output'),
+    state: enum_payload_jobs_log_state('state').notNull(),
+    error: jsonb('error'),
+  },
+  (columns) => ({
+    _orderIdx: index('payload_jobs_log_order_idx').on(columns._order),
+    _parentIDIdx: index('payload_jobs_log_parent_id_idx').on(columns._parentID),
+    _parentIDFk: foreignKey({
+      columns: [columns['_parentID']],
+      foreignColumns: [payload_jobs.id],
+      name: 'payload_jobs_log_parent_id_fk',
+    }).onDelete('cascade'),
+  }),
+)
+
+export const payload_jobs = pgTable(
+  'payload_jobs',
+  {
+    id: serial('id').primaryKey(),
+    input: jsonb('input'),
+    completedAt: timestamp('completed_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    totalTried: numeric('total_tried').default('0'),
+    hasError: boolean('has_error').default(false),
+    error: jsonb('error'),
+    taskSlug: enum_payload_jobs_task_slug('task_slug'),
+    queue: varchar('queue').default('default'),
+    waitUntil: timestamp('wait_until', { mode: 'string', withTimezone: true, precision: 3 }),
+    processing: boolean('processing').default(false),
+    meta: jsonb('meta'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    payload_jobs_completed_at_idx: index('payload_jobs_completed_at_idx').on(columns.completedAt),
+    payload_jobs_total_tried_idx: index('payload_jobs_total_tried_idx').on(columns.totalTried),
+    payload_jobs_has_error_idx: index('payload_jobs_has_error_idx').on(columns.hasError),
+    payload_jobs_task_slug_idx: index('payload_jobs_task_slug_idx').on(columns.taskSlug),
+    payload_jobs_queue_idx: index('payload_jobs_queue_idx').on(columns.queue),
+    payload_jobs_wait_until_idx: index('payload_jobs_wait_until_idx').on(columns.waitUntil),
+    payload_jobs_processing_idx: index('payload_jobs_processing_idx').on(columns.processing),
+    payload_jobs_updated_at_idx: index('payload_jobs_updated_at_idx').on(columns.updatedAt),
+    payload_jobs_created_at_idx: index('payload_jobs_created_at_idx').on(columns.createdAt),
+  }),
+)
+
 export const payload_locked_documents = pgTable(
   'payload_locked_documents',
   {
@@ -3397,6 +3619,8 @@ export const payload_locked_documents_rels = pgTable(
     'order-trackingID': integer('order_tracking_id'),
     'driver-assignmentsID': integer('driver_assignments_id'),
     'delivery-bookingsID': integer('delivery_bookings_id'),
+    'delivery-fulfillment-outboxID': integer('delivery_fulfillment_outbox_id'),
+    'delivery-fulfillment-attemptsID': integer('delivery_fulfillment_attempts_id'),
     'order-discountsID': integer('order_discounts_id'),
     couponsID: integer('coupons_id'),
     'coupon-redemptionsID': integer('coupon_redemptions_id'),
@@ -3431,6 +3655,7 @@ export const payload_locked_documents_rels = pgTable(
     'tag-group-membershipsID': integer('tag_group_memberships_id'),
     'recent-viewsID': integer('recent_views_id'),
     wishlistsID: integer('wishlists_id'),
+    'payload-jobsID': integer('payload_jobs_id'),
   },
   (columns) => ({
     order: index('payload_locked_documents_rels_order_idx').on(columns.order),
@@ -3517,6 +3742,12 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_delivery_bookings_id_idx: index(
       'payload_locked_documents_rels_delivery_bookings_id_idx',
     ).on(columns['delivery-bookingsID']),
+    payload_locked_documents_rels_delivery_fulfillment_outbox_id_idx: index(
+      'payload_locked_documents_rels_delivery_fulfillment_outbox_id_idx',
+    ).on(columns['delivery-fulfillment-outboxID']),
+    payload_locked_documents_rels_delivery_fulfillment_attempts_id_idx: index(
+      'payload_locked_documents_rels_delivery_fulfillment_attempts_id_idx',
+    ).on(columns['delivery-fulfillment-attemptsID']),
     payload_locked_documents_rels_order_discounts_id_idx: index(
       'payload_locked_documents_rels_order_discounts_id_idx',
     ).on(columns['order-discountsID']),
@@ -3595,6 +3826,9 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_wishlists_id_idx: index(
       'payload_locked_documents_rels_wishlists_id_idx',
     ).on(columns.wishlistsID),
+    payload_locked_documents_rels_payload_jobs_id_idx: index(
+      'payload_locked_documents_rels_payload_jobs_id_idx',
+    ).on(columns['payload-jobsID']),
     parentFk: foreignKey({
       columns: [columns['parent']],
       foreignColumns: [payload_locked_documents.id],
@@ -3735,6 +3969,16 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [delivery_bookings.id],
       name: 'payload_locked_documents_rels_delivery_bookings_fk',
     }).onDelete('cascade'),
+    'delivery-fulfillment-outboxIdFk': foreignKey({
+      columns: [columns['delivery-fulfillment-outboxID']],
+      foreignColumns: [delivery_fulfillment_outbox.id],
+      name: 'payload_locked_documents_rels_delivery_fulfillment_outbox_fk',
+    }).onDelete('cascade'),
+    'delivery-fulfillment-attemptsIdFk': foreignKey({
+      columns: [columns['delivery-fulfillment-attemptsID']],
+      foreignColumns: [delivery_fulfillment_attempts.id],
+      name: 'payload_locked_documents_rels_delivery_fulfillment_attempts_fk',
+    }).onDelete('cascade'),
     'order-discountsIdFk': foreignKey({
       columns: [columns['order-discountsID']],
       foreignColumns: [order_discounts.id],
@@ -3865,6 +4109,11 @@ export const payload_locked_documents_rels = pgTable(
       foreignColumns: [wishlists.id],
       name: 'payload_locked_documents_rels_wishlists_fk',
     }).onDelete('cascade'),
+    'payload-jobsIdFk': foreignKey({
+      columns: [columns['payload-jobsID']],
+      foreignColumns: [payload_jobs.id],
+      name: 'payload_locked_documents_rels_payload_jobs_fk',
+    }).onDelete('cascade'),
   }),
 )
 
@@ -3956,6 +4205,13 @@ export const system_settings = pgTable('system_settings', {
   lalamove_market: varchar('lalamove_market').default('PH'),
   lalamove_sandbox: boolean('lalamove_sandbox').default(true),
   native_riderAppUrl: varchar('native_rider_app_url'),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 }),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 }),
+})
+
+export const payload_jobs_stats = pgTable('payload_jobs_stats', {
+  id: serial('id').primaryKey(),
+  stats: jsonb('stats'),
   updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 }),
   createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 }),
 })
@@ -4418,6 +4674,26 @@ export const relations_delivery_bookings = relations(delivery_bookings, ({ one }
     relationName: 'order',
   }),
 }))
+export const relations_delivery_fulfillment_outbox = relations(
+  delivery_fulfillment_outbox,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [delivery_fulfillment_outbox.order],
+      references: [orders.id],
+      relationName: 'order',
+    }),
+  }),
+)
+export const relations_delivery_fulfillment_attempts = relations(
+  delivery_fulfillment_attempts,
+  ({ one }) => ({
+    outbox: one(delivery_fulfillment_outbox, {
+      fields: [delivery_fulfillment_attempts.outbox],
+      references: [delivery_fulfillment_outbox.id],
+      relationName: 'outbox',
+    }),
+  }),
+)
 export const relations_order_discounts = relations(order_discounts, ({ one }) => ({
   order: one(orders, {
     fields: [order_discounts.order],
@@ -4833,6 +5109,18 @@ export const relations_wishlists = relations(wishlists, ({ one }) => ({
     relationName: 'merchantProduct',
   }),
 }))
+export const relations_payload_jobs_log = relations(payload_jobs_log, ({ one }) => ({
+  _parentID: one(payload_jobs, {
+    fields: [payload_jobs_log._parentID],
+    references: [payload_jobs.id],
+    relationName: 'log',
+  }),
+}))
+export const relations_payload_jobs = relations(payload_jobs, ({ many }) => ({
+  log: many(payload_jobs_log, {
+    relationName: 'log',
+  }),
+}))
 export const relations_payload_locked_documents_rels = relations(
   payload_locked_documents_rels,
   ({ one }) => ({
@@ -4976,6 +5264,16 @@ export const relations_payload_locked_documents_rels = relations(
       references: [delivery_bookings.id],
       relationName: 'delivery-bookings',
     }),
+    'delivery-fulfillment-outboxID': one(delivery_fulfillment_outbox, {
+      fields: [payload_locked_documents_rels['delivery-fulfillment-outboxID']],
+      references: [delivery_fulfillment_outbox.id],
+      relationName: 'delivery-fulfillment-outbox',
+    }),
+    'delivery-fulfillment-attemptsID': one(delivery_fulfillment_attempts, {
+      fields: [payload_locked_documents_rels['delivery-fulfillment-attemptsID']],
+      references: [delivery_fulfillment_attempts.id],
+      relationName: 'delivery-fulfillment-attempts',
+    }),
     'order-discountsID': one(order_discounts, {
       fields: [payload_locked_documents_rels['order-discountsID']],
       references: [order_discounts.id],
@@ -5115,6 +5413,11 @@ export const relations_payload_locked_documents_rels = relations(
       references: [wishlists.id],
       relationName: 'wishlists',
     }),
+    'payload-jobsID': one(payload_jobs, {
+      fields: [payload_locked_documents_rels['payload-jobsID']],
+      references: [payload_jobs.id],
+      relationName: 'payload-jobs',
+    }),
   }),
 )
 export const relations_payload_locked_documents = relations(
@@ -5147,6 +5450,7 @@ export const relations_payload_preferences = relations(payload_preferences, ({ m
 }))
 export const relations_payload_migrations = relations(payload_migrations, () => ({}))
 export const relations_system_settings = relations(system_settings, () => ({}))
+export const relations_payload_jobs_stats = relations(payload_jobs_stats, () => ({}))
 
 type DatabaseSchema = {
   enum_users_gender: typeof enum_users_gender
@@ -5180,6 +5484,7 @@ type DatabaseSchema = {
   enum_prod_categories_attributes_category_type: typeof enum_prod_categories_attributes_category_type
   enum_prod_categories_attributes_age_restriction: typeof enum_prod_categories_attributes_age_restriction
   enum_products_product_type: typeof enum_products_product_type
+  enum_products_approval_status: typeof enum_products_approval_status
   enum_products_catalog_visibility: typeof enum_products_catalog_visibility
   enum_cart_items_status: typeof enum_cart_items_status
   enum_cart_items_product_size: typeof enum_cart_items_product_size
@@ -5191,6 +5496,8 @@ type DatabaseSchema = {
   enum_order_tracking_status: typeof enum_order_tracking_status
   enum_driver_assignments_status: typeof enum_driver_assignments_status
   enum_delivery_bookings_status: typeof enum_delivery_bookings_status
+  enum_delivery_fulfillment_outbox_status: typeof enum_delivery_fulfillment_outbox_status
+  enum_delivery_fulfillment_attempts_status: typeof enum_delivery_fulfillment_attempts_status
   enum_order_discounts_type: typeof enum_order_discounts_type
   enum_order_discounts_funded_by: typeof enum_order_discounts_funded_by
   enum_order_discounts_source: typeof enum_order_discounts_source
@@ -5227,6 +5534,9 @@ type DatabaseSchema = {
   enum_recent_views_item_type: typeof enum_recent_views_item_type
   enum_recent_views_source: typeof enum_recent_views_source
   enum_wishlists_item_type: typeof enum_wishlists_item_type
+  enum_payload_jobs_log_task_slug: typeof enum_payload_jobs_log_task_slug
+  enum_payload_jobs_log_state: typeof enum_payload_jobs_log_state
+  enum_payload_jobs_task_slug: typeof enum_payload_jobs_task_slug
   enum_system_settings_delivery_provider: typeof enum_system_settings_delivery_provider
   users_reset_password_tokens: typeof users_reset_password_tokens
   users_sessions: typeof users_sessions
@@ -5264,6 +5574,8 @@ type DatabaseSchema = {
   order_tracking: typeof order_tracking
   driver_assignments: typeof driver_assignments
   delivery_bookings: typeof delivery_bookings
+  delivery_fulfillment_outbox: typeof delivery_fulfillment_outbox
+  delivery_fulfillment_attempts: typeof delivery_fulfillment_attempts
   order_discounts: typeof order_discounts
   coupons_allowed_payment_methods: typeof coupons_allowed_payment_methods
   coupons_time_windows_days: typeof coupons_time_windows_days
@@ -5295,12 +5607,15 @@ type DatabaseSchema = {
   tag_group_memberships: typeof tag_group_memberships
   recent_views: typeof recent_views
   wishlists: typeof wishlists
+  payload_jobs_log: typeof payload_jobs_log
+  payload_jobs: typeof payload_jobs
   payload_locked_documents: typeof payload_locked_documents
   payload_locked_documents_rels: typeof payload_locked_documents_rels
   payload_preferences: typeof payload_preferences
   payload_preferences_rels: typeof payload_preferences_rels
   payload_migrations: typeof payload_migrations
   system_settings: typeof system_settings
+  payload_jobs_stats: typeof payload_jobs_stats
   relations_users_reset_password_tokens: typeof relations_users_reset_password_tokens
   relations_users_sessions: typeof relations_users_sessions
   relations_users: typeof relations_users
@@ -5337,6 +5652,8 @@ type DatabaseSchema = {
   relations_order_tracking: typeof relations_order_tracking
   relations_driver_assignments: typeof relations_driver_assignments
   relations_delivery_bookings: typeof relations_delivery_bookings
+  relations_delivery_fulfillment_outbox: typeof relations_delivery_fulfillment_outbox
+  relations_delivery_fulfillment_attempts: typeof relations_delivery_fulfillment_attempts
   relations_order_discounts: typeof relations_order_discounts
   relations_coupons_allowed_payment_methods: typeof relations_coupons_allowed_payment_methods
   relations_coupons_time_windows_days: typeof relations_coupons_time_windows_days
@@ -5368,12 +5685,15 @@ type DatabaseSchema = {
   relations_tag_group_memberships: typeof relations_tag_group_memberships
   relations_recent_views: typeof relations_recent_views
   relations_wishlists: typeof relations_wishlists
+  relations_payload_jobs_log: typeof relations_payload_jobs_log
+  relations_payload_jobs: typeof relations_payload_jobs
   relations_payload_locked_documents_rels: typeof relations_payload_locked_documents_rels
   relations_payload_locked_documents: typeof relations_payload_locked_documents
   relations_payload_preferences_rels: typeof relations_payload_preferences_rels
   relations_payload_preferences: typeof relations_payload_preferences
   relations_payload_migrations: typeof relations_payload_migrations
   relations_system_settings: typeof relations_system_settings
+  relations_payload_jobs_stats: typeof relations_payload_jobs_stats
 }
 
 declare module '@payloadcms/db-postgres' {

@@ -1,7 +1,7 @@
 /**
  * @file apps/cms/src/app/api/admin/merchant-products/route.ts
  * @description BFF for /products page — merchant-encapsulated catalog (Merchants → Products).
- * GET  /api/admin/merchant-products?page=1&limit=10&search=&isActive=&merchant=<id>
+ * GET  /api/admin/merchant-products?page=1&limit=10&search=&isActive=&merchant=<id>&view=all
  * POST /api/admin/merchant-products — create merchant product (assign product to merchant)
  */
 
@@ -315,6 +315,101 @@ async function buildMerchantLanding(payload: Payload, ctx: MpListCtx) {
   }
 }
 
+async function buildAllMerchantProducts(payload: Payload, ctx: MpListCtx) {
+  const { page, limit, like, isActiveFilter, stats } = ctx
+  const offset = (page - 1) * limit
+  const conditions: SQL[] = []
+  if (like) conditions.push(sql`(p.name ILIKE ${like} OR p.slug ILIKE ${like} OR p.sku ILIKE ${like} OR m.outlet_name ILIKE ${like} OR m.outlet_code ILIKE ${like} OR v.business_name ILIKE ${like})`)
+  if (isActiveFilter !== null) conditions.push(isActiveFilter ? sql`mp.is_active = true` : sql`mp.is_active = false`)
+  let where: SQL = sql`1=1`
+  if (conditions.length) {
+    where = conditions[0]
+    for (let i = 1; i < conditions.length; i++) where = sql`${where} AND ${conditions[i]}`
+  }
+  const fromClause = sql`FROM merchant_products mp LEFT JOIN products p ON p.id = mp.product_id_id LEFT JOIN merchants m ON m.id = mp.merchant_id_id LEFT JOIN vendors v ON v.id = m.vendor_id WHERE ${where}`
+
+  const [countRows, activeRows, idRows] = await Promise.all([
+    mpRows(payload, sql`SELECT COUNT(*)::int AS c FROM merchant_products mp LEFT JOIN products p ON p.id = mp.product_id_id LEFT JOIN merchants m ON m.id = mp.merchant_id_id LEFT JOIN vendors v ON v.id = m.vendor_id WHERE ${where}`),
+    mpRows(payload, sql`SELECT COUNT(*)::int AS c FROM merchant_products mp WHERE mp.is_active = true AND mp.is_available = true`),
+    mpRows(payload, sql`SELECT mp.id AS id ${fromClause} ORDER BY mp.id DESC LIMIT ${limit} OFFSET ${offset}`),
+  ])
+  const totalDocs = Number(countRows[0]?.c ?? 0)
+  const pageIds = idRows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
+  const mpRes = pageIds.length
+    ? await payload.find({
+        collection: 'merchant-products',
+        where: { id: { in: pageIds } },
+        limit: pageIds.length,
+        depth: 2,
+        overrideAccess: true,
+        pagination: false,
+        context: { skipEffectiveModifierPreview: true },
+      })
+    : { docs: [] }
+
+  const docsById = new Map((mpRes.docs as any[]).map((doc) => [Number(doc.id), doc]))
+  const docs = pageIds.flatMap((id) => {
+    const mp = docsById.get(id)
+    if (!mp) return []
+    const product = mp.product_id && typeof mp.product_id === 'object' ? mp.product_id : null
+    const merchant = mp.merchant_id && typeof mp.merchant_id === 'object' ? mp.merchant_id : null
+    const vendor = merchant?.vendor && typeof merchant.vendor === 'object' ? merchant.vendor : null
+    return [{
+      merchantProductId: Number(mp.id),
+      product: product ? {
+        id: Number(product.id),
+        name: String(product.name || ''),
+        slug: String(product.slug || ''),
+        sku: product.sku ? String(product.sku) : null,
+        productType: String(product.productType || 'simple'),
+        approvalStatus: String(product.approvalStatus || 'pending'),
+        basePrice: product.basePrice != null ? Number(product.basePrice) : null,
+        primaryImage: sanitizeMediaRef((product.media as any)?.primaryImage),
+      } : null,
+      vendor: vendor ? {
+        id: Number(vendor.id),
+        businessName: String(vendor.businessName || ''),
+      } : null,
+      merchant: merchant ? {
+        id: Number(merchant.id),
+        outletName: String(merchant.outletName || ''),
+        outletCode: String(merchant.outletCode || ''),
+      } : null,
+      priceOverride: mp.price_override != null ? Number(mp.price_override) : null,
+      stockQuantity: mp.stock_quantity != null ? Number(mp.stock_quantity) : null,
+      isActive: typeof mp.is_active === 'boolean' ? mp.is_active : true,
+      isAvailable: typeof mp.is_available === 'boolean' ? mp.is_available : true,
+    }]
+  })
+  const totalPages = Math.max(1, Math.ceil(totalDocs / limit))
+
+  return {
+    view: 'all',
+    docs,
+    pagination: {
+      page,
+      limit,
+      totalDocs,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+    },
+    stats: {
+      totalMerchants: stats.totalMerchants || 0,
+      totalVendors: stats.totalVendors || 0,
+      totalMerchantProducts: stats.totalMerchantProducts || 0,
+      activeMerchants: stats.activeMerchants || 0,
+      filteredMerchants: stats.totalMerchants || 0,
+      totalProducts: stats.totalMerchantProducts || 0,
+    },
+    allViewStats: {
+      totalAssignments: stats.totalMerchantProducts || 0,
+      activeAssignments: Number(activeRows[0]?.c ?? 0),
+      filteredAssignments: totalDocs,
+    },
+  }
+}
+
 async function buildMerchantProductsView(payload: Payload, searchParams: URLSearchParams) {
   try {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
@@ -326,6 +421,16 @@ async function buildMerchantProductsView(payload: Payload, searchParams: URLSear
     const isActiveParam = searchParams.get('isActive')
     const isActiveFilter = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : null
     const stats = await getMerchantProductStats(payload)
+
+    if (searchParams.get('view') === 'all') {
+      return buildAllMerchantProducts(payload, {
+        page,
+        limit,
+        like: search ? `%${escLike(search)}%` : null,
+        isActiveFilter,
+        stats,
+      })
+    }
 
     if (merchantFilter && !Number.isNaN(merchantFilter)) {
       return buildMerchantDetail(payload, { merchantFilter, search, like: search ? `%${escLike(search)}%` : null, productTypeFilter, isActiveFilter, stats })
