@@ -107,5 +107,6 @@ export interface Product {
     id: string;
     name: string;
     outletName?: string;
+    vendorLogoUrl?: string;
   };
 }

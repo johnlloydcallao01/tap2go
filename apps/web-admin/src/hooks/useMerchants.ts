@@ -11,6 +11,8 @@ export type MerchantDoc = {
   contactInfo: { phone?: string; email?: string; managerName?: string; managerPhone?: string } | null;
   isActive: boolean;
   isAcceptingOrders: boolean;
+  vacationMode: boolean;
+  vacationModeEndsAt: string | null;
   operationalStatus: string;
   timezone: string;
   merchant_categories: { id: number; name: string }[];

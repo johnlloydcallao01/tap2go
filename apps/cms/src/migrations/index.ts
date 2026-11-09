@@ -85,9 +85,12 @@ import * as migration_20261104_191500_customer_home_spatial_index from './202611
 import * as migration_20261108_103221 from './20261108_103221';
 import * as migration_20261108_112800_add_priority_fee_payments from './20261108_112800_add_priority_fee_payments';
 import * as migration_20261108_160000_delivery_fulfillment from './20261108_160000_delivery_fulfillment';
+import * as migration_20261108_162952 from './20261108_162952';
+import * as migration_20261108_165313 from './20261108_165313';
 import * as migration_20261108_183221_add_product_approval_status from './20261108_183221_add_product_approval_status';
 import * as migration_20261108_212500_reconcile_legacy_schema from './20261108_212500_reconcile_legacy_schema';
 import * as migration_20261108_213500_clear_stale_dev_marker from './20261108_213500_clear_stale_dev_marker';
+import * as migration_20261108_232603_add_merchant_vacation_mode from './20261108_232603_add_merchant_vacation_mode';
 
 export const migrations = [
   {
@@ -526,18 +529,33 @@ export const migrations = [
     name: '20261108_160000_delivery_fulfillment',
   },
   {
+    up: migration_20261108_162952.up,
+    down: migration_20261108_162952.down,
+    name: '20261108_162952',
+  },
+  {
+    up: migration_20261108_165313.up,
+    down: migration_20261108_165313.down,
+    name: '20261108_165313',
+  },
+  {
     up: migration_20261108_183221_add_product_approval_status.up,
     down: migration_20261108_183221_add_product_approval_status.down,
-    name: '20261108_183221_add_product_approval_status'
+    name: '20261108_183221_add_product_approval_status',
   },
   {
     up: migration_20261108_212500_reconcile_legacy_schema.up,
     down: migration_20261108_212500_reconcile_legacy_schema.down,
-    name: '20261108_212500_reconcile_legacy_schema'
+    name: '20261108_212500_reconcile_legacy_schema',
   },
   {
     up: migration_20261108_213500_clear_stale_dev_marker.up,
     down: migration_20261108_213500_clear_stale_dev_marker.down,
-    name: '20261108_213500_clear_stale_dev_marker'
+    name: '20261108_213500_clear_stale_dev_marker',
+  },
+  {
+    up: migration_20261108_232603_add_merchant_vacation_mode.up,
+    down: migration_20261108_232603_add_merchant_vacation_mode.down,
+    name: '20261108_232603_add_merchant_vacation_mode'
   },
 ];

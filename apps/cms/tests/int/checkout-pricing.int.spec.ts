@@ -3,21 +3,20 @@ import { checkoutContextHash, checkoutPrepareHandler } from '../../src/endpoints
 import { Orders } from '../../src/collections/Orders'
 import { ModifierResolverService, type EffectiveModifierGroup } from '../../src/services/ModifierResolverService'
 import { CheckoutValidationError, priceCheckoutCart } from '../../src/services/checkoutPricing'
+import { isMerchantOnVacation } from '../../src/utils/vacationMode'
 
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
 })
 
-function createPayload(cartItems: any[]) {
+function createPayload(cartItems: any[], merchant: Record<string, unknown> = { id: 300, isActive: true, isAcceptingOrders: true }) {
   const lookupCounts: Record<string, number> = {}
   const collections: Record<string, any[]> = {
     'cart-items': cartItems,
   }
   const docs: Record<string, Record<string, any>> = {
-    merchants: {
-      300: { id: 300, isActive: true, isAcceptingOrders: true },
-    },
+    merchants: { 300: merchant },
     products: {
       100: { id: 100, name: 'Burger', productType: 'simple', basePrice: 120 },
     },
@@ -69,6 +68,35 @@ const modifierGroups: EffectiveModifierGroup[] = [{
 }]
 
 describe('checkout preparation', () => {
+  it('blocks checkout while an outlet is in vacation mode', async () => {
+    const payload = createPayload([{
+      id: 1,
+      customer: 5,
+      merchant: 300,
+      product: 100,
+      merchantProduct: 900,
+      quantity: 1,
+      selectedModifiers: [],
+      selectedAddons: [],
+      status: 'active',
+    }], {
+      id: 300,
+      isActive: true,
+      isAcceptingOrders: true,
+      vacationMode: true,
+      vacationModeEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+
+    await expect(priceCheckoutCart({
+      payload: payload as any,
+      customerId: 5,
+      merchantId: 300,
+      cartItemIds: [1],
+    })).rejects.toMatchObject<Partial<CheckoutValidationError>>({
+      code: 'MERCHANT_UNAVAILABLE',
+    })
+  })
+
   it('uses catalog prices instead of client-submitted prices and resolves each modifier context once', async () => {
     const resolve = vi.spyOn(ModifierResolverService.prototype, 'resolveEffectiveGroups')
       .mockResolvedValue(modifierGroups)
@@ -118,6 +146,17 @@ describe('checkout preparation', () => {
       merchants: 1,
       products: 1,
       'merchant-products': 1,
+    })
+  })
+
+  describe('merchant vacation mode', () => {
+    it('stays active indefinitely or until its scheduled resume time', () => {
+      const now = new Date('2026-11-09T12:00:00.000Z')
+
+      expect(isMerchantOnVacation({ vacationMode: true }, now)).toBe(true)
+      expect(isMerchantOnVacation({ vacationMode: true, vacationModeEndsAt: '2026-11-09T12:01:00.000Z' }, now)).toBe(true)
+      expect(isMerchantOnVacation({ vacationMode: true, vacationModeEndsAt: '2026-11-09T12:00:00.000Z' }, now)).toBe(false)
+      expect(isMerchantOnVacation({ vacationMode: false }, now)).toBe(false)
     })
   })
 

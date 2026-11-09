@@ -1,6 +1,7 @@
 import type { Payload } from 'payload'
 import { ModifierResolverService, type EffectiveModifierGroup } from './ModifierResolverService'
 import { extractRelationshipId } from './modifierUtils'
+import { isMerchantOnVacation } from '@/utils/vacationMode'
 
 export type PricedCheckoutLine = {
   cartItemId: number
@@ -122,7 +123,12 @@ export async function priceCheckoutCart(args: {
     depth: 0,
     overrideAccess: true,
   })
-  if (!merchant || merchant.isActive === false || merchant.isAcceptingOrders === false) {
+  if (
+    !merchant ||
+    merchant.isActive === false ||
+    merchant.isAcceptingOrders === false ||
+    isMerchantOnVacation(merchant)
+  ) {
     throw new CheckoutValidationError('This merchant is not currently accepting orders.', 'MERCHANT_UNAVAILABLE', 409)
   }
 

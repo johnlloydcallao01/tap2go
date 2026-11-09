@@ -79,6 +79,9 @@ import { OrderDiscounts } from './collections/OrderDiscounts'
 import { Coupons } from './collections/Coupons'
 import { CouponRedemptions } from './collections/CouponRedemptions'
 import { Reviews } from './collections/Reviews'
+import { AppRatings } from './collections/AppRatings'
+import { AppRatingHistory } from './collections/AppRatingHistory'
+import { customerAppRatingHandler } from './endpoints/customerAppRating'
 import { deliveryFulfillmentTaskConfig } from './jobs/deliveryFulfillment'
 import { notificationFanoutTaskConfig } from './jobs/notificationFanout'
 
@@ -161,6 +164,8 @@ export default buildConfig({
     Coupons,
     CouponRedemptions,
     Reviews,
+    AppRatings,
+    AppRatingHistory,
 
     // Product Management System
     ProdAttributes,
@@ -879,6 +884,16 @@ export default buildConfig({
       path: '/customer/wishlist-overview',
       method: 'get',
       handler: customerWishlistOverviewHandler,
+    },
+    {
+      path: '/customer/app-rating',
+      method: 'get',
+      handler: customerAppRatingHandler,
+    },
+    {
+      path: '/customer/app-rating',
+      method: 'post',
+      handler: customerAppRatingHandler,
     },
     {
       path: '/effective-modifiers',

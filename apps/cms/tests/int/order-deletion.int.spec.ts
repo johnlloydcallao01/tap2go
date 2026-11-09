@@ -43,9 +43,21 @@ describe('order deletion cleanup', () => {
       overrideAccess: true,
       req: args.req,
     }))
-    expect(payload.delete).toHaveBeenCalledTimes(9)
+    expect(payload.delete).toHaveBeenCalledTimes(11)
     expect(payload.delete).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'order-items',
+      where: { order: { equals: 42 } },
+      overrideAccess: true,
+      req: args.req,
+    }))
+    expect(payload.delete).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'app-ratings',
+      where: { order: { equals: 42 } },
+      overrideAccess: true,
+      req: args.req,
+    }))
+    expect(payload.delete).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'app-rating-history',
       where: { order: { equals: 42 } },
       overrideAccess: true,
       req: args.req,

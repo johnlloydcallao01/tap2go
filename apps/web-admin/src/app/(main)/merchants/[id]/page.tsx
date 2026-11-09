@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, notFound } from 'next/navigation'
 import { ClientOnly } from '@/components/ClientOnly'
+import { isVacationModeActive } from '@/lib/merchant-vacation'
 import {
   Store, ArrowLeft, Pencil, Building, MapPin, Phone, Mail, Clock, Tag, Image as ImageIcon, AlertCircle, CalendarDays
 } from '@/components/ui/IconWrapper'
@@ -16,6 +17,8 @@ type MerchantDoc = {
   contactInfo: any
   isActive: boolean
   isAcceptingOrders: boolean
+  vacationMode: boolean
+  vacationModeEndsAt: string | null
   operationalStatus: string
   timezone: string
   description: string | null
@@ -38,6 +41,7 @@ function operationalBadge(s: string){
   return 'bg-gray-100 text-gray-700 border-gray-200'
 }
 function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
+function fmtDateTime(iso: string, timezone: string){ try{return new Date(iso).toLocaleString('en-PH',{timeZone:timezone,dateStyle:'medium',timeStyle:'short'})}catch{return iso} }
 function initials(n: string){ return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'M' }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }){
@@ -118,7 +122,7 @@ function MerchantViewContent(){
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4"><p className="text-xs text-gray-500">Operational</p><p className={`mt-2 inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border capitalize ${operationalBadge(doc.operationalStatus)}`}>{doc.operationalStatus.replace(/_/g,' ')}</p></div>
-        <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4"><p className="text-xs text-gray-500">Active</p><p className={`mt-2 font-semibold text-sm ${doc.isActive?'text-emerald-600':'text-zinc-500'}`}>{doc.isActive?'Active':'Inactive'}</p><p className="text-xs text-gray-500 mt-1">{doc.isAcceptingOrders?'Accepting orders':'Paused'}</p></div>
+        <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4"><p className="text-xs text-gray-500">Active</p><p className={`mt-2 font-semibold text-sm ${doc.isActive?'text-emerald-600':'text-zinc-500'}`}>{doc.isActive?'Active':'Inactive'}</p><p className="text-xs text-gray-500 mt-1">{isVacationModeActive(doc.vacationMode, doc.vacationModeEndsAt) ? 'Vacation mode' : doc.isAcceptingOrders ? 'Accepting orders' : 'Paused'}</p>{isVacationModeActive(doc.vacationMode, doc.vacationModeEndsAt) && <p className="text-xs text-gray-500 mt-1">{doc.vacationModeEndsAt ? `Resumes ${fmtDateTime(doc.vacationModeEndsAt, doc.timezone)}` : 'No automatic resume'}</p>}</div>
         <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4"><p className="text-xs text-gray-500">Vendor</p><p className="mt-2 font-bold text-gray-900 dark:text-white truncate">{doc.vendor?.businessName || '—'}</p><p className="text-xs text-gray-500">{doc.vendor?.verificationStatus || '—'}</p></div>
         <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4"><p className="text-xs text-gray-500">Categories</p><p className="mt-2 font-bold text-gray-900 dark:text-white">{doc.merchant_categories?.length || 0}</p><p className="text-xs text-gray-500">assigned</p></div>
       </div>

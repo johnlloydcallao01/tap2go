@@ -1288,6 +1288,12 @@ export const merchants = pgTable(
     contactInfo_managerPhone: varchar('contact_info_manager_phone'),
     isActive: boolean('is_active').default(true),
     isAcceptingOrders: boolean('is_accepting_orders').default(true),
+    vacationMode: boolean('vacation_mode').default(false),
+    vacationModeEndsAt: timestamp('vacation_mode_ends_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
     operationalStatus: enum_merchants_operational_status('operational_status').default('open'),
     operatingHours: jsonb('operating_hours'),
     specialHours: jsonb('special_hours'),
@@ -1374,6 +1380,10 @@ export const merchants = pgTable(
     isActive_isAcceptingOrders_idx: index('isActive_isAcceptingOrders_idx').on(
       columns.isActive,
       columns.isAcceptingOrders,
+    ),
+    vacationMode_vacationModeEndsAt_idx: index('vacationMode_vacationModeEndsAt_idx').on(
+      columns.vacationMode,
+      columns.vacationModeEndsAt,
     ),
     isActive_operationalStatus_createdAt_idx: index('isActive_operationalStatus_createdAt_idx').on(
       columns.isActive,
@@ -2528,6 +2538,91 @@ export const reviews = pgTable(
   }),
 )
 
+export const app_ratings = pgTable(
+  'app_ratings',
+  {
+    id: serial('id').primaryKey(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    customer: integer('customer_id')
+      .notNull()
+      .references(() => customers.id, {
+        onDelete: 'set null',
+      }),
+    rating: numeric('rating').notNull(),
+    comment: varchar('comment'),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    app_ratings_order_idx: index('app_ratings_order_idx').on(columns.order),
+    app_ratings_customer_idx: uniqueIndex('app_ratings_customer_idx').on(columns.customer),
+    app_ratings_updated_at_idx: index('app_ratings_updated_at_idx').on(columns.updatedAt),
+    app_ratings_created_at_idx: index('app_ratings_created_at_idx').on(columns.createdAt),
+    rating_createdAt_idx: index('rating_createdAt_idx').on(columns.rating, columns.createdAt),
+  }),
+)
+
+export const app_rating_history = pgTable(
+  'app_rating_history',
+  {
+    id: serial('id').primaryKey(),
+    original_rating_id: numeric('original_rating_id').notNull(),
+    order: integer('order_id')
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: 'set null',
+      }),
+    customer: integer('customer_id')
+      .notNull()
+      .references(() => customers.id, {
+        onDelete: 'set null',
+      }),
+    rating: numeric('rating').notNull(),
+    comment: varchar('comment'),
+    original_created_at: timestamp('original_created_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    original_updated_at: timestamp('original_updated_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }).notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true, precision: 3 })
+      .defaultNow()
+      .notNull(),
+  },
+  (columns) => ({
+    app_rating_history_original_rating_id_idx: uniqueIndex(
+      'app_rating_history_original_rating_id_idx',
+    ).on(columns.original_rating_id),
+    app_rating_history_order_idx: index('app_rating_history_order_idx').on(columns.order),
+    app_rating_history_customer_idx: index('app_rating_history_customer_idx').on(columns.customer),
+    app_rating_history_updated_at_idx: index('app_rating_history_updated_at_idx').on(
+      columns.updatedAt,
+    ),
+    app_rating_history_created_at_idx: index('app_rating_history_created_at_idx').on(
+      columns.createdAt,
+    ),
+    customer_original_created_at_idx: index('customer_original_created_at_idx').on(
+      columns.customer,
+      columns.original_created_at,
+    ),
+  }),
+)
+
 export const prod_attributes = pgTable(
   'prod_attributes',
   {
@@ -3625,6 +3720,8 @@ export const payload_locked_documents_rels = pgTable(
     couponsID: integer('coupons_id'),
     'coupon-redemptionsID': integer('coupon_redemptions_id'),
     reviewsID: integer('reviews_id'),
+    'app-ratingsID': integer('app_ratings_id'),
+    'app-rating-historyID': integer('app_rating_history_id'),
     'prod-attributesID': integer('prod_attributes_id'),
     'prod-attribute-termsID': integer('prod_attribute_terms_id'),
     'prod-variationsID': integer('prod_variations_id'),
@@ -3760,6 +3857,12 @@ export const payload_locked_documents_rels = pgTable(
     payload_locked_documents_rels_reviews_id_idx: index(
       'payload_locked_documents_rels_reviews_id_idx',
     ).on(columns.reviewsID),
+    payload_locked_documents_rels_app_ratings_id_idx: index(
+      'payload_locked_documents_rels_app_ratings_id_idx',
+    ).on(columns['app-ratingsID']),
+    payload_locked_documents_rels_app_rating_history_id_idx: index(
+      'payload_locked_documents_rels_app_rating_history_id_idx',
+    ).on(columns['app-rating-historyID']),
     payload_locked_documents_rels_prod_attributes_id_idx: index(
       'payload_locked_documents_rels_prod_attributes_id_idx',
     ).on(columns['prod-attributesID']),
@@ -3998,6 +4101,16 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns['reviewsID']],
       foreignColumns: [reviews.id],
       name: 'payload_locked_documents_rels_reviews_fk',
+    }).onDelete('cascade'),
+    'app-ratingsIdFk': foreignKey({
+      columns: [columns['app-ratingsID']],
+      foreignColumns: [app_ratings.id],
+      name: 'payload_locked_documents_rels_app_ratings_fk',
+    }).onDelete('cascade'),
+    'app-rating-historyIdFk': foreignKey({
+      columns: [columns['app-rating-historyID']],
+      foreignColumns: [app_rating_history.id],
+      name: 'payload_locked_documents_rels_app_rating_history_fk',
     }).onDelete('cascade'),
     'prod-attributesIdFk': foreignKey({
       columns: [columns['prod-attributesID']],
@@ -4823,6 +4936,30 @@ export const relations_reviews = relations(reviews, ({ one }) => ({
     relationName: 'driver',
   }),
 }))
+export const relations_app_ratings = relations(app_ratings, ({ one }) => ({
+  order: one(orders, {
+    fields: [app_ratings.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+  customer: one(customers, {
+    fields: [app_ratings.customer],
+    references: [customers.id],
+    relationName: 'customer',
+  }),
+}))
+export const relations_app_rating_history = relations(app_rating_history, ({ one }) => ({
+  order: one(orders, {
+    fields: [app_rating_history.order],
+    references: [orders.id],
+    relationName: 'order',
+  }),
+  customer: one(customers, {
+    fields: [app_rating_history.customer],
+    references: [customers.id],
+    relationName: 'customer',
+  }),
+}))
 export const relations_prod_attributes = relations(prod_attributes, () => ({}))
 export const relations_prod_attribute_terms = relations(prod_attribute_terms, ({ one }) => ({
   attribute_id: one(prod_attributes, {
@@ -5294,6 +5431,16 @@ export const relations_payload_locked_documents_rels = relations(
       references: [reviews.id],
       relationName: 'reviews',
     }),
+    'app-ratingsID': one(app_ratings, {
+      fields: [payload_locked_documents_rels['app-ratingsID']],
+      references: [app_ratings.id],
+      relationName: 'app-ratings',
+    }),
+    'app-rating-historyID': one(app_rating_history, {
+      fields: [payload_locked_documents_rels['app-rating-historyID']],
+      references: [app_rating_history.id],
+      relationName: 'app-rating-history',
+    }),
     'prod-attributesID': one(prod_attributes, {
       fields: [payload_locked_documents_rels['prod-attributesID']],
       references: [prod_attributes.id],
@@ -5585,6 +5732,8 @@ type DatabaseSchema = {
   coupons_rels: typeof coupons_rels
   coupon_redemptions: typeof coupon_redemptions
   reviews: typeof reviews
+  app_ratings: typeof app_ratings
+  app_rating_history: typeof app_rating_history
   prod_attributes: typeof prod_attributes
   prod_attribute_terms: typeof prod_attribute_terms
   prod_variations: typeof prod_variations
@@ -5663,6 +5812,8 @@ type DatabaseSchema = {
   relations_coupons: typeof relations_coupons
   relations_coupon_redemptions: typeof relations_coupon_redemptions
   relations_reviews: typeof relations_reviews
+  relations_app_ratings: typeof relations_app_ratings
+  relations_app_rating_history: typeof relations_app_rating_history
   relations_prod_attributes: typeof relations_prod_attributes
   relations_prod_attribute_terms: typeof relations_prod_attribute_terms
   relations_prod_variations: typeof relations_prod_variations

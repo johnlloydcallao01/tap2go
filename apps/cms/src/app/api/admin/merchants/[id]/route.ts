@@ -45,6 +45,8 @@ function sanitizeMerchantDoc(raw: Record<string, any>, merchantCountForVendor?: 
     contactInfo: raw.contactInfo ?? null,
     isActive: typeof raw.isActive==='boolean'?raw.isActive:true,
     isAcceptingOrders: typeof raw.isAcceptingOrders==='boolean'?raw.isAcceptingOrders:true,
+    vacationMode: raw.vacationMode === true,
+    vacationModeEndsAt: raw.vacationModeEndsAt ?? null,
     operationalStatus: str(raw.operationalStatus,'open'),
     isOpenNow: storeHoursStatus.isOpen,
     storeHoursStatus,
@@ -104,7 +106,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { data, status }=await getOrBuildDashboard(cacheKey, 120, () =>
       withAdminRequestSlot(async () => {
         let doc: Record<string, any>
-        try{ doc=await payload.findByID({ collection:'merchants', id: docId as number, depth: 2, overrideAccess: true, context: { skipStoreHours: true } }) as unknown as Record<string, any> }catch(e:any){ throw Object.assign(new Error('Merchant not found'), { status: 404, details: e?.message }) }
+        try{ doc=await payload.findByID({ collection:'merchants', id: docId as number, depth: 2, overrideAccess: true, context: { skipStoreHours: true, skipVacationMode: true } }) as unknown as Record<string, any> }catch(e:any){ throw Object.assign(new Error('Merchant not found'), { status: 404, details: e?.message }) }
         if(!doc) throw Object.assign(new Error('Merchant not found'), { status: 404 })
         // enrich with vendor merchant count (indexed count, no doc hydration)
         let vendorMerchantCount: number | null = null
@@ -157,6 +159,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     else if(body.isActive!==undefined){ const v=String(body.isActive).toLowerCase(); if(v==='true') patch.isActive=true; else if(v==='false') patch.isActive=false }
     if(typeof body.isAcceptingOrders==='boolean') patch.isAcceptingOrders=body.isAcceptingOrders
     else if(body.isAcceptingOrders!==undefined){ const v=String(body.isAcceptingOrders).toLowerCase(); if(v==='true') patch.isAcceptingOrders=true; else if(v==='false') patch.isAcceptingOrders=false }
+    if (body.vacationMode !== undefined && typeof body.vacationMode !== 'boolean') {
+      return NextResponse.json({ error: 'vacationMode must be a boolean' }, { status: 400 })
+    }
+    if (body.vacationMode === false) {
+      patch.vacationMode = false
+      patch.vacationModeEndsAt = null
+    } else if (body.vacationMode === true) {
+      patch.vacationMode = true
+      if (body.vacationModeEndsAt === undefined) {
+        patch.vacationModeEndsAt = null
+      }
+    }
+    if (body.vacationModeEndsAt !== undefined && body.vacationMode !== false) {
+      if (body.vacationModeEndsAt === null || body.vacationModeEndsAt === '') {
+        patch.vacationModeEndsAt = null
+      } else if (typeof body.vacationModeEndsAt === 'string') {
+        const endsAt = Date.parse(body.vacationModeEndsAt)
+        if (
+          !Number.isFinite(endsAt) ||
+          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/i.test(body.vacationModeEndsAt)
+        ) {
+          return NextResponse.json({ error: 'vacationModeEndsAt must be an ISO timestamp with a timezone offset' }, { status: 400 })
+        }
+        if (body.vacationMode === true && endsAt <= Date.now()) {
+          return NextResponse.json({ error: 'vacationModeEndsAt must be in the future' }, { status: 400 })
+        }
+        patch.vacationModeEndsAt = new Date(endsAt).toISOString()
+      } else {
+        return NextResponse.json({ error: 'vacationModeEndsAt must be an ISO timestamp or null' }, { status: 400 })
+      }
+    }
     if(typeof body.operationalStatus==='string'){
       const v=body.operationalStatus.trim().toLowerCase(); if(!OPERATIONAL_STATUSES.has(v)) return NextResponse.json({ error:`operationalStatus must be one of ${Array.from(OPERATIONAL_STATUSES).join(', ')}` },{status:400}); patch.operationalStatus=v
     }

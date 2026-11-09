@@ -671,6 +671,21 @@ export default function ProductScreen() {
             </View>
           </View>
 
+          {product.merchant?.name ? (
+            <View style={styles.merchantAttribution}>
+              {product.merchant.vendorLogoUrl ? (
+                <Image
+                  source={{ uri: getImageUrl({ url: product.merchant.vendorLogoUrl }) || product.merchant.vendorLogoUrl }}
+                  style={styles.merchantAttributionLogo}
+                  resizeMode="contain"
+                />
+              ) : null}
+              <Text style={[styles.merchantAttributionText, { color: colors.textSecondary }]} numberOfLines={1}>
+                by {product.merchant.name}
+              </Text>
+            </View>
+          ) : null}
+
           {selectedVariationSummary ? (
             <View style={styles.selectedVariationBadge}>
               <Ionicons name="options-outline" size={16} color={colors.primary} />
@@ -1168,6 +1183,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 10,
+  },
+  merchantAttribution: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: -4,
+    marginBottom: 16,
+    gap: 6,
+  },
+  merchantAttributionLogo: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+  },
+  merchantAttributionText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   title: {
     fontSize: 24,

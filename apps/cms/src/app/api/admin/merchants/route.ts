@@ -54,6 +54,8 @@ function sanitizeMerchantDoc(raw: Record<string, any>): Record<string, any> {
     contactInfo: raw.contactInfo ?? null,
     isActive: typeof raw.isActive==='boolean'?raw.isActive:true,
     isAcceptingOrders: typeof raw.isAcceptingOrders==='boolean'?raw.isAcceptingOrders:true,
+    vacationMode: raw.vacationMode === true,
+    vacationModeEndsAt: raw.vacationModeEndsAt ?? null,
     operationalStatus: str(raw.operationalStatus,'open'),
     operatingHours: raw.operatingHours ?? null,
     deliverySettings: raw.deliverySettings ?? null,
@@ -134,7 +136,20 @@ async function getMerchantStats(payload: Payload): Promise<MerchantStats> {
       const [mTotal, mActive, mAccepting, opRows, vTotal, vActive] = await Promise.all([
         payload.count({ collection: 'merchants', overrideAccess: true, context: skipCtx }),
         payload.count({ collection: 'merchants', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
-        payload.count({ collection: 'merchants', where: { isAcceptingOrders: { equals: true } }, overrideAccess: true, context: skipCtx }),
+        payload.count({
+          collection: 'merchants',
+          where: {
+            and: [
+              { isAcceptingOrders: { equals: true } },
+              { or: [
+                { vacationMode: { not_equals: true } },
+                { vacationModeEndsAt: { less_than_equal: new Date().toISOString() } },
+              ] },
+            ],
+          },
+          overrideAccess: true,
+          context: skipCtx,
+        }),
         mRows(payload, sql`SELECT operational_status::text AS s, COUNT(*)::int AS c FROM merchants GROUP BY 1`),
         payload.count({ collection: 'vendors', overrideAccess: true, context: skipCtx }),
         payload.count({ collection: 'vendors', where: { isActive: { equals: true } }, overrideAccess: true, context: skipCtx }),
@@ -291,6 +306,8 @@ async function buildMerchantsList(payload: Payload, searchParams: URLSearchParam
           contactInfo: true,
           isActive: true,
           isAcceptingOrders: true,
+          vacationMode: true,
+          vacationModeEndsAt: true,
           operationalStatus: true,
           merchant_categories: true,
           activeAddress: true,

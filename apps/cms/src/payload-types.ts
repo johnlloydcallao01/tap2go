@@ -100,6 +100,8 @@ export interface Config {
     coupons: Coupon;
     'coupon-redemptions': CouponRedemption;
     reviews: Review;
+    'app-ratings': AppRating;
+    'app-rating-history': AppRatingHistory;
     'prod-attributes': ProdAttribute;
     'prod-attribute-terms': ProdAttributeTerm;
     'prod-variations': ProdVariation;
@@ -162,6 +164,8 @@ export interface Config {
     coupons: CouponsSelect<false> | CouponsSelect<true>;
     'coupon-redemptions': CouponRedemptionsSelect<false> | CouponRedemptionsSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
+    'app-ratings': AppRatingsSelect<false> | AppRatingsSelect<true>;
+    'app-rating-history': AppRatingHistorySelect<false> | AppRatingHistorySelect<true>;
     'prod-attributes': ProdAttributesSelect<false> | ProdAttributesSelect<true>;
     'prod-attribute-terms': ProdAttributeTermsSelect<false> | ProdAttributeTermsSelect<true>;
     'prod-variations': ProdVariationsSelect<false> | ProdVariationsSelect<true>;
@@ -1109,6 +1113,14 @@ export interface Merchant {
    * Whether the merchant is currently accepting new orders
    */
   isAcceptingOrders?: boolean | null;
+  /**
+   * Temporarily prevent new orders without changing regular availability settings
+   */
+  vacationMode?: boolean | null;
+  /**
+   * Optional automatic vacation-mode resume time
+   */
+  vacationModeEndsAt?: string | null;
   /**
    * Current operational status
    */
@@ -2783,6 +2795,54 @@ export interface Review {
   createdAt: string;
 }
 /**
+ * Customer ratings and feedback about the Tap2Go app after completed orders
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-ratings".
+ */
+export interface AppRating {
+  id: number;
+  /**
+   * First completed order that made the customer eligible to rate the app
+   */
+  order: number | Order;
+  /**
+   * Customer account with one current app rating
+   */
+  customer: number | Customer;
+  /**
+   * App rating from 1 to 5 stars
+   */
+  rating: number;
+  /**
+   * Optional written feedback about the app
+   */
+  comment?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Original per-order app rating snapshots preserved during customer-level migration and rollback
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-rating-history".
+ */
+export interface AppRatingHistory {
+  id: number;
+  /**
+   * ID of the original app rating before it was archived
+   */
+  original_rating_id: number;
+  order: number | Order;
+  customer: number | Customer;
+  rating: number;
+  comment?: string | null;
+  original_created_at: string;
+  original_updated_at: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "prod-attributes".
  */
@@ -3554,6 +3614,14 @@ export interface PayloadLockedDocument {
         value: number | Review;
       } | null)
     | ({
+        relationTo: 'app-ratings';
+        value: number | AppRating;
+      } | null)
+    | ({
+        relationTo: 'app-rating-history';
+        value: number | AppRatingHistory;
+      } | null)
+    | ({
         relationTo: 'prod-attributes';
         value: number | ProdAttribute;
       } | null)
@@ -4028,6 +4096,8 @@ export interface MerchantsSelect<T extends boolean = true> {
       };
   isActive?: T;
   isAcceptingOrders?: T;
+  vacationMode?: T;
+  vacationModeEndsAt?: T;
   operationalStatus?: T;
   operatingHours?: T;
   specialHours?: T;
@@ -4529,6 +4599,33 @@ export interface ReviewsSelect<T extends boolean = true> {
   driver_rating?: T;
   comment?: T;
   is_public?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-ratings_select".
+ */
+export interface AppRatingsSelect<T extends boolean = true> {
+  order?: T;
+  customer?: T;
+  rating?: T;
+  comment?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-rating-history_select".
+ */
+export interface AppRatingHistorySelect<T extends boolean = true> {
+  original_rating_id?: T;
+  order?: T;
+  customer?: T;
+  rating?: T;
+  comment?: T;
+  original_created_at?: T;
+  original_updated_at?: T;
   updatedAt?: T;
   createdAt?: T;
 }

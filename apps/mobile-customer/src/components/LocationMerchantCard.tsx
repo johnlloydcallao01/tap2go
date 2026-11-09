@@ -23,6 +23,26 @@ function formatDistanceKm(distanceKm?: number): string | null {
   return `${distanceKm.toFixed(1)}km`;
 }
 
+function isVacationActive(merchant: LocationBasedMerchant): boolean {
+  if (merchant.vacationMode !== true) return false;
+  if (!merchant.vacationModeEndsAt) return true;
+  const endsAt = Date.parse(merchant.vacationModeEndsAt);
+  return !Number.isFinite(endsAt) || endsAt > Date.now();
+}
+
+function formatVacationResume(iso: string, timezone?: string | null): string {
+  const date = new Date(iso);
+  const formatted = new Intl.DateTimeFormat(undefined, {
+    ...(timezone ? { timeZone: timezone } : {}),
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+  return `Opens ${formatted}`;
+}
+
 export default function LocationMerchantCard({ 
   merchant, 
   isWishlisted = false, 
@@ -45,6 +65,7 @@ export default function LocationMerchantCard({
   const distanceInMeters = (merchant as any)?.distanceInMeters as number | undefined;
   const distanceText = typeof distanceKm === "number" ? formatDistanceKm(distanceKm) : (typeof distanceInMeters === "number" ? formatDistanceKm(distanceInMeters / 1000) : null);
   const rating = typeof merchant.metrics?.averageRating === "number" ? merchant.metrics.averageRating : null;
+  const onVacation = isVacationActive(merchant);
 
   return (
     <TouchableOpacity 
@@ -106,6 +127,18 @@ export default function LocationMerchantCard({
           <Text style={[styles.vendorName, { color: colors.textSecondary }]} numberOfLines={1}>
             {merchant.vendor.businessName}
           </Text>
+        )}
+
+        {onVacation && (
+          <View style={styles.vacationContainer}>
+            <Ionicons name="sunny-outline" size={14} color="#B45309" />
+            <Text style={styles.vacationText}>In vacation mode</Text>
+            {merchant.vacationModeEndsAt && Number.isFinite(Date.parse(merchant.vacationModeEndsAt)) && (
+              <Text style={styles.vacationResume} numberOfLines={1}>
+                {formatVacationResume(merchant.vacationModeEndsAt, merchant.timezone)}
+              </Text>
+            )}
+          </View>
         )}
 
         <View style={styles.metaContainer}>
@@ -223,6 +256,27 @@ const styles = StyleSheet.create({
   vendorName: {
     fontSize: 14,
     marginBottom: 8,
+  },
+  vacationContainer: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#FEF3C7',
+  },
+  vacationText: {
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  vacationResume: {
+    color: '#92400E',
+    fontSize: 12,
   },
   metaContainer: {
     flexDirection: 'row',

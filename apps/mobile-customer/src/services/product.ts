@@ -119,6 +119,24 @@ export async function fetchProductWithMerchantContext(
       return null;
     }
 
+    const rawMerchant = merchantProduct.merchant_id;
+    const merchantRelation =
+      rawMerchant && typeof rawMerchant === 'object' ? rawMerchant : null;
+    let merchant = merchantRelation;
+    try {
+      const merchantRes = await fetch(
+        `${API_BASE}/merchants/${encodeURIComponent(String(merchantId))}?depth=2`,
+        { headers, signal },
+      );
+      if (!merchantRes.ok) {
+        throw new Error(`Failed to load merchant branding (${merchantRes.status})`);
+      }
+      merchant = await merchantRes.json();
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      console.error('Failed to load merchant branding for product detail:', error);
+    }
+
     const productData = merchantProduct.product_id;
 
     if (!productData || typeof productData !== 'object') {
@@ -141,7 +159,24 @@ export async function fetchProductWithMerchantContext(
       compareAtPrice:
         typeof productData.compareAtPrice === 'number' ? productData.compareAtPrice : undefined,
       isAvailable: merchantProduct.is_available ?? productData.isAvailable ?? true,
-      merchant: merchantProduct.merchant_id, // Pass the merchant details
+      merchant: {
+        id: String(getRelationId(merchant?.id) ?? merchantId),
+        name:
+          merchant?.outletName ||
+          merchant?.name ||
+          merchantRelation?.outletName ||
+          merchantRelation?.name ||
+          '',
+        outletName: merchant?.outletName || merchantRelation?.outletName || undefined,
+        vendorLogoUrl:
+          merchant?.vendor?.logo?.cloudinaryURL ||
+          merchant?.vendor?.logo?.url ||
+          merchant?.vendor?.logo?.thumbnailURL ||
+          merchantRelation?.vendor?.logo?.cloudinaryURL ||
+          merchantRelation?.vendor?.logo?.url ||
+          merchantRelation?.vendor?.logo?.thumbnailURL ||
+          undefined,
+      },
     };
 
     let modifierGroups: ModifierGroup[] = [];

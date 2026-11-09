@@ -74,14 +74,16 @@ export default async function MerchantPage({ params }: PageProps) {
 
   const heroImage = getImageUrl(merchant.media?.storeFrontImage) || getImageUrl(merchant.media?.thumbnail);
   const vendorLogo = getImageUrl(merchant.vendor?.logo);
-  const isOpenNow = merchant.isOpenNow ?? (merchant.operationalStatus === 'open' && merchant.isAcceptingOrders);
-  const operationalStatus = isOpenNow ? 'open' : 'closed';
-
-  const statusColor = operationalStatus === 'open'
-    ? 'bg-green-600'
-    : operationalStatus === 'busy'
-      ? 'bg-yellow-500'
-      : 'bg-red-600';
+  const isVacationModeOn = merchant.vacationMode === true &&
+    (!merchant.vacationModeEndsAt || !Number.isFinite(Date.parse(merchant.vacationModeEndsAt)) || Date.parse(merchant.vacationModeEndsAt) > Date.now());
+  const isOpenNow = !isVacationModeOn && (merchant.isOpenNow ?? (merchant.operationalStatus === 'open' && merchant.isAcceptingOrders));
+  const vacationResumeText = merchant.vacationModeEndsAt
+    ? new Date(merchant.vacationModeEndsAt).toLocaleString('en-PH', {
+        timeZone: merchant.timezone || 'Asia/Manila',
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+    : null;
 
   // Build display name using active address from production CMS
   const addressName = id ? await getActiveAddressNameByMerchantId(id) : null;
@@ -127,6 +129,12 @@ export default async function MerchantPage({ params }: PageProps) {
             <div>
               <h1 className="text-xl font-semibold text-gray-900 line-clamp-2">{displayName}</h1>
             </div>
+            {isVacationModeOn && (
+              <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">This outlet is on vacation and is not accepting new orders.</p>
+                <p className="mt-1">{vacationResumeText ? `Expected to reopen ${vacationResumeText} (${merchant.timezone || 'Asia/Manila'}).` : 'The outlet has not set an automatic resume time.'}</p>
+              </div>
+            )}
             {/* Description */}
             {merchant.description && (
               <section className="bg-white rounded-lg shadow-sm p-5">
@@ -140,7 +148,7 @@ export default async function MerchantPage({ params }: PageProps) {
               <section className="bg-white rounded-lg shadow-sm p-5">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-lg font-semibold text-gray-900">Operating Hours</h2>
-                  <span className={isOpenNow ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}>{isOpenNow ? 'Open Now' : 'Closed'}</span>
+                  <span className={isVacationModeOn ? 'text-amber-700 font-medium' : isOpenNow ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}>{isVacationModeOn ? 'On vacation' : isOpenNow ? 'Open Now' : 'Closed'}</span>
                 </div>
                 {!isOpenNow && merchant.nextOpeningAt && <p className="mt-1 text-sm text-gray-500">Next opening: {new Date(merchant.nextOpeningAt).toLocaleString()}</p>}
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm text-gray-700">

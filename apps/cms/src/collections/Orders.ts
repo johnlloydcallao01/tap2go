@@ -75,6 +75,19 @@ export const Orders: CollectionConfig = {
             req,
           })
         }
+
+        await req.payload.delete({
+          collection: 'app-ratings',
+          where: { order: { equals: id } },
+          overrideAccess: true,
+          req,
+        })
+        await req.payload.delete({
+          collection: 'app-rating-history',
+          where: { order: { equals: id } },
+          overrideAccess: true,
+          req,
+        })
       },
     ],
     beforeValidate: [

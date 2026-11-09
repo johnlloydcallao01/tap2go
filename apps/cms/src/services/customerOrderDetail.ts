@@ -39,7 +39,27 @@ export async function buildCustomerOrderDetail(
   const order = docs[0] as Record<string, any> | undefined
   if (!order) return null
 
-  const [itemsResult, bookingsResult, locationsResult, transactionsResult] = await Promise.all([
+  const merchantId = order.merchant && typeof order.merchant === 'object'
+    ? order.merchant.id
+    : order.merchant
+  const [merchantResult, itemsResult, bookingsResult, locationsResult, transactionsResult] = await Promise.all([
+    merchantId
+      ? payload.find({
+          collection: 'merchants',
+          where: { id: { equals: merchantId } },
+          depth: 2,
+          limit: 1,
+          pagination: false,
+          overrideAccess: true,
+          context: { skipStoreHours: true },
+          select: {
+            id: true,
+            outletName: true,
+            vendor: true,
+            contactInfo: true,
+          },
+        })
+      : Promise.resolve({ docs: [] }),
     payload.find({
       collection: 'order-items',
       where: { order: { equals: orderId } },
@@ -124,7 +144,7 @@ export async function buildCustomerOrderDetail(
     }),
   ])
 
-  const merchant = order.merchant && typeof order.merchant === 'object' ? order.merchant : null
+  const merchant = merchantResult.docs[0] as Record<string, any> | undefined
   const vendor = merchant?.vendor && typeof merchant.vendor === 'object' ? merchant.vendor : null
   const booking = bookingsResult.docs[0] as Record<string, any> | undefined
   const location = locationsResult.docs[0] as Record<string, any> | undefined
@@ -210,7 +230,7 @@ export async function buildCustomerOrderDetail(
           id: merchant.id,
           name: merchant.outletName || merchant.name || vendor?.businessName || 'Restaurant',
           phone: merchant.contactInfo?.phone || null,
-          logo: vendor?.logo?.cloudinaryURL || vendor?.logo?.url || null,
+          logo: vendor?.logo?.cloudinaryURL || vendor?.logo?.url || vendor?.logo?.thumbnailURL || null,
         }
       : null,
     customer:

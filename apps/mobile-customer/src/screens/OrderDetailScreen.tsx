@@ -104,6 +104,21 @@ type OrderDetail = {
   priorityFeePaymentRefunded?: boolean;
 };
 
+type AppRatingState = {
+  eligible: boolean;
+  submitted: boolean;
+  rating: number | null;
+  comment: string | null;
+};
+
+function isCompletedOrder(order: OrderDetail | null): boolean {
+  if (!order || ['cancelled', 'canceled'].includes(String(order.status || '').toLowerCase())) {
+    return false;
+  }
+  return order.status === 'delivered' ||
+    (order.fulfillment_type === 'delivery' && order.delivery_status === 'completed');
+}
+
 const STATUS_STEPS = [
   { key: 'accepted', label: 'Order Confirmed', icon: 'checkmark-circle' as const },
   { key: 'assigning_driver', label: 'Assigning Driver', icon: 'search' as const },
@@ -278,6 +293,13 @@ export default function OrderDetailScreen() {
   const [showPriorityFeeModal, setShowPriorityFeeModal] = useState(false);
   const [priorityFeeAmount, setPriorityFeeAmount] = useState('');
   const [addingPriorityFee, setAddingPriorityFee] = useState(false);
+  const [appRating, setAppRating] = useState<AppRatingState | null>(null);
+  const [appRatingLoading, setAppRatingLoading] = useState(false);
+  const [appRatingValue, setAppRatingValue] = useState<number | null>(null);
+  const [appRatingComment, setAppRatingComment] = useState('');
+  const [appRatingEditing, setAppRatingEditing] = useState(false);
+  const [appRatingSubmitting, setAppRatingSubmitting] = useState(false);
+  const [appRatingError, setAppRatingError] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchOrder = useCallback(async (forceRefresh = false) => {
@@ -405,6 +427,107 @@ export default function OrderDetailScreen() {
       setLoading(false);
     }
   }, [id, user?.id]);
+
+  const fetchAppRating = useCallback(async (orderId: number) => {
+    if (!user?.id) return;
+    setAppRatingLoading(true);
+    setAppRatingError(null);
+    try {
+      const params = new URLSearchParams({
+        orderId: String(orderId),
+        customerId: String(user.id),
+      });
+      const response = await fetch(
+        `${apiConfig.baseUrl}/customer/app-rating?${params.toString()}`,
+        { headers: CMS_HEADERS, cache: 'no-store', credentials: 'omit' },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Could not load your app rating.');
+
+      setAppRating({
+        eligible: data.eligible === true,
+        submitted: data.submitted === true,
+        rating: Number.isInteger(data.rating) ? data.rating : null,
+        comment: typeof data.comment === 'string' ? data.comment : null,
+      });
+      setAppRatingEditing(false);
+      if (data.submitted === true && Number.isInteger(data.rating)) {
+        setAppRatingValue(data.rating);
+        setAppRatingComment(typeof data.comment === 'string' ? data.comment : '');
+      }
+    } catch (error) {
+      console.error('[OrderDetail] app rating fetch failed:', error);
+      setAppRatingError(error instanceof Error ? error.message : 'Could not load your app rating.');
+    } finally {
+      setAppRatingLoading(false);
+    }
+  }, [user?.id]);
+
+  const orderIsCompleted = isCompletedOrder(order);
+  const completedOrderId = orderIsCompleted ? order?.id : undefined;
+  useEffect(() => {
+    setAppRating(null);
+    setAppRatingValue(null);
+    setAppRatingComment('');
+    setAppRatingError(null);
+    if (!completedOrderId || !user?.id) {
+      setAppRatingLoading(false);
+      return;
+    }
+
+    void fetchAppRating(completedOrderId);
+  }, [completedOrderId, fetchAppRating, user?.id]);
+
+  const handleSubmitAppRating = useCallback(async () => {
+    if (!order || !user?.id || !orderIsCompleted || appRatingValue === null || appRatingSubmitting) {
+      return;
+    }
+
+    setAppRatingSubmitting(true);
+    setAppRatingError(null);
+    try {
+      const response = await fetch(`${apiConfig.baseUrl}/customer/app-rating`, {
+        method: 'POST',
+        headers: CMS_HEADERS,
+        credentials: 'omit',
+        body: JSON.stringify({
+          orderId: order.id,
+          customerId: Number(user.id),
+          rating: appRatingValue,
+          comment: appRatingComment.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Could not submit your app rating.');
+
+      setAppRating({
+        eligible: true,
+        submitted: true,
+        rating: Number(data.rating),
+        comment: typeof data.comment === 'string' ? data.comment : null,
+      });
+      setAppRatingValue(Number(data.rating));
+      setAppRatingComment(typeof data.comment === 'string' ? data.comment : '');
+      setAppRatingEditing(false);
+      Alert.alert(
+        appRating?.submitted ? 'Rating updated' : 'Thanks for your feedback',
+        'Your rating helps us improve the Tap2Go app.',
+      );
+    } catch (error) {
+      console.error('[OrderDetail] app rating submission failed:', error);
+      setAppRatingError(error instanceof Error ? error.message : 'Could not submit your app rating.');
+    } finally {
+      setAppRatingSubmitting(false);
+    }
+  }, [
+    appRatingComment,
+    appRatingSubmitting,
+    appRatingValue,
+    appRating,
+    order,
+    orderIsCompleted,
+    user?.id,
+  ]);
 
   useEffect(() => {
     fetchOrder();
@@ -698,11 +821,15 @@ export default function OrderDetailScreen() {
   const merchantPhone =
     typeof merchant?.phone === 'string' ? merchant.phone.trim() || null : null;
   const merchantName =
-    merchant?.outletName || merchant?.vendor?.businessName || 'Restaurant';
+    merchant?.name || merchant?.outletName || merchant?.vendor?.businessName || 'Restaurant';
   const merchantLogo =
-    merchant?.vendor?.logo && typeof merchant.vendor.logo === 'object'
-      ? merchant.vendor.logo.cloudinaryURL || merchant.vendor.logo.url
-      : null;
+    typeof merchant?.logo === 'string'
+      ? merchant.logo
+      : merchant?.logo && typeof merchant.logo === 'object'
+        ? merchant.logo.cloudinaryURL || merchant.logo.url || null
+        : merchant?.vendor?.logo && typeof merchant.vendor.logo === 'object'
+          ? merchant.vendor.logo.cloudinaryURL || merchant.vendor.logo.url || null
+          : null;
 
   const delivery = order.deliveryBooking;
   const CANCELLED_DELIVERY_STATUSES = ['canceled', 'expired', 'rejected'];
@@ -1010,6 +1137,148 @@ export default function OrderDetailScreen() {
             )}
           </View>
         </View>
+
+        {orderIsCompleted && (appRatingLoading || appRatingError !== null || appRating?.eligible) && (
+          <View style={styles.section}>
+            <View style={styles.appRatingCard}>
+              <View style={styles.appRatingHeader}>
+                <View style={styles.appRatingIcon}>
+                  <Ionicons name="star" size={18} color="#D97706" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.appRatingTitle}>
+                    {appRating?.submitted ? 'Your Tap2Go app rating' : 'Rate the Tap2Go app'}
+                  </Text>
+                  <Text style={styles.appRatingDescription}>
+                    {appRating?.submitted
+                      ? 'Your feedback helps us improve your experience. You can update it anytime.'
+                      : 'How was your experience? Share a rating and optional comment.'}
+                  </Text>
+                </View>
+              </View>
+
+              {appRatingLoading ? (
+                <ActivityIndicator color="#D97706" />
+              ) : appRatingError && !appRating ? (
+                <View>
+                  <Text style={styles.appRatingError}>{appRatingError}</Text>
+                  <TouchableOpacity
+                    onPress={() => void fetchAppRating(order.id)}
+                    disabled={appRatingLoading}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.appRatingRetry}>Try again</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : appRating?.eligible && appRating.submitted && !appRatingEditing ? (
+                <View>
+                  <View style={styles.appRatingStars} accessibilityLabel={`Your rating: ${appRating.rating} out of 5 stars`}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Ionicons
+                        key={star}
+                        name={star <= (appRating.rating || 0) ? 'star' : 'star-outline'}
+                        size={24}
+                        color="#F59E0B"
+                      />
+                    ))}
+                  </View>
+                  {appRating.comment ? (
+                    <Text style={styles.appRatingSubmittedComment}>{appRating.comment}</Text>
+                  ) : null}
+                  <TouchableOpacity
+                    onPress={() => setAppRatingEditing(true)}
+                    style={styles.appRatingEditButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit your app rating"
+                  >
+                    <Text style={styles.appRatingEditText}>Update rating</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : appRating?.eligible ? (
+                <View>
+                  <View style={styles.appRatingStars}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={() => setAppRatingValue(star)}
+                        disabled={appRatingSubmitting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Rate ${star} out of 5 stars`}
+                        accessibilityState={{ selected: appRatingValue === star, disabled: appRatingSubmitting }}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name={star <= (appRatingValue || 0) ? 'star' : 'star-outline'}
+                          size={30}
+                          color="#F59E0B"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TextInput
+                    value={appRatingComment}
+                    onChangeText={setAppRatingComment}
+                    placeholder="Add a comment (optional)"
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    maxLength={4000}
+                    editable={!appRatingSubmitting}
+                    style={styles.appRatingCommentInput}
+                    accessibilityLabel="Optional app rating comment"
+                  />
+                  {appRatingError ? (
+                    <Text style={styles.appRatingError}>{appRatingError}</Text>
+                  ) : null}
+                  <TouchableOpacity
+                    style={[
+                      styles.appRatingSubmitButton,
+                      (!appRatingValue || appRatingSubmitting) && styles.appRatingSubmitButtonDisabled,
+                    ]}
+                    onPress={() => void handleSubmitAppRating()}
+                    disabled={!appRatingValue || appRatingSubmitting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Submit app rating"
+                  >
+                    {appRatingSubmitting ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.appRatingSubmitText}>
+                        {appRating?.submitted ? 'Save changes' : 'Submit rating'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  {appRating?.submitted ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setAppRatingEditing(false);
+                        setAppRatingValue(appRating.rating);
+                        setAppRatingComment(appRating.comment || '');
+                        setAppRatingError(null);
+                      }}
+                      disabled={appRatingSubmitting}
+                      style={styles.appRatingCancelButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel app rating changes"
+                    >
+                      <Text style={styles.appRatingCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ) : appRatingError ? (
+                <View>
+                  <Text style={styles.appRatingError}>{appRatingError}</Text>
+                  <TouchableOpacity
+                    onPress={() => void fetchAppRating(order.id)}
+                    disabled={appRatingLoading}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.appRatingRetry}>Try again</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )}
 
         {order.canResumePayment && !order.isPaid && (
           <View style={styles.section}>
@@ -1648,6 +1917,55 @@ const styles = {
   cancelledTitle: { fontSize: 15, fontWeight: '700' as const, color: '#ef4444' },
   cancelledNote: { fontSize: 13, color: '#7f1d1d', marginTop: 4, lineHeight: 19 },
   section: { marginBottom: 0 },
+  appRatingCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: 16,
+    gap: 14,
+  },
+  appRatingHeader: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
+  appRatingIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  appRatingTitle: { fontSize: 15, fontWeight: '700' as const, color: '#111827' },
+  appRatingDescription: { fontSize: 12, lineHeight: 18, color: '#6B7280', marginTop: 3 },
+  appRatingStars: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
+  appRatingCommentInput: {
+    minHeight: 88,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 14,
+    fontSize: 14,
+    color: '#111827',
+    textAlignVertical: 'top' as const,
+  },
+  appRatingError: { color: '#B91C1C', fontSize: 12, lineHeight: 18, marginBottom: 8 },
+  appRatingRetry: { color: '#B45309', fontWeight: '700' as const, fontSize: 13, paddingVertical: 4 },
+  appRatingSubmittedComment: { color: '#4B5563', fontSize: 13, lineHeight: 19, marginTop: 8 },
+  appRatingEditButton: { alignSelf: 'flex-start' as const, marginTop: 12, paddingVertical: 4 },
+  appRatingEditText: { color: '#0F766E', fontSize: 13, fontWeight: '700' as const },
+  appRatingSubmitButton: {
+    minHeight: 44,
+    borderRadius: 9,
+    backgroundColor: '#0F766E',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginTop: 12,
+  },
+  appRatingSubmitButtonDisabled: { opacity: 0.55 },
+  appRatingSubmitText: { color: '#fff', fontSize: 14, fontWeight: '700' as const },
+  appRatingCancelButton: { alignSelf: 'center' as const, marginTop: 8, paddingVertical: 6 },
+  appRatingCancelText: { color: '#6B7280', fontSize: 13, fontWeight: '600' as const },
   paymentRecoveryCard: {
     backgroundColor: '#FFFBEB',
     borderColor: '#FDE68A',

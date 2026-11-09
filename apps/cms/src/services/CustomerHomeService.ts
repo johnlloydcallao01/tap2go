@@ -27,6 +27,9 @@ export interface HomeMerchant {
   distanceKm: number | null
   isWithinDeliveryRadius: boolean
   estimatedDeliveryTime: string | null
+  vacationMode?: boolean | null
+  vacationModeEndsAt?: string | null
+  timezone?: string | null
   merchant_categories: (number | string)[]
   activeAddressName: string | null
   updatedAt?: string | null
@@ -321,6 +324,9 @@ export class CustomerHomeService {
         distanceKm: typeof m.distanceKm === 'number' ? (m.distanceKm as number) : null,
         isWithinDeliveryRadius: (m.isWithinDeliveryRadius as boolean) === true,
         estimatedDeliveryTime: m.estimatedDeliveryTime != null ? String(m.estimatedDeliveryTime) : null,
+        vacationMode: (m.vacationMode as boolean | null) ?? false,
+        vacationModeEndsAt: (m.vacationModeEndsAt as string | null) ?? null,
+        timezone: typeof m.timezone === 'string' ? m.timezone : null,
         merchant_categories: Array.isArray(rawCats)
           ? (rawCats as unknown[]).filter((c): c is number | string => typeof c === 'number' || typeof c === 'string')
           : [],

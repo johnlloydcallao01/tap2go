@@ -105,7 +105,7 @@ export class MerchantService {
       }
 
       const response = await fetch(`${MerchantService.API_BASE}/merchants/${id}?depth=3`, {
-        next: { revalidate: 300 }, // 5 minutes cache for ISR
+        cache: 'no-store',
         headers,
       });
       

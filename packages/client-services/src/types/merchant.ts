@@ -89,6 +89,8 @@ export interface Merchant {
   contactInfo?: ContactInfo | null;
   isActive?: boolean | null;
   isAcceptingOrders?: boolean | null;
+  vacationMode?: boolean | null;
+  vacationModeEndsAt?: string | null;
   operationalStatus?: 'open' | 'closed' | 'busy' | null;
   operatingHours?: OperatingHours | null;
   deliverySettings?: DeliverySettings | null;

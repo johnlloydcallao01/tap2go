@@ -6,9 +6,10 @@ import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@encreasl/client-services'
 import { useMerchants, type MerchantDoc, type MerchantsResponse, type MerchantPagination, type MerchantStats } from '@/hooks/useMerchants'
+import { isVacationModeActive } from '@/lib/merchant-vacation'
 import {
   Store, Search, X, SlidersHorizontal, ChevronDown, Plus, RefreshCw, AlertCircle,
-  Building, Clock, CheckCircle, Eye, Pencil, Trash2, MapPin, Phone, Mail, Tag
+  Building, Clock, CheckCircle, Eye, Pencil, Trash2, MapPin, Phone, Mail, Tag, Palmtree, Power
 } from 'lucide-react'
 
 const OPERATIONAL_OPTS = [
@@ -96,6 +97,8 @@ export function MerchantsPageContent(){
 const [sort,setSort]=useState('-createdAt')
   const [deleting,setDeleting]=useState<MerchantDoc|null>(null)
   const [isDeleting,setIsDeleting]=useState(false)
+  const [vacationToggling,setVacationToggling]=useState<number|null>(null)
+  const [activeToggling,setActiveToggling]=useState<number|null>(null)
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
   const activeFilterCount=useMemo(()=> operationalFilter.length + verificationFilter.length + (isActiveFilter!==null?1:0) + (isAcceptingFilter!==null?1:0) + (debouncedQ?1:0),[operationalFilter,verificationFilter,isActiveFilter,isAcceptingFilter,debouncedQ])
@@ -139,6 +142,59 @@ const [sort,setSort]=useState('-createdAt')
     if(isOpen){ const prev=document.body.style.overflow; document.body.style.overflow='hidden'; return()=>{document.body.style.overflow=prev} }
     document.body.style.overflow=''; return()=>{document.body.style.overflow=''}
   },[deleting])
+
+  const handleActiveToggle=async (merchant: MerchantDoc) => {
+    if(activeToggling===merchant.id) return
+    const isActive=!merchant.isActive
+    setActiveToggling(merchant.id)
+    try {
+      const res=await fetch(`/api/merchants/${merchant.id}`,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ isActive }),
+      })
+      const json=await res.json().catch(()=>({}))
+      if(!res.ok) throw new Error(json.error||'Failed to update active status')
+
+      queryClient.setQueriesData<MerchantsResponse>(
+        {queryKey:QUERY_KEYS.adminMerchants().slice(0,2)},
+        (old)=>old ? {...old,docs:old.docs.map(doc => doc.id===merchant.id ? {...doc,isActive} : doc)} : old,
+      )
+      await queryClient.invalidateQueries({queryKey:QUERY_KEYS.adminMerchants().slice(0,2)})
+      await refetch()
+    }catch(error:any){
+      alert(error.message||'Failed to update active status')
+    }finally{
+      setActiveToggling(null)
+    }
+  }
+
+  const handleVacationToggle=async (merchant: MerchantDoc) => {
+    if(vacationToggling===merchant.id) return
+    const active=isVacationModeActive(merchant.vacationMode, merchant.vacationModeEndsAt)
+    const vacationMode=!active
+    setVacationToggling(merchant.id)
+    try {
+      const res=await fetch(`/api/merchants/${merchant.id}`,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ vacationMode }),
+      })
+      const json=await res.json().catch(()=>({}))
+      if(!res.ok) throw new Error(json.error||'Failed to update vacation mode')
+
+      queryClient.setQueriesData<MerchantsResponse>(
+        {queryKey:QUERY_KEYS.adminMerchants().slice(0,2)},
+        (old)=>old ? {...old,docs:old.docs.map(doc => doc.id===merchant.id ? {...doc,vacationMode,vacationModeEndsAt:null} : doc)} : old,
+      )
+      await queryClient.invalidateQueries({queryKey:QUERY_KEYS.adminMerchants().slice(0,2)})
+      await refetch()
+    }catch(error:any){
+      alert(error.message||'Failed to update vacation mode')
+    }finally{
+      setVacationToggling(null)
+    }
+  }
 
   const handleDelete=async()=>{
     if(!deleting||isDeleting) return
@@ -326,7 +382,7 @@ const [sort,setSort]=useState('-createdAt')
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border w-fit ${m.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'}`}>{m.isActive ? 'Active' : 'Inactive'}</span>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border w-fit ${m.isAcceptingOrders ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300' : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20'}`}>{m.isAcceptingOrders ? 'Accepting' : 'Paused'}</span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border w-fit ${isVacationModeActive(m.vacationMode, m.vacationModeEndsAt) ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300' : m.isAcceptingOrders ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300' : 'bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900/20 dark:text-zinc-300'}`}>{isVacationModeActive(m.vacationMode, m.vacationModeEndsAt) ? 'Vacation' : m.isAcceptingOrders ? 'Accepting' : 'Paused'}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -337,6 +393,24 @@ const [sort,setSort]=useState('-createdAt')
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={()=>handleActiveToggle(m)}
+                            disabled={activeToggling===m.id}
+                            className={`h-7 w-7 inline-flex items-center justify-center rounded-lg disabled:opacity-50 ${m.isActive ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50' : 'text-gray-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-[#a1a1aa] dark:hover:bg-[#262626] dark:hover:text-white'}`}
+                            title={m.isActive ? 'Deactivate outlet' : 'Activate outlet'}
+                            aria-label={m.isActive ? 'Deactivate outlet' : 'Activate outlet'}
+                          >
+                            {activeToggling===m.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={()=>handleVacationToggle(m)}
+                            disabled={vacationToggling===m.id}
+                            className={`h-7 w-7 inline-flex items-center justify-center rounded-lg disabled:opacity-50 ${isVacationModeActive(m.vacationMode,m.vacationModeEndsAt) ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50' : 'text-gray-500 dark:text-[#a1a1aa] hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20'}`}
+                            title={isVacationModeActive(m.vacationMode,m.vacationModeEndsAt) ? 'Turn vacation mode off' : 'Turn vacation mode on'}
+                            aria-label={isVacationModeActive(m.vacationMode,m.vacationModeEndsAt) ? 'Turn vacation mode off' : 'Turn vacation mode on'}
+                          >
+                            {vacationToggling===m.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Palmtree className="w-4 h-4" />}
+                          </button>
                           <Link href={`/merchants/${m.id}`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262626] text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white" title="View"><Eye className="w-4 h-4" /></Link>
                           <Link href={`/merchants/${m.id}/edit`} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-blue-600" title="Edit"><Pencil className="w-4 h-4" /></Link>
                           <button onClick={()=>setDeleting(m)} className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-500 dark:text-[#a1a1aa] hover:text-red-600" title="Delete"><Trash2 className="w-4 h-4" /></button>

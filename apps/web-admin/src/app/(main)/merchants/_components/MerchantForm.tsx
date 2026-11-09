@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Building, Mail, Store, ShieldCheck, AlertCircle, RefreshCw, Phone, MapPin, Clock, Tag, Image as ImageIcon, Truck, DollarSign } from '@/components/ui/IconWrapper'
 import { MediaUploader } from '@/components/cms/MediaUploader'
+import { isVacationModeActive } from '@/lib/merchant-vacation'
 
 const OPERATIONAL_OPTS = [
   { value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' },
@@ -20,6 +21,8 @@ type MerchantDoc = {
   contactInfo?: { phone?: string; email?: string; managerName?: string; managerPhone?: string } | null
   isActive?: boolean
   isAcceptingOrders?: boolean
+  vacationMode?: boolean
+  vacationModeEndsAt?: string | null
   is_currently_delivering?: boolean
   operationalStatus?: string
   timezone?: string
@@ -102,6 +105,70 @@ function isoToLocal(iso: string | null | undefined): string {
   } catch { return '' }
 }
 
+function isoToDateTimeLocal(iso: string | null | undefined, timezone: string): string {
+  if (!iso) return ''
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(iso))
+    const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]))
+    return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`
+  } catch {
+    return ''
+  }
+}
+
+function dateTimeLocalToIso(value: string, timezone: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value)
+  if (!match) return null
+  const [, yearText, monthText, dayText, hourText, minuteText] = match
+  const [year, month, day, hour, minute] = [yearText, monthText, dayText, hourText, minuteText].map(Number)
+  const wallTime = Date.UTC(year, month - 1, day, hour, minute)
+  if (new Date(wallTime).toISOString().slice(0, 16) !== value) return null
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+  let timestamp = wallTime
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const formatted = Object.fromEntries(
+      formatter.formatToParts(new Date(timestamp))
+        .filter(part => part.type !== 'literal')
+        .map(part => [part.type, Number(part.value)]),
+    )
+    const representedWallTime = Date.UTC(
+      formatted.year,
+      formatted.month - 1,
+      formatted.day,
+      formatted.hour,
+      formatted.minute,
+    )
+    timestamp += wallTime - representedWallTime
+  }
+
+  const finalParts = Object.fromEntries(
+    formatter.formatToParts(new Date(timestamp))
+      .filter(part => part.type !== 'literal')
+      .map(part => [part.type, part.value]),
+  )
+  if (`${finalParts.year}-${finalParts.month}-${finalParts.day}T${finalParts.hour}:${finalParts.minute}` !== value) {
+    return null
+  }
+  return new Date(timestamp).toISOString()
+}
+
 export function MerchantForm({ initial, onSuccess, onCancel }: { initial?: MerchantDoc | null; onSuccess: () => void; onCancel: () => void }) {
   const isEdit = !!initial
   const [saving, setSaving] = useState(false)
@@ -124,6 +191,9 @@ export function MerchantForm({ initial, onSuccess, onCancel }: { initial?: Merch
     managerPhone: initial?.contactInfo?.managerPhone || '',
     isActive: initial?.isActive ?? true,
     isAcceptingOrders: initial?.isAcceptingOrders ?? true,
+    vacationMode: isVacationModeActive(initial?.vacationMode, initial?.vacationModeEndsAt),
+    vacationModeResume: initial?.vacationModeEndsAt ? 'scheduled' : 'indefinite',
+    vacationModeEndsAt: isoToDateTimeLocal(initial?.vacationModeEndsAt, initial?.timezone || 'Asia/Manila'),
     isCurrentlyDelivering: (initial as any)?.is_currently_delivering ?? true,
     operationalStatus: initial?.operationalStatus || 'open',
     timezone: initial?.timezone || 'Asia/Manila',
@@ -210,6 +280,9 @@ export function MerchantForm({ initial, onSuccess, onCancel }: { initial?: Merch
       managerPhone: initial.contactInfo?.managerPhone || '',
       isActive: initial.isActive ?? true,
       isAcceptingOrders: initial.isAcceptingOrders ?? true,
+      vacationMode: isVacationModeActive(initial.vacationMode, initial.vacationModeEndsAt),
+      vacationModeResume: initial.vacationModeEndsAt ? 'scheduled' : 'indefinite',
+      vacationModeEndsAt: isoToDateTimeLocal(initial.vacationModeEndsAt, initial.timezone || 'Asia/Manila'),
       isCurrentlyDelivering: (initial as any)?.is_currently_delivering ?? true,
       operationalStatus: initial.operationalStatus || 'open',
       timezone: initial.timezone || 'Asia/Manila',
@@ -251,6 +324,27 @@ export function MerchantForm({ initial, onSuccess, onCancel }: { initial?: Merch
     setError(null)
   }, [initial])
 
+  useEffect(() => {
+    if (!form.vacationMode || !form.vacationModeEndsAt) return
+    const checkResumeTime = () => {
+      try {
+        const endsAt = dateTimeLocalToIso(form.vacationModeEndsAt, form.timezone)
+        if (!endsAt || Date.parse(endsAt) > Date.now()) return
+        setForm(current => ({
+          ...current,
+          vacationMode: false,
+          vacationModeResume: 'indefinite',
+          vacationModeEndsAt: '',
+        }))
+      } catch {
+        return
+      }
+    }
+    checkResumeTime()
+    const interval = window.setInterval(checkResumeTime, 30_000)
+    return () => window.clearInterval(interval)
+  }, [form.vacationMode, form.vacationModeEndsAt, form.timezone])
+
   const toggleCategory = (id: string) => {
     setForm(p => {
       const exists = p.merchantCategoryIds.includes(id)
@@ -275,6 +369,12 @@ export function MerchantForm({ initial, onSuccess, onCancel }: { initial?: Merch
     if (form.peakHoursMultiplier.trim()) {
       const n = Number(form.peakHoursMultiplier)
       if (Number.isNaN(n) || n < 1) return setError('Peak hours multiplier must be >= 1')
+    }
+    let vacationModeEndsAt: string | null = null
+    if (form.vacationMode && form.vacationModeResume === 'scheduled') {
+      vacationModeEndsAt = dateTimeLocalToIso(form.vacationModeEndsAt, form.timezone)
+      if (!vacationModeEndsAt) return setError('Choose a valid resume time in the outlet timezone. Daylight-saving clock-change times cannot be selected.')
+      if (Date.parse(vacationModeEndsAt) <= Date.now()) return setError('Vacation mode resume time must be in the future.')
     }
     let specialHours: any = null
     if (form.specialHoursText.trim()) {
@@ -324,6 +424,8 @@ export function MerchantForm({ initial, onSuccess, onCancel }: { initial?: Merch
         },
         isActive: form.isActive,
         isAcceptingOrders: form.isAcceptingOrders,
+        vacationMode: form.vacationMode,
+        vacationModeEndsAt,
         is_currently_delivering: form.isCurrentlyDelivering,
         operationalStatus: form.operationalStatus,
         timezone: form.timezone,
@@ -455,6 +557,29 @@ export function MerchantForm({ initial, onSuccess, onCancel }: { initial?: Merch
         <div>
           <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><Clock className="w-4 h-4 text-amber-600" /> Operational</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {isEdit && <div className="sm:col-span-2 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-900/10 p-4 space-y-3">
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.vacationMode} onChange={e=>set('vacationMode', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-[#eba236]" />
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">Vacation mode</span>
+                </label>
+                <p className="text-xs text-gray-600 dark:text-[#a1a1aa] mt-1 ml-6">Temporarily stop new orders. The outlet’s active status, order settings, and regular hours stay unchanged.</p>
+              </div>
+              {form.vacationMode && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Resume</label>
+                  <select value={form.vacationModeResume} onChange={e=>set('vacationModeResume', e.target.value)} className={inputCls}>
+                    <option value="scheduled">At a specific date and time</option>
+                    <option value="indefinite">Only when turned off manually</option>
+                  </select>
+                </div>
+                {form.vacationModeResume === 'scheduled' && <div>
+                  <label className={labelCls}>Resume date and time ({form.timezone})</label>
+                  <input type="datetime-local" value={form.vacationModeEndsAt} onChange={e=>set('vacationModeEndsAt', e.target.value)} className={inputCls} />
+                  <p className="text-xs text-gray-500 dark:text-[#a1a1aa] mt-1">New orders automatically become available at this time. The outlet timezone applies.</p>
+                </div>}
+              </div>}
+            </div>}
             <div><label className={labelCls}>Operational status</label><select value={form.operationalStatus} onChange={e=>set('operationalStatus', e.target.value)} className={inputCls}>{OPERATIONAL_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
             <div><label className={labelCls}>Avg delivery time (minutes)</label><input type="number" min={0} value={form.avgDeliveryTimeMinutes} onChange={e=>set('avgDeliveryTimeMinutes', e.target.value)} placeholder="25" className={inputCls} /></div>
             <div><label className={labelCls}>Delivery success rate (0–1)</label><input type="number" min={0} max={1} step={0.0001} value={form.deliverySuccessRate} onChange={e=>set('deliverySuccessRate', e.target.value)} placeholder="0.98" className={inputCls} /></div>

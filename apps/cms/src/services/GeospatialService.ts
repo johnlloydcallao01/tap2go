@@ -23,6 +23,9 @@ interface DatabaseRow {
   avg_delivery_time_minutes: number
   is_active: boolean
   is_accepting_orders: boolean
+  vacation_mode: boolean
+  vacation_mode_ends_at: string | null
+  timezone: string | null
   operational_status: string
   updated_at: string
   created_at: string
@@ -60,7 +63,6 @@ interface DatabaseRow {
   vendor_logo_thumbnail_url: string | null
   vendor_logo_filename: string | null
   vendor_logo_alt: string | null
-  timezone: string
   total_count: string
 }
 
@@ -159,6 +161,7 @@ export class GeospatialService {
       }
 
       // Build where clause for basic filters - includes 3 kill-switches (merchant, vendor, businessZone)
+      // Vacation merchants remain discoverable, but customer-facing availability is marked in responses.
       const whereClause: Where = {
         and: [
           { merchant_latitude: { not_equals: null } },
@@ -763,6 +766,8 @@ export class GeospatialService {
           m.avg_delivery_time_minutes,
           m.is_active,
           m.is_accepting_orders,
+          m.vacation_mode,
+          m.vacation_mode_ends_at,
           m.operational_status,
           m.service_area,
           m.priority_zones,
@@ -909,6 +914,8 @@ export class GeospatialService {
           avg_delivery_time_minutes: row.avg_delivery_time_minutes,
           isActive: row.is_active,
           isAcceptingOrders: row.is_accepting_orders,
+          vacationMode: row.vacation_mode === true,
+          vacationModeEndsAt: row.vacation_mode_ends_at ?? null,
           operationalStatus: row.operational_status,
           service_area: row.service_area,
           priority_zones: row.priority_zones,

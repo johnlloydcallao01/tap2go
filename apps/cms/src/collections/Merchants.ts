@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { getStoreHoursStatus, validateStoreHoursFields } from '@/utils/storeHours'
+import { isMerchantOnVacation } from '@/utils/vacationMode'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
 import { bustAnalyticsCache, bustBusinessZonesCache, bustCustomerHomeCache, bustDashboardCache, bustMerchantsCache, bustPayoutsCache, bustReportsCache, bustSearchCache, bustVendorsCache } from '../utils/dashboardCache'
 
@@ -125,6 +126,25 @@ export const Merchants: CollectionConfig = {
       defaultValue: true,
       admin: {
         description: 'Whether the merchant is currently accepting new orders',
+      },
+    },
+    {
+      name: 'vacationMode',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Temporarily prevent new orders without changing regular availability settings',
+      },
+    },
+    {
+      name: 'vacationModeEndsAt',
+      type: 'date',
+      admin: {
+        date: {
+          pickerAppearance: 'dayAndTime',
+          displayFormat: 'yyyy-MM-dd HH:mm',
+        },
+        description: 'Optional automatic vacation-mode resume time',
       },
     },
     {
@@ -591,6 +611,9 @@ export const Merchants: CollectionConfig = {
     {
       fields: ['isActive', 'isAcceptingOrders'],
     },
+    {
+      fields: ['vacationMode', 'vacationModeEndsAt'],
+    },
     // List filter+sort coverage: WHERE isActive/operationalStatus ORDER BY createdAt,
     // and ORDER BY outletName (name sort). See performance.md §15.
     {
@@ -654,9 +677,20 @@ export const Merchants: CollectionConfig = {
         // Dashboard aggregations pass context.skipStoreHours to avoid up to
         // 11520 isStoreOpen loops per doc x1000 on raw overview reads.
         const reqCtx = (req as unknown as { context?: Record<string, unknown> })?.context
-        if (reqCtx?.skipStoreHours) return doc
+        const vacationModeOn = !reqCtx?.skipVacationMode && isMerchantOnVacation(doc)
+        const availableDoc = vacationModeOn
+          ? { ...doc, isAcceptingOrders: false, isOpenNow: false }
+          : doc
+        if (reqCtx?.skipStoreHours) return availableDoc
         const storeHoursStatus = getStoreHoursStatus(doc as Record<string, unknown>)
-        return { ...doc, isOpenNow: storeHoursStatus.isOpen, storeHoursStatus, nextOpeningAt: storeHoursStatus.nextOpeningAt ?? null }
+        return {
+          ...availableDoc,
+          isOpenNow: vacationModeOn ? false : storeHoursStatus.isOpen,
+          storeHoursStatus: vacationModeOn ? { ...storeHoursStatus, isOpen: false } : storeHoursStatus,
+          nextOpeningAt: vacationModeOn
+            ? doc.vacationModeEndsAt ?? null
+            : storeHoursStatus.nextOpeningAt ?? null,
+        }
       },
     ],
     beforeValidate: [
