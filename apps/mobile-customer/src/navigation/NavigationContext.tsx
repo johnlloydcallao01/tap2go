@@ -100,10 +100,10 @@ export const useNavigation = (): NavigationContextType => {
         router.push('/notifications');
         break;
       case 'NearbyRestaurants': 
-        router.push('/(tabs)/nearby-restaurants');
+        router.push('/nearby-restaurants');
         break;
       case 'NewlyUpdated': 
-        router.push('/(tabs)/newly-updated');
+        router.push('/newly-updated');
         break;
       default: 
         console.warn(`Unknown screen: ${screenName}`);
