@@ -33,7 +33,7 @@ export function FacebookLoadingScreen({ isVisible, progress = 0 }: FacebookLoadi
             <div className="facebook-logo">
               {/* @ts-ignore -- Next.js Image component type issue with React 19 */}
               <Image
-                src="/logo.png"
+                src="/logo.png?v=2"
                 alt="Tap2Go Logo"
                 width={48}
                 height={48}

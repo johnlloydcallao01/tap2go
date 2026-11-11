@@ -74,8 +74,8 @@ export async function buildPayoutsOverview(payload: Payload, searchParams: URLSe
   for (const c of vConds) vWhere = sql`${vWhere} AND ${c}`
 
   const paidWindow: SQL = startISO
-    ? sql`t.status='paid' AND t.paid_at >= ${startISO} AND t.paid_at <= ${nowISO}`
-    : sql`t.status='paid'`
+    ? sql`t.status='paid' AND COALESCE(t.transaction_type, 'order') <> 'priority_fee' AND t.paid_at >= ${startISO} AND t.paid_at <= ${nowISO}`
+    : sql`t.status='paid' AND COALESCE(t.transaction_type, 'order') <> 'priority_fee'`
   const refWindow: SQL = startISO
     ? sql`t.status='refunded' AND t.created_at >= ${startISO} AND t.created_at <= ${nowISO}`
     : sql`t.status='refunded'`
@@ -90,7 +90,9 @@ export async function buildPayoutsOverview(payload: Payload, searchParams: URLSe
       COUNT(DISTINCT m.id)::int AS merchants_live,
       COUNT(t.id)::int AS orders, COALESCE(SUM(t.amount::numeric),0) AS gross,
       COALESCE(SUM(o.platform_fee::numeric),0) AS pfees, COALESCE(SUM(o.delivery_fee::numeric),0) AS dfees,
-      COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0))),0) AS net,
+      COALESCE(SUM(o.priority_fee::numeric),0) AS priority_fees,
+      COALESCE(SUM(d.pshare),0) AS platform_discount,
+      COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0) - GREATEST(0, COALESCE(o.priority_fee::numeric,0) - COALESCE(pp.priority_paid,0)) + COALESCE(d.pshare,0))),0) AS net,
       COALESCE(SUM(CASE WHEN r.id IS NOT NULL THEN r.amount::numeric ELSE 0 END),0) AS refunded
       FROM vendors v
       LEFT JOIN media med ON med.id = v.logo_id
@@ -98,9 +100,11 @@ export async function buildPayoutsOverview(payload: Payload, searchParams: URLSe
       LEFT JOIN orders o ON o.merchant_id = m.id
       LEFT JOIN transactions t ON t.order_id = o.id AND ${paidWindow}
       LEFT JOIN transactions r ON r.order_id = o.id AND ${refWindow}
+      LEFT JOIN (SELECT order_id, SUM(platform_share::numeric) AS pshare FROM order_discounts GROUP BY order_id) d ON d.order_id = o.id
+      LEFT JOIN (SELECT order_id, SUM(amount::numeric) AS priority_paid FROM transactions WHERE status = 'paid' AND transaction_type = 'priority_fee' GROUP BY order_id) pp ON pp.order_id = o.id
       WHERE ${vWhere}
       GROUP BY v.id, v.business_name, v.legal_name, v.business_type, v.verification_status, v.is_active, v.logo_id, med.url, v.total_merchants, v.average_rating
-      ORDER BY COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0))),0) DESC, COALESCE(SUM(t.amount::numeric),0) DESC`,
+      ORDER BY COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0) - GREATEST(0, COALESCE(o.priority_fee::numeric,0) - COALESCE(pp.priority_paid,0)) + COALESCE(d.pshare,0))),0) DESC, COALESCE(SUM(t.amount::numeric),0) DESC`,
   )
 
   // NOTE: refunded double-counts when an order has multiple paid tx (r joins per paid row).
@@ -118,10 +122,12 @@ export async function buildPayoutsOverview(payload: Payload, searchParams: URLSe
     payload,
     sql`SELECT date_trunc('day', t.paid_at)::date::text AS day,
       COALESCE(SUM(t.amount::numeric),0) AS gross,
-      COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0))),0) AS net,
+      COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0) - GREATEST(0, COALESCE(o.priority_fee::numeric,0) - COALESCE(pp.priority_paid,0)) + COALESCE(d.pshare,0))),0) AS net,
       COUNT(*)::int AS orders
       FROM transactions t JOIN orders o ON o.id = t.order_id
       JOIN merchants m ON m.id = o.merchant_id JOIN vendors v ON v.id = m.vendor_id
+      LEFT JOIN (SELECT order_id, SUM(platform_share::numeric) AS pshare FROM order_discounts GROUP BY order_id) d ON d.order_id = o.id
+      LEFT JOIN (SELECT order_id, SUM(amount::numeric) AS priority_paid FROM transactions WHERE status = 'paid' AND transaction_type = 'priority_fee' GROUP BY order_id) pp ON pp.order_id = o.id
       WHERE ${paidWindow} AND ${vWhere} GROUP BY 1 ORDER BY 1`,
   )
 
@@ -148,6 +154,8 @@ export async function buildPayoutsOverview(payload: Payload, searchParams: URLSe
       gross: getNum(r.gross),
       platformFees: getNum(r.pfees),
       deliveryFees: getNum(r.dfees),
+      priorityFees: getNum(r.priority_fees),
+      platformFundedDiscounts: getNum(r.platform_discount),
       net: getNum(r.net),
       refunded: refMap.get(vid) ?? getNum(r.refunded),
       avgOrder: getNum(r.orders) ? getNum(r.gross) / getNum(r.orders) : 0,
@@ -161,6 +169,8 @@ export async function buildPayoutsOverview(payload: Payload, searchParams: URLSe
     totalNet: rows.reduce((s, r) => s + r.net, 0),
     totalPlatformFees: rows.reduce((s, r) => s + r.platformFees, 0),
     totalDeliveryFees: rows.reduce((s, r) => s + r.deliveryFees, 0),
+    totalPriorityFees: rows.reduce((s, r) => s + r.priorityFees, 0),
+    totalPlatformFundedDiscounts: rows.reduce((s, r) => s + r.platformFundedDiscounts, 0),
     totalRefunded: rows.reduce((s, r) => s + r.refunded, 0),
     totalOrders: rows.reduce((s, r) => s + r.orders, 0),
     totalVendors: rows.length,

@@ -29,12 +29,12 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   clearPendingCheckoutSession,
-  requestDeliveryFulfillment,
   getCheckoutPaymentStatus,
   getPendingCheckoutSession,
   savePendingCheckoutSession,
 } from '../services/checkoutReturn';
 import type { AccountOverview } from '../services/account';
+import { useMerchantOrderAvailability } from '../hooks/useMerchantOrderAvailability';
 
 type PaymentMethod =
   | 'card'
@@ -48,10 +48,14 @@ type PaymentMethod =
 
 const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
 
-// Map address_type (Addresses) → label (DeliveryLocations enum: home | office | other)
-function normalizeLabel(val: string): string {
-  const map: Record<string, string> = { home: 'home', work: 'office', partner: 'other', office: 'office' };
-  return map[val] || 'other';
+function distanceToMeters(distance: { value?: string | number; unit?: string } | null | undefined): number | null {
+  if (!distance || distance.value == null) return null;
+  const value = Number(distance.value);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const unit = String(distance.unit || '').trim().toLowerCase();
+  if (unit === 'm' || unit === 'meter' || unit === 'meters') return value;
+  if (unit === 'km' || unit === 'kilometer' || unit === 'kilometers') return value * 1000;
+  return null;
 }
 
 const methodLogos: Record<PaymentMethod, { srcs: any[]; label: string; icon: any }> = {
@@ -114,6 +118,7 @@ export default function CheckoutScreen() {
   const params = useLocalSearchParams();
   const merchantIdParam = typeof params.id === 'string' ? params.id : params.merchantId as string;
   const merchantId = merchantIdParam ? Number(merchantIdParam) : NaN;
+  const merchantAvailability = useMerchantOrderAvailability(merchantId);
 
   const {
     getMerchantCart,
@@ -163,6 +168,7 @@ export default function CheckoutScreen() {
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasNavigatedToReturnRef = useRef(false);
   const qrNavigationInProgressRef = useRef(false);
+  const checkoutIdempotencyKeyRef = useRef<string | null>(null);
 
   const merchantCart = getMerchantCart(String(merchantId));
   const hasActiveCartItems = Boolean(merchantCart?.items.length);
@@ -176,12 +182,15 @@ export default function CheckoutScreen() {
   const [deliveryAvailable, setDeliveryAvailable] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [priorityFee, setPriorityFee] = useState(0);
+  const [deliveryDiscount, setDeliveryDiscount] = useState(0);
+  const [freeDeliveryApplied, setFreeDeliveryApplied] = useState(false);
   const [deliveryDistanceMeters, setDeliveryDistanceMeters] = useState<number | null>(null);
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false);
   const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
   const deliveryQuoteCacheKeyRef = useRef<string | null>(null);
 
-  const orderTotal = totalSubtotal + (deliveryAvailable ? deliveryFee + priorityFee : 0);
+  const deliveryCharge = deliveryAvailable ? deliveryFee + priorityFee : 0;
+  const orderTotal = Math.max(0, totalSubtotal + deliveryCharge - deliveryDiscount);
 
   const navigateToQrPayment = useCallback(
     (imageUrl: string, trace?: {
@@ -208,7 +217,7 @@ export default function CheckoutScreen() {
   );
 
   const fetchDeliveryQuote = useCallback(async () => {
-    if (!merchantId || !activeAddressId || !customerId || deliveryFeeLoading) return;
+    if (!merchantId || !activeAddressId || !customerId || !token || deliveryFeeLoading) return;
 
     const cacheKey = `${merchantId}:${activeAddressId}`;
     if (deliveryQuoteCacheKeyRef.current === cacheKey) return;
@@ -220,17 +229,15 @@ export default function CheckoutScreen() {
     try {
       const cmsHeaders = {
         'Content-Type': 'application/json',
-        Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+        Authorization: `JWT ${token}`,
       };
 
-      // Server resolves pickup from merchant.active_address_id and dropoff
-      // from customer.active_address_id (source of truth in the DB)
       const quoteRes = await fetch(`${apiConfig.baseUrl}/delivery/quote`, {
         method: 'POST',
         headers: cmsHeaders,
         body: JSON.stringify({
           merchantId,
-          customerId: Number(customerId),
+          addressId: Number(activeAddressId),
         }),
       });
 
@@ -241,6 +248,8 @@ export default function CheckoutScreen() {
         setDeliveryAvailable(false);
         setDeliveryFee(0);
         setPriorityFee(0);
+        setDeliveryDiscount(0);
+        setFreeDeliveryApplied(false);
         setDeliveryDistanceMeters(null);
         return;
       }
@@ -248,25 +257,24 @@ export default function CheckoutScreen() {
 
       setDeliveryFee(Number(quoteData?.data?.deliveryFee) || 0);
       setPriorityFee(Number(quoteData?.data?.priorityFee) || 0);
+      setDeliveryDiscount(Number(quoteData?.data?.deliveryDiscount) || 0);
+      setFreeDeliveryApplied(quoteData?.data?.freeDeliveryApplied === true);
 
       // Lalamove returns distance as { value, unit } (value in meters unless unit is km)
       const distance = quoteData?.data?.distance as { value?: string | number; unit?: string } | null;
-      if (distance && distance.value != null) {
-        const rawValue = Number(distance.value);
-        if (Number.isFinite(rawValue)) {
-          const unit = String(distance.unit || 'm').toLowerCase();
-          setDeliveryDistanceMeters(unit === 'km' ? rawValue * 1000 : rawValue);
-        }
-      }
+      setDeliveryDistanceMeters(distanceToMeters(distance));
     } catch (err: any) {
       deliveryQuoteCacheKeyRef.current = null;
       setDeliveryFee(0);
+      setPriorityFee(0);
+      setDeliveryDiscount(0);
+      setFreeDeliveryApplied(false);
       setDeliveryDistanceMeters(null);
       setDeliveryFeeError(err?.message || 'Could not estimate delivery fee');
     } finally {
       setDeliveryFeeLoading(false);
     }
-  }, [merchantId, activeAddressId, customerId, deliveryFeeLoading]);
+  }, [merchantId, activeAddressId, customerId, token, deliveryFeeLoading]);
 
   useEffect(() => {
     fetchDeliveryQuote();
@@ -486,7 +494,11 @@ export default function CheckoutScreen() {
   }, [qrIntentId, qrOrderId, customerId, merchantId, pathname, redirectToCheckoutReturn, reconcileExistingPayment, router]);
 
   const handleSandboxPay = async () => {
-    if (!user || !customerId || !activeAddressId) {
+    if (merchantAvailability.isUnavailable) {
+      Alert.alert('Merchant unavailable', merchantAvailability.unavailableMessage || 'This merchant is not accepting orders.');
+      return;
+    }
+    if (!user || !customerId || !activeAddressId || !token) {
       Alert.alert('Error', 'Please select a delivery address');
       return;
     }
@@ -496,7 +508,7 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (deliveryAvailable && deliveryFee <= 0) {
+    if (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied) {
       Alert.alert(
         'Delivery fee unavailable',
         deliveryFeeError || 'We could not calculate your delivery fee. Please try again.',
@@ -506,142 +518,40 @@ export default function CheckoutScreen() {
 
     setIsPaying(true);
     try {
-      const cmsHeaders = {
+      const response = await fetch(`${apiConfig.baseUrl}/checkout/prepare-v2`, {
+        method: 'POST',
+        headers: {
         'Content-Type': 'application/json',
-        Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
-      };
-
-      // 1. Create Order
-      const orderPayload = {
-        customer: Number(customerId),
-        merchant: merchantId,
-        status: 'pending',
-        fulfillment_type: 'delivery',
-        total: orderTotal,
-        subtotal: totalSubtotal,
-        delivery_fee: deliveryFee,
-        platform_fee: 0,
-        // Must mirror orderTotal (subtotal + delivery + priority when
-        // delivery is available) or the CMS beforeValidate total check fails.
-        priority_fee: deliveryAvailable ? priorityFee : 0,
-        placed_at: new Date().toISOString(),
-      };
-      const orderRes = await fetch(`${apiConfig.baseUrl}/orders`, {
-        method: 'POST',
-        headers: cmsHeaders,
-        body: JSON.stringify(orderPayload),
+        Authorization: `JWT ${token}`,
+        },
+        body: JSON.stringify({
+        merchantId,
+        addressId: Number(activeAddressId),
+        cartItemIds: merchantCart.items.map((item: any) => Number(item.id)),
+        paymentMethod: 'gcash',
+        expectedTotal: orderTotal,
+        idempotencyKey: `checkout-sandbox-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        }),
       });
-      const orderDataRes = await orderRes.json();
-      if (!orderRes.ok) throw new Error(orderDataRes?.error || 'Failed to create order');
-      const createdOrderId = orderDataRes.doc.id;
-      updateAccountOverviewAfterOrder(orderTotal);
-
-      // 2. Create Delivery Location
-      const addrRes = await fetch(`${apiConfig.baseUrl}/addresses/${activeAddressId}`, { headers: cmsHeaders });
-      if (!addrRes.ok) {
-        console.warn('[sandbox] address fetch failed:', addrRes.status);
-        throw new Error(`Failed to fetch delivery address (${addrRes.status})`);
-      }
-      const addrData = await addrRes.json();
-      const addressText =
-        addrData.formatted_address ||
-        [addrData.street_number, addrData.route, addrData.barangay, addrData.locality, addrData.country]
-          .filter(Boolean).join(', ');
-
-      let merchantAddrData: any = {};
-      try {
-        const merchantRes = await fetch(`${apiConfig.baseUrl}/merchants/${merchantId}?depth=1`, { headers: cmsHeaders });
-        if (merchantRes.ok) {
-          const merchantData = await merchantRes.json();
-          const merchantAddrId =
-            typeof merchantData?.activeAddress === 'object'
-              ? merchantData.activeAddress?.id
-              : merchantData?.activeAddress;
-          if (merchantAddrId) {
-            const mAddrRes = await fetch(`${apiConfig.baseUrl}/addresses/${merchantAddrId}`, { headers: cmsHeaders });
-            if (mAddrRes.ok) merchantAddrData = await mAddrRes.json();
-          }
+      const prepared = await response.json();
+      if (!response.ok) {
+        if (prepared?.code === 'CHECKOUT_REVIEW_REQUIRED' && prepared?.data) {
+        setDeliveryFee(Number(prepared.data.deliveryFee) || 0);
+        setPriorityFee(Number(prepared.data.priorityFee) || 0);
+        setDeliveryDiscount(Number(prepared.data.deliveryDiscount) || 0);
+        setFreeDeliveryApplied(prepared.data.freeDeliveryApplied === true);
+        Alert.alert('Review updated total', 'Delivery pricing or promotion eligibility changed. Please review the updated total and try again.');
+        return;
         }
-      } catch { /* non-critical */ }
-
-      const dlRes = await fetch(`${apiConfig.baseUrl}/delivery-locations`, {
-        method: 'POST',
-        headers: cmsHeaders,
-        body: JSON.stringify({
-          order: createdOrderId,
-          formatted_address: addressText || 'Unknown Address',
-          coordinates: { lat: addrData.latitude || 0, lng: addrData.longitude || 0 },
-          street: addrData.street || null,
-          floor_unit_room: addrData.floor_unit_room || null,
-          delivery_instructions: addrData.delivery_instructions || null,
-          notes: addrData.notes || addrData.accessibility_notes || null,
-          contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
-          contact_phone: user.phone || null,
-          label: normalizeLabel(addrData.label || addrData.address_type || ''),
-          merchant_formatted_address: merchantAddrData.formatted_address || null,
-          merchant_coordinates: (merchantAddrData.latitude && merchantAddrData.longitude)
-            ? { lat: merchantAddrData.latitude, lng: merchantAddrData.longitude } : null,
-          merchant_street: merchantAddrData.street || null,
-          merchant_floor_unit_room: merchantAddrData.floor_unit_room || null,
-          merchant_delivery_instructions: merchantAddrData.delivery_instructions || null,
-          merchant_label: normalizeLabel(merchantAddrData.label || merchantAddrData.address_type || ''),
-        }),
-      });
-      if (!dlRes.ok) {
-        const dlErr = await dlRes.json().catch(() => ({}));
-        console.error('[sandbox] delivery-location failed:', dlRes.status, dlErr);
-        throw new Error(`Failed to create delivery location: ${dlErr?.error || dlRes.status}`);
+        throw new Error(prepared?.error || 'Failed to prepare sandbox checkout');
       }
-
-      // 3. Create Order Items + link cart items
-      for (const item of merchantCart.items) {
-        const optionsSnapshot = [
-          ...(item.selectedVariation
-            ? [{ entryType: 'variation', name: item.selectedVariationName || `Variation #${item.selectedVariation}`, selectedVariationId: item.selectedVariation, selectedVariationName: item.selectedVariationName || undefined, price: 0 }]
-            : []),
-          ...((item.selectedModifiers || []).map((modifier: any) => ({
-            entryType: 'modifier', sourceType: modifier?.source, groupId: modifier?.groupId,
-            groupName: modifier?.groupName, optionId: modifier?.optionId,
-            optionName: modifier?.name, selectedVariationId: item.selectedVariation || undefined,
-            selectedVariationName: item.selectedVariationName || undefined,
-            name: modifier?.name || 'Modifier', price: typeof modifier?.price === 'number' ? modifier.price : 0,
-          }))),
-        ];
-
-        await fetch(`${apiConfig.baseUrl}/order-items`, {
-          method: 'POST',
-          headers: cmsHeaders,
-          body: JSON.stringify({
-            order: createdOrderId, product: item.product, merchant_product: item.merchantProduct || null,
-            product_name_snapshot: item.productName, price_at_purchase: item.priceAtAdd,
-            quantity: item.quantity, options_snapshot: optionsSnapshot, total_price: item.subtotal,
-          }),
-        });
-
-        await fetch(`${apiConfig.baseUrl}/cart-items/${item.id}`, {
-          method: 'PATCH',
-          headers: cmsHeaders,
-          body: JSON.stringify({ order_id: createdOrderId }),
-        });
+      const data = prepared?.data;
+      const createdOrderId = data?.orderId;
+      if (!createdOrderId || !data?.payment?.paid) {
+        throw new Error('Sandbox checkout was not confirmed as paid.');
       }
-
-      // 4. Create Transaction (paid immediately — sandbox)
-      await fetch(`${apiConfig.baseUrl}/transactions`, {
-        method: 'POST',
-        headers: cmsHeaders,
-        body: JSON.stringify({
-          order: createdOrderId,
-          payment_intent_id: `sandbox_${Date.now()}`,
-          payment_method: 'gcash',
-          amount: orderTotal,
-          currency: 'PHP',
-          status: 'paid',
-          paid_at: new Date().toISOString(),
-        }),
-      });
-
-      // Sandbox transactions bypass the PayMongo webhook, so explicitly enqueue fulfillment.
-      await requestDeliveryFulfillment(String(createdOrderId));
+      markCheckedOut(merchantCart.items.map((item: any) => item.id));
+      updateAccountOverviewAfterOrder(Number(data.total) || orderTotal);
       await reload();
 
       hasNavigatedToReturnRef.current = true;
@@ -658,7 +568,11 @@ export default function CheckoutScreen() {
   };
 
   const handlePayNow = async () => {
-    if (!user || !customerId || !activeAddressId) {
+    if (merchantAvailability.isUnavailable) {
+      Alert.alert('Merchant unavailable', merchantAvailability.unavailableMessage || 'This merchant is not accepting orders.');
+      return;
+    }
+    if (!user || !customerId || !activeAddressId || !token) {
       Alert.alert('Error', 'Please select a delivery address');
       return;
     }
@@ -673,7 +587,7 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (deliveryAvailable && deliveryFee <= 0) {
+    if (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied) {
       Alert.alert(
         'Delivery fee unavailable',
         deliveryFeeError || 'We could not calculate your delivery fee. Please try again.',
@@ -690,6 +604,10 @@ export default function CheckoutScreen() {
     }
 
     const checkoutRequestId = `checkout-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    if (!checkoutIdempotencyKeyRef.current) {
+      checkoutIdempotencyKeyRef.current =
+        `checkout-attempt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
     const payStartedAt = Date.now();
     console.info('[checkout-pay] started', {
       checkoutRequestId,
@@ -707,9 +625,9 @@ export default function CheckoutScreen() {
         throw new Error('Missing PayMongo public key');
       }
 
-      const cmsHeaders = {
+      const checkoutHeaders = {
         'Content-Type': 'application/json',
-        Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+        Authorization: `JWT ${token}`,
         'X-Request-ID': checkoutRequestId,
       };
 
@@ -737,137 +655,70 @@ export default function CheckoutScreen() {
         }
       };
 
-      // 1. Create Payment Method directly with PayMongo API
-      const billing = {
-        name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Tap2Go Customer',
-        email: user.email || 'customer@example.com',
-        phone: '',
-        address: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'PH' },
-      };
-
-      const pmPayload: any = {
-        data: {
-          attributes: {
-            type: paymentMethod,
-            billing,
-          },
-        },
-      };
-
-      const paymentMethodRequest = timedRequest('payment_method', () =>
-        fetch('https://api.paymongo.com/v1/payment_methods', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Basic ${btoa(pk + ':')}`,
-          },
-          body: JSON.stringify(pmPayload),
-        }),
-      );
-
-      const paymentIntentRequest = timedRequest('payment_intent', () =>
-        fetch(`${apiConfig.baseUrl}/create-payment-intent`, {
-          method: 'POST',
-          headers: cmsHeaders,
-          body: JSON.stringify({
-            amount: Math.round(orderTotal * 100),
-            currency: 'PHP',
-            description: `Order from ${merchantName}`,
-            metadata: {
-              userId: user.id,
-              merchantId,
-              addressId: activeAddressId,
-            },
-          }),
-        }),
-      );
-
-      const [pmResult, intentResult] = await Promise.allSettled([
-        paymentMethodRequest,
-        paymentIntentRequest,
-      ]);
-      if (pmResult.status === 'rejected') {
-        throw pmResult.reason;
-      }
-      if (intentResult.status === 'rejected') {
-        throw intentResult.reason;
-      }
-
-      const { response: pmResponse, data: pmData } = pmResult.value;
-      const { response: intentResponse, data: intentData } = intentResult.value;
-
-      if (!pmResponse.ok) {
-        throw new Error(pmData?.errors?.[0]?.detail || 'Failed to create payment method');
-      }
-
-      const paymentMethodId = pmData.data.id;
-
-      if (!intentResponse.ok) {
-        throw new Error(intentData.error || 'Failed to create payment intent');
-      }
-
-      const intentId = intentData?.data?.id ? String(intentData.data.id) : null;
-      const cKey = intentData?.data?.attributes?.client_key ? String(intentData.data.attributes.client_key) : null;
-
-      if (!intentId || !cKey) {
-        throw new Error('Missing intent/client_key from CMS response');
-      }
-
       const { response: checkoutPrepareRes, data: preparedCheckout } = await timedRequest(
         'checkout_prepare',
         () =>
-          fetch(`${apiConfig.baseUrl}/checkout/prepare`, {
+          fetch(`${apiConfig.baseUrl}/checkout/prepare-v2`, {
             method: 'POST',
-            headers: cmsHeaders,
+            headers: checkoutHeaders,
             body: JSON.stringify({
-              customerId: Number(customerId),
               merchantId,
-              addressId: activeAddressId,
-              paymentIntentId: intentId,
+              addressId: Number(activeAddressId),
+              cartItemIds: merchantCart.items.map((item: any) => Number(item.id)),
               paymentMethod,
-              deliveryFee,
-              priorityFee,
-              subtotal: totalSubtotal,
-              total: orderTotal,
-              cartItems: merchantCart.items.map((item: any) => ({
-                id: item.id,
-                product: item.product,
-                merchantProduct: item.merchantProduct || null,
-                productName: item.productName,
-                priceAtAdd: item.priceAtAdd,
-                quantity: item.quantity,
-                subtotal: item.subtotal,
-                selectedVariation: item.selectedVariation,
-                selectedVariationName: item.selectedVariationName,
-                selectedModifiers: item.selectedModifiers || [],
-              })),
-              customerName: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
-              customerPhone: user.phone || null,
+              expectedTotal: orderTotal,
+              idempotencyKey: checkoutIdempotencyKeyRef.current,
             }),
           }),
       );
       if (!checkoutPrepareRes.ok) {
         cartUnavailable = preparedCheckout?.code === 'CHECKOUT_CART_UNAVAILABLE';
+        if (preparedCheckout?.code === 'CHECKOUT_REVIEW_REQUIRED' && preparedCheckout?.data) {
+          const updated = preparedCheckout.data;
+          setDeliveryAvailable(updated.deliveryAvailable !== false);
+          setDeliveryFee(Number(updated.deliveryFee) || 0);
+          setPriorityFee(Number(updated.priorityFee) || 0);
+          setDeliveryDiscount(Number(updated.deliveryDiscount) || 0);
+          setFreeDeliveryApplied(updated.freeDeliveryApplied === true);
+          const distance = updated.distance as { value?: string | number; unit?: string } | null;
+          setDeliveryDistanceMeters(distanceToMeters(distance));
+          checkoutIdempotencyKeyRef.current = null;
+          Alert.alert(
+            'Review updated total',
+            'Delivery pricing or promotion eligibility changed. Please review the updated total and try again.',
+          );
+          return;
+        }
         throw new Error(preparedCheckout?.error || 'Failed to prepare checkout');
       }
 
       const createdOrderId = preparedCheckout?.data?.orderId;
-      const transactionId = preparedCheckout?.data?.transactionId;
+      const payment = preparedCheckout?.data?.payment;
       if (!createdOrderId) {
         throw new Error('Checkout preparation returned no order ID');
       }
-      if (!preparedCheckout?.existingOrder) {
-        updateAccountOverviewAfterOrder(orderTotal);
+      if (!payment || payment.failed) {
+        throw new Error('Checkout did not return a usable payment session.');
       }
       markCheckedOut(merchantCart.items.map((item) => item.id));
-      if (preparedCheckout?.existingOrder) {
+      if (!preparedCheckout?.data?.reused) {
+        updateAccountOverviewAfterOrder(Number(preparedCheckout.data.total) || orderTotal);
+      }
+      if (payment.paid) {
         await clearPendingCheckoutSession(String(customerId), String(merchantId));
-        router.push(`/order/${createdOrderId}`);
-        Alert.alert(
-          'Pending order found',
-          'Continue payment from the order details. No duplicate order was created.',
-        );
+        await reload();
+        hasNavigatedToReturnRef.current = true;
+        router.replace({
+          pathname: '/order-success',
+          params: { orderId: String(createdOrderId), merchantId: String(merchantId) },
+        });
         return;
+      }
+
+      const intentId = typeof payment.paymentIntentId === 'string' ? payment.paymentIntentId : '';
+      const cKey = typeof payment.clientKey === 'string' ? payment.clientKey : '';
+      if (!intentId || !cKey) {
+        throw new Error('Checkout payment preparation returned no payment intent.');
       }
 
       await savePendingCheckoutSession({
@@ -879,32 +730,31 @@ export default function CheckoutScreen() {
       });
       pendingCheckoutSessionSaved = true;
 
-      // Sandbox: skip PayMongo entirely — mark paid and book Lalamove directly
-      if (apiConfig.isPaymongoSandbox) {
-        // PATCH the pending transaction to paid
-        if (transactionId) {
-          await fetch(`${apiConfig.baseUrl}/transactions/${transactionId}`, {
-            method: 'PATCH',
-            headers: cmsHeaders,
-            body: JSON.stringify({
-              status: 'paid',
-              paid_at: new Date().toISOString(),
-            }),
-          });
-        }
-
-        await requestDeliveryFulfillment(String(createdOrderId));
-        await clearPendingCheckoutSession(String(customerId), String(merchantId));
-        await reload();
-        hasNavigatedToReturnRef.current = true;
-        router.replace({
-          pathname: '/order-success',
-          params: {
-            orderId: String(createdOrderId),
-            merchantId: String(merchantId),
+      const billing = {
+        name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Tap2Go Customer',
+        email: user.email || 'customer@example.com',
+        phone: '',
+        address: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'PH' },
+      };
+      const paymentMethodRequest = timedRequest('payment_method', () =>
+        fetch('https://api.paymongo.com/v1/payment_methods', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${btoa(pk + ':')}`,
           },
-        });
-        return;
+          body: JSON.stringify({
+            data: { attributes: { type: paymentMethod, billing } },
+          }),
+        }),
+      );
+      const { response: pmResponse, data: pmData } = await paymentMethodRequest;
+      if (!pmResponse.ok) {
+        throw new Error(pmData?.errors?.[0]?.detail || 'Failed to create payment method');
+      }
+      const paymentMethodId = pmData?.data?.id;
+      if (!paymentMethodId) {
+        throw new Error('Payment provider returned no payment method.');
       }
 
       // 6. Attach Payment Method to Payment Intent
@@ -1175,6 +1025,14 @@ export default function CheckoutScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {merchantAvailability.isUnavailable && (
+          <View style={{ marginHorizontal: 16, marginTop: 16, padding: 12, borderRadius: 8, backgroundColor: '#FEF3C7', flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="sunny-outline" size={18} color="#92400E" style={{ marginRight: 8 }} />
+            <Text style={{ flex: 1, color: '#78350F', fontSize: 13, fontWeight: '600' }}>
+              {merchantAvailability.unavailableMessage}
+            </Text>
+          </View>
+        )}
         <View style={[styles.section, styles.addressSection]}>
           <Text style={styles.sectionTitle}>Delivery Address</Text>
           <TouchableOpacity
@@ -1227,17 +1085,29 @@ export default function CheckoutScreen() {
             </View>
             {deliveryAvailable ? (
               <View style={styles.deliveryFeeRow}>
-                <Text style={styles.subtotalLabel}>Delivery Fee</Text>
+                <Text style={styles.subtotalLabel}>Delivery & priority fee</Text>
                 {deliveryFeeLoading ? (
                   <ActivityIndicator size="small" color="#f97316" />
+                ) : freeDeliveryApplied ? (
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ color: '#6B7280', fontSize: 12, textDecorationLine: 'line-through' }}>
+                      {formatCurrency(deliveryCharge)}
+                    </Text>
+                    <Text style={[styles.subtotalValue, { color: '#15803D' }]}>FREE</Text>
+                  </View>
                 ) : (
                   <Text style={styles.subtotalValue}>
-                    {deliveryFee > 0 ? formatCurrency(deliveryFee + priorityFee) : 'Calculating…'}
+                    {deliveryCharge > 0 ? formatCurrency(deliveryCharge) : 'Calculating…'}
                   </Text>
                 )}
               </View>
             ) : null}
-            {deliveryAvailable && !deliveryFeeLoading && deliveryDistanceMeters != null && deliveryFee > 0 && (
+            {freeDeliveryApplied && !deliveryFeeLoading ? (
+              <Text style={{ color: '#15803D', fontSize: 12, marginTop: 4 }}>
+                New-user offer: delivery and priority fee waived within 5 km.
+              </Text>
+            ) : null}
+            {deliveryAvailable && !deliveryFeeLoading && deliveryDistanceMeters != null && (
               <View style={styles.deliveryDistanceRow}>
                 <Text style={styles.deliveryDistanceLabel}>Delivery Distance</Text>
                 <Text style={styles.deliveryDistanceValue}>
@@ -1406,11 +1276,11 @@ export default function CheckoutScreen() {
             style={[
               styles.payButton,
               { backgroundColor: '#8b5cf6' },
-              (!isFormValid || isPaying || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
+              (!isFormValid || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
                 styles.payButtonDisabled,
             ]}
             onPress={handleSandboxPay}
-            disabled={!isFormValid || isPaying || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
+            disabled={!isFormValid || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
           >
             {isPaying ? (
               <ActivityIndicator color="#fff" />
@@ -1418,7 +1288,7 @@ export default function CheckoutScreen() {
               <Text style={styles.payButtonText}>
                 {deliveryFeeLoading
                   ? 'Calculating delivery fee...'
-                  : deliveryAvailable && deliveryFee <= 0
+                  : deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied
                     ? 'Delivery fee unavailable'
                     : `Simulate Payment (Sandbox)`}
               </Text>
@@ -1428,11 +1298,11 @@ export default function CheckoutScreen() {
           <TouchableOpacity
             style={[
               styles.payButton,
-              (!isFormValid || isPaying || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)) &&
+              (!isFormValid || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
                 styles.payButtonDisabled,
             ]}
             onPress={handlePayNow}
-            disabled={!isFormValid || isPaying || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0)}
+            disabled={!isFormValid || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
           >
             {isPaying || (isCheckingPaymentState && !hasActiveCartItems) ? (
               <ActivityIndicator color="#fff" />
@@ -1440,7 +1310,7 @@ export default function CheckoutScreen() {
               <Text style={styles.payButtonText}>
                 {deliveryFeeLoading
                   ? 'Calculating delivery fee...'
-                  : deliveryAvailable && deliveryFee <= 0
+                  : deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied
                     ? 'Delivery fee unavailable'
                     : `Pay ${formatCurrency(orderTotal)}`}
               </Text>

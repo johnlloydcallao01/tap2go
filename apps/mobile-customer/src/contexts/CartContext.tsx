@@ -503,6 +503,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           try {
             const data = await res.json();
             const messages: string[] = [];
+            if (data && typeof (data as any).error === 'string') {
+              messages.push((data as any).error);
+            }
             if (data && typeof (data as any).message === 'string') {
               messages.push((data as any).message);
             }

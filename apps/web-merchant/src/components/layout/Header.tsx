@@ -86,7 +86,7 @@ export function Header({
             <div className="flex items-center space-x-2">
               <div className="w-10 h-10 relative flex-shrink-0">
                 <Image
-                  src="/logo.png"
+                  src="/logo.png?v=2"
                   alt="tap2go"
                   width={40}
                   height={40}

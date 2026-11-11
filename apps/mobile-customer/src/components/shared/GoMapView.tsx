@@ -40,6 +40,8 @@ interface GoMapViewProps {
   polyline?: GoMapCenter[];
   /** Fit the camera to markers+polyline once after load. */
   autoFit?: boolean;
+  /** Refit when a route polyline arrives after the markers. */
+  fitOnPolylineChange?: boolean;
   onRegionChangeComplete?: (center: GoMapCenter & { zoom: number }) => void;
   onReady?: () => void;
   onError?: (message: string) => void;
@@ -185,6 +187,7 @@ export function GoMapView({
   markers = [],
   polyline = [],
   autoFit = false,
+  fitOnPolylineChange = false,
   onRegionChangeComplete,
   onReady,
   onError,
@@ -235,11 +238,13 @@ export function GoMapView({
   }, [JSON.stringify(markers), send]);
 
   useEffect(() => {
-    const doFit = autoFit && !fittedOnce.current;
+    const doFit =
+      autoFit &&
+      ((!fittedOnce.current) || (fitOnPolylineChange && polyline.length >= 2));
     if (doFit) fittedOnce.current = true;
     send({ cmd: 'setRoute', path: polyline, autoFit: doFit });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(polyline), send]);
+  }, [JSON.stringify(polyline), fitOnPolylineChange, autoFit, send]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
     try {

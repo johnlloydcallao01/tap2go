@@ -53,7 +53,7 @@ export async function GET(request: NextRequest){
       const emptyBody = {
         meta:{range:label, days, generatedAt: now.toISOString(), vendorId, vendorName, periodStart: periodStart?periodStart.toISOString():null, periodEnd: now.toISOString()},
         summary:{totalRevenue:0,totalRefunded:0,netRevenue:0,totalOrders:0,avgOrder:0, paidCount:0, refundedCount:0, failedCount:0, totalOutlets:0},
-        financialReconciliation:{rows:[], totals:{gross:0,platformFees:0,deliveryFees:0}, count:0},
+        financialReconciliation:{rows:[], totals:{gross:0,platformFees:0,deliveryFees:0,priorityFees:0,platformFundedDiscounts:0}, count:0},
         outletPayouts:{rows:[], count:0},
         orderVolume:{daily:[], totalOrders:0, totalRevenue:0},
         refundsFailures:{rows:[], count:0},
@@ -70,6 +70,18 @@ export async function GET(request: NextRequest){
     const orderIds=Array.from(new Set(ordersDocs.map(o=>String(o.id))))
     const transactionsRes= orderIds.length? await payload.find({collection:'transactions', where:{order:{in:orderIds}}, limit:3000, depth:0, overrideAccess:true}):{docs:[] as unknown[]}
     const transactionsDocs=transactionsRes.docs as unknown as Record<string,unknown>[]
+    const discountsRes= orderIds.length? await payload.find({collection:'order-discounts', where:{order:{in:orderIds}}, limit:5000, depth:0, overrideAccess:true}):{docs:[] as unknown[]}
+    const platformDiscountsByOrder=new Map<string,number>()
+    discountsRes.docs.forEach((discount:any)=>{
+      const oid=resolveId(discount.order)
+      platformDiscountsByOrder.set(oid,(platformDiscountsByOrder.get(oid)||0)+getNum(discount.platform_share))
+    })
+    const paidPriorityFeesByOrder=new Map<string,number>()
+    transactionsDocs.forEach((transaction:any)=>{
+      if(String(transaction.status)!=='paid'||String(transaction.transaction_type)!=='priority_fee') return
+      const oid=resolveId(transaction.order)
+      paidPriorityFeesByOrder.set(oid,(paidPriorityFeesByOrder.get(oid)||0)+getNum(transaction.amount))
+    })
     const orderItemsRes= orderIds.length? await payload.find({collection:'order-items', where:{order:{in:orderIds}}, limit:5000, depth:0, overrideAccess:true}):{docs:[] as unknown[]}
     const orderItemsDocs=orderItemsRes.docs as unknown as Record<string,unknown>[]
     const deliveryBookingsRes= orderIds.length? await payload.find({collection:'delivery-bookings', where:{order:{in:orderIds}}, limit:1000, depth:0, overrideAccess:true}):{docs:[] as unknown[]}
@@ -82,7 +94,7 @@ export async function GET(request: NextRequest){
       return !isNaN(d.getTime()) && d>=periodStart && d<=now
     }
     const ordersPeriod=ordersDocs.filter(o=>isInPeriod(o as Record<string,unknown>,'createdAt'))
-    const paidTxPeriod=transactionsDocs.filter(t=>String(t.status)==='paid' && isInPeriod(t as Record<string,unknown>,'paid_at'))
+    const paidTxPeriod=transactionsDocs.filter(t=>String(t.status)==='paid' && String(t.transaction_type||'order')!=='priority_fee' && isInPeriod(t as Record<string,unknown>,'paid_at'))
     const refundedTxPeriod=transactionsDocs.filter(t=>String(t.status)==='refunded' && isInPeriod(t as Record<string,unknown>,'createdAt'))
     const failedTxPeriod=transactionsDocs.filter(t=>String(t.status)==='failed' && isInPeriod(t as Record<string,unknown>,'createdAt'))
 
@@ -100,11 +112,11 @@ export async function GET(request: NextRequest){
       const mid=mObj?String(mObj.id??''):String(merchantRaw??'')
       const merchant=mid?merchantMap.get(mid):mObj
       const outName=merchant?getStr(merchant.outletName,`Outlet #${mid}`):'N/A'
-      return { transactionId:String(t.id), orderId:oid||'—', date:String(t.paid_at??t.createdAt??''), outlet: outName, amount:getNum(t.amount), platformFee: order?getNum((order as any).platform_fee):0, deliveryFee: order?getNum((order as any).delivery_fee):0, status:String(t.status), paymentMethod:getStr(t.payment_method,'unknown'), gross: order?getNum((order as any).total):getNum(t.amount)}
+      return { transactionId:String(t.id), orderId:oid||'—', date:String(t.paid_at??t.createdAt??''), outlet: outName, amount:getNum(t.amount), platformFee: order?getNum((order as any).platform_fee):0, deliveryFee: order?getNum((order as any).delivery_fee):0, priorityFee: order?getNum((order as any).priority_fee):0, platformFundedDiscount:platformDiscountsByOrder.get(oid)||0, status:String(t.status), paymentMethod:getStr(t.payment_method,'unknown'), gross: order?getNum((order as any).total):getNum(t.amount)}
     })
 
     // Outlet payouts (per outlet net)
-    const outletAgg=new Map<string,{outletName:string; orders:number; gross:number; platformFees:number; deliveryFees:number; net:number}>()
+    const outletAgg=new Map<string,{outletName:string; orders:number; gross:number; platformFees:number; deliveryFees:number; priorityFees:number; platformFundedDiscounts:number; net:number}>()
     paidTxPeriod.forEach(t=>{
       const oid=resolveId(t.order)
       const order=oid?orderMap.get(oid):null
@@ -115,9 +127,11 @@ export async function GET(request: NextRequest){
       if(!mid) return
       const outlet=mid?merchantMap.get(mid):null
       const name=outlet?getStr(outlet.outletName, mid):getStr(mObj?.outletName, mid)
-      const agg=outletAgg.get(mid)||{outletName:name, orders:0,gross:0,platformFees:0,deliveryFees:0,net:0}
+      const agg=outletAgg.get(mid)||{outletName:name, orders:0,gross:0,platformFees:0,deliveryFees:0,priorityFees:0,platformFundedDiscounts:0,net:0}
       const amt=getNum(t.amount)
-      agg.orders+=1; agg.gross+=amt; agg.platformFees+=getNum((order as any).platform_fee); agg.deliveryFees+=getNum((order as any).delivery_fee); agg.net+=Math.max(0, amt-getNum((order as any).platform_fee)-getNum((order as any).delivery_fee))
+      const platformDiscount=platformDiscountsByOrder.get(oid)||0
+      const priorityFeeIncludedInOrderPayment=Math.max(0,getNum((order as any).priority_fee)-(paidPriorityFeesByOrder.get(oid)||0))
+      agg.orders+=1; agg.gross+=amt; agg.platformFees+=getNum((order as any).platform_fee); agg.deliveryFees+=getNum((order as any).delivery_fee); agg.priorityFees+=getNum((order as any).priority_fee); agg.platformFundedDiscounts+=platformDiscount; agg.net+=Math.max(0,amt-getNum((order as any).platform_fee)-getNum((order as any).delivery_fee)-priorityFeeIncludedInOrderPayment+platformDiscount)
       outletAgg.set(mid,agg)
     })
     const outletPayouts=Array.from(outletAgg.entries()).map(([outletId,v])=>({outletId, ...v})).sort((a,b)=>b.gross-a.gross)
@@ -141,7 +155,7 @@ export async function GET(request: NextRequest){
     const responseBody = {
       meta:{range:label, days, generatedAt: now.toISOString(), vendorId, vendorName, periodStart: periodStart?periodStart.toISOString():null, periodEnd: now.toISOString(), totalOrders: ordersDocs.length},
       summary:{totalRevenue,totalRefunded,netRevenue,totalOrders,avgOrder, paidCount:paidTxPeriod.length, refundedCount:refundedTxPeriod.length, failedCount:failedTxPeriod.length, totalOutlets: merchantsDocs.length},
-      financialReconciliation:{rows:financialRows, totals:{gross:totalRevenue, platformFees: financialRows.reduce((s,r)=>s+r.platformFee,0), deliveryFees: financialRows.reduce((s,r)=>s+r.deliveryFee,0)}, count: financialRows.length, totalCount: paidTxPeriod.length},
+      financialReconciliation:{rows:financialRows, totals:{gross:totalRevenue, platformFees: financialRows.reduce((s,r)=>s+r.platformFee,0), deliveryFees: financialRows.reduce((s,r)=>s+r.deliveryFee,0), priorityFees: financialRows.reduce((s,r)=>s+r.priorityFee,0), platformFundedDiscounts: financialRows.reduce((s,r)=>s+r.platformFundedDiscount,0)}, count: financialRows.length, totalCount: paidTxPeriod.length},
       outletPayouts:{rows:outletPayouts, count: outletPayouts.length},
       orderVolume:{daily:orderVolumeDaily, totalOrders, totalRevenue},
       refundsFailures:{rows:refundsRows, count: refundsRows.length},

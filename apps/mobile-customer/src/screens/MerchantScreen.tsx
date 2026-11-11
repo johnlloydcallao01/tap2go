@@ -37,6 +37,7 @@ import ViewCartBar from '../components/shared/ViewCartBar';
 import { useWishlist } from '../hooks/useWishlist';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { apiConfig } from '../config/environment';
+import { getMerchantOrderUnavailableMessage } from '../utils/merchantAvailability';
 
 const MerchantSkeleton = () => {
   const { width } = useWindowDimensions();
@@ -81,6 +82,22 @@ const MerchantSkeleton = () => {
   );
 };
 
+const MerchantMenuSkeleton = () => {
+  const { width } = useWindowDimensions();
+  const itemWidth = (width - 32 - 12) / 2;
+
+  return (
+    <View style={{ padding: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+      {[0, 1, 2, 3].map((item) => (
+        <View key={item} style={{ width: itemWidth, marginBottom: 16 }}>
+          <View style={{ width: '100%', aspectRatio: 1, backgroundColor: '#F3F4F6', borderRadius: 12, marginBottom: 8 }} />
+          <View style={{ width: '80%', height: 16, backgroundColor: '#F3F4F6', borderRadius: 4 }} />
+        </View>
+      ))}
+    </View>
+  );
+};
+
 interface Section {
   title: string;
   data: MerchantProductDisplay[][]; // Array of rows (each row is array of 1 or 2 products)
@@ -105,6 +122,7 @@ export default function MerchantScreen() {
   const sectionListRef = useRef<SectionList>(null);
   const stickyCategoryListRef = useRef<FlatList>(null);
   const headerCategoryListRef = useRef<FlatList>(null);
+  const forceRefreshRequested = useRef(false);
   const isManualScroll = useRef(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { addToCart, getMerchantCart, updateQuantity } = useCart();
@@ -187,11 +205,14 @@ export default function MerchantScreen() {
   // 1. Fetch Merchant Details
   const merchantQuery = useQuery({
     queryKey: ['merchant', merchantId],
-    queryFn: ({ signal }) => getMerchantByIdClient(String(merchantId), signal),
+    queryFn: ({ signal }) =>
+      getMerchantByIdClient(String(merchantId), signal, forceRefreshRequested.current),
     enabled: !!merchantId,
-    staleTime: 1000 * 60 * 15,
+    staleTime: 1000 * 30,
   });
   const merchant = merchantQuery.data;
+  const merchantUnavailableMessage = getMerchantOrderUnavailableMessage(merchant);
+  const merchantOrderingUnavailable = merchantUnavailableMessage !== null;
   const isLoadingMerchant = merchantQuery.isLoading;
   const isRefetchingMerchant = merchantQuery.isRefetching;
 
@@ -199,7 +220,13 @@ export default function MerchantScreen() {
   const merchantMenuQuery = useInfiniteQuery({
     queryKey: ['merchant-menu', merchantId, 20],
     queryFn: ({ pageParam = 1, signal }) =>
-      getMerchantMenuClient(String(merchantId), pageParam, 20, signal),
+      getMerchantMenuClient(
+        String(merchantId),
+        pageParam,
+        20,
+        signal,
+        forceRefreshRequested.current,
+      ),
     getNextPageParam: (lastPage) => {
       if (lastPage.pagination?.hasNextPage) {
         return lastPage.pagination.page + 1;
@@ -208,7 +235,7 @@ export default function MerchantScreen() {
     },
     initialPageParam: 1,
     enabled: !!merchantId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
   });
   const {
     data: menuData,
@@ -224,6 +251,7 @@ export default function MerchantScreen() {
   const handleRefresh = useCallback(async () => {
     if (refreshInProgress.current) return;
     refreshInProgress.current = true;
+    forceRefreshRequested.current = true;
     setRefreshing(true);
     try {
       console.log('🔄 MerchantScreen: Pull-to-refresh triggered');
@@ -242,20 +270,21 @@ export default function MerchantScreen() {
     } catch (error) {
       console.error('MerchantScreen pull-to-refresh error:', error);
     } finally {
+      forceRefreshRequested.current = false;
       setRefreshing(false);
       refreshInProgress.current = false;
     }
   }, [queryClient, merchantId]);
 
   const isRefreshing = refreshing || isRefetchingMerchant || isRefetchingMenu;
-  const isLoading = isLoadingMerchant || isLoadingMenu;
   const hasRefreshError =
     !!merchant &&
-    (merchantQuery.isError || merchantMenuQuery.isError);
+    (merchantQuery.isError || (merchantMenuQuery.isError && !!menuData));
   const hasInitialLoadError =
-    !isLoading &&
+    !isLoadingMerchant &&
     !merchant &&
-    (merchantQuery.isError || merchantMenuQuery.isError);
+    (merchantQuery.isError || merchantMenuQuery.isError || merchantQuery.isSuccess);
+  const hasInitialMenuError = !isLoadingMenu && !menuData && merchantMenuQuery.isError;
 
   // 3. Group Products by Category and Chunk for Grid
   const { sections, categories, allProducts } = useMemo(() => {
@@ -401,6 +430,11 @@ export default function MerchantScreen() {
       // Pass productId and merchantId so ProductScreen can fetch details
       navigation.navigate('Product', { productId: product.id, merchantId, merchantProductId: product.merchantProductId });
     } else {
+      if (merchantOrderingUnavailable) {
+        Alert.alert('Merchant unavailable', merchantUnavailableMessage || 'This merchant is not accepting orders.');
+        return;
+      }
+
       try {
         let merchantProductId = product.merchantProductId;
 
@@ -573,6 +607,15 @@ export default function MerchantScreen() {
           )}
         </View>
 
+        {merchantOrderingUnavailable && (
+          <View style={{ marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: 8, backgroundColor: '#FEF3C7', flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="sunny-outline" size={18} color="#92400E" style={{ marginRight: 8 }} />
+            <Text style={{ flex: 1, color: '#78350F', fontSize: 13, fontWeight: '600' }}>
+              {merchantUnavailableMessage}
+            </Text>
+          </View>
+        )}
+
         {/* Search Bar */}
         <View
           style={{ paddingHorizontal: 16, marginTop: 16 }}
@@ -660,7 +703,8 @@ export default function MerchantScreen() {
               />
               {/* Add Button Overlay */}
               <TouchableOpacity
-                style={styles.addButton}
+                style={[styles.addButton, merchantOrderingUnavailable && product.productType === 'simple' && !product.hasRequiredModifiers && { opacity: 0.45 }]}
+                disabled={merchantOrderingUnavailable && product.productType === 'simple' && !product.hasRequiredModifiers}
                 onPress={() => {
                   if (product.hasRequiredModifiers) {
                     navigation.navigate('Product', { productId: product.id, merchantId, merchantProductId: product.merchantProductId });
@@ -712,7 +756,7 @@ export default function MerchantScreen() {
     );
   };
 
-  const showSkeleton = isLoading || isRefreshing;
+  const showSkeleton = isLoadingMerchant && !merchant;
 
   if (showSkeleton) {
     return (
@@ -738,7 +782,7 @@ export default function MerchantScreen() {
         </Text>
         <TouchableOpacity
           onPress={() => {
-            void Promise.all([merchantQuery.refetch(), merchantMenuQuery.refetch()]);
+            void handleRefresh();
           }}
           style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.primary }}
         >
@@ -921,6 +965,23 @@ export default function MerchantScreen() {
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
         ListHeaderComponent={renderHeader}
+        ListEmptyComponent={
+          isLoadingMenu && !menuData ? (
+            <MerchantMenuSkeleton />
+          ) : hasInitialMenuError ? (
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <Text style={{ color: '#6b7280', fontSize: 15, textAlign: 'center' }}>
+                Couldn&apos;t load this menu. Check your connection and try again.
+              </Text>
+              <TouchableOpacity
+                onPress={() => void handleRefresh()}
+                style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.primary }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
         contentContainerStyle={{ paddingBottom: 120 }}
         stickySectionHeadersEnabled={false} // Disable sticky headers for now as per design
         onEndReached={() => {
@@ -966,6 +1027,7 @@ export default function MerchantScreen() {
         products={allProducts}
         categories={categories}
         onAddToCart={handleAddToCart}
+        isOrderingUnavailable={merchantOrderingUnavailable}
       />
 
       {/* View Cart Floating Bar */}

@@ -84,7 +84,10 @@ type OrderDetail = {
   total?: number;
   subtotal?: number;
   delivery_fee?: number;
+  priorityFee?: number;
   platform_fee?: number;
+  discountTotal?: number;
+  freeDeliveryApplied?: boolean;
   delivery_service_type?: string;
   delivery_status?: string;
   delivery_tracking_link?: string | null;
@@ -397,7 +400,10 @@ export default function OrderDetailScreen() {
         total: agg.total,
         subtotal: agg.subtotal,
         delivery_fee: agg.deliveryFee,
+        priorityFee: agg.priorityFee,
         platform_fee: agg.platformFee,
+        discountTotal: agg.discountTotal,
+        freeDeliveryApplied: agg.freeDeliveryApplied,
         placed_at: agg.placedAt,
         delivery_status: deliveryBooking?.status || null,
         lalamove_order_id: agg.delivery?.lalamoveOrderId || null,
@@ -852,10 +858,11 @@ export default function OrderDetailScreen() {
   const activeIdx = getActiveStepIndex(
     delivery?.status || order.delivery_status || order.status || 'pending',
   );
-  const deliveryFee = order.delivery_fee || delivery?.delivery_fee || 0;
-  const priorityFee = delivery?.priority_fee || 0;
+  const deliveryFee = order.delivery_fee ?? delivery?.delivery_fee ?? 0;
+  const priorityFee = order.priorityFee ?? delivery?.priority_fee ?? 0;
   const totalDeliveryFee = deliveryFee + priorityFee;
   const platformFee = order.platform_fee || 0;
+  const discountTotal = Number(order.discountTotal) || 0;
   const canAddPriorityFee =
     order.isPaid === true &&
     order.fulfillment_type === 'delivery' &&
@@ -1490,7 +1497,7 @@ export default function OrderDetailScreen() {
             </View>
             {totalDeliveryFee > 0 && (
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Delivery Fee</Text>
+                <Text style={styles.priceLabel}>Delivery & priority fee</Text>
                 <Text style={styles.priceValue}>
                   {formatCurrency(totalDeliveryFee)}
                 </Text>
@@ -1501,6 +1508,16 @@ export default function OrderDetailScreen() {
                 <Text style={styles.priceLabel}>Platform Fee</Text>
                 <Text style={styles.priceValue}>
                   {formatCurrency(platformFee)}
+                </Text>
+              </View>
+            )}
+            {discountTotal > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>
+                  {order.freeDeliveryApplied ? 'New-user delivery offer' : 'Discount'}
+                </Text>
+                <Text style={[styles.priceValue, { color: '#15803D' }]}>
+                  -{formatCurrency(discountTotal)}
                 </Text>
               </View>
             )}

@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { checkoutContextHash, checkoutPrepareHandler } from '../../src/endpoints/checkoutPrepare'
 import { Orders } from '../../src/collections/Orders'
+import { CartItems } from '../../src/collections/CartItems'
 import { ModifierResolverService, type EffectiveModifierGroup } from '../../src/services/ModifierResolverService'
 import { CheckoutValidationError, priceCheckoutCart } from '../../src/services/checkoutPricing'
+import {
+  distanceInMeters,
+  getFirstOrderFreeDeliveryPromotion,
+} from '../../src/services/firstOrderDeliveryPromotion'
 import { isMerchantOnVacation } from '../../src/utils/vacationMode'
 
 afterEach(() => {
@@ -68,6 +73,69 @@ const modifierGroups: EffectiveModifierGroup[] = [{
 }]
 
 describe('checkout preparation', () => {
+  it('waives delivery and priority charges through the inclusive 5 km boundary for a new customer', async () => {
+    const count = vi.fn().mockResolvedValue({ totalDocs: 0 })
+    const promotion = await getFirstOrderFreeDeliveryPromotion({
+      payload: { count } as any,
+      customerId: 50,
+      distance: { value: 5, unit: 'km' },
+      deliveryFee: 80,
+      priorityFee: 25,
+    })
+
+    expect(promotion).toEqual({ eligible: true, discount: 105, distanceMeters: 5000 })
+    expect(count).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed outside the limit or when the provider uses an unknown distance unit', async () => {
+    const count = vi.fn()
+    const payload = { count } as any
+
+    await expect(getFirstOrderFreeDeliveryPromotion({
+      payload,
+      customerId: 50,
+      distance: { value: 5001, unit: 'm' },
+      deliveryFee: 80,
+      priorityFee: 25,
+    })).resolves.toEqual({ eligible: false, discount: 0, distanceMeters: 5001 })
+    await expect(getFirstOrderFreeDeliveryPromotion({
+      payload,
+      customerId: 50,
+      distance: { value: 4, unit: 'miles' },
+      deliveryFee: 80,
+      priorityFee: 25,
+    })).resolves.toEqual({ eligible: false, discount: 0, distanceMeters: null })
+    expect(count).not.toHaveBeenCalled()
+    expect(distanceInMeters({ value: 1.5, unit: 'km' })).toBe(1500)
+  })
+
+  it('does not reapply the offer after a previous paid order', async () => {
+    const count = vi.fn().mockResolvedValue({ totalDocs: 1 })
+
+    await expect(getFirstOrderFreeDeliveryPromotion({
+      payload: { count } as any,
+      customerId: 50,
+      distance: { value: 4000, unit: 'm' },
+      deliveryFee: 80,
+      priorityFee: 25,
+    })).resolves.toEqual({ eligible: false, discount: 0, distanceMeters: 4000 })
+    expect(count).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'transactions',
+      where: expect.objectContaining({
+        and: expect.arrayContaining([
+          { status: { equals: 'paid' } },
+          { 'order.customer': { equals: 50 } },
+          {
+            or: [
+              { transaction_type: { not_equals: 'priority_fee' } },
+              { transaction_type: { exists: false } },
+            ],
+          },
+        ]),
+      }),
+    }))
+  })
+
   it('blocks checkout while an outlet is in vacation mode', async () => {
     const payload = createPayload([{
       id: 1,
@@ -393,5 +461,60 @@ describe('checkout preparation', () => {
       input: { event: expect.objectContaining({ kind: 'order.created', orderId: '123' }) },
       req,
     }))
+  })
+})
+
+describe('merchant vacation order guards', () => {
+  const vacationMerchant = {
+    id: 300,
+    isActive: true,
+    isAcceptingOrders: true,
+    vacationMode: true,
+    vacationModeEndsAt: new Date(Date.now() + 60_000).toISOString(),
+  }
+
+  it('rejects new cart items and quantity increases while preserving cart reductions', async () => {
+    const beforeChange = CartItems.hooks?.beforeChange?.[0] as (args: any) => Promise<any>
+    const findByID = vi.fn(async () => vacationMerchant)
+    const req = { payload: { findByID } }
+
+    await expect(beforeChange({
+      data: { merchant: 300, product: 100, quantity: 1 },
+      operation: 'create',
+      originalDoc: undefined,
+      req,
+    })).rejects.toMatchObject({ status: 409, message: expect.stringContaining('vacation') })
+
+    await expect(beforeChange({
+      data: { quantity: 2 },
+      operation: 'update',
+      originalDoc: { merchant: 300, status: 'active', quantity: 1 },
+      req,
+    })).rejects.toMatchObject({ status: 409, message: expect.stringContaining('vacation') })
+
+    const reduced = await beforeChange({
+      data: { quantity: 1 },
+      operation: 'update',
+      originalDoc: { merchant: 300, status: 'active', quantity: 2, priceAtAdd: 10 },
+      req,
+    })
+    expect(reduced.quantity).toBe(1)
+    expect(findByID).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects direct new order creation during vacation but allows existing order updates', async () => {
+    const beforeValidate = Orders.hooks?.beforeValidate?.[0] as (args: any) => Promise<any>
+    const findByID = vi.fn(async () => vacationMerchant)
+    const req = { payload: { findByID } }
+
+    await expect(beforeValidate({
+      data: { merchant: 300, total: 10, subtotal: 10 },
+      operation: 'create',
+      req,
+    })).rejects.toMatchObject({ status: 409, message: expect.stringContaining('vacation') })
+
+    const update = { status: 'accepted' }
+    await expect(beforeValidate({ data: update, operation: 'update', req })).resolves.toBe(update)
+    expect(findByID).toHaveBeenCalledTimes(1)
   })
 })

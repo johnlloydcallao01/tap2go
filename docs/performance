@@ -23,6 +23,7 @@ Mobile rendering and refresh
 
 Current implementations
 - Home: `/customer/home-overview` uses a 30-second server cache and lazy-loads recommendations; its spatial merchant lookup uses a PostGIS expression index on denormalized merchant coordinates. Client freshness is aligned to 30 seconds, forced retries bypass the in-memory and server caches, and background refresh preserves loaded sections.
+- Merchant view: `/merchant/view` projects the header read and skips store-hours calculation; `/merchant/menu` returns a bounded page plus batched categories, image URLs, and effective required-modifier flags. Menu reads skip per-document modifier previews, apply merchant group overrides in one batch, use a 30-second dashboard cache with source-collection invalidation, and keep the header visible while the menu loads.
 - Wishlist: `/customer/wishlist-overview`, 60-second server TTL, user invalidation, batched merchant projection, and `FlatList`.
 - Orders list: `/orders/aggregate?view=list`, 30-second per-user server TTL, bounded/projected batched reads, and source-hook invalidation.
 - Order Details: `/orders/aggregate?orderId=...`, 20-second per-user/per-order server TTL, ownership check, projected batched reads, and detail-cache invalidation.

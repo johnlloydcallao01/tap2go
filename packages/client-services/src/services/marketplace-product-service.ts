@@ -4,6 +4,12 @@ import type { MerchantProductDisplay } from '../types/merchant';
 export interface RecommendedProduct extends MerchantProductDisplay {
   merchantId: string | number;
   merchantName: string;
+  merchantAvailability?: {
+    isActive?: boolean | null;
+    isAcceptingOrders?: boolean | null;
+    vacationMode?: boolean | null;
+    vacationModeEndsAt?: string | null;
+  };
   distanceKm?: number | null;
   isWithinDeliveryRadius?: boolean;
   estimatedDeliveryTime?: string | null;
@@ -28,6 +34,10 @@ export interface EligibleMerchantGate {
   distanceKm?: number | null;
   isWithinDeliveryRadius?: boolean;
   estimatedDeliveryTime?: string | null;
+  isActive?: boolean | null;
+  isAcceptingOrders?: boolean | null;
+  vacationMode?: boolean | null;
+  vacationModeEndsAt?: string | null;
 }
 
 export interface MarketplaceProductsOptions {

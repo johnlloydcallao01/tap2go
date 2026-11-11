@@ -1,5 +1,5 @@
 
-import type { Merchant, MerchantsResponse, MerchantMenuData, MerchantProductDisplay, MerchantCategoryDisplay } from '../types/merchant';
+import type { Merchant, MerchantsResponse, MerchantMenuData } from '../types/merchant';
 import { dataCache, CACHE_KEYS, CACHE_TTL } from '../cache/data-cache';
 
 export interface MerchantServiceOptions {
@@ -78,11 +78,15 @@ export class MerchantClientService {
   /**
    * Fetch individual merchant by ID from CMS (Client-side) with caching
    */
-  static async getMerchantById(id: string, signal?: AbortSignal): Promise<Merchant | null> {
+  static async getMerchantById(
+    id: string,
+    signal?: AbortSignal,
+    forceRefresh = false,
+  ): Promise<Merchant | null> {
     const cacheKey = CACHE_KEYS.MERCHANTS_BY_ID(id);
     
     // Check cache first
-    const cachedData = dataCache.get<Merchant>(cacheKey);
+    const cachedData = forceRefresh ? null : dataCache.get<Merchant>(cacheKey);
     if (cachedData) {
       return cachedData;
     }
@@ -99,7 +103,9 @@ export class MerchantClientService {
         headers['Authorization'] = `users API-Key ${apiKey}`;
       }
 
-      const response = await fetch(`${MerchantClientService.API_BASE}/merchants/${encodeURIComponent(id)}?depth=3`, {
+      const params = new URLSearchParams({ merchantId: id });
+      if (forceRefresh) params.set('refresh', 'true');
+      const response = await fetch(`${MerchantClientService.API_BASE}/merchant/view?${params}`, {
         headers,
         signal,
       });
@@ -111,10 +117,11 @@ export class MerchantClientService {
         throw new Error(`Failed to fetch merchant: ${response.status}`);
       }
       
-      const merchant: Merchant = await response.json();
+      const result = await response.json();
+      const merchant = result?.data as Merchant | null;
       
       // Cache the result
-      if (!signal?.aborted) {
+      if (!signal?.aborted && merchant) {
         dataCache.set(cacheKey, merchant, CACHE_TTL.MERCHANT_DETAILS);
       }
       
@@ -188,9 +195,10 @@ export class MerchantClientService {
     page: number = 1,
     limit: number = 48,
     signal?: AbortSignal,
+    forceRefresh = false,
   ): Promise<MerchantMenuData> {
     const cacheKey = `${CACHE_KEYS.MERCHANTS}-menu-${merchantId}-${page}-${limit}`;
-    const cached = dataCache.get<MerchantMenuData>(cacheKey);
+    const cached = forceRefresh ? null : dataCache.get<MerchantMenuData>(cacheKey);
     if (cached) return cached;
 
     const fetchMenu = async (): Promise<MerchantMenuData> => {
@@ -199,147 +207,23 @@ export class MerchantClientService {
       if (apiKey) headers['Authorization'] = `users API-Key ${apiKey}`;
 
       const params = new URLSearchParams({
-        'where[merchant_id][equals]': merchantId,
-        'where[is_active][equals]': 'true',
-        'where[is_available][equals]': 'true',
-        depth: '2',
-        limit: String(limit),
+        merchantId,
         page: String(page),
+        limit: String(limit),
       });
-      const url = `${MerchantClientService.API_BASE}/merchant-products?${params.toString()}`;
-      
+      if (forceRefresh) params.set('refresh', 'true');
+      const url = `${MerchantClientService.API_BASE}/merchant/menu?${params.toString()}`;
       const res = await fetch(url, { headers, signal });
-      if (!res.ok) throw new Error(String(res.status));
-      
-      const data = await res.json();
-      const docs: any[] = (data?.docs || []).filter((mp: any) => mp?.product_id?.catalogVisibility !== "hidden");
-      
-      const categoryMap = new Map<number | string, any>();
-      const products: MerchantProductDisplay[] = docs.map((mp) => {
-        const product = mp?.product_id || null;
-        const primaryImage = product?.media?.primaryImage || null;
-        const imageUrl = primaryImage?.cloudinaryURL || primaryImage?.url || primaryImage?.thumbnailURL || null;
-        
-        const rawCats = Array.isArray(product?.categories) ? product.categories : [];
-        const categoryIds: (number | string)[] = [];
-        
-        rawCats.forEach((c: any) => {
-          const id = (typeof c === "number" || typeof c === "string") ? c : c?.id;
-          if (id) {
-            categoryIds.push(id);
-            if (typeof c === "object" && c) {
-              const icon = c?.media?.icon || null;
-              categoryMap.set(id, { id, name: c?.name, slug: c?.slug, media: { icon } });
-            }
-          }
-        });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Failed to fetch merchant menu: ${res.status}`);
+      }
 
-        return {
-          id: product?.id ?? mp?.id,
-          merchantProductId: mp?.id,
-          name: product?.name ?? "",
-          productType: product?.productType ?? "simple",
-          basePrice: product?.basePrice ?? null,
-          compareAtPrice: product?.compareAtPrice ?? null,
-          shortDescription: product?.shortDescription ?? "",
-          imageUrl,
-          categoryIds,
-          hasRequiredModifiers: false, // Will be populated below
-        };
-      });
-
-      const productIds = products.map(p => p.id).filter(Boolean);
-      const collectedIds = new Set<number | string>();
-      products.forEach((p) => (p.categoryIds || []).forEach((cid) => collectedIds.add(cid)));
-      const ids = Array.from(collectedIds);
-
-      const modifierQuery = productIds.length > 0
-        ? (async () => {
-            const modParams = new URLSearchParams();
-            modParams.append('where[product_id][in]', productIds.join(','));
-            modParams.append('where[or][0][is_required][equals]', 'true');
-            modParams.append('where[or][1][min_selections][greater_than]', '0');
-            modParams.append('limit', '500');
-            modParams.append('depth', '0');
-
-            try {
-              const modRes = await fetch(
-                `${MerchantClientService.API_BASE}/modifier-groups?${modParams.toString()}`,
-                { headers, signal },
-              );
-              if (!modRes.ok) throw new Error(`Modifier groups request failed: ${modRes.status}`);
-              const modData = await modRes.json();
-              const requiredProductIds = new Set<string | number>();
-
-              (modData.docs || []).forEach((group: any) => {
-                const productId = typeof group.product_id === 'object' ? group.product_id?.id : group.product_id;
-                if (productId) requiredProductIds.add(productId);
-              });
-
-              products.forEach((product) => {
-                product.hasRequiredModifiers = requiredProductIds.has(product.id);
-              });
-            } catch (error) {
-              if (signal?.aborted) throw error;
-              console.error('Error fetching modifier groups:', error);
-            }
-          })()
-        : Promise.resolve();
-
-      const categoriesQuery = ids.length > 0
-        ? (async (): Promise<MerchantCategoryDisplay[]> => {
-            const catParams = new URLSearchParams({
-              'where[id][in]': ids.join(','),
-              limit: String(ids.length),
-              depth: '1',
-              pagination: 'false',
-            });
-            try {
-              const catRes = await fetch(
-                `${MerchantClientService.API_BASE}/product-categories?${catParams.toString()}`,
-                { headers, signal },
-              );
-              if (!catRes.ok) throw new Error(`Product categories request failed: ${catRes.status}`);
-              const catData = await catRes.json();
-              const byId = new Map<number | string, MerchantCategoryDisplay>();
-
-              (Array.isArray(catData?.docs) ? catData.docs : []).forEach((category: any) => {
-                if (category?.id) {
-                  byId.set(category.id, {
-                    id: category.id,
-                    name: category.name,
-                    slug: category.slug,
-                    media: { icon: category?.media?.icon },
-                  });
-                }
-              });
-
-              return ids
-                .map((id) => byId.get(id) || categoryMap.get(id))
-                .filter((category): category is MerchantCategoryDisplay => !!(category && category.id));
-            } catch (error) {
-              if (signal?.aborted) throw error;
-              console.error('Error fetching product categories:', error);
-              return ids
-                .map((id) => categoryMap.get(id))
-                .filter((category): category is MerchantCategoryDisplay => !!(category && category.id));
-            }
-          })()
-        : Promise.resolve([]);
-
-      const [, categories] = await Promise.all([modifierQuery, categoriesQuery]);
-      const result: MerchantMenuData = { 
-        products, 
-        categories,
-        pagination: {
-          totalDocs: data.totalDocs,
-          limit: data.limit,
-          page: data.page,
-          totalPages: data.totalPages,
-          hasNextPage: data.hasNextPage,
-          hasPrevPage: data.hasPrevPage
-        }
-      };
+      const response = await res.json();
+      if (!response?.success || !response.data) {
+        throw new Error(response?.error || 'Invalid merchant menu response');
+      }
+      const result = response.data as MerchantMenuData;
       if (!signal?.aborted) {
         dataCache.set(cacheKey, result, CACHE_TTL.MERCHANTS);
       }

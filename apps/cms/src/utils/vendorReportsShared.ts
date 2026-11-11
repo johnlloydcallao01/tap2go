@@ -105,7 +105,10 @@ export function buildVendorReportsCore(
     orderMap,
     ordersPeriod: ordersDocs.filter((o) => isInPeriod(params, o, 'createdAt')),
     paidTxPeriod: transactionsDocs.filter(
-      (t) => String(t.status) === 'paid' && isInPeriod(params, t, 'paid_at'),
+      (t) =>
+        String(t.status) === 'paid' &&
+        String(t.transaction_type || 'order') !== 'priority_fee' &&
+        isInPeriod(params, t, 'paid_at'),
     ),
     refundedTxPeriod: transactionsDocs.filter(
       (t) => String(t.status) === 'refunded' && isInPeriod(params, t, 'createdAt'),

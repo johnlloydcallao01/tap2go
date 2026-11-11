@@ -1,5 +1,6 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import Link from "next/link";
 
 export default function TermsAndConditionsPage() {
   return (
@@ -127,7 +128,9 @@ export default function TermsAndConditionsPage() {
               contact us at:
             </p>
             <p className="font-medium">
-              Email: hello@eduplatform.com
+              <Link href="/contact" className="text-orange-700 hover:text-orange-800">
+                Contact Tap2Go
+              </Link>
             </p>
           </div>
         </div>

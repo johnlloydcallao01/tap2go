@@ -72,6 +72,12 @@ export async function bustCustomerHomeCache(): Promise<void> {
   await redisBustPrefix(prefix)
 }
 
+export async function bustCustomerMerchantMenuCache(): Promise<void> {
+  const prefix = 'customer:merchant:menu:v1:'
+  bustDashboardL1(prefix)
+  await redisBustPrefix(prefix)
+}
+
 export async function bustCustomerWishlistCache(userId: string | number): Promise<void> {
   const key = `customer:wishlist-overview:v1:${userId}`
   bustDashboardL1(key)

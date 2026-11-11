@@ -75,7 +75,7 @@ function LoginForm() {
               <div className="mb-10">
                 <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-sm border border-white/10">
                   <Image
-                    src="/logo.png"
+                    src="/logo.png?v=2"
                     alt="Tap2Go Logo"
                     width={64}
                     height={64}
@@ -145,7 +145,7 @@ function LoginForm() {
               {/* Desktop Header */}
               <div className="hidden lg:block text-center mb-8">
                 <Image
-                  src="/logo.png"
+                  src="/logo.png?v=2"
                   alt="Tap2Go Logo"
                   width={56}
                   height={56}
@@ -163,7 +163,7 @@ function LoginForm() {
               {/* Mobile Header */}
               <div className="lg:hidden text-center mb-6">
                 <Image
-                  src="/logo.png"
+                  src="/logo.png?v=2"
                   alt="Tap2Go Logo"
                   width={56}
                   height={56}

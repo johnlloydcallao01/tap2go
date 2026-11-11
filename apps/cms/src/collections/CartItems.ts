@@ -10,6 +10,7 @@ import {
     extractRelationshipRelationTo,
     toFiniteNumber,
 } from '../services/modifierUtils'
+import { getMerchantOrderUnavailableMessage } from '../utils/vacationMode'
 
 type SelectedModifierInput = {
     groupId?: unknown
@@ -403,6 +404,33 @@ export const CartItems: CollectionConfig = {
     hooks: {
         beforeChange: [
             async ({ data, operation, req, originalDoc }) => {
+                let currentMerchant: any = null
+                const merchantId = extractRelationshipId(
+                    (data.merchant ?? originalDoc?.merchant) as never,
+                )
+                const isQuantityIncrease =
+                    operation === 'update' &&
+                    originalDoc?.status === 'active' &&
+                    data.quantity !== undefined &&
+                    Number(data.quantity) > Number(originalDoc.quantity)
+
+                if (operation === 'create' || isQuantityIncrease) {
+                    if (!merchantId) {
+                        throw new APIError('This merchant is not currently accepting orders.', 409, undefined, true)
+                    }
+                    currentMerchant = await req.payload.findByID({
+                        collection: 'merchants',
+                        id: merchantId,
+                        depth: 0,
+                        overrideAccess: true,
+                        req,
+                    })
+                    const unavailableMessage = getMerchantOrderUnavailableMessage(currentMerchant)
+                    if (unavailableMessage) {
+                        throw new APIError(unavailableMessage, 409, undefined, true)
+                    }
+                }
+
                 if (
                     operation === 'update' &&
                     data.quantity !== undefined &&
@@ -457,7 +485,6 @@ export const CartItems: CollectionConfig = {
                 const rawSelectedVariation = data.selectedVariation ?? originalDoc?.selectedVariation
                 const currentVariationId = normalizeSelectedVariationInput(rawSelectedVariation)
                 let currentProduct: any = null
-                let currentMerchant: any = null
 
                 if (data.selectedVariation !== undefined) {
                     data.selectedVariation = currentVariationId
@@ -473,11 +500,7 @@ export const CartItems: CollectionConfig = {
                             depth: 0,
                         }),
                         operation === 'create' && data.merchant
-                            ? req.payload.findByID({
-                                collection: 'merchants',
-                                id: data.merchant,
-                                depth: 0,
-                            })
+                            ? Promise.resolve(currentMerchant)
                             : Promise.resolve(null),
                     ])
                     currentProduct = product

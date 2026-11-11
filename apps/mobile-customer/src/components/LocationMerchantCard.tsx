@@ -3,6 +3,7 @@ import { View, Text, Image, TouchableOpacity, useWindowDimensions, StyleSheet } 
 import { LocationBasedMerchant, Media } from '@encreasl/client-services';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { isMerchantVacationActive } from '../utils/merchantAvailability';
 
 interface LocationMerchantCardProps {
   merchant: LocationBasedMerchant;
@@ -21,13 +22,6 @@ function formatDistanceKm(distanceKm?: number): string | null {
   if (typeof distanceKm !== "number") return null;
   if (distanceKm < 1) return `${Math.round(distanceKm * 1000)}m`;
   return `${distanceKm.toFixed(1)}km`;
-}
-
-function isVacationActive(merchant: LocationBasedMerchant): boolean {
-  if (merchant.vacationMode !== true) return false;
-  if (!merchant.vacationModeEndsAt) return true;
-  const endsAt = Date.parse(merchant.vacationModeEndsAt);
-  return !Number.isFinite(endsAt) || endsAt > Date.now();
 }
 
 function formatVacationResume(iso: string, timezone?: string | null): string {
@@ -65,7 +59,7 @@ export default function LocationMerchantCard({
   const distanceInMeters = (merchant as any)?.distanceInMeters as number | undefined;
   const distanceText = typeof distanceKm === "number" ? formatDistanceKm(distanceKm) : (typeof distanceInMeters === "number" ? formatDistanceKm(distanceInMeters / 1000) : null);
   const rating = typeof merchant.metrics?.averageRating === "number" ? merchant.metrics.averageRating : null;
-  const onVacation = isVacationActive(merchant);
+  const onVacation = isMerchantVacationActive(merchant);
 
   return (
     <TouchableOpacity 

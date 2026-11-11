@@ -1,5 +1,6 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import Link from "next/link";
 
 export default function DataDeletionRequestPage() {
   return (
@@ -29,7 +30,7 @@ export default function DataDeletionRequestPage() {
             <p>
               Depending on how you use our services, you can request deletion of
               personal data such as your profile information, contact details,
-              learning history, and usage data that can be linked to your
+              order history, and usage data that can be linked to your
               account.
             </p>
             <p>
@@ -41,32 +42,31 @@ export default function DataDeletionRequestPage() {
 
           <div className="space-y-4">
             <h2 className="heading-secondary text-2xl font-semibold text-gray-900">
-              2. Request data deletion from within the app
+              2. Check options in Tap2Go
             </h2>
             <p>
-              If the app you are using includes an in-app privacy or data
-              settings section, you can submit a data deletion request directly
-              from there. Look for options such as "Privacy," "Data," or "Delete
-              my data" in your account settings.
+              Open the Tap2Go app and review the account settings available to your
+              account. If a data deletion option is available, follow its
+              instructions to submit your request.
             </p>
           </div>
 
           <div className="space-y-4">
             <h2 className="heading-secondary text-2xl font-semibold text-gray-900">
-              3. Request data deletion by email
+              3. Contact Tap2Go
             </h2>
             <p>
-              You can also request deletion of your personal data by contacting
-              our support team. Please send an email from the address associated
-              with your account and include the subject line "Data deletion
-              request."
+              This website does not provide a data deletion form or publish a
+              support email address. See the Contact page for the official
+              Tap2Go destinations currently available.
             </p>
-            <p>
-              In your message, describe which data you want us to delete and, if
-              applicable, which app or service you are using.
-            </p>
-            <p className="font-medium">
-              Email: hello@eduplatform.com
+            <p className="flex flex-wrap gap-4 font-medium">
+              <Link href="/contact" className="text-orange-700 hover:text-orange-800">
+                Contact page
+              </Link>
+              <Link href="/account-deletion-request" className="text-orange-700 hover:text-orange-800">
+                Account deletion
+              </Link>
             </p>
           </div>
 
@@ -75,26 +75,10 @@ export default function DataDeletionRequestPage() {
               4. How we process data deletion requests
             </h2>
             <p>
-              After we receive your request, we will verify your identity and
-              review the data associated with your account. We aim to complete
-              deletion of eligible data within 30 days, subject to any legal or
-              contractual obligations that require us to retain certain
-              information.
-            </p>
-            <p>
-              When deletion is complete, we will confirm this via email or
-              through in-app messaging where appropriate.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <h2 className="heading-secondary text-2xl font-semibold text-gray-900">
-              5. Contact us
-            </h2>
-            <p>
-              If you have questions about data deletion or about how we handle
-              your personal information, you can contact us at
-              hello@eduplatform.com.
+              The handling and timing of a request may depend on the data
+              involved and any applicable legal or regulatory record-retention
+              requirements. This website does not publish a processing
+              timeline.
             </p>
           </div>
         </div>

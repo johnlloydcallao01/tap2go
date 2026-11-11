@@ -56,6 +56,12 @@ type TrackingData = {
   shareLink: string | null;
 };
 
+type DeliveryRouteData = {
+  coordinates: LatLng[];
+  distanceMeters: number;
+  durationSeconds: number;
+};
+
 function statusLabel(status: string): string {
   switch (status) {
     case 'assigning_driver':
@@ -203,9 +209,52 @@ export default function TrackingScreen() {
   const [data, setData] = useState<TrackingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   const mounted = useRef(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const nativeMapRef = useRef<MapView | null>(null);
+  const latestDataRef = useRef(data);
+  const latestRouteRef = useRef(routeCoordinates);
+
+  const fitNativeMap = useCallback(() => {
+    const currentData = latestDataRef.current;
+    const points = [
+      ...latestRouteRef.current,
+      ...(currentData
+        ? [
+            { latitude: currentData.pickup.lat, longitude: currentData.pickup.lng },
+            { latitude: currentData.dropoff.lat, longitude: currentData.dropoff.lng },
+            ...(currentData.driver.lat != null && currentData.driver.lng != null
+              ? [{
+                  latitude: Number(currentData.driver.lat),
+                  longitude: Number(currentData.driver.lng),
+                }]
+              : []),
+          ].filter(
+            (point): point is LatLng =>
+              point.latitude != null &&
+              point.longitude != null &&
+              Number.isFinite(point.latitude) &&
+              Number.isFinite(point.longitude),
+          )
+        : []),
+    ];
+
+    if (points.length > 1) {
+      nativeMapRef.current?.fitToCoordinates(points, {
+        edgePadding: { top: 72, right: 48, bottom: 260, left: 48 },
+        animated: true,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    latestDataRef.current = data;
+    latestRouteRef.current = routeCoordinates;
+  }, [data, routeCoordinates]);
 
   const fetchTracking = useCallback(async () => {
     if (!id || !user?.id) return;
@@ -246,6 +295,85 @@ export default function TrackingScreen() {
   useEffect(() => {
     fetchTracking();
   }, [fetchTracking]);
+
+  const hasTrackingData = data !== null;
+  const pickupLat = data?.pickup.lat;
+  const pickupLng = data?.pickup.lng;
+  const dropoffLat = data?.dropoff.lat;
+  const dropoffLng = data?.dropoff.lng;
+
+  useEffect(() => {
+    if (!hasTrackingData || !id || !user?.id) return;
+
+    let active = true;
+    setRouteCoordinates([]);
+    setRouteError(null);
+
+    if (pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) {
+      setRouteLoading(false);
+      setRouteError('Pickup or delivery coordinates are unavailable.');
+      return () => {
+        active = false;
+      };
+    }
+
+    setRouteLoading(true);
+    const fetchRoute = async () => {
+      try {
+        const response = await fetch(
+          `${apiConfig.baseUrl}/delivery/route?orderId=${encodeURIComponent(id)}`,
+          { headers: CMS_HEADERS },
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(body?.error || 'Failed to calculate the motorcycle route');
+        }
+
+        const route = body?.data as DeliveryRouteData | undefined;
+        if (
+          !Array.isArray(route?.coordinates) ||
+          route.coordinates.length < 2 ||
+          !route.coordinates.every(
+            (point) =>
+              Number.isFinite(point?.latitude) &&
+              Number.isFinite(point?.longitude),
+          )
+        ) {
+          throw new Error('Google did not return valid motorcycle route geometry');
+        }
+
+        if (active) {
+          setRouteCoordinates(route.coordinates);
+          setRouteError(null);
+        }
+      } catch (routeFetchError) {
+        console.error('[TrackingScreen] Motorcycle route unavailable:', routeFetchError);
+        if (active) {
+          setRouteCoordinates([]);
+          setRouteError('Road route unavailable. The map shows locations only.');
+        }
+      } finally {
+        if (active) setRouteLoading(false);
+      }
+    };
+
+    void fetchRoute();
+    return () => {
+      active = false;
+    };
+  }, [
+    hasTrackingData,
+    pickupLat,
+    pickupLng,
+    dropoffLat,
+    dropoffLng,
+    id,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    if (routeCoordinates.length >= 2) fitNativeMap();
+  }, [fitNativeMap, routeCoordinates]);
 
   // Poll every 10s while active; stop when delivered/cancelled
   useEffect(() => {
@@ -318,10 +446,6 @@ export default function TrackingScreen() {
       { latitude: 14.5995, longitude: 120.9842 },
     ], { latitude: 14.5995, longitude: 120.9842 });
 
-    const route = [pickup, dropoff].filter(
-      (s) => s.lat != null && s.lng != null,
-    );
-
     const goMarkers: GoMapMarker[] = [];
     if (pickup.lat != null && pickup.lng != null) {
       goMarkers.push({
@@ -347,9 +471,7 @@ export default function TrackingScreen() {
         title: driver.name || 'Your rider',
       });
     }
-    const goRoute = route.length === 2
-      ? route.map((s) => ({ latitude: Number(s.lat), longitude: Number(s.lng) }))
-      : [];
+    const goRoute = routeCoordinates;
 
     return (
       <View style={styles.mapContainer}>
@@ -363,10 +485,13 @@ export default function TrackingScreen() {
               markers={goMarkers}
               polyline={goRoute}
               autoFit
+              fitOnPolylineChange
             />
           ) : (
             <MapView
               style={{ flex: 1 }}
+              ref={nativeMapRef}
+              onMapReady={fitNativeMap}
               initialRegion={initialRegion}
               showsUserLocation={false}
               showsCompass
@@ -411,14 +536,11 @@ export default function TrackingScreen() {
             </Marker>
           )}
 
-          {route.length === 2 && (
+          {routeCoordinates.length >= 2 && (
             <Polyline
-              coordinates={route.map((s) => ({
-                latitude: Number(s.lat),
-                longitude: Number(s.lng),
-              }))}
+              coordinates={routeCoordinates}
               strokeColor="#f97316"
-              strokeWidth={3}
+              strokeWidth={4}
               lineCap="round"
               lineJoin="round"
             />
@@ -432,6 +554,12 @@ export default function TrackingScreen() {
             <View style={[styles.statusPillDot, { backgroundColor: statusColor(data.deliveryStatus) }]} />
             <Text style={styles.statusPillText}>{statusLabel(data.deliveryStatus)}</Text>
           </View>
+          <Text style={styles.routeNotice}>
+            {routeError ||
+              (routeLoading
+                ? 'Calculating motorcycle route…'
+                  : 'Two-wheel routes are in beta and might sometimes be missing clear sidewalks, pedestrian paths, or bicycling paths.')}
+          </Text>
         </View>
         </Animated.View>
 
@@ -610,11 +738,22 @@ const styles = StyleSheet.create({
     top: 12,
     left: 12,
     right: 12,
-    flexDirection: 'row' as const,
+    flexDirection: 'column' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
     zIndex: 2,
+  },
+  routeNotice: {
+    maxWidth: '92%' as const,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    color: '#4b5563',
+    fontSize: 11,
+    textAlign: 'center' as const,
+    overflow: 'hidden' as const,
   },
   statusPill: {
     backgroundColor: '#ffffff',

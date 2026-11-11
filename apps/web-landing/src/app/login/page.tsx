@@ -1,139 +1,30 @@
-"use client";
-
-import { useState } from "react";
-import { Header } from "@/components/Header";
+import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
-import Link from "next/link";
+import { Header } from "@/components/Header";
+
+export const metadata: Metadata = {
+  title: "Download Tap2Go",
+  description: "Continue to Tap2Go to access your account and orders.",
+};
 
 export default function LoginPage() {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    rememberMe: false
-  });
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value
-    });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Login attempt:", formData);
-    // Handle login logic here
-  };
-
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-white">
       <Header />
-      
-      <section className="pt-24 pb-20 bg-gradient-to-br from-[#201a7c]/5 to-[#ab3b43]/5 min-h-screen flex items-center">
-        <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="text-center mb-8">
-              <h1 className="heading-primary text-3xl font-bold text-gray-900 mb-2">
-                Welcome Back
-              </h1>
-              <p className="text-gray-600">
-                Sign in to continue your learning journey
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#201a7c] focus:border-transparent transition-colors"
-                  placeholder="your.email@example.com"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#201a7c] focus:border-transparent transition-colors"
-                  placeholder="Enter your password"
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    name="rememberMe"
-                    checked={formData.rememberMe}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-[#201a7c] focus:ring-[#201a7c] border-gray-300 rounded"
-                  />
-                  <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-                    Remember me
-                  </label>
-                </div>
-                <Link href="/forgot-password" className="text-sm text-[#201a7c] hover:text-[#1a1569]">
-                  Forgot password?
-                </Link>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full btn-primary py-4 text-lg"
-              >
-                Sign In
-              </button>
-            </form>
-
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <button className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                  <i className="fab fa-google text-red-500 text-lg"></i>
-                </button>
-                <button className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                  <i className="fab fa-github text-gray-900 text-lg"></i>
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 text-center">
-              <p className="text-gray-600">
-                Don't have an account?{" "}
-                <Link href="/signup" className="text-[#201a7c] hover:text-[#1a1569] font-medium">
-                  Sign up for free
-                </Link>
-              </p>
-            </div>
-          </div>
+      <section className="flex min-h-[65vh] items-center justify-center bg-secondary px-4 py-16">
+        <div className="max-w-xl text-center">
+          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-100 text-2xl text-orange-700">
+            <i aria-hidden="true" className="fas fa-user" />
+          </span>
+          <h1 className="heading-primary mt-6 text-4xl text-stone-950">Continue with Tap2Go</h1>
+          <p className="mt-4 leading-7 text-stone-600">
+            Account access is handled through the Tap2Go app. Download it to reach your account.
+          </p>
+          <a href="/download" className="btn-primary mt-8">
+            Download App <i aria-hidden="true" className="fas fa-arrow-down-to-line ml-2 text-xs" />
+          </a>
         </div>
       </section>
-
       <Footer />
     </main>
   );

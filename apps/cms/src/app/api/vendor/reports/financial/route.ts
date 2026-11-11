@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     if (merchantIds.size === 0) {
       const emptyBody = {
-        financialReconciliation: { rows: [], totals: { gross: 0, platformFees: 0, deliveryFees: 0 }, count: 0 },
+        financialReconciliation: { rows: [], totals: { gross: 0, platformFees: 0, deliveryFees: 0, priorityFees: 0, platformFundedDiscounts: 0 }, count: 0 },
         outletPayouts: { rows: [], count: 0 },
         refundsFailures: { rows: [], count: 0 },
       }
@@ -79,6 +79,32 @@ export async function GET(request: NextRequest) {
 
     const core = buildVendorReportsCore(params, { merchantsDocs, ordersDocs, transactionsDocs })
     const { merchantMap, orderMap, paidTxPeriod, refundedTxPeriod, failedTxPeriod } = core
+    const discountRes = orderIds.length
+      ? await payload.find({
+          collection: 'order-discounts',
+          where: { order: { in: orderIds } },
+          limit: 5000,
+          depth: 0,
+          overrideAccess: true,
+        })
+      : ({ docs: [] as unknown[] } as unknown as Awaited<ReturnType<typeof payload.find>>)
+    const platformDiscountsByOrder = new Map<string, number>()
+    for (const discount of discountRes.docs as unknown as VendorReportDoc[]) {
+      const orderId = resolveId(discount.order)
+      platformDiscountsByOrder.set(
+        orderId,
+        (platformDiscountsByOrder.get(orderId) || 0) + getNum(discount.platform_share),
+      )
+    }
+    const paidPriorityFeesByOrder = new Map<string, number>()
+    for (const transaction of transactionsDocs) {
+      if (String(transaction.status) !== 'paid' || String(transaction.transaction_type) !== 'priority_fee') continue
+      const orderId = resolveId(transaction.order)
+      paidPriorityFeesByOrder.set(
+        orderId,
+        (paidPriorityFeesByOrder.get(orderId) || 0) + getNum(transaction.amount),
+      )
+    }
 
     const resolveOutlet = (
       order: VendorReportDoc | null,
@@ -106,6 +132,8 @@ export async function GET(request: NextRequest) {
         amount: getNum(t.amount),
         platformFee: order ? getNum(order.platform_fee) : 0,
         deliveryFee: order ? getNum(order.delivery_fee) : 0,
+        priorityFee: order ? getNum(order.priority_fee) : 0,
+        platformFundedDiscount: order ? platformDiscountsByOrder.get(oid) || 0 : 0,
         status: String(t.status),
         paymentMethod: getStr(t.payment_method, 'unknown'),
         gross: order ? getNum(order.total) : getNum(t.amount),
@@ -114,7 +142,7 @@ export async function GET(request: NextRequest) {
 
     const outletAgg = new Map<
       string,
-      { outletName: string; orders: number; gross: number; platformFees: number; deliveryFees: number; net: number }
+      { outletName: string; orders: number; gross: number; platformFees: number; deliveryFees: number; priorityFees: number; platformFundedDiscounts: number; net: number }
     >()
     paidTxPeriod.forEach((t) => {
       const oid = resolveId(t.order)
@@ -124,13 +152,22 @@ export async function GET(request: NextRequest) {
       if (!mid) return
       const outlet = merchantMap.get(mid)
       const name = outlet ? getStr(outlet.outletName, mid) : mid
-      const agg = outletAgg.get(mid) || { outletName: name, orders: 0, gross: 0, platformFees: 0, deliveryFees: 0, net: 0 }
+      const agg = outletAgg.get(mid) || { outletName: name, orders: 0, gross: 0, platformFees: 0, deliveryFees: 0, priorityFees: 0, platformFundedDiscounts: 0, net: 0 }
       const amt = getNum(t.amount)
+      const platformDiscount = platformDiscountsByOrder.get(oid) || 0
+      const priorityFeePaidSeparately = paidPriorityFeesByOrder.get(oid) || 0
+      const priorityFeeIncludedInOrderPayment = Math.max(0, getNum(order.priority_fee) - priorityFeePaidSeparately)
       agg.orders += 1
       agg.gross += amt
       agg.platformFees += getNum(order.platform_fee)
       agg.deliveryFees += getNum(order.delivery_fee)
-      agg.net += Math.max(0, amt - getNum(order.platform_fee) - getNum(order.delivery_fee))
+      agg.priorityFees += getNum(order.priority_fee)
+      agg.platformFundedDiscounts += platformDiscount
+      agg.net += Math.max(
+        0,
+        amt - getNum(order.platform_fee) - getNum(order.delivery_fee) -
+          priorityFeeIncludedInOrderPayment + platformDiscount,
+      )
       outletAgg.set(mid, agg)
     })
     const outletPayouts = Array.from(outletAgg.entries())
@@ -154,6 +191,8 @@ export async function GET(request: NextRequest) {
           gross: totalRevenue,
           platformFees: financialRows.reduce((s, r) => s + r.platformFee, 0),
           deliveryFees: financialRows.reduce((s, r) => s + r.deliveryFee, 0),
+          priorityFees: financialRows.reduce((s, r) => s + r.priorityFee, 0),
+          platformFundedDiscounts: financialRows.reduce((s, r) => s + r.platformFundedDiscount, 0),
         },
         count: financialRows.length,
         totalCount: paidTxPeriod.length,

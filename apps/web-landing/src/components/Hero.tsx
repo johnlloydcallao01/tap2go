@@ -1,120 +1,75 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 
 export function Hero() {
   return (
-    <section className="gradient-hero min-h-screen flex items-center justify-center relative overflow-hidden pt-16">
-      {/* Background decorative elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full animate-float"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-white/5 rounded-full animate-float" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/4 w-32 h-32 bg-white/10 rounded-full animate-float" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute top-1/4 right-1/4 w-24 h-24 bg-cyan-300/20 rounded-full animate-pulse-slow"></div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <div className="text-center lg:text-left">
-            {/* Badge */}
-            <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium mb-6 animate-fade-in-up">
-              <i className="fas fa-star text-yellow-300 mr-2"></i>
-              #1 Enterprise LMS Platform
-            </div>
-
-            {/* Main heading */}
-            <h1 className="heading-primary text-3xl md:text-4xl lg:text-5xl text-white mb-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-              Transform Your
-              <span className="block text-cyan-300">Learning Journey</span>
-            </h1>
-
-            {/* Subtitle */}
-            <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-2xl mx-auto lg:mx-0 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-              Empower your team with our enterprise-grade learning management system.
-              Comprehensive courses, expert instructors, and cutting-edge technology.
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-              <Link
-                href="/courses"
-                className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 hover:transform hover:scale-105 shadow-lg inline-flex items-center"
-              >
-                <i className="fas fa-play mr-2"></i>
-                Start Learning
-              </Link>
-              <Link
-                href="/demo"
-                className="border-2 border-white text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all duration-300 hover:transform hover:scale-105 inline-flex items-center"
-              >
-                <i className="fas fa-video mr-2"></i>
-                Watch Demo
-              </Link>
-            </div>
-
-
+    <section className="relative overflow-hidden bg-secondary">
+      <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-orange-200/40 blur-3xl" />
+      <div className="absolute -bottom-40 left-0 h-96 w-96 rounded-full bg-orange-100/70 blur-3xl" />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1fr_0.9fr] lg:px-8 lg:py-24">
+        <div className="relative z-10">
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/80 px-4 py-2 text-sm font-semibold text-orange-800">
+            <i aria-hidden="true" className="fas fa-location-dot" />
+            Good food, closer to home
+          </p>
+          <h1 className="heading-primary max-w-2xl text-5xl leading-[1.08] tracking-tight text-stone-950 sm:text-6xl lg:text-7xl">
+            Your next{" "}
+            <span className="block text-orange-600">favorite meal</span>
+            {" "}is a tap away.
+          </h1>
+          <p className="mt-6 max-w-xl text-lg leading-8 text-stone-600 sm:text-xl">
+            Sign in, choose a delivery address, explore participating restaurants serving that area, and
+            place an order in the Tap2Go app.
+          </p>
+          <div className="mt-9">
+            <Link
+              href="/download"
+              aria-label="Visit the Tap2Go Android download page"
+              className="inline-flex rounded-xl outline-offset-4 transition-transform hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-600"
+            >
+              <Image
+                src="/google-play-badge.png"
+                alt="Get it on Google Play"
+                width={646}
+                height={250}
+                priority
+                className="h-auto w-52 sm:w-60"
+              />
+            </Link>
           </div>
-
-          {/* Right Content - Hero Image */}
-          <div className="relative animate-fade-in-right" style={{ animationDelay: '0.5s' }}>
-            <div className="relative">
-              {/* Main hero image */}
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
-                <Image
-                  src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=600&h=400&fit=crop&crop=center"
-                  alt="Students learning together"
-                  width={600}
-                  height={400}
-                  className="rounded-xl shadow-lg"
-                  priority
-                />
-              </div>
-              
-              {/* Floating stats cards */}
-              <div className="absolute -top-4 -left-4 bg-white rounded-xl p-4 shadow-lg animate-float">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-users text-green-600 text-lg"></i>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900">50K+</div>
-                    <div className="text-gray-600 text-sm">Active Learners</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute -bottom-4 -right-4 bg-white rounded-xl p-4 shadow-lg animate-float" style={{ animationDelay: '1s' }}>
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-certificate text-blue-600 text-lg"></i>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900">1000+</div>
-                    <div className="text-gray-600 text-sm">Courses</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute top-1/2 -left-8 bg-white rounded-xl p-4 shadow-lg animate-float" style={{ animationDelay: '2s' }}>
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-star text-yellow-600 text-lg"></i>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900">4.9</div>
-                    <div className="text-gray-600 text-sm">Rating</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <p className="mt-5 text-sm text-stone-500">
+            Restaurant listings and delivery options depend on your address and current availability.
+          </p>
         </div>
-      </div>
 
-      {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-        <div className="text-white hover:text-cyan-300 transition-colors cursor-pointer">
-          <i className="fas fa-chevron-down text-2xl"></i>
+        <div className="relative mx-auto w-full max-w-xl">
+          <div className="absolute -inset-4 rotate-3 rounded-[2.5rem] bg-orange-200/70" />
+          <div className="relative overflow-hidden rounded-[2rem] bg-white p-3 shadow-[0_30px_90px_rgba(74,38,10,0.18)]">
+            <Image
+              src="https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg?auto=compress&cs=tinysrgb&w=1200"
+              alt="A freshly prepared burger and fries"
+              width={900}
+              height={1100}
+              priority
+              sizes="(max-width: 1024px) 90vw, 42vw"
+              className="h-[390px] w-full rounded-[1.5rem] object-cover sm:h-[500px]"
+            />
+            <div className="absolute bottom-7 left-7 right-7 rounded-2xl border border-white/60 bg-white/95 p-4 shadow-xl backdrop-blur sm:bottom-9 sm:left-9 sm:right-9 sm:p-5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-100 text-orange-700">
+                  <i aria-hidden="true" className="fas fa-bag-shopping" />
+                </span>
+                <div>
+                  <p className="font-semibold text-stone-900">Your order, step by step</p>
+                  <p className="mt-0.5 text-sm text-stone-500">Choose an address. Order. Follow updates.</p>
+                </div>
+                <i aria-hidden="true" className="fas fa-arrow-right ml-auto text-orange-600" />
+              </div>
+            </div>
+          </div>
+          <div className="absolute -right-3 top-8 flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 text-stone-950 shadow-lg sm:-right-6 sm:h-20 sm:w-20">
+            <i aria-hidden="true" className="fas fa-utensils text-2xl" />
+          </div>
         </div>
       </div>
     </section>

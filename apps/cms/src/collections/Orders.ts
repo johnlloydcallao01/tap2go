@@ -1,6 +1,9 @@
 import type { CollectionConfig } from 'payload'
+import { APIError } from 'payload'
 import { createAdminNotificationFanout, createMerchantNotificationFanout, createNotificationFanout, getOrderStatusLabel } from '../utils/notificationFanout'
 import { bustCustomerOrdersForCustomer } from '../utils/dashboardCache'
+import { extractRelationshipId } from '../services/modifierUtils'
+import { getMerchantOrderUnavailableMessage } from '../utils/vacationMode'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -91,9 +94,25 @@ export const Orders: CollectionConfig = {
       },
     ],
     beforeValidate: [
-      ({ data, operation }) => {
+      async ({ data, operation, req }) => {
         if (!data || typeof data !== 'object') return data
         const d = data as Record<string, any>
+        if (operation === 'create') {
+          const merchantId = extractRelationshipId(d.merchant as never)
+          const merchant = merchantId
+            ? await req.payload.findByID({
+                collection: 'merchants',
+                id: merchantId,
+                depth: 0,
+                overrideAccess: true,
+                req,
+              })
+            : null
+          const unavailableMessage = getMerchantOrderUnavailableMessage(merchant)
+          if (unavailableMessage) {
+            throw new APIError(unavailableMessage, 409, undefined, true)
+          }
+        }
         // Guard the totals invariant on full writes (create, or updates that set every leg).
         // Partial PATCH updates (e.g. delivery book/cancel re-totals) skip this check.
         if (
@@ -385,7 +404,7 @@ export const Orders: CollectionConfig = {
       required: true,
       defaultValue: 0,
       admin: {
-        description: 'Total coupon discount applied (food + delivery legs)',
+        description: 'Total coupon or campaign discount applied (food + delivery and priority legs)',
       },
     },
     {
@@ -400,7 +419,7 @@ export const Orders: CollectionConfig = {
       type: 'checkbox',
       defaultValue: false,
       admin: {
-        description: 'A free-delivery coupon zeroed the delivery leg',
+        description: 'A free-delivery promotion waived customer delivery and priority charges',
       },
     },
     {

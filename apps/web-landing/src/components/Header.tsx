@@ -1,112 +1,93 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+
+const navItems = [
+  { href: "/", label: "Home" },
+  { href: "/about", label: "About" },
+  { href: "/how-it-works", label: "How it works" },
+  { href: "/faq", label: "FAQs" },
+  { href: "/contact", label: "Contact" },
+];
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const navItems = [
-    { href: "/", label: "Home" },
-    { href: "/about", label: "About" },
-    { href: "/courses", label: "Courses" },
-    { href: "/contact", label: "Contact" },
-    { href: "/faq", label: "FAQ" },
-  ];
+  const pathname = usePathname();
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <div className="flex-shrink-0">
-            <Link href="/" className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#201a7c] to-[#ab3b43] rounded-xl flex items-center justify-center">
-                <i className="fas fa-graduation-cap text-white text-lg"></i>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-bold text-gray-900 heading-primary">
-                  EduPlatform
-                </span>
-                <span className="text-xs text-gray-500 -mt-1">
-                  Learning Excellence
-                </span>
-              </div>
-            </Link>
-          </div>
+    <header className="sticky top-0 z-50 border-b border-stone-200/80 bg-white/95 backdrop-blur">
+      <nav
+        aria-label="Main navigation"
+        className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8"
+      >
+        <Link href="/" className="flex items-center gap-3" aria-label="Tap2Go home">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={48}
+            height={48}
+            priority
+            className="h-11 w-11 rounded-full object-cover"
+          />
+          <span className="font-display text-xl font-bold tracking-tight text-stone-900">
+            Tap<span className="text-orange-600">2</span>Go
+          </span>
+        </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="nav-link text-gray-700 hover:text-[#201a7c] px-3 py-2 text-sm font-medium transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
-            <button className="p-3 text-gray-600 hover:text-[#201a7c] hover:bg-gray-50 rounded-lg transition-colors">
-              <i className="fas fa-search text-lg"></i>
-            </button>
+        <div className="hidden items-center gap-8 md:flex">
+          {navItems.map((item) => (
             <Link
-              href="https://app.tap2goph.com/"
-              className="bg-gradient-to-r from-[#201a7c] to-[#ab3b43] text-white px-6 py-3 rounded-lg font-medium hover:from-[#1a1569] hover:to-[#8f2f36] transition-all duration-300 inline-flex items-center text-sm"
+              key={item.href}
+              href={item.href}
+              aria-current={pathname === item.href ? "page" : undefined}
+              className="site-nav-link text-sm font-medium text-stone-600 transition-colors hover:text-orange-700 aria-[current=page]:text-orange-700"
             >
-              <i className="fas fa-user-circle mr-2"></i>
-              My Account
+              {item.label}
             </Link>
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-gray-700 hover:text-[#201a7c] focus:outline-none focus:text-[#201a7c] p-2"
-            >
-              <i className={`fas ${isMenuOpen ? "fa-times" : "fa-bars"} text-lg`}></i>
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* Mobile Navigation */}
-        {isMenuOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200 shadow-lg">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-[#201a7c] hover:bg-gray-50 rounded-md transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              <div className="pt-4 pb-2 border-t border-gray-200 mt-4 space-y-3">
-                <button className="w-full p-3 text-gray-600 hover:text-[#201a7c] hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-center">
-                  <i className="fas fa-search text-lg mr-2"></i>
-                  Search
-                </button>
-                <Link
-                  href="https://app.tap2goph.com/"
-                  className="block w-full text-center bg-gradient-to-r from-[#201a7c] to-[#ab3b43] text-white px-6 py-4 rounded-lg font-medium hover:from-[#1a1569] hover:to-[#8f2f36] transition-all duration-300 inline-flex items-center justify-center"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <i className="fas fa-user-circle mr-2"></i>
-                  My Account
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="hidden items-center gap-3 md:flex">
+          <Link href="/download" className="btn-primary">
+            Download App <i aria-hidden="true" className="fas fa-arrow-down-to-line ml-2 text-xs" />
+          </Link>
+        </div>
+
+        <button
+          type="button"
+          className="rounded-lg p-2 text-stone-700 hover:bg-stone-100 md:hidden"
+          aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={isMenuOpen}
+          aria-controls="mobile-navigation"
+          onClick={() => setIsMenuOpen((open) => !open)}
+        >
+          <i aria-hidden="true" className={`fas ${isMenuOpen ? "fa-times" : "fa-bars"} text-lg`} />
+        </button>
       </nav>
+
+      {isMenuOpen && (
+        <div id="mobile-navigation" className="border-t border-stone-200 bg-white px-4 py-4 md:hidden">
+          <div className="mx-auto flex max-w-7xl flex-col gap-1">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
+                className="site-nav-link site-nav-link--mobile rounded-lg px-3 py-3 font-medium text-stone-700 hover:bg-orange-50 hover:text-orange-700 aria-[current=page]:text-orange-700"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
+            <Link href="/download" className="btn-primary mt-2 justify-center" onClick={() => setIsMenuOpen(false)}>
+              Download App <i aria-hidden="true" className="fas fa-arrow-down-to-line ml-2 text-xs" />
+            </Link>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

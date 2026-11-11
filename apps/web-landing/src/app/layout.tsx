@@ -14,13 +14,22 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "EduPlatform - Professional Learning Management System",
-  description: "Transform your learning experience with our enterprise-grade LMS platform. Comprehensive courses, expert instructors, and cutting-edge technology.",
-  keywords: "LMS, learning management system, online courses, education platform, professional training",
-  authors: [{ name: "EduPlatform Team" }],
+  title: {
+    default: "Tap2Go | Food delivery, made easy",
+    template: "%s | Tap2Go",
+  },
+  description:
+    "Discover nearby restaurants, browse menus, and follow your delivery with Tap2Go. Availability depends on your location.",
+  keywords: "Tap2Go, food delivery, restaurant ordering, local restaurants",
+  authors: [{ name: "Tap2Go" }],
+  icons: {
+    icon: [{ url: "/favicon.png?v=2", type: "image/png" }],
+    apple: [{ url: "/logo.png", type: "image/png" }],
+  },
   openGraph: {
-    title: "EduPlatform - Professional Learning Management System",
-    description: "Transform your learning experience with our enterprise-grade LMS platform.",
+    title: "Tap2Go | Food delivery, made easy",
+    description:
+      "Discover nearby restaurants, browse menus, and follow your delivery with Tap2Go.",
     type: "website",
   },
 };

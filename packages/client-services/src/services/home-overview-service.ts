@@ -163,6 +163,7 @@ function toProduct(
     imageUrl: (raw.imageUrl as string | null) ?? null,
     categoryIds: rawCats as (number | string)[],
     hasRequiredModifiers: false,
+    merchantAvailability: raw.merchantAvailability as RecommendedProduct['merchantAvailability'],
     distanceKm: geo?.distanceKm ?? (typeof raw.distanceKm === 'number' ? (raw.distanceKm as number) : null),
     isWithinDeliveryRadius: geo ? geo.within : undefined,
     estimatedDeliveryTime: geo?.eta ?? null,

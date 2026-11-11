@@ -3,6 +3,11 @@ import type { PayloadRequest } from 'payload'
 import { getCheckoutDeliveryQuote } from '../services/checkoutDeliveryQuote'
 import { CheckoutValidationError, priceCheckoutCart } from '../services/checkoutPricing'
 import { PAYMONGO_STATEMENT_DESCRIPTOR } from '../services/paymongo'
+import {
+  FIRST_ORDER_FREE_DELIVERY_CODE,
+  getFirstOrderFreeDeliveryPromotion,
+} from '../services/firstOrderDeliveryPromotion'
+import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
 
 const PAYMENT_METHODS = new Set(['gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph', 'card'])
 const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
@@ -225,6 +230,18 @@ async function ensureCheckoutPayment(args: {
         paid_at: new Date().toISOString(),
       }, requestId)
     }
+    if (order.fulfillment_type === 'delivery') {
+      if (order.status === 'pending') {
+        await req.payload.update({
+          collection: 'orders',
+          id: order.id,
+          data: { status: 'accepted' } as never,
+          overrideAccess: true,
+          req,
+        })
+      }
+      await ensureDeliveryFulfillment(req, Number(order.id))
+    }
     return { sandbox: true, paid: true }
   }
 
@@ -401,6 +418,8 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
           subtotal: Number(existing.subtotal),
           deliveryFee: Number(existing.delivery_fee),
           priorityFee: Number(existing.priority_fee),
+          deliveryDiscount: Number(existing.discount_total) || 0,
+          freeDeliveryApplied: existing.free_delivery_applied === true,
           total: Number(existing.total),
           paidAt: transaction.paid_at || null,
           lines: savedLines.docs.map((line) => ({
@@ -450,7 +469,18 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
     }
     const deliveryFee = quote.available ? quote.deliveryFee : 0
     const priorityFee = quote.available ? quote.priorityFee : 0
-    const total = Math.round((pricedCart.subtotal + deliveryFee + priorityFee) * 100) / 100
+    const promotion = quote.available
+      ? await timed(requestId, 'checkout.first_order_promotion', () => getFirstOrderFreeDeliveryPromotion({
+          payload: req.payload,
+          customerId,
+          distance: quote.distance,
+          deliveryFee,
+          priorityFee,
+        }))
+      : { eligible: false, discount: 0, distanceMeters: null }
+    const deliveryDiscount = promotion.discount
+    const discountTotal = deliveryDiscount
+    const total = Math.round((pricedCart.subtotal + deliveryFee + priorityFee - discountTotal) * 100) / 100
     const contextHash = checkoutContextHash(pricedCart.cartItems, address)
 
     if (Math.round(expectedTotal * 100) !== Math.round(total * 100)) {
@@ -468,6 +498,8 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
           })),
           deliveryFee,
           priorityFee,
+          deliveryDiscount,
+          freeDeliveryApplied: promotion.eligible,
           total,
           currency: quote.currency,
           deliveryAvailable: quote.available,
@@ -501,6 +533,13 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
           delivery_fee: deliveryFee,
           platform_fee: 0,
           priority_fee: priorityFee,
+          discount_total: discountTotal,
+          ...(promotion.eligible
+            ? {
+                coupon_code: FIRST_ORDER_FREE_DELIVERY_CODE,
+                free_delivery_applied: true,
+              }
+            : {}),
           placed_at: new Date().toISOString(),
           checkout_idempotency_key: idempotencyKey,
           checkout_address_id: String(addressId),
@@ -510,6 +549,35 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
         overrideAccess: true,
         req,
       }))
+
+      if (promotion.eligible) {
+        await timed(requestId, 'payload.delivery_promotion_create', () => req.payload.create({
+          collection: 'order-discounts',
+          data: {
+            order: order.id,
+            code: FIRST_ORDER_FREE_DELIVERY_CODE,
+            amount_off: deliveryDiscount,
+            type: 'fixed',
+            coupon_snapshot: {
+              campaign: 'first_order_free_delivery',
+              maxDistanceMeters: 5000,
+              distanceMeters: promotion.distanceMeters,
+              deliveryFee,
+              priorityFee,
+            },
+            food_discount: 0,
+            delivery_discount: deliveryDiscount,
+            funded_by: 'platform',
+            vendor_share_pct: 0,
+            platform_share: deliveryDiscount,
+            vendor_share: 0,
+            source: 'auto_campaign',
+          } as never,
+          depth: 0,
+          overrideAccess: true,
+          req,
+        }))
+      }
 
       for (const line of pricedCart.lines) {
         await timed(requestId, 'payload.order_item_create', () => req.payload.create({
@@ -618,6 +686,8 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
         })),
         deliveryFee,
         priorityFee,
+        deliveryDiscount,
+        freeDeliveryApplied: promotion.eligible,
         total,
         currency: quote.currency,
         deliveryAvailable: quote.available,

@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
               <div className="max-w-md">
                 <div className="mb-10">
                   <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-sm border border-white/10">
-                    <Image src="/logo.png" alt="Tap2Go Logo" width={64} height={64} style={{ objectFit: 'contain' }} />
+                    <Image src="/logo.png?v=2" alt="Tap2Go Logo" width={64} height={64} style={{ objectFit: 'contain' }} />
                   </div>
                   <h1 className="text-3xl font-bold mb-2">Tap2Go</h1>
                   <p className="text-[#eba236] text-lg font-medium">Admin Panel</p>
@@ -111,7 +111,7 @@ export default function ForgotPasswordPage() {
 
                 {/* Mobile Header */}
                 <div className="lg:hidden text-center mb-6">
-                  <Image src="/logo.png" alt="Tap2Go Logo" width={56} height={56} className="mx-auto mb-3" style={{ objectFit: 'contain' }} />
+                  <Image src="/logo.png?v=2" alt="Tap2Go Logo" width={56} height={56} className="mx-auto mb-3" style={{ objectFit: 'contain' }} />
                   <h2 className="text-xl font-bold text-gray-900 dark:text-[#ededed] mb-1">
                     Forgot Password
                   </h2>

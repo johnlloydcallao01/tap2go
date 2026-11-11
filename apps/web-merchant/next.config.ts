@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
   ],
 
   images: {
+    localPatterns: [
+      { pathname: "/**", search: "" },
+      { pathname: "/logo.png", search: "?v=2" },
+    ],
     remotePatterns: [
       {
         protocol: 'https',

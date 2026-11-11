@@ -23,6 +23,10 @@ export const metadata: Metadata = {
   keywords: "merchant portal, restaurant management, orders, analytics, Tap2Go",
   authors: [{ name: "Tap2Go Merchant Team" }],
   robots: "noindex, nofollow",
+  icons: {
+    icon: [{ url: "/favicon.png?v=2", type: "image/png" }],
+    apple: [{ url: "/logo.png?v=2", type: "image/png" }],
+  },
   openGraph: {
     title: "Tap2Go Merchant Portal",
     description: "Merchant portal for managing your Tap2Go restaurant operations.",
@@ -72,7 +76,7 @@ export default async function RootLayout({ children }: LayoutProps) {
                 <div className="facebook-logo">
                   {/* @ts-ignore -- Next.js Image component type issue with React 19 */}
                   <Image
-                    src="/logo.png"
+                    src="/logo.png?v=2"
                     alt="Tap2Go Merchant Logo"
                     width={48}
                     height={48}

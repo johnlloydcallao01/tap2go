@@ -340,7 +340,7 @@ export default function LocationBasedMerchants({
         customerId={customerId}
         categoryId={categoryId}
         onProductPress={onProductPress}
-        eligibleMerchants={useBff ? null : allMerchants}
+        eligibleMerchants={useBff ? (overview?.nearbyMerchants ?? []) : allMerchants}
         overviewProducts={useBff ? (recommendationsOverview?.recommendedProducts ?? null) : undefined}
         overviewCategories={useBff ? (recommendationsOverview?.recommendedCategories ?? null) : undefined}
         overviewHasOrphans={useBff ? (recommendationsOverview?.recommendedHasOrphans === true) : undefined}

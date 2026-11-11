@@ -21,6 +21,7 @@ import ViewCartBar from '../components/shared/ViewCartBar';
 import { formatCurrency } from '../utils/format';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { useQueryClient } from '@tanstack/react-query';
+import { useMerchantOrderAvailability } from '../hooks/useMerchantOrderAvailability';
 
 import { useNavigation } from '../navigation/NavigationContext';
 import { useLocalSearchParams } from 'expo-router';
@@ -76,6 +77,8 @@ export default function ProductScreen() {
   const { width } = useWindowDimensions();
 
   const { data: product, isLoading, isRefetching, error } = useProduct(productId, merchantId);
+  const merchantAvailability = useMerchantOrderAvailability(merchantId);
+  const isMerchantOrderingUnavailable = merchantAvailability.isUnavailable;
   const { addToCart, items: cartItems, getMerchantCart } = useCart();
 
   const [quantity, setQuantity] = useState(1);
@@ -351,6 +354,11 @@ export default function ProductScreen() {
   const isBelowPayMongoMinimum = totalPrice < PAYMONGO_MINIMUM_AMOUNT_PHP;
 
   const handleAddToCart = async () => {
+    if (isMerchantOrderingUnavailable) {
+      Alert.alert('Merchant unavailable', merchantAvailability.unavailableMessage || 'This merchant is not accepting orders.');
+      return;
+    }
+
     if (hasInvalidModifiers) {
       Alert.alert('Required Options', 'Please make sure all required options are selected.');
       return;
@@ -462,6 +470,10 @@ export default function ProductScreen() {
   }, [allEligibleGroupedItemsSelected, eligibleGroupedItems]);
 
   const handleAddGroupedItemsToCart = useCallback(async () => {
+    if (isMerchantOrderingUnavailable) {
+      Alert.alert('Merchant unavailable', merchantAvailability.unavailableMessage || 'This merchant is not accepting orders.');
+      return;
+    }
     if (!selectedGroupedItemCount) {
       return;
     }
@@ -494,7 +506,7 @@ export default function ProductScreen() {
     } finally {
       setIsAddingToCart(false);
     }
-  }, [addToCart, eligibleGroupedItems, merchantId, selectedGroupedItemCount, stagedGroupedItems]);
+  }, [addToCart, eligibleGroupedItems, isMerchantOrderingUnavailable, merchantAvailability.unavailableMessage, merchantId, selectedGroupedItemCount, stagedGroupedItems]);
 
   const handleGroupedItemPress = (item: GroupedProductItem) => {
     if (!item.isAvailable) {
@@ -655,6 +667,14 @@ export default function ProductScreen() {
               >
                 <Text style={{ color: '#b91c1c', fontWeight: '600' }}>Retry</Text>
               </TouchableOpacity>
+            </View>
+          )}
+          {isMerchantOrderingUnavailable && (
+            <View style={{ marginBottom: 16, padding: 12, borderRadius: 8, backgroundColor: '#FEF3C7', flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="sunny-outline" size={18} color="#92400E" style={{ marginRight: 8 }} />
+              <Text style={{ flex: 1, color: '#78350F', fontSize: 13, fontWeight: '600' }}>
+                {merchantAvailability.unavailableMessage}
+              </Text>
             </View>
           )}
           <View style={styles.headerRow}>
@@ -1043,10 +1063,10 @@ export default function ProductScreen() {
               <TouchableOpacity
                 style={[
                   styles.groupedBottomBarButton,
-                  { backgroundColor: colors.primary },
+                  { backgroundColor: isMerchantOrderingUnavailable ? '#9CA3AF' : colors.primary },
                 ]}
                 onPress={handleAddGroupedItemsToCart}
-                disabled={isAddingToCart}
+                disabled={isAddingToCart || isMerchantOrderingUnavailable}
               >
                 {isAddingToCart ? (
                   <ActivityIndicator color="#fff" />
@@ -1112,10 +1132,10 @@ export default function ProductScreen() {
             <TouchableOpacity
               style={[
                 styles.addToCartButton,
-                { backgroundColor: hasInvalidModifiers || cannotAddVariableProduct || isBelowPayMongoMinimum ? '#ccc' : colors.primary }
+                { backgroundColor: hasInvalidModifiers || cannotAddVariableProduct || isBelowPayMongoMinimum || isMerchantOrderingUnavailable ? '#ccc' : colors.primary }
               ]}
               onPress={handleAddToCart}
-              disabled={hasInvalidModifiers || cannotAddVariableProduct || isAddingToCart || isBelowPayMongoMinimum}
+              disabled={hasInvalidModifiers || cannotAddVariableProduct || isAddingToCart || isBelowPayMongoMinimum || isMerchantOrderingUnavailable}
             >
               {isAddingToCart ? (
                 <ActivityIndicator color="#fff" />

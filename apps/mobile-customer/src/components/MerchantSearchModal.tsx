@@ -22,9 +22,10 @@ interface Props {
   products: MerchantProductDisplay[];
   categories: MerchantCategoryDisplay[];
   onAddToCart: (product: MerchantProductDisplay) => void;
+  isOrderingUnavailable?: boolean;
 }
 
-export default function MerchantSearchModal({ visible, onClose, products, categories, onAddToCart }: Props) {
+export default function MerchantSearchModal({ visible, onClose, products, categories, onAddToCart, isOrderingUnavailable = false }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const inputRef = React.useRef<TextInputInstance>(null);
@@ -79,6 +80,7 @@ export default function MerchantSearchModal({ visible, onClose, products, catego
     return (
       <TouchableOpacity 
         style={styles.itemContainer}
+        disabled={isOrderingUnavailable && item.productType !== 'variable' && item.productType !== 'grouped'}
         onPress={() => {
             if (item.productType === 'variable' || item.productType === 'grouped') {
                  Alert.alert('Product', item.name);
@@ -111,9 +113,10 @@ export default function MerchantSearchModal({ visible, onClose, products, catego
           />
           <TouchableOpacity 
             style={styles.addButton}
+            disabled={isOrderingUnavailable}
             onPress={() => handleAddToCart(item)}
           >
-            <Ionicons name="add" size={16} color="#fff" />
+            <Ionicons name={isOrderingUnavailable ? 'time-outline' : 'add'} size={16} color="#fff" />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>

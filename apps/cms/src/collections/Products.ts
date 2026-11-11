@@ -1,5 +1,11 @@
 import type { CollectionConfig } from 'payload'
-import { bustCatalogCache, bustCustomerHomeCache, bustProductsCache, bustSearchCache } from '../utils/dashboardCache'
+import {
+  bustCatalogCache,
+  bustCustomerHomeCache,
+  bustCustomerMerchantMenuCache,
+  bustProductsCache,
+  bustSearchCache,
+} from '../utils/dashboardCache'
 
 export const Products: CollectionConfig = {
   slug: 'products',
@@ -636,6 +642,7 @@ export const Products: CollectionConfig = {
         try {
           await bustProductsCache()
           await bustCustomerHomeCache()
+          await bustCustomerMerchantMenuCache()
           // Product re-categorization moves productCountByCategory in the
           // product-categories stats rollup (same prefix family).
           await bustCatalogCache()
@@ -649,6 +656,7 @@ export const Products: CollectionConfig = {
       async () => {
         try {
           await bustCustomerHomeCache()
+          await bustCustomerMerchantMenuCache()
           await bustProductsCache()
           await bustCatalogCache()
           await bustSearchCache()

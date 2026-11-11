@@ -26,6 +26,7 @@ import { useCart } from '../contexts/CartContext';
 import { fetchEffectiveModifierGroups } from '../services/product';
 import { apiConfig } from '../config/environment';
 import { formatCurrency } from '../utils/format';
+import { getMerchantOrderUnavailableMessage } from '../utils/merchantAvailability';
 
 interface RecommendedForYouProps {
   customerId?: string | null;
@@ -258,6 +259,14 @@ export default function RecommendedForYou({
   };
 
   const handleAddToCart = async (product: RecommendedProduct) => {
+    const merchant = eligibleMerchants?.find((candidate) => String(candidate.id) === String(product.merchantId));
+    const availability = merchant ?? product.merchantAvailability;
+    const unavailableMessage = availability ? getMerchantOrderUnavailableMessage(availability) : null;
+    if (unavailableMessage) {
+      Alert.alert('Merchant unavailable', unavailableMessage);
+      return;
+    }
+
     const openProductDetails = () => handlePress(product);
     if (product.productType === 'variable' || product.productType === 'grouped') {
       openProductDetails();
@@ -409,6 +418,13 @@ export default function RecommendedForYou({
         <>
           <View style={styles.gridList}>
             {visibleProducts.map((product) => {
+              const eligibleMerchant = eligibleMerchants?.find(
+                (merchant) => String(merchant.id) === String(product.merchantId),
+              );
+              const availability = eligibleMerchant ?? product.merchantAvailability;
+              const merchantUnavailable = Boolean(
+                availability && getMerchantOrderUnavailableMessage(availability),
+              );
               return (
                 <TouchableOpacity
                   key={`${product.merchantProductId}-${product.id}`}
@@ -426,15 +442,19 @@ export default function RecommendedForYou({
                     accessibilityRole="button"
                     accessibilityLabel={`Add ${product.name} to cart`}
                     style={styles.addButton}
+                    disabled={merchantUnavailable}
                     onPress={() => void handleAddToCart(product)}
                   >
-                    <Ionicons name="add" size={20} color="#333" />
+                    <Ionicons name={merchantUnavailable ? 'time-outline' : 'add'} size={20} color="#333" />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.productContent}>
                   <Text style={styles.productName} numberOfLines={2}>
                     {product.name}
                   </Text>
+                  {merchantUnavailable && (
+                    <Text style={styles.unavailableText}>Merchant on vacation</Text>
+                  )}
                   {product.productType === 'simple' ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                       {product.basePrice !== null && (
@@ -637,6 +657,12 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 4,
     height: 36,
+  },
+  unavailableText: {
+    marginBottom: 4,
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '600',
   },
   price: {
     fontSize: 14,

@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { bustCustomerHomeCache } from '../utils/dashboardCache'
+import { bustCustomerHomeCache, bustCustomerMerchantMenuCache } from '../utils/dashboardCache'
 import { authenticatedUsers, adminOnly } from '../access'
 
 export const Media: CollectionConfig = {
@@ -34,6 +34,7 @@ export const Media: CollectionConfig = {
       async () => {
         try {
           await bustCustomerHomeCache()
+          await bustCustomerMerchantMenuCache()
         } catch {
           // ignore cache bust failures
         }
@@ -43,6 +44,7 @@ export const Media: CollectionConfig = {
       async () => {
         try {
           await bustCustomerHomeCache()
+          await bustCustomerMerchantMenuCache()
         } catch {
           // ignore cache bust failures
         }

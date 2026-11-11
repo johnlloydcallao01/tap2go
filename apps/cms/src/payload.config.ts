@@ -18,8 +18,11 @@ import { customerCartAddHandler } from './endpoints/customerCartAdd'
 import { customerWishlistOverviewHandler } from './endpoints/customerWishlistOverview'
 import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
 import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
+import { merchantMenuHandler } from './endpoints/merchantMenu'
+import { merchantViewHandler } from './endpoints/merchantView'
 import { PAYMONGO_STATEMENT_DESCRIPTOR } from './services/paymongo'
 import { sendOrderHelp } from './endpoints/sendOrderHelp'
+import { websiteContactHandler } from './endpoints/websiteContact'
 import { paymongoWebhook } from './endpoints/paymongoWebhook'
 import { deliveryQuoteHandler } from './endpoints/deliveryQuote'
 import { deliveryBookHandler } from './endpoints/deliveryBook'
@@ -29,11 +32,14 @@ import {
 } from './endpoints/deliveryPriorityFee'
 import { deliveryCancelHandler } from './endpoints/deliveryCancel'
 import { deliveryTrackHandler } from './endpoints/deliveryTrack'
+import { deliveryRouteHandler } from './endpoints/deliveryRoute'
 import { lalamoveWebhookHandler } from './endpoints/lalamoveWebhook'
 import { couponsValidateHandler } from './endpoints/couponsValidate'
 import { couponsAttachHandler } from './endpoints/couponsAttach'
 import { checkoutPaymentResumeHandler } from './endpoints/checkoutPaymentResume'
+import { checkoutPrepareHandler } from './endpoints/checkoutPrepare'
 import { CouponService, roundMoney } from './services/CouponService'
+import { getMerchantOrderUnavailableMessage } from './utils/vacationMode'
 import {
   assertCheckoutCartAvailable,
   CheckoutCartUnavailableError,
@@ -864,6 +870,16 @@ export default buildConfig({
       method: 'get',
       handler: merchantLocationBasedProductCategoriesHandler,
     },
+    {
+      path: '/merchant/view',
+      method: 'get',
+      handler: merchantViewHandler,
+    },
+    {
+      path: '/merchant/menu',
+      method: 'get',
+      handler: merchantMenuHandler,
+    },
 
     {
       path: '/customer/home-overview',
@@ -1203,6 +1219,12 @@ export default buildConfig({
     },
 
     {
+      path: '/delivery/route',
+      method: 'get',
+      handler: deliveryRouteHandler,
+    },
+
+    {
       path: '/delivery/webhook',
       method: 'post',
       handler: lalamoveWebhookHandler,
@@ -1303,6 +1325,24 @@ export default buildConfig({
               requestId,
               timings: phaseTimings,
             });
+          }
+
+          const checkoutMerchant = await timePhase('merchantAvailabilityCheckMs', () =>
+            req.payload.findByID({
+              collection: 'merchants',
+              id: normalizedMerchantId,
+              depth: 0,
+              overrideAccess: true,
+            }),
+          );
+          const unavailableMessage = getMerchantOrderUnavailableMessage(checkoutMerchant);
+          if (unavailableMessage) {
+            return Response.json({
+              success: false,
+              error: unavailableMessage,
+              code: 'MERCHANT_UNAVAILABLE',
+              requestId,
+            }, { status: 409 });
           }
 
           try {
@@ -1443,7 +1483,14 @@ export default buildConfig({
             requestId,
           }, { status: 500 });
         }
+
       }),
+    },
+
+    {
+      path: '/checkout/prepare-v2',
+      method: 'post',
+      handler: checkoutPrepareHandler,
     },
 
     {
@@ -1490,6 +1537,31 @@ export default buildConfig({
                { error: 'Checkout total must be at least PHP 1.00 before creating a payment intent.' },
                { status: 400 },
              );
+          }
+
+          if (orderId === undefined || orderId === null || String(orderId) === '') {
+            const normalizedMerchantId = Number(merchantId);
+            if (!Number.isSafeInteger(normalizedMerchantId) || normalizedMerchantId <= 0) {
+              return Response.json({
+                error: 'merchantId is required before creating a payment intent.',
+                code: 'MERCHANT_REQUIRED',
+              }, { status: 400 });
+            }
+            let merchant;
+            try {
+              merchant = await req.payload.findByID({
+                collection: 'merchants',
+                id: normalizedMerchantId,
+                depth: 0,
+                overrideAccess: true,
+              });
+            } catch {
+              return Response.json({ error: 'Merchant not found.', code: 'MERCHANT_NOT_FOUND' }, { status: 404 });
+            }
+            const unavailableMessage = getMerchantOrderUnavailableMessage(merchant);
+            if (unavailableMessage) {
+              return Response.json({ error: unavailableMessage, code: 'MERCHANT_UNAVAILABLE' }, { status: 409 });
+            }
           }
 
           // Coupon/order cross-check: never trust a client-computed discounted total.
@@ -1639,6 +1711,11 @@ export default buildConfig({
       path: '/support/order-help',
       method: 'post',
       handler: sendOrderHelp,
+    },
+    {
+      path: '/website/contact',
+      method: 'post',
+      handler: websiteContactHandler,
     },
   ],
 

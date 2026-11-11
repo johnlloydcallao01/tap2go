@@ -8,6 +8,7 @@ import { useCart } from '../contexts/CartContext';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { formatCurrency } from '../utils/format';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
+import { useMerchantOrderAvailability } from '../hooks/useMerchantOrderAvailability';
 
 const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
 
@@ -50,6 +51,8 @@ export default function MerchantCartScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const merchantCart = getMerchantCart(merchantId);
+    const merchantAvailability = useMerchantOrderAvailability(merchantId);
+    const merchantOrderingUnavailable = merchantAvailability.isUnavailable;
   const hasPendingAdds = hasPendingAddsForMerchant(merchantId);
   const isBelowPayMongoMinimum = Boolean(merchantCart && merchantCart.subtotal < PAYMONGO_MINIMUM_AMOUNT_PHP);
 
@@ -73,6 +76,7 @@ export default function MerchantCartScreen() {
   };
 
   const handleCheckout = () => {
+        if (merchantOrderingUnavailable) return;
     if (
       !merchantId ||
       !merchantCart ||
@@ -140,6 +144,15 @@ export default function MerchantCartScreen() {
                         )}
                         <Text style={styles.merchantName}>{merchantCart.merchantName}</Text>
                     </View>
+
+                    {merchantOrderingUnavailable && (
+                        <View style={{ marginBottom: 12, padding: 12, borderRadius: 8, backgroundColor: '#FEF3C7', flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="sunny-outline" size={18} color="#92400E" style={{ marginRight: 8 }} />
+                            <Text style={{ flex: 1, color: '#78350F', fontSize: 13, fontWeight: '600' }}>
+                                {merchantAvailability.unavailableMessage}
+                            </Text>
+                        </View>
+                    )}
                     
                     {merchantCart.items.map((item) => (
                         <View key={item.id} style={styles.cartItem}>
@@ -183,8 +196,8 @@ export default function MerchantCartScreen() {
                                     <Text style={styles.qtyText}>{item.quantity}</Text>
                                     <TouchableOpacity 
                                         onPress={() => handleQuantityChange(item.id, item.quantity + 1)}
-                                        style={styles.qtyButton}
-                                        disabled={item.isPending}
+                                        style={[styles.qtyButton, merchantOrderingUnavailable && { opacity: 0.45 }]}
+                                        disabled={item.isPending || merchantOrderingUnavailable}
                                     >
                                         <Text style={styles.qtyButtonText}>+</Text>
                                     </TouchableOpacity>
@@ -222,13 +235,13 @@ export default function MerchantCartScreen() {
           <TouchableOpacity 
             style={[
               styles.checkoutButton,
-              (isBelowPayMongoMinimum || hasPendingAdds) && styles.checkoutButtonDisabled,
+                            (isBelowPayMongoMinimum || hasPendingAdds || merchantOrderingUnavailable) && styles.checkoutButtonDisabled,
             ]}
             onPress={handleCheckout}
-            disabled={isBelowPayMongoMinimum || hasPendingAdds}
+                        disabled={isBelowPayMongoMinimum || hasPendingAdds || merchantOrderingUnavailable}
           >
             <Text style={styles.checkoutButtonText}>
-              {hasPendingAdds ? 'Adding items…' : 'Proceed to Checkout'}
+                            {hasPendingAdds ? 'Adding items...' : merchantOrderingUnavailable ? 'Merchant unavailable' : 'Proceed to Checkout'}
             </Text>
             <Text style={styles.checkoutTotal}>{formatCurrency(merchantCart.subtotal)}</Text>
           </TouchableOpacity>

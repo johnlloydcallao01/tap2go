@@ -10,7 +10,7 @@ export default function MaintenancePage() {
           <div className="relative h-32 w-32 overflow-hidden rounded-full border-4 border-white shadow-lg">
             {/* Using explicit width/height instead of fill to ensure reliability */}
             <Image
-              src="/logo.webp"
+              src="/logo.png"
               alt="Tap2Go Logo"
               width={128}
               height={128}

@@ -94,7 +94,7 @@ export const OrderDiscounts: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       admin: {
-        description: 'Pesos discounted on the delivery fee leg',
+        description: 'Pesos discounted on the delivery and priority fee legs',
       },
     },
     {

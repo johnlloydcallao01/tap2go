@@ -110,6 +110,7 @@ export async function buildReportsOverview(payload: Payload, searchParams: URLSe
     sql`SELECT t.id::text AS tid, o.id::text AS oid, COALESCE(t.paid_at::text, t.created_at::text) AS date,
       COALESCE(m.outlet_name, 'N/A') AS merchant, COALESCE(v.business_name, 'N/A') AS vendor,
       t.amount AS amount, COALESCE(o.platform_fee::numeric,0) AS pfee, COALESCE(o.delivery_fee::numeric,0) AS dfee,
+      COALESCE(o.priority_fee::numeric,0) AS priority_fee,
       COALESCE(d.off,0) AS discount, COALESCE(d.code,'') AS code, t.status::text AS status,
       COALESCE(t.payment_method,'unknown') AS pm, COALESCE(o.total::numeric, t.amount::numeric) AS gross
       FROM transactions t JOIN orders o ON o.id = t.order_id
@@ -126,6 +127,7 @@ export async function buildReportsOverview(payload: Payload, searchParams: URLSe
     amount: getNum(r.amount),
     platformFee: getNum(r.pfee),
     deliveryFee: getNum(r.dfee),
+    priorityFee: getNum(r.priority_fee),
     discount: getNum(r.discount),
     couponCode: getStr(r.code),
     status: getStr(r.status),
@@ -137,12 +139,14 @@ export async function buildReportsOverview(payload: Payload, searchParams: URLSe
     sql`SELECT v.id::text AS vid, COALESCE(v.business_name,'') AS name,
       COUNT(*)::int AS orders, COALESCE(SUM(t.amount::numeric),0) AS gross,
       COALESCE(SUM(o.platform_fee::numeric),0) AS pfees, COALESCE(SUM(o.delivery_fee::numeric),0) AS dfees,
-      COALESCE(SUM(d.vshare),0) AS dshare,
-      COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0) - COALESCE(d.vshare,0))),0) AS net
+      COALESCE(SUM(o.priority_fee::numeric),0) AS priority_fees,
+      COALESCE(SUM(d.pshare),0) AS platform_discount,
+      COALESCE(SUM(GREATEST(0, t.amount::numeric - COALESCE(o.platform_fee::numeric,0) - COALESCE(o.delivery_fee::numeric,0) - GREATEST(0, COALESCE(o.priority_fee::numeric,0) - COALESCE(pp.priority_paid,0)) + COALESCE(d.pshare,0))),0) AS net
       FROM transactions t JOIN orders o ON o.id = t.order_id
       LEFT JOIN merchants m ON m.id = o.merchant_id LEFT JOIN vendors v ON v.id = m.vendor_id
-      LEFT JOIN (SELECT order_id, SUM(vendor_share::numeric) AS vshare FROM order_discounts GROUP BY order_id) d ON d.order_id = o.id
-      WHERE t.status='paid' AND ${inWindow('t.paid_at')} AND v.id IS NOT NULL
+      LEFT JOIN (SELECT order_id, SUM(platform_share::numeric) AS pshare FROM order_discounts GROUP BY order_id) d ON d.order_id = o.id
+      LEFT JOIN (SELECT order_id, SUM(amount::numeric) AS priority_paid FROM transactions WHERE status = 'paid' AND transaction_type = 'priority_fee' GROUP BY order_id) pp ON pp.order_id = o.id
+      WHERE t.status='paid' AND COALESCE(t.transaction_type, 'order') <> 'priority_fee' AND ${inWindow('t.paid_at')} AND v.id IS NOT NULL
       GROUP BY v.id, v.business_name ORDER BY SUM(t.amount::numeric) DESC LIMIT 20`,
   )
   const vendorPayouts = payAgg.map((r) => ({
@@ -152,7 +156,8 @@ export async function buildReportsOverview(payload: Payload, searchParams: URLSe
     gross: getNum(r.gross),
     platformFees: getNum(r.pfees),
     deliveryFees: getNum(r.dfees),
-    discountShare: getNum(r.dshare),
+    priorityFees: getNum(r.priority_fees),
+    platformFundedDiscounts: getNum(r.platform_discount),
     net: getNum(r.net),
   }))
   const refRows = await rRows(
@@ -222,6 +227,7 @@ export async function buildReportsOverview(payload: Payload, searchParams: URLSe
           gross: totalRevenue,
           platformFees: financialRows.reduce((s, r) => s + r.platformFee, 0),
           deliveryFees: financialRows.reduce((s, r) => s + r.deliveryFee, 0),
+          priorityFees: financialRows.reduce((s, r) => s + r.priorityFee, 0),
           discounts: financialRows.reduce((s, r) => s + (r.discount || 0), 0),
         },
         count: financialRows.length,

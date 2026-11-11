@@ -9,10 +9,11 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - logo.webp (logo file)
+     * - favicon.png (favicon file)
+     * - logo.png (logo file)
      * - maintenance (the maintenance page itself)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|logo.webp|maintenance).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|favicon.png|logo.png|maintenance).*)',
   ],
 };
 

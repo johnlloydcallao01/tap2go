@@ -99,3 +99,9 @@ Based on this research, here is the recommended structure for the Tap2Go trackin
 5.  **Order Summary (Expandable):**
     *   Keep the item list hidden by default (or "View Receipt") to reduce clutter.
     *   Always show the **Delivery Address** at the bottom of the card to reassure the user.
+
+## Motorcycle route geometry
+
+The tracking map requests pickup-to-delivery geometry from the CMS `/delivery/route` endpoint. The CMS calls Google Routes API v2 `computeRoutes` with `travelMode: TWO_WHEELER` and `polylineQuality: HIGH_QUALITY`, then returns decoded route coordinates for both native and Expo Go maps. The route is requested separately from live tracking polls, so Google Routes is not called every time rider location is refreshed.
+
+`GOOGLE_MAPS_API_KEY` must be configured on the CMS server with Routes API enabled; do not send this server key to the mobile app. Google lists the Philippines as supported for two-wheeled routes, but documents that this travel mode is in beta. The tracking screen displays Google's beta warning and does not draw a fabricated straight-line route if route calculation fails.

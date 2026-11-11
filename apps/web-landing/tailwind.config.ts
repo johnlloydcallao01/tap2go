@@ -9,6 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        orange: {
+          50: "#fffaf1",
+          100: "#fff3da",
+          200: "#ffe2a2",
+          300: "#ffd06a",
+          400: "#f6bc48",
+          500: "#f3a823",
+          600: "#b77c13",
+          700: "#8a5a00",
+          800: "#704900",
+          900: "#593a00",
+        },
         background: "var(--background)",
         foreground: "var(--foreground)",
         primary: "var(--primary)",

@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { extractRelationshipId } from '../services/modifierUtils'
 import { resolveMerchantProductProductId } from '../services/merchantModifierOverrideUtils'
 import { modifierConfigurationAccess } from '../access/modifierAccess'
+import { bustCustomerMerchantMenuCache } from '../utils/dashboardCache'
 
 export const MerchantProductModifierGroupOverrides: CollectionConfig = {
   slug: 'merchant-product-modifier-group-overrides',
@@ -127,6 +128,16 @@ export const MerchantProductModifierGroupOverrides: CollectionConfig = {
     },
   ],
   hooks: {
+    afterChange: [
+      async () => {
+        await bustCustomerMerchantMenuCache()
+      },
+    ],
+    afterDelete: [
+      async () => {
+        await bustCustomerMerchantMenuCache()
+      },
+    ],
     beforeValidate: [
       async ({ data, req }) => {
         if (!data?.merchant_product_id || !data?.base_modifier_group_id) {

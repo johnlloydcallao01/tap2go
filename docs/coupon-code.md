@@ -409,5 +409,25 @@ Error taxonomy (keep Woo 100–116/200–201) so mobile/web-admin show reason-sp
   `tsc --noEmit` 0 + `eslint .` 0 after migrate. Temp DB-check script removed.
 - web-admin Marketing → Coupons UI (replace dead `/promotions/*` sidebar links), order-detail
   discount block, reports copy for `totalDiscounts`.
-- Mobile checkout: validate → attach → intent-with-orderId flow + discount row UI.
+- ~~Mobile checkout: validate → attach → intent-with-orderId flow + discount row UI.~~ DONE
+  2026-11: customer checkout uses authenticated server pricing and displays the delivery +
+  priority-fee campaign discount.
 - Vendor-portal create/approve flow, batch import, hold-TTL sweeper cron, abuse dashboards.
+
+## 12. New-customer delivery campaign (2026-11)
+
+- `POST /checkout/prepare-v2` computes the first-order offer on the server for the
+  authenticated customer. A prior paid non-priority order disqualifies the customer; unpaid
+  checkouts do not. Client-provided customer IDs or eligibility flags are not trusted.
+- For a fresh Lalamove quote at or below 5,000 route meters, the offer reduces the customer
+  charge by the complete quoted delivery fee plus configured priority fee. Unknown distance
+  units and distances over 5,000 meters do not qualify.
+- Orders retain the full quoted `delivery_fee` and `priority_fee`; `discount_total` and an
+  `order-discounts` record separately capture the platform-funded waiver, including priority.
+  PayMongo receives the reduced order total. Lalamove booking and priority-fee requests remain
+  unchanged and are funded from the Tap2Go business Lalamove Wallet.
+- Customer checkout and order details show the fee waiver. Vendor/admin payout reports exclude
+  separately paid priority-fee transactions from order revenue and account for platform-funded
+  discounts when calculating vendor proceeds.
+- Eligibility is based on successful paid transactions. Concurrent first-time checkouts are not
+  reserved atomically, so two simultaneous unpaid checkouts may both receive the offer.

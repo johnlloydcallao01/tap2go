@@ -1,128 +1,56 @@
-"use client";
+const steps = [
+  {
+    number: "01",
+    icon: "fa-location-dot",
+    title: "Set your address",
+    description: "After signing in, choose where you want your order delivered to see the restaurants and food options serving that area.",
+  },
+  {
+    number: "02",
+    icon: "fa-book-open",
+    title: "Choose your food",
+    description: "Browse a restaurant's menu, select the items and options you want, and add them to your cart.",
+  },
+  {
+    number: "03",
+    icon: "fa-credit-card",
+    title: "Review and place your order",
+    description: "Confirm the delivery address, check the quoted delivery fee, and choose a payment method offered at checkout.",
+  },
+  {
+    number: "04",
+    icon: "fa-motorcycle",
+    title: "Follow its progress",
+    description: "Check order updates; delivery tracking and rider details are shown when available for your order.",
+  },
+];
 
 export function Stats() {
-  const stats = [
-    {
-      number: "50,000+",
-      label: "Active Learners",
-      icon: "fas fa-users",
-      color: "from-[#201a7c] to-[#1a1569]"
-    },
-    {
-      number: "1,000+",
-      label: "Expert Courses",
-      icon: "fas fa-book-open",
-      color: "from-[#ab3b43] to-[#8f2f36]"
-    },
-    {
-      number: "98%",
-      label: "Success Rate",
-      icon: "fas fa-chart-line",
-      color: "from-[#201a7c] to-[#ab3b43]"
-    },
-    {
-      number: "500+",
-      label: "Partner Companies",
-      icon: "fas fa-building",
-      color: "from-[#ab3b43] to-[#201a7c]"
-    },
-    {
-      number: "4.9/5",
-      label: "Student Rating",
-      icon: "fas fa-star",
-      color: "from-[#1a1569] to-[#201a7c]"
-    },
-    {
-      number: "24/7",
-      label: "Support Available",
-      icon: "fas fa-headset",
-      color: "from-[#8f2f36] to-[#ab3b43]"
-    }
-  ];
-
   return (
-    <section className="py-20 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center px-4 py-2 bg-[#ab3b43]/10 text-[#ab3b43] rounded-full text-sm font-medium mb-4">
-            <i className="fas fa-chart-bar mr-2"></i>
-            Our Impact
+    <section id="how-it-works" className="scroll-mt-24 bg-secondary py-20 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid items-end gap-6 md:grid-cols-[1fr_0.7fr]">
+          <div>
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-orange-700">How ordering works</p>
+            <h2 className="heading-primary max-w-2xl text-3xl tracking-tight text-stone-950 sm:text-5xl">
+              From choosing an address to following your order.
+            </h2>
           </div>
-          <h2 className="heading-primary text-3xl md:text-4xl lg:text-5xl text-gray-900 mb-4">
-            Trusted by Learners
-            <span className="text-[#ab3b43]"> Worldwide</span>
-          </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Join thousands of professionals who have transformed their careers through our comprehensive learning platform.
+          <p className="max-w-lg leading-7 text-stone-600 md:justify-self-end">
+            Restaurant availability, delivery quotes, payment methods, and tracking details can vary by address and order.
           </p>
         </div>
-
-        {/* Stats grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {stats.map((stat, index) => (
-            <div
-              key={index}
-              className="card-hover bg-white p-8 rounded-2xl shadow-lg border border-gray-100 text-center group"
-            >
-              <div className={`w-16 h-16 bg-gradient-to-r ${stat.color} rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                <i className={`${stat.icon} text-2xl text-white`}></i>
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((step) => (
+            <article key={step.number} className="relative rounded-3xl bg-white p-7 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold tracking-widest text-orange-700">{step.number}</span>
+                <i aria-hidden="true" className={`fas ${step.icon} text-xl text-orange-600`} />
               </div>
-              <div className="heading-primary text-4xl md:text-5xl font-bold text-gray-900 mb-2">
-                {stat.number}
-              </div>
-              <div className="text-gray-600 font-medium">
-                {stat.label}
-              </div>
-            </div>
+              <h3 className="mt-8 font-display text-2xl font-semibold text-stone-900">{step.title}</h3>
+              <p className="mt-3 leading-7 text-stone-600">{step.description}</p>
+            </article>
           ))}
-        </div>
-
-        {/* Achievement section */}
-        <div className="mt-20 bg-gradient-to-r from-[#201a7c] to-[#ab3b43] rounded-3xl p-8 md:p-12 text-white">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            <div>
-              <h3 className="heading-primary text-3xl md:text-4xl mb-6">
-                Ready to Join Our Success Story?
-              </h3>
-              <p className="text-xl text-blue-100 mb-8">
-                Start your learning journey today and become part of our growing community of successful professionals.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button className="bg-white text-[#201a7c] px-8 py-4 rounded-xl font-semibold hover:bg-gray-100 transition-colors inline-flex items-center justify-center">
-                  <i className="fas fa-rocket mr-2"></i>
-                  Start Free Trial
-                </button>
-                <button className="border-2 border-white text-white px-8 py-4 rounded-xl font-semibold hover:bg-white hover:text-[#201a7c] transition-colors inline-flex items-center justify-center">
-                  <i className="fas fa-calendar mr-2"></i>
-                  Schedule Demo
-                </button>
-              </div>
-            </div>
-            <div className="text-center lg:text-right">
-              <div className="inline-flex items-center justify-center w-32 h-32 bg-white/20 rounded-full mb-6">
-                <i className="fas fa-trophy text-6xl text-yellow-300"></i>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-center lg:justify-end space-x-2">
-                  <div className="flex text-yellow-300">
-                    <i className="fas fa-star"></i>
-                    <i className="fas fa-star"></i>
-                    <i className="fas fa-star"></i>
-                    <i className="fas fa-star"></i>
-                    <i className="fas fa-star"></i>
-                  </div>
-                  <span className="text-white font-semibold">5.0 Rating</span>
-                </div>
-                <p className="text-blue-100">
-                  "Best LMS platform we've ever used!"
-                </p>
-                <p className="text-blue-200 text-sm">
-                  - Fortune 500 Company
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </section>

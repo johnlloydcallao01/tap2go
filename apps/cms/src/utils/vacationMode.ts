@@ -1,6 +1,21 @@
 export type VacationModeFields = {
   vacationMode?: boolean | null
   vacationModeEndsAt?: string | Date | null
+  isActive?: boolean | null
+  isAcceptingOrders?: boolean | null
+}
+
+export function getMerchantOrderUnavailableMessage(
+  merchant: VacationModeFields | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (merchant && isMerchantOnVacation(merchant, now)) {
+    return 'This merchant is on vacation and is not accepting new orders.'
+  }
+  if (!merchant || merchant.isActive === false || merchant.isAcceptingOrders === false) {
+    return 'This merchant is not currently accepting orders.'
+  }
+  return null
 }
 
 export function isMerchantOnVacation(

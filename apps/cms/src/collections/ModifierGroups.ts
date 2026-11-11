@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { modifierConfigurationAccess } from '../access/modifierAccess'
+import { bustCustomerMerchantMenuCache } from '../utils/dashboardCache'
 
 export const ModifierGroups: CollectionConfig = {
   slug: 'modifier-groups',
@@ -77,6 +78,16 @@ export const ModifierGroups: CollectionConfig = {
     },
   ],
   hooks: {
+    afterChange: [
+      async () => {
+        await bustCustomerMerchantMenuCache()
+      },
+    ],
+    afterDelete: [
+      async () => {
+        await bustCustomerMerchantMenuCache()
+      },
+    ],
     beforeValidate: [
       ({ data }) => {
         if (!data) {

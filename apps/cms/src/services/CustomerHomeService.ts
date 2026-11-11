@@ -59,6 +59,12 @@ export interface HomeProduct {
   distanceKm: number | null
   isWithinDeliveryRadius?: boolean
   estimatedDeliveryTime: string | null
+  merchantAvailability?: {
+    isActive: boolean
+    isAcceptingOrders: boolean
+    vacationMode: boolean
+    vacationModeEndsAt: string | null
+  }
 }
 
 export interface CustomerHomeResponse {
@@ -414,6 +420,9 @@ export class CustomerHomeService {
 
     const catMap = new Map<string, HomeCategory>()
     const collected: HomeProduct[] = []
+    const merchantAvailabilityById = new Map(
+      eligible.map((merchant) => [String(merchant.id), merchant]),
+    )
     const docs = (mpRes.docs || []) as unknown as Record<string, unknown>[]
     for (const raw of docs) {
       const mp = raw as Record<string, unknown>
@@ -446,6 +455,7 @@ export class CustomerHomeService {
         }
       }
       const geo = distanceByMerchant.get(String(mId))
+      const merchantAvailability = merchantAvailabilityById.get(String(mId))
       const outletName =
         merchant && typeof merchant.outletName === 'string' && merchant.outletName
           ? (merchant.outletName as string)
@@ -471,6 +481,17 @@ export class CustomerHomeService {
         distanceKm: geo?.distanceKm ?? null,
         isWithinDeliveryRadius: geo ? geo.within : undefined,
         estimatedDeliveryTime: geo?.eta ?? null,
+        merchantAvailability: merchantAvailability
+          ? {
+              isActive: merchantAvailability.isActive === true,
+              isAcceptingOrders: merchantAvailability.isAcceptingOrders === true,
+              vacationMode: merchantAvailability.vacationMode === true,
+              vacationModeEndsAt:
+                typeof merchantAvailability.vacationModeEndsAt === 'string'
+                  ? merchantAvailability.vacationModeEndsAt
+                  : null,
+            }
+          : undefined,
       })
     }
     // Mix owners round-robin by merchant (kills first-merchant bias),

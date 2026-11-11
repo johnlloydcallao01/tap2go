@@ -68,10 +68,61 @@ export interface LocationCoordinates {
   longitude: number;
 }
 
+export interface TwoWheelerRouteResult {
+  coordinates: LocationCoordinates[];
+  distanceMeters: number;
+  durationSeconds: number;
+}
+
+function decodeEncodedPolyline(encoded: string): LocationCoordinates[] {
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+  const coordinates: LocationCoordinates[] = [];
+
+  const readDelta = () => {
+    let result = 0;
+    let shift = 0;
+    let byte = 0;
+
+    do {
+      if (index >= encoded.length || shift > 30) {
+        throw new Error('Invalid encoded route polyline')
+      }
+
+      byte = encoded.charCodeAt(index++) - 63;
+      if (byte < 0 || byte > 63) {
+        throw new Error('Invalid encoded route polyline')
+      }
+
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    return result & 1 ? ~(result >> 1) : result >> 1;
+  };
+
+  while (index < encoded.length) {
+    latitude += readDelta();
+    longitude += readDelta();
+    coordinates.push({
+      latitude: latitude / 1e5,
+      longitude: longitude / 1e5,
+    });
+  }
+
+  if (coordinates.length < 2) {
+    throw new Error('Google Routes API returned an incomplete route polyline')
+  }
+
+  return coordinates;
+}
+
 export class GoogleMapsService {
   private apiKey: string
   private baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json'
   private routesApiUrl = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix'
+  private computeRoutesApiUrl = 'https://routes.googleapis.com/directions/v2:computeRoutes'
   private distanceMatrixClient: Client
 
   constructor() {
@@ -305,6 +356,81 @@ export class GoogleMapsService {
       console.error('Google Maps API key validation failed:', error)
       return false
     }
+  }
+
+  /**
+   * Get a road-following motorcycle route and its high-quality map geometry.
+   */
+  async calculateTwoWheelerRoute(
+    origin: LocationCoordinates,
+    destination: LocationCoordinates,
+  ): Promise<TwoWheelerRouteResult> {
+    if (!this.apiKey) {
+      throw new Error('Google Maps API key is not configured')
+    }
+
+    const response = await axios.post<{
+      routes?: Array<{
+        distanceMeters?: number;
+        duration?: string;
+        polyline?: { encodedPolyline?: string };
+      }>;
+    }>(
+      this.computeRoutesApiUrl,
+      {
+        origin: {
+          location: {
+            latLng: {
+              latitude: origin.latitude,
+              longitude: origin.longitude,
+            },
+          },
+        },
+        destination: {
+          location: {
+            latLng: {
+              latitude: destination.latitude,
+              longitude: destination.longitude,
+            },
+          },
+        },
+        travelMode: 'TWO_WHEELER',
+        polylineQuality: 'HIGH_QUALITY',
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': this.apiKey,
+          'X-Goog-FieldMask':
+            'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+        },
+        timeout: 10000,
+      },
+    );
+
+    const route = response.data.routes?.[0];
+    const encodedPolyline = route?.polyline?.encodedPolyline;
+    if (!encodedPolyline) {
+      throw new Error('Google Routes API returned no two-wheeler route')
+    }
+
+    if (
+      typeof route.distanceMeters !== 'number' ||
+      !Number.isFinite(route.distanceMeters) ||
+      route.distanceMeters < 0
+    ) {
+      throw new Error('Google Routes API returned an invalid route distance')
+    }
+
+    if (!route.duration || !/^\d+s$/.test(route.duration)) {
+      throw new Error('Google Routes API returned an invalid route duration')
+    }
+
+    return {
+      coordinates: decodeEncodedPolyline(encodedPolyline),
+      distanceMeters: route.distanceMeters,
+      durationSeconds: Number.parseInt(route.duration.replace(/s$/, ''), 10),
+    };
   }
 
   /**
