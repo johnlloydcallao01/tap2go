@@ -14,7 +14,7 @@ const steps = [
   ["Checkout and follow along", "Review your delivery quote and available payment methods, then follow order updates in Tap2Go."],
 ];
 
-export default function GetStartedPage() {
+export default function GetStartedPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-white">
       <Header />

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export function Hero() {
+export function Hero(): React.JSX.Element {
   return (
     <section className="relative overflow-hidden bg-secondary">
       <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-orange-200/40 blur-3xl" />

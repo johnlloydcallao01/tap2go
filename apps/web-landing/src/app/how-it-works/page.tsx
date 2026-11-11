@@ -70,7 +70,7 @@ const steps = [
   },
 ];
 
-export default function HowItWorksPage() {
+export default function HowItWorksPage(): React.JSX.Element {
   return (
     <>
       <Header />

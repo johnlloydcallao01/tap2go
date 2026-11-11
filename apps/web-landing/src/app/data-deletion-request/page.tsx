@@ -2,7 +2,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import Link from "next/link";
 
-export default function DataDeletionRequestPage() {
+export default function DataDeletionRequestPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-white">
       <Header />

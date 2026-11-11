@@ -13,7 +13,7 @@ const navItems = [
   { href: "/contact", label: "Contact" },
 ];
 
-export function Header() {
+export function Header(): React.JSX.Element {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
 

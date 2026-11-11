@@ -31,7 +31,7 @@ const features = [
   },
 ];
 
-export function Features() {
+export function Features(): React.JSX.Element {
   return (
     <section id="features" className="scroll-mt-24 bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

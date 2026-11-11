@@ -25,7 +25,7 @@ const steps = [
   },
 ];
 
-export function Stats() {
+export function Stats(): React.JSX.Element {
   return (
     <section id="how-it-works" className="scroll-mt-24 bg-secondary py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

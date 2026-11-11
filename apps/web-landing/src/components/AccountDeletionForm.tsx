@@ -20,7 +20,7 @@ const initialValues: FormValues = {
   website: "",
 };
 
-export function AccountDeletionForm() {
+export function AccountDeletionForm(): React.JSX.Element {
   const [values, setValues] = useState(initialValues);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);

@@ -4,7 +4,7 @@ const orderSteps = [
   { title: "Delivery in progress", description: "Rider and tracking details may appear when a rider is assigned.", icon: "fa-motorcycle" },
 ];
 
-export function Testimonials() {
+export function Testimonials(): React.JSX.Element {
   return (
     <section className="bg-white py-20 sm:py-24">
       <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">

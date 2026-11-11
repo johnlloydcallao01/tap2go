@@ -36,7 +36,7 @@ const options = [
   },
 ];
 
-export default function ContactPage() {
+export default function ContactPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-white">
       <Header />

@@ -3,7 +3,7 @@ import { Footer } from "@/components/Footer";
 import Link from "next/link";
 import { AccountDeletionForm } from "@/components/AccountDeletionForm";
 
-export default function AccountDeletionRequestPage() {
+export default function AccountDeletionRequestPage(): React.JSX.Element {
   return (
     <>
       <Header />

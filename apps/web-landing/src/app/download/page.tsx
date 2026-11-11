@@ -37,7 +37,7 @@ const appBenefits = [
   },
 ];
 
-export default function DownloadPage() {
+export default function DownloadPage(): React.JSX.Element {
   return (
     <>
       <Header />

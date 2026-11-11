@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: "Download Tap2Go to get started with food delivery.",
 };
 
-export default function SignupPage() {
+export default function SignupPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-white">
       <Header />

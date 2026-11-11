@@ -18,7 +18,7 @@ const initialValues: FormValues = {
   website: "",
 };
 
-export function ContactForm() {
+export function ContactForm(): React.JSX.Element {
   const [values, setValues] = useState(initialValues);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);

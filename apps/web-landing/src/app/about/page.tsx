@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "Learn about Tap2Go, the food-ordering app founded by Ronilo Datuin, and how customers use it to discover restaurants and follow orders.",
 };
 
-export default function AboutPage() {
+export default function AboutPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-white">
       <Header />

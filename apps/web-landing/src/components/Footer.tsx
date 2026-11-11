@@ -9,7 +9,7 @@ const legalLinks = [
   { href: "/data-deletion-request", label: "Data deletion" },
 ];
 
-export function Footer() {
+export function Footer(): React.JSX.Element {
   return (
     <footer className="bg-stone-950 text-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1fr_auto] lg:px-8">

@@ -64,7 +64,7 @@ const faqs = [
   },
 ];
 
-export default function FAQPage() {
+export default function FAQPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-white">
       <Header />

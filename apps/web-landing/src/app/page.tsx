@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     "Choose a delivery address, explore restaurants serving your area, place an order, and follow its progress with Tap2Go.",
 };
 
-export default function Home() {
+export default function Home(): React.JSX.Element {
   return (
     <>
       <Header />

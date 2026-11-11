@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: "Continue to Tap2Go to access your account and orders.",
 };
 
-export default function LoginPage() {
+export default function LoginPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-white">
       <Header />
