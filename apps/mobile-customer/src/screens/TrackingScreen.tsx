@@ -210,8 +210,6 @@ export default function TrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
-  const [routeLoading, setRouteLoading] = useState(false);
-  const [routeError, setRouteError] = useState<string | null>(null);
 
   const mounted = useRef(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -307,17 +305,13 @@ export default function TrackingScreen() {
 
     let active = true;
     setRouteCoordinates([]);
-    setRouteError(null);
 
     if (pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) {
-      setRouteLoading(false);
-      setRouteError('Pickup or delivery coordinates are unavailable.');
       return () => {
         active = false;
       };
     }
 
-    setRouteLoading(true);
     const fetchRoute = async () => {
       try {
         const response = await fetch(
@@ -344,16 +338,12 @@ export default function TrackingScreen() {
 
         if (active) {
           setRouteCoordinates(route.coordinates);
-          setRouteError(null);
         }
       } catch (routeFetchError) {
         console.error('[TrackingScreen] Motorcycle route unavailable:', routeFetchError);
         if (active) {
           setRouteCoordinates([]);
-          setRouteError('Road route unavailable. The map shows locations only.');
         }
-      } finally {
-        if (active) setRouteLoading(false);
       }
     };
 
@@ -554,12 +544,6 @@ export default function TrackingScreen() {
             <View style={[styles.statusPillDot, { backgroundColor: statusColor(data.deliveryStatus) }]} />
             <Text style={styles.statusPillText}>{statusLabel(data.deliveryStatus)}</Text>
           </View>
-          <Text style={styles.routeNotice}>
-            {routeError ||
-              (routeLoading
-                ? 'Calculating motorcycle route…'
-                  : 'Two-wheel routes are in beta and might sometimes be missing clear sidewalks, pedestrian paths, or bicycling paths.')}
-          </Text>
         </View>
         </Animated.View>
 
@@ -738,22 +722,10 @@ const styles = StyleSheet.create({
     top: 12,
     left: 12,
     right: 12,
-    flexDirection: 'column' as const,
+    flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 8,
     zIndex: 2,
-  },
-  routeNotice: {
-    maxWidth: '92%' as const,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    color: '#4b5563',
-    fontSize: 11,
-    textAlign: 'center' as const,
-    overflow: 'hidden' as const,
   },
   statusPill: {
     backgroundColor: '#ffffff',
