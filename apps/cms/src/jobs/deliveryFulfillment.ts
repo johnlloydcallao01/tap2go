@@ -180,6 +180,7 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
       const bookingData = {
         order: orderId,
         lalamove_order_id: String(item.lalamove_order_id),
+        rider_remarks: item.rider_remarks || undefined,
         lalamove_quotation_id: externalOrder?.quotationId || undefined,
         share_link: externalOrder?.shareLink || undefined,
         service_type: externalOrder?.serviceType || 'MOTORCYCLE',
@@ -426,6 +427,15 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
     try {
       const response = await deliveryBookForFulfillment(req, orderId, {
         requestId,
+        onRemarksPrepared: async (remarks) => {
+          await req.payload.update({
+            collection: 'delivery-fulfillment-outbox',
+            id: item.id,
+            data: { rider_remarks: remarks },
+            overrideAccess: true,
+            req,
+          })
+        },
         onProviderSubmissionStarted: () => {
           providerSubmissionStarted = true
         },

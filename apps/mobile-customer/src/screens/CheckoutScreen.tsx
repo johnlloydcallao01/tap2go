@@ -1071,9 +1071,11 @@ export default function CheckoutScreen() {
                   )}
                   <View style={styles.orderItemDetails}>
                     <Text style={styles.orderItemName}>{item.productName}</Text>
-                    {item.productSize && (
+                    {item.selectedVariationName ? (
+                      <Text style={styles.orderItemSub}>{item.selectedVariationName}</Text>
+                    ) : item.productSize ? (
                       <Text style={styles.orderItemSub}>Size: {item.productSize}</Text>
-                    )}
+                    ) : null}
                   </View>
                 </View>
                 <Text style={styles.orderItemPrice}>{formatCurrency(item.subtotal)}</Text>

@@ -17,6 +17,7 @@ export type CartItem = {
   productSize?: string | null;
   selectedVariation?: number | null;
   selectedVariationName?: string | null;
+  groupedProductId?: number | null;
   selectedModifiers?: any[] | null;
   selectedAddons?: any[] | null;
   isAvailable?: boolean;
@@ -45,6 +46,8 @@ export type AddToCartPayload = {
   compareAtPrice?: number | null;
   selectedModifiers?: any[] | null;
   selectedVariation?: { relationTo: string; value: number | string } | null;
+  selectedVariationName?: string | null;
+  groupedProductId?: number | null;
 };
 
 type PendingCartAdd = {
@@ -148,6 +151,7 @@ function getCartItemIdentity(item: CartItem): string | null {
     item.product,
     item.merchantProduct,
     getVariationId(item.selectedVariation),
+    item.groupedProductId ?? '',
     '',
   ].join(':');
 }
@@ -161,6 +165,7 @@ function getAddPayloadIdentity(payload: AddToCartPayload): string | null {
     payload.productId,
     payload.merchantProductId,
     getVariationId(payload.selectedVariation),
+    payload.groupedProductId ?? '',
     modifiers,
   ].join(':');
 }
@@ -209,6 +214,19 @@ function mapCartItem(doc: any, fallback?: AddToCartPayload, customerId?: number)
         : selectedVariation.id
       : selectedVariation
     : fallback?.selectedVariation?.value ?? null;
+  const selectedVariationName =
+    typeof selectedVariation === 'object' && selectedVariation !== null
+      ? 'value' in selectedVariation
+        ? typeof selectedVariation.value === 'object' && selectedVariation.value !== null
+          ? selectedVariation.value.name || null
+          : null
+        : selectedVariation.name || null
+      : null;
+  const groupedProduct = doc.groupedProduct;
+  const groupedProductId =
+    groupedProduct && typeof groupedProduct === 'object'
+      ? groupedProduct.id
+      : groupedProduct;
 
   return {
     id: Number(doc.id),
@@ -234,14 +252,11 @@ function mapCartItem(doc: any, fallback?: AddToCartPayload, customerId?: number)
     subtotal: Number(doc.subtotal ?? 0),
     productSize: doc.productSize || null,
     selectedVariation: selectedVariationId ? Number(selectedVariationId) : null,
-    selectedVariationName:
-      typeof selectedVariation === 'object' && selectedVariation !== null
-        ? ('value' in selectedVariation
-            ? typeof selectedVariation.value === 'object'
-              ? selectedVariation.value?.name || null
-              : null
-            : selectedVariation.name || null)
-        : null,
+    selectedVariationName: selectedVariationName || fallback?.selectedVariationName || null,
+    groupedProductId:
+      groupedProductId == null
+        ? fallback?.groupedProductId ?? null
+        : Number(groupedProductId),
     selectedModifiers: doc.selectedModifiers ?? fallback?.selectedModifiers ?? null,
     selectedAddons: doc.selectedAddons || null,
     isAvailable: typeof doc.isAvailable === 'boolean' ? doc.isAvailable : true,
@@ -430,6 +445,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         compareAtPrice: payload.compareAtPrice ?? null,
         subtotal: unitPrice * payload.quantity,
         selectedVariation: Number(getVariationId(payload.selectedVariation)) || null,
+        selectedVariationName: payload.selectedVariationName || null,
+        groupedProductId: payload.groupedProductId ?? null,
         selectedModifiers: payload.selectedModifiers ?? [],
         isAvailable: true,
         productName: payload.productName || '',
@@ -512,6 +529,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
         if (payload.selectedVariation) {
           body.selectedVariation = payload.selectedVariation;
+        }
+        if (payload.groupedProductId != null) {
+          body.groupedProduct = payload.groupedProductId;
         }
 
         const res = await fetch(`${API_BASE}/customer/cart`, {

@@ -97,6 +97,7 @@ type OrderDetail = {
   customer?: any;
   deliveryBooking?: DeliveryBooking | null;
   deliveryLocation?: DeliveryLocation | null;
+  riderRemarksPreview?: string | null;
   items?: OrderItem[];
   isPaid?: boolean;
   paymentStatus?: string;
@@ -187,6 +188,122 @@ function formatDate(iso?: string | null): string {
   } catch {
     return '';
   }
+}
+
+function RiderRemarksCard({ remarks }: { remarks: string }) {
+  const details = {
+    orderNumber: '',
+    merchant: '',
+    items: [] as string[],
+    totals: [] as { label: string; value: string; isGrandTotal?: boolean }[],
+    deliveryQuote: '',
+    instructions: '',
+    otherLines: [] as string[],
+  };
+
+  remarks.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line || line === 'ITEMS:') return;
+    if (line.startsWith('ORDER #')) {
+      details.orderNumber = line.slice('ORDER #'.length);
+    } else if (line.startsWith('MERCHANT: ')) {
+      details.merchant = line.slice('MERCHANT: '.length);
+    } else if (line.startsWith('Items subtotal: ')) {
+      details.totals.push({ label: 'Items subtotal', value: line.slice('Items subtotal: '.length) });
+    } else if (line.startsWith('Checkout delivery fee: ')) {
+      details.totals.push({ label: 'Checkout delivery fee', value: line.slice('Checkout delivery fee: '.length) });
+    } else if (line.startsWith('TOTAL PAID AT CHECKOUT: ')) {
+      details.totals.push({
+        label: 'Total paid at checkout',
+        value: line.slice('TOTAL PAID AT CHECKOUT: '.length),
+        isGrandTotal: true,
+      });
+    } else if (line.startsWith('Lalamove delivery quote (before any priority add-on): ')) {
+      details.deliveryQuote = line.slice('Lalamove delivery quote (before any priority add-on): '.length);
+    } else if (line.startsWith('RIDER INSTRUCTIONS: ')) {
+      details.instructions = line.slice('RIDER INSTRUCTIONS: '.length);
+    } else if (line.startsWith('- ')) {
+      details.items.push(line.slice(2));
+    } else {
+      details.otherLines.push(line);
+    }
+  });
+
+  return (
+    <View style={styles.riderRemarksCard}>
+      <View style={styles.riderRemarksHeader}>
+        <View style={styles.riderOrderBadge}>
+          <Ionicons name="receipt-outline" size={15} color="#C2410C" />
+          <Text style={styles.riderOrderNumber}>Order #{details.orderNumber || '—'}</Text>
+        </View>
+        {details.merchant ? <Text style={styles.riderMerchantName}>{details.merchant}</Text> : null}
+      </View>
+
+      {details.items.length > 0 ? (
+        <View style={styles.riderRemarksSection}>
+          <Text style={styles.riderRemarksSectionTitle}>Items</Text>
+          {details.items.map((item, index) => {
+            const match = /^(.*?)\s+x(\d+)\s+@\s+(.+?)\s+each\s+=\s+(.+)$/.exec(item);
+            return (
+              <View key={`${index}-${item}`} style={styles.riderItem}>
+                <View style={styles.riderItemBullet} />
+                <View style={styles.riderItemContent}>
+                  <Text style={styles.riderItemName}>{match?.[1] || item}</Text>
+                  {match ? (
+                    <View style={styles.riderItemPriceRow}>
+                      <Text style={styles.riderItemMeta}>Qty {match[2]}</Text>
+                      <Text style={styles.riderItemMeta}>{match[3]} each</Text>
+                      <Text style={styles.riderItemTotal}>{match[4]}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {details.totals.length > 0 || details.deliveryQuote ? (
+        <View style={styles.riderRemarksSection}>
+          <Text style={styles.riderRemarksSectionTitle}>Price summary</Text>
+          {details.totals.map((entry) => (
+            <View
+              key={entry.label}
+              style={[styles.riderPriceRow, entry.isGrandTotal && styles.riderGrandTotalRow]}
+            >
+              <Text style={[styles.riderPriceLabel, entry.isGrandTotal && styles.riderGrandTotalText]}>
+                {entry.label}
+              </Text>
+              <Text style={[styles.riderPriceValue, entry.isGrandTotal && styles.riderGrandTotalText]}>
+                {entry.value}
+              </Text>
+            </View>
+          ))}
+          {details.deliveryQuote ? (
+            <View style={styles.riderQuoteRow}>
+              <Text style={styles.riderQuoteLabel}>Lalamove delivery quote</Text>
+              <Text style={styles.riderQuoteValue}>{details.deliveryQuote}</Text>
+              <Text style={styles.riderQuoteHint}>Before any priority add-on</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {details.instructions ? (
+        <View style={styles.riderInstructions}>
+          <Ionicons name="chatbox-ellipses-outline" size={17} color="#0369A1" />
+          <View style={styles.riderInstructionsContent}>
+            <Text style={styles.riderRemarksSectionTitle}>Rider instructions</Text>
+            <Text style={styles.riderInstructionsText}>{details.instructions}</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {details.otherLines.map((line, index) => (
+        <Text key={`${index}-${line}`} style={styles.riderItemMeta}>{line}</Text>
+      ))}
+    </View>
+  );
 }
 
 const OrderDetailSkeleton = () => {
@@ -404,6 +521,7 @@ export default function OrderDetailScreen() {
         platform_fee: agg.platformFee,
         discountTotal: agg.discountTotal,
         freeDeliveryApplied: agg.freeDeliveryApplied,
+        riderRemarksPreview: agg.riderRemarksPreview,
         placed_at: agg.placedAt,
         delivery_status: deliveryBooking?.status || null,
         lalamove_order_id: agg.delivery?.lalamoveOrderId || null,
@@ -1757,7 +1875,15 @@ export default function OrderDetailScreen() {
               {delivery?.rider_remarks ? (
                 <View style={styles.infoGroup}>
                   <Text style={styles.infoGroupTitle}>Order Details Sent to Rider</Text>
-                  <Text style={styles.infoValue}>{delivery.rider_remarks}</Text>
+                  <RiderRemarksCard remarks={delivery.rider_remarks} />
+                </View>
+              ) : order.riderRemarksPreview ? (
+                <View style={styles.infoGroup}>
+                  <Text style={styles.infoGroupTitle}>Order Details to Be Sent to Rider</Text>
+                  <RiderRemarksCard remarks={order.riderRemarksPreview} />
+                  <Text style={styles.riderPreviewNote}>
+                    Preview only. These details will be sent when the delivery is booked with Lalamove.
+                  </Text>
                 </View>
               ) : null}
 
@@ -2245,6 +2371,89 @@ const styles = {
     gap: 8,
   },
   infoValue: { fontSize: 15, color: '#111827', flex: 1, lineHeight: 21 },
+  riderRemarksCard: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 14,
+    gap: 14,
+  },
+  riderRemarksHeader: { gap: 8 },
+  riderOrderBadge: {
+    alignSelf: 'flex-start' as const,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  riderOrderNumber: { color: '#9A3412', fontSize: 12, fontWeight: '700' as const },
+  riderMerchantName: { color: '#111827', fontSize: 17, fontWeight: '700' as const },
+  riderRemarksSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 12,
+    gap: 10,
+  },
+  riderRemarksSectionTitle: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '700' as const,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+  },
+  riderItem: { flexDirection: 'row' as const, gap: 9 },
+  riderItemBullet: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#F97316',
+    marginTop: 6,
+  },
+  riderItemContent: { flex: 1, gap: 5 },
+  riderItemName: { color: '#111827', fontSize: 14, fontWeight: '600' as const, lineHeight: 20 },
+  riderItemPriceRow: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  riderItemMeta: { color: '#64748B', fontSize: 12, lineHeight: 17 },
+  riderItemTotal: { color: '#334155', fontSize: 12, fontWeight: '700' as const },
+  riderPriceRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+  },
+  riderPriceLabel: { color: '#64748B', fontSize: 13, flex: 1 },
+  riderPriceValue: { color: '#334155', fontSize: 13, fontWeight: '600' as const },
+  riderGrandTotalRow: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginTop: 2,
+  },
+  riderGrandTotalText: { color: '#166534', fontWeight: '700' as const },
+  riderQuoteRow: { gap: 2, paddingTop: 4 },
+  riderQuoteLabel: { color: '#64748B', fontSize: 12 },
+  riderQuoteValue: { color: '#334155', fontSize: 13, fontWeight: '700' as const },
+  riderQuoteHint: { color: '#94A3B8', fontSize: 11 },
+  riderInstructions: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 9,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 9,
+    padding: 10,
+  },
+  riderInstructionsContent: { flex: 1, gap: 4 },
+  riderInstructionsText: { color: '#0F172A', fontSize: 13, lineHeight: 19 },
+  riderPreviewNote: { color: '#64748B', fontSize: 12, lineHeight: 17 },
   modalFooter: {
     paddingHorizontal: 20,
     paddingVertical: 12,

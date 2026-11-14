@@ -529,7 +529,9 @@ export default buildConfig({
             } else if (appHint === 'admin' && process.env.ADMIN_PROD_URL) baseUrl = new URL(process.env.ADMIN_PROD_URL).origin;
             else if (appHint === 'merchant' && process.env.MERCHANT_PROD_URL) baseUrl = new URL(process.env.MERCHANT_PROD_URL).origin;
             else if (appHint === 'vendor' && process.env.MERCHANT_PROD_URL) baseUrl = new URL(process.env.MERCHANT_PROD_URL).origin;
-            const resetUrl = `${baseUrl.replace(/\/+$/, '')}/signin/reset-password?token=${encodeURIComponent(rawToken)}`;
+            const resetUrl = appHint === 'customer'
+              ? `https://app.tap2goph.com/signin/reset-password?token=${encodeURIComponent(rawToken)}`
+              : `${baseUrl.replace(/\/+$/, '')}/signin/reset-password?token=${encodeURIComponent(rawToken)}`;
 
             if (apiKey && process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true') {
               const resendRes = await fetch('https://api.resend.com/emails', {

@@ -10,6 +10,7 @@ type CartAddBody = {
   compareAtPrice?: unknown
   selectedModifiers?: unknown
   selectedVariation?: unknown
+  groupedProduct?: unknown
 }
 
 function isPositiveInteger(value: unknown): value is number {
@@ -60,6 +61,7 @@ export const customerCartAddHandler = async (req: PayloadRequest) => {
     ...(body.compareAtPrice !== undefined ? { compareAtPrice: body.compareAtPrice } : {}),
     ...(body.selectedModifiers !== undefined ? { selectedModifiers: body.selectedModifiers } : {}),
     ...(body.selectedVariation !== undefined ? { selectedVariation: body.selectedVariation } : {}),
+    ...(body.groupedProduct !== undefined ? { groupedProduct: body.groupedProduct } : {}),
   }
 
   try {

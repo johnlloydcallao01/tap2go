@@ -43,6 +43,16 @@
               "scheme": "https",
               "host": "app.tap2goph.com",
               "pathPrefix": "/checkout/"
+            },
+            {
+              "scheme": "http",
+              "host": "app.tap2goph.com",
+              "pathPrefix": "/signin/reset-password"
+            },
+            {
+              "scheme": "https",
+              "host": "app.tap2goph.com",
+              "pathPrefix": "/signin/reset-password"
             }
           ]
         }

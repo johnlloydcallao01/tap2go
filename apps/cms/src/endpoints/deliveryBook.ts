@@ -5,11 +5,14 @@ import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox
 import {
   buildLalamoveOrderRemarks,
   getLalamoveItemQuantity,
+  LalamoveOrderDetailsError,
+  LalamoveRemarksLimitError,
 } from '../services/lalamoveOrderRemarks'
 import { submitInitialLalamovePriorityFee } from '../services/initialLalamovePriorityFee'
 
 type FulfillmentCallbacks = {
   requestId: string
+  onRemarksPrepared: (remarks: string) => Promise<void>
   onProviderSubmissionStarted: () => void
   onProviderAccepted: (lalamoveOrderId: string) => Promise<void>
 }
@@ -363,6 +366,9 @@ export const deliveryBookHandler = async (
       instructions: riderInstructions,
     })
 
+    if (fulfillment) {
+      await fulfillment.onRemarksPrepared(remarks)
+    }
     fulfillment.onProviderSubmissionStarted()
     const lalamoveOrder = await provider.placeOrder({
       quotation,
@@ -400,6 +406,7 @@ export const deliveryBookHandler = async (
       data: {
         order: orderId,
         lalamove_order_id: lalamoveOrder.orderId,
+        rider_remarks: remarks,
         lalamove_quotation_id: quotation.quotationId,
         share_link: lalamoveOrder.shareLink,
         service_type: lalamoveOrder.stops ? serviceType : serviceType,
@@ -458,11 +465,18 @@ export const deliveryBookHandler = async (
     })
   } catch (error: any) {
     console.error('[delivery/book] Error:', error)
-    const status = error instanceof LalamoveApiError
+    const status = error instanceof LalamoveRemarksLimitError || error instanceof LalamoveOrderDetailsError
+      ? error.status
+      : error instanceof LalamoveApiError
       ? error.status
       : 500
     return Response.json(
-      { error: error?.message || 'Failed to book delivery' },
+      {
+        error: error?.message || 'Failed to book delivery',
+        ...(error instanceof LalamoveRemarksLimitError || error instanceof LalamoveOrderDetailsError
+          ? { code: error.code }
+          : {}),
+      },
       { status: status >= 400 && status < 600 ? status : 500 },
     )
   }

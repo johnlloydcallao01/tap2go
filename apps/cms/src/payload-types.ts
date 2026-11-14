@@ -1799,6 +1799,14 @@ export interface CartItem {
    */
   selectedVariation?: (number | null) | ProdVariation;
   /**
+   * Grouped-product parent context for a selected component
+   */
+  groupedProduct?: (number | null) | Product;
+  /**
+   * SNAPSHOT: Grouped-product parent name when the component was added
+   */
+  groupedProductName?: string | null;
+  /**
    * Modifiers/options: [{ groupId, optionId, name, price }]. E.g., spice level, cooking preference
    */
   selectedModifiers?:
@@ -2076,7 +2084,7 @@ export interface OrderItem {
    */
   quantity: number;
   /**
-   * SNAPSHOT: Selected variation and modifier history. Example: [{ "entryType": "variation", "name": "Large", "selectedVariationId": 12, "price": 0 }, { "entryType": "modifier", "groupName": "Add-ons", "optionName": "Java Rice", "price": 20 }]
+   * SNAPSHOT: Selected variation attributes, grouped-product parent, and modifiers at purchase time.
    */
   options_snapshot?:
     | {
@@ -2322,6 +2330,10 @@ export interface DeliveryBooking {
    */
   lalamove_order_id?: string | null;
   /**
+   * Exact recipient remarks submitted in the Lalamove order request
+   */
+  rider_remarks?: string | null;
+  /**
    * Quotation ID used to place the delivery
    */
   lalamove_quotation_id?: string | null;
@@ -2445,6 +2457,7 @@ export interface DeliveryFulfillmentOutbox {
   lease_expires_at?: string | null;
   last_attempt_at?: string | null;
   lalamove_order_id?: string | null;
+  rider_remarks?: string | null;
   last_request_id?: string | null;
   last_error?: string | null;
   manual_intervention_required?: boolean | null;
@@ -4289,6 +4302,8 @@ export interface CartItemsSelect<T extends boolean = true> {
   subtotal?: T;
   productSize?: T;
   selectedVariation?: T;
+  groupedProduct?: T;
+  groupedProductName?: T;
   selectedModifiers?: T;
   selectedAddons?: T;
   specialInstructions?: T;
@@ -4425,6 +4440,7 @@ export interface DriverAssignmentsSelect<T extends boolean = true> {
 export interface DeliveryBookingsSelect<T extends boolean = true> {
   order?: T;
   lalamove_order_id?: T;
+  rider_remarks?: T;
   lalamove_quotation_id?: T;
   share_link?: T;
   service_type?: T;
@@ -4466,6 +4482,7 @@ export interface DeliveryFulfillmentOutboxSelect<T extends boolean = true> {
   lease_expires_at?: T;
   last_attempt_at?: T;
   lalamove_order_id?: T;
+  rider_remarks?: T;
   last_request_id?: T;
   last_error?: T;
   manual_intervention_required?: T;

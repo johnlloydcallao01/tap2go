@@ -15,7 +15,11 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-function createPayload(cartItems: any[], merchant: Record<string, unknown> = { id: 300, isActive: true, isAcceptingOrders: true }) {
+function createPayload(
+  cartItems: any[],
+  merchant: Record<string, unknown> = { id: 300, isActive: true, isAcceptingOrders: true },
+  catalogOverrides: Record<string, Record<string, any>> = {},
+) {
   const lookupCounts: Record<string, number> = {}
   const collections: Record<string, any[]> = {
     'cart-items': cartItems,
@@ -36,6 +40,9 @@ function createPayload(cartItems: any[], merchant: Record<string, unknown> = { i
         is_available: true,
       },
     },
+  }
+  for (const [collection, records] of Object.entries(catalogOverrides)) {
+    docs[collection] = { ...docs[collection], ...records }
   }
 
   return {
@@ -73,6 +80,81 @@ const modifierGroups: EffectiveModifierGroup[] = [{
 }]
 
 describe('checkout preparation', () => {
+  it('allows checkout when tracked stock is below the requested quantity', async () => {
+    const simplePayload = createPayload([{
+      id: 1,
+      customer: 5,
+      merchant: 300,
+      product: 100,
+      merchantProduct: 900,
+      quantity: 2,
+      selectedModifiers: [],
+      selectedAddons: [],
+      status: 'active',
+    }], undefined, {
+      'merchant-products': {
+        900: {
+          product_id: 100,
+          merchant_id: 300,
+          price_override: 90,
+          stock_quantity: 0,
+          is_active: true,
+          is_available: true,
+        },
+      },
+    })
+
+    await expect(priceCheckoutCart({
+      payload: simplePayload as any,
+      customerId: 5,
+      merchantId: 300,
+      cartItemIds: [1],
+    })).resolves.toMatchObject({ subtotal: 180 })
+
+    const variablePayload = createPayload([{
+      id: 2,
+      customer: 5,
+      merchant: 300,
+      product: 100,
+      merchantProduct: 900,
+      selectedVariation: 501,
+      quantity: 2,
+      selectedModifiers: [],
+      selectedAddons: [],
+      status: 'active',
+    }], undefined, {
+      products: {
+        100: { id: 100, name: 'Burger', productType: 'variable', basePrice: 120 },
+      },
+      'merchant-products': {
+        900: {
+          product_id: 100,
+          merchant_id: 300,
+          price_override: 90,
+          stock_quantity: 0,
+          is_active: true,
+          is_available: true,
+        },
+      },
+      'prod-variations': {
+        501: {
+          id: 501,
+          product_id: 100,
+          name: 'Large',
+          base_price: 130,
+          stock_quantity: 0,
+        },
+      },
+    })
+
+    await expect(priceCheckoutCart({
+      payload: variablePayload as any,
+      customerId: 5,
+      merchantId: 300,
+      cartItemIds: [2],
+    })).resolves.toMatchObject({ subtotal: 180 })
+  })
+
   it('waives delivery and priority charges through the inclusive 5 km boundary for a new customer', async () => {
     const count = vi.fn().mockResolvedValue({ totalDocs: 0 })
     const promotion = await getFirstOrderFreeDeliveryPromotion({

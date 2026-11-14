@@ -79,6 +79,14 @@ export default function ProductScreen() {
   const params = useLocalSearchParams();
   const productId = typeof params.id === 'string' ? params.id : params.productId as string;
   const merchantId = params.merchantId as string;
+  const groupedProductIdParam = Array.isArray(params.groupedProductId)
+    ? params.groupedProductId[0]
+    : params.groupedProductId;
+  const parsedGroupedProductId = Number(groupedProductIdParam);
+  const parentGroupedProductId =
+    Number.isSafeInteger(parsedGroupedProductId) && parsedGroupedProductId > 0
+      ? parsedGroupedProductId
+      : null;
   
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -283,14 +291,9 @@ export default function ProductScreen() {
     : product
       ? getImageUrl(product.media?.primaryImage)
       : null;
-  const isSelectedVariationOutOfStock =
-    isVariableProduct &&
-    !!selectedVariation &&
-    typeof selectedVariation.stock_quantity === 'number' &&
-    selectedVariation.stock_quantity <= 0;
   const hasVariationChoices = isVariableProduct && variations.length > 0;
   const cannotAddVariableProduct =
-    isVariableProduct && (!selectedVariation || variations.length === 0 || isSelectedVariationOutOfStock);
+    isVariableProduct && (!selectedVariation || variations.length === 0);
   const hasGroupedItems = isGroupedProduct && groupedItems.length > 0;
   const eligibleGroupedItems = useMemo(
     () => groupedItems.filter((item) => canStageGroupedItem(item)),
@@ -387,7 +390,7 @@ export default function ProductScreen() {
       Alert.alert(
         'Select Variation',
         hasVariationChoices
-          ? 'Please choose an available variation before adding this item.'
+          ? 'Please choose a variation before adding this item.'
           : 'This variable product has no available variations yet.'
       );
       return;
@@ -436,6 +439,8 @@ export default function ProductScreen() {
         selectedVariation: selectedVariation
           ? { relationTo: 'prod-variations', value: selectedVariation.id }
           : null,
+        selectedVariationName: selectedVariation?.name ?? null,
+        groupedProductId: parentGroupedProductId,
       });
       setIsAddingToCart(false);
       if (navigationFocusGenerationRef.current === focusGenerationAtAddStart) {
@@ -511,6 +516,7 @@ export default function ProductScreen() {
           merchantName: product.merchant?.outletName || product.merchant?.name || '',
           compareAtPrice: item.compareAtPrice ?? null,
           selectedModifiers: [],
+          groupedProductId: Number(product.id),
         });
       }
 
@@ -537,6 +543,7 @@ export default function ProductScreen() {
       navigation.navigate('Product', {
         productId: String(item.productId),
         merchantId,
+        groupedProductId: String(product.id),
       });
       return;
     }
@@ -546,6 +553,7 @@ export default function ProductScreen() {
         productId: String(item.productId),
         merchantId,
         merchantProductId: item.merchantProductId,
+        groupedProductId: String(product.id),
       });
       return;
     }
@@ -554,6 +562,7 @@ export default function ProductScreen() {
       productId: String(item.productId),
       merchantId,
       merchantProductId: item.merchantProductId,
+      groupedProductId: String(product.id),
     });
   };
 
@@ -760,8 +769,6 @@ export default function ProductScreen() {
                   >
                     {variations.map((variation) => {
                       const isSelected = !!selectedVariation && String(selectedVariation.id) === String(variation.id);
-                      const isOutOfStock =
-                        typeof variation.stock_quantity === 'number' && variation.stock_quantity <= 0;
                       const variationImageUrl = variation.image ? getImageUrl(variation.image) : null;
                       const variationSummary = variation.attributeItems
                         ?.map((item) => `${item.attributeName}: ${item.termName}`)
@@ -776,15 +783,11 @@ export default function ProductScreen() {
                             style={[
                               styles.variationCarouselCard,
                               isSelected && styles.variationCarouselCardSelected,
-                              isOutOfStock && styles.variationOptionDisabled,
                             ]}
                             onPress={() => {
-                              if (!isOutOfStock) {
-                                setSelectedVariationId(variation.id);
-                              }
+                              setSelectedVariationId(variation.id);
                             }}
                             activeOpacity={0.9}
-                            disabled={isOutOfStock}
                           >
                             <View style={styles.variationCarouselImageContainer}>
                               {variationImageUrl ? (
@@ -802,16 +805,6 @@ export default function ProductScreen() {
                                 <View style={[styles.radio, isSelected && styles.radioSelected]}>
                                   {isSelected ? <View style={styles.radioInner} /> : null}
                                 </View>
-                                <View
-                                  style={[
-                                    styles.variationStatusBadge,
-                                    isOutOfStock && styles.variationStatusBadgeDisabled,
-                                  ]}
-                                >
-                                  <Text style={styles.variationStatusBadgeText}>
-                                    {isOutOfStock ? 'Out of stock' : 'Available'}
-                                  </Text>
-                                </View>
                               </View>
                             </View>
 
@@ -820,7 +813,6 @@ export default function ProductScreen() {
                                 style={[
                                   styles.variationName,
                                   isSelected && styles.variationNameSelected,
-                                  isOutOfStock && styles.variationNameDisabled,
                                 ]}
                                 numberOfLines={1}
                               >

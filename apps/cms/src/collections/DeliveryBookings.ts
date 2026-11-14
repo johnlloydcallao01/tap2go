@@ -82,6 +82,14 @@ export const DeliveryBookings: CollectionConfig = {
       },
     },
     {
+      name: 'rider_remarks',
+      type: 'textarea',
+      maxLength: 1500,
+      admin: {
+        description: 'Exact recipient remarks submitted in the Lalamove order request',
+      },
+    },
+    {
       name: 'lalamove_quotation_id',
       type: 'text',
       admin: {

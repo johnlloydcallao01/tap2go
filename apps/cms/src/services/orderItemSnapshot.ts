@@ -1,7 +1,7 @@
 import { extractRelationshipId, toFiniteNumber, toOptionalTrimmedText } from './modifierUtils'
 
 export type OrderItemSnapshotEntry = {
-  entryType: 'variation' | 'modifier'
+  entryType: 'variation' | 'modifier' | 'grouped'
   sourceType?:
     | 'product-base'
     | 'variation-added'
@@ -14,6 +14,14 @@ export type OrderItemSnapshotEntry = {
   optionName?: string
   selectedVariationId?: number
   selectedVariationName?: string
+  variationSku?: string
+  variationDescription?: string
+  variationAttributes?: Array<{
+    attributeName: string
+    termName: string
+  }>
+  groupedProductId?: number
+  groupedProductName?: string
   name: string
   price: number
 }
@@ -24,7 +32,10 @@ function normalizeSnapshotEntry(value: unknown): OrderItemSnapshotEntry | null {
   }
 
   const raw = value as Record<string, unknown>
-  const entryType = raw.entryType === 'variation' ? 'variation' : 'modifier'
+  const entryType =
+    raw.entryType === 'variation' || raw.entryType === 'grouped'
+      ? raw.entryType
+      : 'modifier'
   const name =
     toOptionalTrimmedText(raw.name) ??
     toOptionalTrimmedText(raw.optionName) ??
@@ -46,6 +57,16 @@ function normalizeSnapshotEntry(value: unknown): OrderItemSnapshotEntry | null {
   const groupId = extractRelationshipId(raw.groupId as never) ?? undefined
   const optionId = extractRelationshipId(raw.optionId as never) ?? undefined
   const selectedVariationId = extractRelationshipId(raw.selectedVariationId as never) ?? undefined
+  const variationAttributes = Array.isArray(raw.variationAttributes)
+    ? raw.variationAttributes.flatMap((attribute) => {
+        if (!attribute || typeof attribute !== 'object') return []
+        const attributeRecord = attribute as Record<string, unknown>
+        const attributeName = toOptionalTrimmedText(attributeRecord.attributeName)
+        const termName = toOptionalTrimmedText(attributeRecord.termName)
+        return attributeName && termName ? [{ attributeName, termName }] : []
+      })
+    : undefined
+  const groupedProductId = extractRelationshipId(raw.groupedProductId as never) ?? undefined
 
   return {
     entryType,
@@ -56,6 +77,11 @@ function normalizeSnapshotEntry(value: unknown): OrderItemSnapshotEntry | null {
     optionName: toOptionalTrimmedText(raw.optionName) ?? name,
     selectedVariationId,
     selectedVariationName: toOptionalTrimmedText(raw.selectedVariationName),
+    variationSku: toOptionalTrimmedText(raw.variationSku),
+    variationDescription: toOptionalTrimmedText(raw.variationDescription),
+    ...(variationAttributes?.length ? { variationAttributes } : {}),
+    groupedProductId,
+    groupedProductName: toOptionalTrimmedText(raw.groupedProductName),
     name,
     price: toFiniteNumber(raw.price),
   }

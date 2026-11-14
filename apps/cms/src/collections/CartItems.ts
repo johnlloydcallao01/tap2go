@@ -302,6 +302,22 @@ export const CartItems: CollectionConfig = {
             }
         },
         {
+            name: 'groupedProduct',
+            type: 'relationship',
+            relationTo: 'products',
+            admin: {
+                description: 'Grouped-product parent context for a selected component'
+            }
+        },
+        {
+            name: 'groupedProductName',
+            type: 'text',
+            admin: {
+                hidden: true,
+                description: 'SNAPSHOT: Grouped-product parent name when the component was added'
+            }
+        },
+        {
             name: 'selectedModifiers',
             type: 'json',
             admin: {
@@ -484,10 +500,27 @@ export const CartItems: CollectionConfig = {
                 )
                 const rawSelectedVariation = data.selectedVariation ?? originalDoc?.selectedVariation
                 const currentVariationId = normalizeSelectedVariationInput(rawSelectedVariation)
+                const rawGroupedProduct = data.groupedProduct !== undefined
+                    ? data.groupedProduct
+                    : originalDoc?.groupedProduct
+                const groupedProductRelationTo = extractRelationshipRelationTo(rawGroupedProduct as never)
+                if (groupedProductRelationTo && groupedProductRelationTo !== 'products') {
+                    throw new Error('groupedProduct must reference products only')
+                }
+                const currentGroupedProductId = extractRelationshipId(rawGroupedProduct as never)
                 let currentProduct: any = null
+                if (currentGroupedProductId && !currentProductId) {
+                    throw new Error('A grouped-product component must reference a product')
+                }
 
                 if (data.selectedVariation !== undefined) {
                     data.selectedVariation = currentVariationId
+                }
+                if (data.groupedProduct !== undefined) {
+                    data.groupedProduct = currentGroupedProductId
+                    if (!currentGroupedProductId) data.groupedProductName = null
+                } else if (!currentGroupedProductId) {
+                    data.groupedProductName = null
                 }
 
                 let effectiveModifierGroups: EffectiveModifierGroup[] = []
@@ -505,6 +538,48 @@ export const CartItems: CollectionConfig = {
                     ])
                     currentProduct = product
                     currentMerchant = merchant
+
+                    if (currentGroupedProductId) {
+                        const groupedProduct = await req.payload.findByID({
+                            collection: 'products',
+                            id: currentGroupedProductId,
+                            depth: 0,
+                            overrideAccess: true,
+                        })
+                        if (groupedProduct.productType !== 'grouped') {
+                            throw new Error('groupedProduct must reference a grouped product')
+                        }
+                        data.groupedProductName = String(groupedProduct.name || `Grouped product #${currentGroupedProductId}`)
+                        const [membership, merchantListing] = await Promise.all([
+                            req.payload.find({
+                                collection: 'prod-grouped-items',
+                                where: {
+                                    and: [
+                                        { parent_product_id: { equals: currentGroupedProductId } },
+                                        { child_product_id: { equals: currentProductId } },
+                                    ],
+                                },
+                                limit: 1,
+                                pagination: false,
+                                overrideAccess: true,
+                            }),
+                            req.payload.find({
+                                collection: 'merchant-products',
+                                where: {
+                                    and: [
+                                        { product_id: { equals: currentGroupedProductId } },
+                                        { merchant_id: { equals: merchantId } },
+                                    ],
+                                },
+                                limit: 1,
+                                pagination: false,
+                                overrideAccess: true,
+                            }),
+                        ])
+                        if (membership.docs.length === 0 || merchantListing.docs.length === 0) {
+                            throw new Error('Selected product is not an available component of this merchant grouped product')
+                        }
+                    }
 
                     if (product.productType === 'variable' && !currentVariationId) {
                         throw new Error('Variable products require a selectedVariation')
@@ -569,6 +644,7 @@ export const CartItems: CollectionConfig = {
                     selectedModifiers: normalizedModifiers,
                     selectedAddons: data.selectedAddons || [],
                     selectedVariation: currentVariationId,
+                    groupedProduct: currentGroupedProductId,
                     specialInstructions: (data.specialInstructions || '').trim().toLowerCase()
                 }
 

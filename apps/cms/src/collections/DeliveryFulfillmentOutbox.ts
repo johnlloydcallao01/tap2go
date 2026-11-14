@@ -48,6 +48,7 @@ export const DeliveryFulfillmentOutbox: CollectionConfig = {
     { name: 'lease_expires_at', type: 'date' },
     { name: 'last_attempt_at', type: 'date' },
     { name: 'lalamove_order_id', type: 'text' },
+    { name: 'rider_remarks', type: 'textarea', maxLength: 1500 },
     { name: 'last_request_id', type: 'text' },
     { name: 'last_error', type: 'textarea' },
     { name: 'manual_intervention_required', type: 'checkbox', defaultValue: false },

@@ -165,6 +165,15 @@ export default function MerchantCartScreen() {
                                 )}
                                 <View style={styles.itemDetails}>
                                     <Text style={styles.itemName}>{item.productName}</Text>
+                                    {item.selectedVariationName ? (
+                                        <Text style={styles.modifiersText}>
+                                            {item.selectedVariationName}
+                                        </Text>
+                                    ) : item.productSize ? (
+                                        <Text style={styles.modifiersText}>
+                                            Size: {item.productSize}
+                                        </Text>
+                                    ) : null}
                                     <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
                                     {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                                         <Text style={styles.modifiersText}>

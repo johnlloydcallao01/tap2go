@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 import { ModifierResolverService, type EffectiveModifierGroup } from './ModifierResolverService'
+import { resolveCatalogOrderItemSnapshot } from './catalogOrderItemSnapshot'
 import { extractRelationshipId } from './modifierUtils'
 import { getMerchantOrderUnavailableMessage } from '@/utils/vacationMode'
 
@@ -197,16 +198,8 @@ export async function priceCheckoutCart(args: {
       if (relationId(variation.product_id) !== productId || variation.is_visible === false) {
         throw new CheckoutValidationError(`${product.name} has an invalid or unavailable variation. Update your cart.`, 'INVALID_VARIATION')
       }
-      if (Number.isFinite(Number(variation.stock_quantity)) && Number(variation.stock_quantity) < quantity) {
-        throw new CheckoutValidationError(`${product.name} does not have enough stock for this quantity.`, 'INSUFFICIENT_STOCK', 409)
-      }
     } else if (selectedVariationId) {
       throw new CheckoutValidationError(`${product.name} no longer supports the selected variation. Update your cart.`, 'INVALID_VARIATION')
-    }
-
-    const stock = Number(merchantProduct.stock_quantity)
-    if (Number.isFinite(stock) && stock >= 0 && stock < quantity) {
-      throw new CheckoutValidationError(`${product.name} does not have enough stock for this quantity.`, 'INSUFFICIENT_STOCK', 409)
     }
 
     const basePrice =
@@ -222,6 +215,11 @@ export async function priceCheckoutCart(args: {
       product,
       productId,
       merchantProductId,
+      groupedProductId: relationId(cartItem.groupedProduct),
+      groupedProductName: typeof cartItem.groupedProductName === 'string'
+        ? cartItem.groupedProductName
+        : null,
+      merchantId,
       quantity,
       selectedVariationId,
       basePrice,
@@ -230,6 +228,7 @@ export async function priceCheckoutCart(args: {
   }))
 
   const modifierGroupsByContext = new Map<string, Promise<EffectiveModifierGroup[]>>()
+  const catalogSnapshotsByContext = new Map<string, Promise<Array<Record<string, unknown>>>>()
   const resolver = new ModifierResolverService(payload)
   const lines = await Promise.all(catalog.map(async (entry): Promise<PricedCheckoutLine> => {
     const contextKey = `${entry.productId}:${entry.selectedVariationId ?? ''}:${entry.merchantProductId}`
@@ -250,15 +249,37 @@ export async function priceCheckoutCart(args: {
       throw new CheckoutValidationError(`${entry.product.name} has an invalid catalog price. Contact support.`, 'INVALID_CATALOG_PRICE')
     }
     const totalPrice = Math.round(unitPrice * entry.quantity * 100) / 100
-    const optionsSnapshot = entry.selectedVariationId
-      ? [{
-          entryType: 'variation',
-          name: String(entry.variation?.name || `Variation #${entry.selectedVariationId}`),
-          selectedVariationId: entry.selectedVariationId,
-          selectedVariationName: entry.variation?.name || undefined,
-          price: 0,
-        }, ...modifiers]
-      : modifiers
+    const snapshotContextKey = [
+      entry.productId,
+      merchantId,
+      entry.selectedVariationId ?? '',
+      entry.groupedProductId ?? '',
+      entry.groupedProductName ?? '',
+    ].join(':')
+    let catalogSnapshotPromise = catalogSnapshotsByContext.get(snapshotContextKey)
+    if (!catalogSnapshotPromise) {
+      catalogSnapshotPromise = resolveCatalogOrderItemSnapshot({
+        payload,
+        productId: entry.productId,
+        merchantId,
+        variationId: entry.selectedVariationId,
+        groupedProductId: entry.groupedProductId,
+        groupedProductName: entry.groupedProductName,
+        variation: entry.variation,
+      })
+      catalogSnapshotsByContext.set(snapshotContextKey, catalogSnapshotPromise)
+    }
+    let catalogSnapshot: Array<Record<string, unknown>>
+    try {
+      catalogSnapshot = await catalogSnapshotPromise
+    } catch (error) {
+      throw new CheckoutValidationError(
+        error instanceof Error ? error.message : 'Unable to snapshot this product selection.',
+        entry.groupedProductId ? 'INVALID_GROUPED_PRODUCT' : 'INVALID_VARIATION',
+        409,
+      )
+    }
+    const optionsSnapshot = [...catalogSnapshot, ...modifiers]
 
     return {
       cartItemId: Number(entry.cartItem.id),

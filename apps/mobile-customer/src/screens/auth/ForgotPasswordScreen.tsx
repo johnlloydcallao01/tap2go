@@ -31,7 +31,7 @@ export default function ForgotPasswordScreen() {
     try {
       setIsLoading(true);
       setError(null);
-      await AuthService.forgotPassword(data.email);
+      await AuthService.forgotPassword(data.email, 'customer');
       setIsSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to request password reset');
@@ -134,7 +134,7 @@ export default function ForgotPasswordScreen() {
                   disabled={isLoading}
                 >
                   <Text className="text-white font-bold text-lg">
-                    {isLoading ? 'Sending...' : 'Send Code'}
+                    {isLoading ? 'Sending...' : 'Send Reset Link'}
                   </Text>
                 </TouchableOpacity>
               </View>

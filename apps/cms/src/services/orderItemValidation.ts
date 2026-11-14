@@ -57,7 +57,7 @@ function validateModifierEntries(
   let modifierTotal = 0
 
   for (const entry of snapshot) {
-    if (entry.entryType === 'variation') {
+    if (entry.entryType !== 'modifier') {
       continue
     }
 

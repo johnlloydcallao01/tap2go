@@ -160,21 +160,41 @@ export class AuthService {
   /**
    * Forgot Password
    */
-  static async forgotPassword(email: string): Promise<void> {
-    const url = `${this.API_BASE}/${this.COLLECTION_SLUG}/forgot-password`;
+  static async forgotPassword(email: string, app?: 'customer'): Promise<void> {
+    const url = `${this.API_BASE}/forgot-password`;
     
     const response = await fetch(url, {
       method: 'POST',
       headers: this.headers,
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, ...(app ? { app } : {}) }),
     });
 
     if (!response.ok) {
-      // For security, we often don't want to reveal if email exists, 
-      // but if the API returns a specific error we might need to handle it.
-      // The web app implementation swallows errors and shows success message.
-      const data = await response.json().catch(() => ({}));
-      console.warn('Forgot password request failed', data);
+      const data = await this.parseResponseData(response);
+      throw new Error(
+        data.message ||
+          data.error ||
+          data.errors?.[0]?.message ||
+          `Password reset request failed (HTTP ${response.status})`
+      );
+    }
+  }
+
+  static async resetPassword(token: string, newPassword: string): Promise<void> {
+    const response = await fetch(`${this.API_BASE}/reset-password`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ token, newPassword }),
+    });
+
+    if (!response.ok) {
+      const data = await this.parseResponseData(response);
+      throw new Error(
+        data.message ||
+          data.error ||
+          data.errors?.[0]?.message ||
+          `Password reset failed (HTTP ${response.status})`
+      );
     }
   }
 }

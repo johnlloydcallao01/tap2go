@@ -132,7 +132,7 @@ export const OrderItems: CollectionConfig = {
       type: 'json',
       admin: {
         description:
-          'SNAPSHOT: Selected variation and modifier history. Example: [{ "entryType": "variation", "name": "Large", "selectedVariationId": 12, "price": 0 }, { "entryType": "modifier", "groupName": "Add-ons", "optionName": "Java Rice", "price": 20 }]',
+          'SNAPSHOT: Selected variation attributes, grouped-product parent, and modifiers at purchase time.',
       },
     },
     {

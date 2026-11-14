@@ -1,6 +1,10 @@
 import type { Payload } from 'payload'
 import { buildOrderPaymentSummary } from './orderPaymentRecovery'
-import { buildLalamoveOrderRemarks } from './lalamoveOrderRemarks'
+import {
+  buildLalamoveOrderRemarks,
+  LalamoveOrderDetailsError,
+  LalamoveRemarksLimitError,
+} from './lalamoveOrderRemarks'
 
 export async function buildCustomerOrderDetail(
   payload: Payload,
@@ -88,6 +92,7 @@ export async function buildCustomerOrderDetail(
       select: {
         id: true,
         lalamove_order_id: true,
+        rider_remarks: true,
         share_link: true,
         status: true,
         lalamove_raw_status: true,
@@ -149,8 +154,47 @@ export async function buildCustomerOrderDetail(
   const vendor = merchant?.vendor && typeof merchant.vendor === 'object' ? merchant.vendor : null
   const booking = bookingsResult.docs[0] as Record<string, any> | undefined
   const location = locationsResult.docs[0] as Record<string, any> | undefined
-  const riderRemarks = booking?.lalamove_order_id
-    ? buildLalamoveOrderRemarks({
+  let riderRemarks: string | null = null
+  let riderRemarksPreview: string | null = null
+  if (booking?.lalamove_order_id) {
+    if (typeof booking.rider_remarks === 'string') {
+      riderRemarks = booking.rider_remarks
+    } else {
+      try {
+        riderRemarks = buildLalamoveOrderRemarks({
+          orderId,
+          merchantName: merchant?.outletName || 'Merchant',
+          items: itemsResult.docs as Array<Record<string, any>>,
+          totals: {
+            subtotal: order.subtotal,
+            deliveryFee: order.delivery_fee,
+            total: order.total,
+          },
+          lalamoveQuote: {
+            total: booking.delivery_fee,
+            currency: booking.currency || 'PHP',
+          },
+          instructions: [
+            location?.merchant_delivery_instructions,
+            location?.delivery_instructions,
+            location?.notes,
+          ].filter(Boolean).join(' | ') || '',
+        })
+      } catch (error) {
+        if (!(error instanceof LalamoveRemarksLimitError || error instanceof LalamoveOrderDetailsError)) {
+          throw error
+        }
+        console.warn(
+          `[customer-order-detail] Could not reconstruct uncaptured Lalamove remarks for order ${orderId}: ${error.message}`,
+        )
+      }
+    }
+  } else if (
+    order.fulfillment_type === 'delivery' &&
+    !['cancelled', 'canceled'].includes(String(order.status || '').toLowerCase())
+  ) {
+    try {
+      riderRemarksPreview = buildLalamoveOrderRemarks({
         orderId,
         merchantName: merchant?.outletName || 'Merchant',
         items: itemsResult.docs as Array<Record<string, any>>,
@@ -160,8 +204,8 @@ export async function buildCustomerOrderDetail(
           total: order.total,
         },
         lalamoveQuote: {
-          total: booking.delivery_fee,
-          currency: booking.currency || 'PHP',
+          total: order.delivery_fee,
+          currency: booking?.currency || 'PHP',
         },
         instructions: [
           location?.merchant_delivery_instructions,
@@ -169,7 +213,15 @@ export async function buildCustomerOrderDetail(
           location?.notes,
         ].filter(Boolean).join(' | ') || '',
       })
-    : null
+    } catch (error) {
+      if (!(error instanceof LalamoveRemarksLimitError || error instanceof LalamoveOrderDetailsError)) {
+        throw error
+      }
+      console.warn(
+        `[customer-order-detail] Could not build Lalamove remarks preview for order ${orderId}: ${error.message}`,
+      )
+    }
+  }
   const items = (itemsResult.docs as Array<Record<string, any>>).map((item) => {
     const product = item.product && typeof item.product === 'object' ? item.product : null
     return {
@@ -229,6 +281,7 @@ export async function buildCustomerOrderDetail(
     priorityFeePaymentPending,
     priorityFeePaymentFailed,
     priorityFeePaymentRefunded,
+    riderRemarksPreview,
     merchant: merchant
       ? {
           id: merchant.id,

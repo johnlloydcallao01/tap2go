@@ -32,3 +32,6 @@ Google Play Console previously showed active release `17 (1.17)`. Builds using c
 - **Signing key:** Use the existing upload key at `C:\Users\User\Desktop\tap2go\keys\keystore.jks`, after confirming its certificate matches the Play Console upload key.
 
 The earlier answers `16`, `18`, and `19` above are historical. The app config should use version code `20` for the next production build and Google Play upload.
+
+
+SHA-256 - F8:D2:11:7A:67:C8:AD:17:C1:FA:CA:19:2E:46:25:DC:3B:5F:B1:E4:68:99:54:5C:CF:6A:A3:5F:B3:F4:B2:D4

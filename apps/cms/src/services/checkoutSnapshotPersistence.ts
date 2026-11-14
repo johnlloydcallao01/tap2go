@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { Payload } from 'payload'
 import { normalizeOrderItemOptionsSnapshot } from './orderItemSnapshot'
+import { resolveCatalogOrderItemSnapshot } from './catalogOrderItemSnapshot'
 import { validateOrderItemSnapshot } from './orderItemValidation'
 import { bustOrderItemsCache, bustOrdersCache } from '../utils/dashboardCache'
 
@@ -191,19 +192,77 @@ export async function persistCheckoutSnapshots(args: {
     throw new Error('Checkout snapshot persistence requires at least one cart item')
   }
 
-  const lines: CheckoutLine[] = args.cartItems.map((item) => {
+  const requestedCartItemIds = args.cartItems.map((item) => relationId(item?.id))
+  if (requestedCartItemIds.some((id) => !id)) {
+    throw new Error('Checkout contains an invalid cart item ID')
+  }
+  if (new Set(requestedCartItemIds).size !== requestedCartItemIds.length) {
+    throw new Error('Checkout contains duplicate cart item IDs')
+  }
+  const cartItemsResult = await args.payload.find({
+    collection: 'cart-items',
+    where: {
+      and: [
+        { id: { in: requestedCartItemIds as number[] } },
+        { customer: { equals: args.customerId } },
+        { merchant: { equals: args.merchantId } },
+        { status: { equals: 'active' } },
+      ],
+    },
+    limit: requestedCartItemIds.length,
+    pagination: false,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (cartItemsResult.docs.length !== requestedCartItemIds.length) {
+    throw new Error('Checkout cart items changed before order snapshots were saved')
+  }
+  const cartItemsById = new Map(
+    cartItemsResult.docs.map((item) => [Number(item.id), item]),
+  )
+  const authoritativeCartItems = requestedCartItemIds.map((id) => cartItemsById.get(id!))
+  if (authoritativeCartItems.some((item) => !item)) {
+    throw new Error('Checkout cart items changed before order snapshots were saved')
+  }
+
+  const productsById = new Map<number, Promise<any>>()
+  const lines: CheckoutLine[] = await Promise.all(authoritativeCartItems.map(async (item) => {
     const cartItemId = relationId(item?.id)
     if (!cartItemId) throw new Error('Checkout contains an invalid cart item ID')
     const productId = relationId(item?.product)
     const merchantProductId = relationId(item?.merchantProduct)
     const selectedVariationId = relationId(item?.selectedVariation)
+    const groupedProductId = relationId(item?.groupedProduct)
     if (
       (item?.product != null && !productId) ||
       (item?.merchantProduct != null && !merchantProductId) ||
-      (item?.selectedVariation != null && !selectedVariationId)
+      (item?.selectedVariation != null && !selectedVariationId) ||
+      (item?.groupedProduct != null && !groupedProductId)
     ) {
       throw new Error('Checkout contains an invalid product reference')
     }
+    if (!productId) throw new Error('Checkout contains an invalid product reference')
+    let productPromise = productsById.get(productId)
+    if (!productPromise) {
+      productPromise = args.payload.findByID({
+        collection: 'products',
+        id: productId,
+        depth: 0,
+        overrideAccess: true,
+      })
+      productsById.set(productId, productPromise)
+    }
+    const product = await productPromise
+    const catalogSnapshot = await resolveCatalogOrderItemSnapshot({
+      payload: args.payload as Payload,
+      productId,
+      merchantId: args.merchantId,
+      variationId: selectedVariationId,
+      groupedProductId,
+      groupedProductName: typeof item?.groupedProductName === 'string'
+        ? item.groupedProductName
+        : null,
+    })
     const selectedModifiers = Array.isArray(item?.selectedModifiers) ? item.selectedModifiers : []
     return {
       cartItemId,
@@ -211,19 +270,11 @@ export async function persistCheckoutSnapshots(args: {
       merchantProductId,
       selectedVariationId,
       selectedModifiers,
-      productName: String(item?.productName || 'Item'),
+      productName: String(product.name || 'Item'),
       priceAtPurchase: Number(item?.priceAtAdd) || 0,
       quantity: Number(item?.quantity) || 1,
       optionsSnapshot: [
-        ...(selectedVariationId
-          ? [{
-              entryType: 'variation',
-              name: item?.selectedVariationName || `Variation #${selectedVariationId}`,
-              selectedVariationId,
-              selectedVariationName: item?.selectedVariationName || undefined,
-              price: 0,
-            }]
-          : []),
+        ...catalogSnapshot,
         ...selectedModifiers.map((modifier: any) => ({
           entryType: 'modifier',
           sourceType: modifier?.source,
@@ -232,14 +283,13 @@ export async function persistCheckoutSnapshots(args: {
           optionId: modifier?.optionId,
           optionName: modifier?.name,
           selectedVariationId: selectedVariationId || undefined,
-          selectedVariationName: item?.selectedVariationName || undefined,
           name: modifier?.name || 'Modifier',
           price: typeof modifier?.price === 'number' ? modifier.price : 0,
         })),
       ],
       totalPrice: Number(item?.subtotal) || 0,
     }
-  })
+  }))
 
   if (new Set(lines.map((line) => line.cartItemId)).size !== lines.length) {
     throw new Error('Checkout contains duplicate cart item IDs')
