@@ -47,7 +47,7 @@ const CartSkeleton = () => {
 
 export default function CartScreen() {
   const navigation = useNavigation();
-  const { getAllMerchantCarts, removeFromCart, reload, isLoading, loadError } = useCart();
+  const { getAllMerchantCarts, removeFromCart, reload, isLoading, isFetching, loadError } = useCart();
   const colors = useThemeColors();
   const merchantCarts = getAllMerchantCarts();
   const [refreshing, setRefreshing] = useState(false);
@@ -63,9 +63,15 @@ export default function CartScreen() {
     }
   }, [reload]);
 
-  // Consistent with the Home/Wishlist pattern: show the skeleton on initial load
-  // AND during pull-to-refresh, so the refetch is visible (pull-to-refresh.md Pattern B)
-  const showSkeleton = refreshing || (isLoading && merchantCarts.length === 0);
+  // Keep cached and optimistic rows hidden until cart data is fully resolved.
+  const hasPendingAdds = merchantCarts.some((cart) =>
+    cart.items.some((item) => item.isPending),
+  );
+  const showSkeleton =
+    refreshing ||
+    isFetching ||
+    hasPendingAdds ||
+    (isLoading && merchantCarts.length === 0);
 
   const handleMerchantPress = (merchantId: string) => {
     navigation.navigate('MerchantCart', { merchantId });
@@ -158,10 +164,11 @@ export default function CartScreen() {
                     )}
                     <View style={{ marginLeft: 12 }}>
                       <Text style={styles.merchantName}>{cart.merchantName}</Text>
-                      {/* Placeholder for delivery info to match screenshot style */}
-                      <Text style={styles.deliveryInfo}>
-                        10-25 mins • <Text style={{ color: '#E11D48', fontWeight: '500' }}>Free</Text>
-                      </Text>
+                      {cart.estimatedDeliveryTimeMinutes != null && (
+                        <Text style={styles.deliveryEstimate}>
+                          Estimated delivery: {cart.estimatedDeliveryTimeMinutes} min
+                        </Text>
+                      )}
                     </View>
                   </View>
                   <TouchableOpacity 
@@ -390,7 +397,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 2,
   },
-  deliveryInfo: {
+  deliveryEstimate: {
     fontSize: 12,
     color: '#6B7280',
   },

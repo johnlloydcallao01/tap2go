@@ -45,6 +45,7 @@ export default function MerchantCartScreen() {
     removeFromCart,
     reload,
     isLoading,
+    isFetching,
     loadError,
     hasPendingAddsForMerchant,
   } = useCart();
@@ -65,7 +66,7 @@ export default function MerchantCartScreen() {
     }
   }, [reload]);
 
-  const showSkeleton = refreshing || (isLoading && !merchantCart);
+  const showSkeleton = refreshing || isFetching || hasPendingAdds || (isLoading && !merchantCart);
 
   const handleQuantityChange = (itemId: number, newQuantity: number) => {
     updateQuantity(itemId, newQuantity);

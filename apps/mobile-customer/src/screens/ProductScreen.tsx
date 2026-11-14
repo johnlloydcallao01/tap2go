@@ -24,7 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMerchantOrderAvailability } from '../hooks/useMerchantOrderAvailability';
 
 import { useNavigation } from '../navigation/NavigationContext';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { fetchEffectiveModifierGroups } from '../services/product';
 import type { GroupedProductItem, ModifierGroup } from '../types/product';
 
@@ -67,6 +67,15 @@ function canStageGroupedItem(item: GroupedProductItem): boolean {
 
 export default function ProductScreen() {
   const navigation = useNavigation();
+  const navigationFocusGenerationRef = useRef(0);
+  useFocusEffect(
+    useCallback(() => {
+      navigationFocusGenerationRef.current += 1;
+      return () => {
+        navigationFocusGenerationRef.current += 1;
+      };
+    }, []),
+  );
   const params = useLocalSearchParams();
   const productId = typeof params.id === 'string' ? params.id : params.productId as string;
   const merchantId = params.merchantId as string;
@@ -412,6 +421,7 @@ export default function ProductScreen() {
       }
     }
 
+    const focusGenerationAtAddStart = navigationFocusGenerationRef.current;
     try {
       await addToCart({
         merchantId: Number(merchantId),
@@ -420,6 +430,7 @@ export default function ProductScreen() {
         quantity,
         priceAtAdd: effectiveBasePrice,
         productName: product.name,
+        merchantName: product.merchant?.outletName || product.merchant?.name || '',
         compareAtPrice: effectiveCompareAtPrice ?? null,
         selectedModifiers: selectedModifierPayload,
         selectedVariation: selectedVariation
@@ -427,7 +438,9 @@ export default function ProductScreen() {
           : null,
       });
       setIsAddingToCart(false);
-      navigation.goBack();
+      if (navigationFocusGenerationRef.current === focusGenerationAtAddStart) {
+        navigation.goBack();
+      }
     } catch (e: any) {
       setIsAddingToCart(false);
       Alert.alert('Error', e.message || 'Failed to add to cart');
@@ -495,6 +508,7 @@ export default function ProductScreen() {
           quantity,
           priceAtAdd: item.basePrice || 0,
           productName: item.name,
+          merchantName: product.merchant?.outletName || product.merchant?.name || '',
           compareAtPrice: item.compareAtPrice ?? null,
           selectedModifiers: [],
         });
@@ -506,7 +520,7 @@ export default function ProductScreen() {
     } finally {
       setIsAddingToCart(false);
     }
-  }, [addToCart, eligibleGroupedItems, isMerchantOrderingUnavailable, merchantAvailability.unavailableMessage, merchantId, selectedGroupedItemCount, stagedGroupedItems]);
+  }, [addToCart, eligibleGroupedItems, isMerchantOrderingUnavailable, merchantAvailability.unavailableMessage, merchantId, product, selectedGroupedItemCount, stagedGroupedItems]);
 
   const handleGroupedItemPress = (item: GroupedProductItem) => {
     if (!item.isAvailable) {

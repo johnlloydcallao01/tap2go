@@ -66,7 +66,11 @@ export const customerCartAddHandler = async (req: PayloadRequest) => {
     const doc = await req.payload.create({
       collection: 'cart-items',
       data: data as never,
-      depth: 0,
+      depth: 3,
+      context: {
+        skipEffectiveModifierPreview: true,
+        skipStoreHours: true,
+      },
       overrideAccess: true,
       req,
     })
@@ -79,7 +83,11 @@ export const customerCartAddHandler = async (req: PayloadRequest) => {
         const doc = await req.payload.findByID({
           collection: 'cart-items',
           id: Number(mergedMatch[1]),
-          depth: 0,
+          depth: 3,
+          context: {
+            skipEffectiveModifierPreview: true,
+            skipStoreHours: true,
+          },
           overrideAccess: true,
           req,
         })

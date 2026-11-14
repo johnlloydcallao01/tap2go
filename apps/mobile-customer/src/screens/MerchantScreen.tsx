@@ -482,7 +482,7 @@ export default function MerchantScreen() {
           priceAtAdd: product.basePrice || 0,
           productName: product.name,
           imageUrl: product.imageUrl,
-          merchantName: merchant?.outletName || '',
+          merchantName: merchant?.outletName || merchant?.vendor?.businessName || '',
           merchantLogoUrl:
             getImageUrl(merchant?.vendor?.logo) ||
             getImageUrl(merchant?.media?.thumbnail),

@@ -25,6 +25,7 @@ export type CartItem = {
   updatedAt?: string;
   productName?: string;
   merchantName?: string;
+  estimatedDeliveryTimeMinutes?: number | null;
   imageUrl?: string | null;
   merchantLogoUrl?: string | null;
   specialInstructions?: string | null;
@@ -57,6 +58,7 @@ type PendingCartAdd = {
 export interface MerchantCartSummary {
   merchantId: string; // Keep as string for route params compatibility
   merchantName: string;
+  estimatedDeliveryTimeMinutes?: number | null;
   merchantLogoUrl?: string | null;
   totalItems: number;
   subtotal: number;
@@ -66,6 +68,7 @@ export interface MerchantCartSummary {
 export interface CartContextType {
   items: CartItem[];
   isLoading: boolean;
+  isFetching: boolean;
   error: string | null;
   loadError: string | null;
   hasPendingAddsForMerchant: (merchantId: string | number) => boolean;
@@ -175,6 +178,14 @@ function getAddUnitPrice(payload: AddToCartPayload): number {
 function mapCartItem(doc: any, fallback?: AddToCartPayload, customerId?: number): CartItem {
   const product = doc.product || null;
   const merchant = doc.merchant || null;
+  const rawDeliveryTime =
+    merchant?.deliverySettings?.estimatedDeliveryTimeMinutes ??
+    merchant?.avg_delivery_time_minutes;
+  const deliveryTime = Number(rawDeliveryTime);
+  const estimatedDeliveryTimeMinutes =
+    Number.isFinite(deliveryTime) && deliveryTime > 0
+      ? Math.round(deliveryTime)
+      : null;
   const media = product?.media?.primaryImage || null;
   const imageUrl =
     media?.cloudinaryURL ||
@@ -239,6 +250,7 @@ function mapCartItem(doc: any, fallback?: AddToCartPayload, customerId?: number)
     updatedAt: doc.updatedAt,
     productName: product?.name || fallback?.productName || '',
     merchantName: merchant?.outletName || merchant?.name || fallback?.merchantName || '',
+    estimatedDeliveryTimeMinutes,
     imageUrl,
     merchantLogoUrl: merchantLogoUrl || fallback?.merchantLogoUrl || null,
     specialInstructions: doc.specialInstructions || null,
@@ -257,6 +269,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { customerId } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingAdds, setPendingAdds] = useState<PendingCartAdd[]>([]);
@@ -264,6 +277,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(null);
   const snapshotCustomerIdRef = useRef<string | null>(null);
   const loadSequenceRef = useRef(0);
+  const activeCartLoadSequenceRef = useRef<number | null>(null);
   const nextOptimisticIdRef = useRef(-1);
   const nextPendingAddIdRef = useRef(1);
 
@@ -280,10 +294,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
         setError(null);
         setLoadError(null);
+        activeCartLoadSequenceRef.current = null;
+        setIsFetching(false);
         return;
       }
 
       const customerKey = String(customerId);
+      activeCartLoadSequenceRef.current = sequence;
+      setIsFetching(true);
       if (snapshotCustomerIdRef.current !== customerKey) setIsLoading(true);
       setError(null);
       setLoadError(null);
@@ -361,6 +379,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setLoadError(e?.message || 'Failed to load cart');
       setIsLoading(false);
       if (customerId) setResolvedCustomerId(String(customerId));
+    } finally {
+      if (activeCartLoadSequenceRef.current === sequence) {
+        activeCartLoadSequenceRef.current = null;
+        setIsFetching(false);
+      }
     }
   }, [customerId, API_BASE]);
 
@@ -725,11 +748,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       // Use the name/logo from the first item
       const merchantName = groupItems[0]?.merchantName || 'Merchant';
+      const estimatedDeliveryTimeMinutes =
+        groupItems[0]?.estimatedDeliveryTimeMinutes ?? null;
       const merchantLogoUrl = groupItems[0]?.merchantLogoUrl;
       
       return {
         merchantId,
         merchantName,
+        estimatedDeliveryTimeMinutes,
         merchantLogoUrl,
         totalItems,
         subtotal,
@@ -745,6 +771,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (merchantItems.length === 0) return null;
 
     const merchantName = merchantItems[0]?.merchantName || 'Merchant';
+    const estimatedDeliveryTimeMinutes =
+      merchantItems[0]?.estimatedDeliveryTimeMinutes ?? null;
     const merchantLogoUrl = merchantItems[0]?.merchantLogoUrl;
     const subtotal = merchantItems.reduce((sum, item) => sum + item.subtotal, 0);
     const totalItems = merchantItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -752,6 +780,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return {
       merchantId: mIdStr,
       merchantName,
+      estimatedDeliveryTimeMinutes,
       merchantLogoUrl,
       totalItems,
       subtotal,
@@ -762,6 +791,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const value: CartContextType = {
     items: visibleItems,
     isLoading: isLoadingForCustomer,
+    isFetching,
     error,
     loadError,
     hasPendingAddsForMerchant,
