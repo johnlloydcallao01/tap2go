@@ -60,12 +60,12 @@ function LoginForm() {
       <div className="min-h-screen flex">
         {/* Left Side - Admin Branding (hidden on mobile) */}
         <div className="hidden lg:flex lg:w-2/5 relative overflow-hidden bg-gradient-to-br from-black via-[#1a1a1a] to-[#eba236] border-r border-[#eba236]/20">
-          {/* Subtle grid pattern - same as /profile banner */}
+          {/* Subtle grid pattern - same as /account banner */}
           <div className="absolute inset-0 opacity-[0.08]" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3Cpattern id='g' width='10' height='10' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 10 0 L 0 0 0 10' fill='none' stroke='white' stroke-width='0.5'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100' height='100' fill='url(%23g)'/%3E%3C/svg%3E")`
           }} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-          {/* Decorative blobs - same as /profile */}
+          {/* Decorative blobs - same as /account */}
           <div className="absolute -right-16 -top-10 w-64 h-64 bg-[#eba236]/20 blur-3xl rounded-full pointer-events-none" />
           <div className="absolute -left-12 bottom-0 w-72 h-72 bg-[#c88a20]/15 blur-3xl rounded-full pointer-events-none" />
 

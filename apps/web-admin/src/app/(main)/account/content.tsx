@@ -444,7 +444,7 @@ export function ProfileInner() {
   };
 
   const switchTab = (id: TabId) => {
-  const url = id === 'overview' ? '/profile' : `/profile?tab=${id}`;
+  const url = id === 'overview' ? '/account' : `/account?tab=${id}`;
   router.push(url as never);
   };
 

@@ -158,7 +158,7 @@ export function Header({
                     </div>
                   </div>
                   <Link
-                    href="/profile"
+                    href="/account"
                     onClick={() => setIsProfileDropdownOpen(false)}
                     className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-100 dark:hover:bg-[#262626]"
                   >

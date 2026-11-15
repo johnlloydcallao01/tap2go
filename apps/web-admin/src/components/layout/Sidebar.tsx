@@ -255,19 +255,11 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
 
-          {/* Account */}
-          <div className="space-y-1">
-            <SidebarSectionLabel isOpen={expanded}>Account</SidebarSectionLabel>
-<SidebarItem icon="profile" label="Your Profile" active={exactActive(pathname, '/profile') && accountTab !== 'settings'} collapsed={!expanded} href="/profile" prefetch />
-<SidebarItem icon="settings" label="Account Settings" active={exactActive(pathname, '/profile') && accountTab === 'settings'} collapsed={!expanded} href="/profile?tab=settings" prefetch />
-          </div>
-
-          {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
-
           {/* System Settings */}
           <div className="space-y-1">
             <SidebarSectionLabel isOpen={expanded}>System</SidebarSectionLabel>
 
+            <SidebarItem icon="profile" label="Account" active={exactActive(pathname, '/account') && accountTab !== 'settings'} collapsed={!expanded} href="/account" prefetch />
             <SidebarItem icon="users" label="Users" active={dropdownActive(pathname, '/users')} collapsed={!expanded} href="/users" />
 
             <SidebarDropdownGroup
