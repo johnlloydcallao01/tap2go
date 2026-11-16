@@ -2,6 +2,27 @@ import type { Payload } from 'payload'
 import { MerchantLocationService, type HomeOverviewTiming } from './MerchantLocationService'
 import { getOrBuildDashboard } from '../utils/dashboardCache'
 
+type StoreHoursStatus = { isOpen: boolean; reason: string; nextOpeningAt?: string | null }
+
+function normalizeStoreHoursStatus(value: unknown): StoreHoursStatus | undefined {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('isOpen' in value) ||
+    !('reason' in value)
+  ) {
+    return undefined
+  }
+
+  if (typeof value.isOpen !== 'boolean' || typeof value.reason !== 'string') return undefined
+  const nextOpeningAt = 'nextOpeningAt' in value ? value.nextOpeningAt : null
+  return {
+    isOpen: value.isOpen,
+    reason: value.reason,
+    nextOpeningAt: typeof nextOpeningAt === 'string' ? nextOpeningAt : null,
+  }
+}
+
 export interface CustomerHomeRequest {
   customerId: number
   limit?: number
@@ -29,6 +50,9 @@ export interface HomeMerchant {
   estimatedDeliveryTime: string | null
   vacationMode?: boolean | null
   vacationModeEndsAt?: string | null
+  isOpenNow?: boolean
+  storeHoursStatus?: StoreHoursStatus
+  nextOpeningAt?: string | null
   timezone?: string | null
   merchant_categories: (number | string)[]
   activeAddressName: string | null
@@ -64,6 +88,10 @@ export interface HomeProduct {
     isAcceptingOrders: boolean
     vacationMode: boolean
     vacationModeEndsAt: string | null
+    isOpenNow?: boolean
+    storeHoursStatus?: StoreHoursStatus
+    nextOpeningAt?: string | null
+    timezone?: string | null
   }
 }
 
@@ -333,6 +361,9 @@ export class CustomerHomeService {
         vacationMode: (m.vacationMode as boolean | null) ?? false,
         vacationModeEndsAt: (m.vacationModeEndsAt as string | null) ?? null,
         timezone: typeof m.timezone === 'string' ? m.timezone : null,
+        isOpenNow: typeof m.isOpenNow === 'boolean' ? m.isOpenNow : undefined,
+        storeHoursStatus: normalizeStoreHoursStatus(m.storeHoursStatus),
+        nextOpeningAt: typeof m.nextOpeningAt === 'string' ? m.nextOpeningAt : null,
         merchant_categories: Array.isArray(rawCats)
           ? (rawCats as unknown[]).filter((c): c is number | string => typeof c === 'number' || typeof c === 'string')
           : [],
@@ -489,6 +520,16 @@ export class CustomerHomeService {
               vacationModeEndsAt:
                 typeof merchantAvailability.vacationModeEndsAt === 'string'
                   ? merchantAvailability.vacationModeEndsAt
+                  : null,
+              isOpenNow: merchantAvailability.isOpenNow === true,
+              storeHoursStatus: normalizeStoreHoursStatus(merchantAvailability.storeHoursStatus),
+              nextOpeningAt:
+                typeof merchantAvailability.nextOpeningAt === 'string'
+                  ? merchantAvailability.nextOpeningAt
+                  : null,
+              timezone:
+                typeof merchantAvailability.timezone === 'string'
+                  ? merchantAvailability.timezone
                   : null,
             }
           : undefined,

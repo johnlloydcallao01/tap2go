@@ -61,12 +61,35 @@ function buildHours(src: unknown): Record<string, { open: string; close: string;
   const s = src && typeof src === 'object' && !Array.isArray(src) ? (src as Record<string, unknown>) : {}
   for (const day of DAYS) {
     const key = day.toLowerCase()
-    const v = s[key] as { open?: string; close?: string; closed?: boolean } | undefined
-    // also support capitalized key
-    const v2 = s[day] as { open?: string; close?: string; closed?: boolean } | undefined
-    const cur = v ?? v2
-    const period = Array.isArray(cur) ? cur[0] : cur
-    out[day] = period && typeof period === 'object' ? { open: (period as any).open || '09:00', close: (period as any).close || '21:00', closed: !!(period as any).closed, ...(Array.isArray(cur) ? { periods: cur } : {}) } : { open: '09:00', close: '21:00', closed: false }
+    const cur = s[key] ?? s[day]
+    if (Array.isArray(cur)) {
+      const periods = cur.flatMap((candidate) => {
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return []
+        const period = candidate as Record<string, unknown>
+        return typeof period.open === 'string' && typeof period.close === 'string'
+          ? [{ open: period.open, close: period.close }]
+          : []
+      })
+      const firstPeriod = periods[0] || { open: '09:00', close: '21:00' }
+      out[day] = {
+        ...firstPeriod,
+        closed: periods.length === 0,
+        periods: periods.length > 0 ? periods : [firstPeriod],
+      }
+      continue
+    }
+
+    if (cur && typeof cur === 'object') {
+      const legacy = cur as Record<string, unknown>
+      const period = {
+        open: typeof legacy.open === 'string' ? legacy.open : '09:00',
+        close: typeof legacy.close === 'string' ? legacy.close : '21:00',
+      }
+      out[day] = { ...period, closed: legacy.closed === true, periods: [period] }
+      continue
+    }
+
+    out[day] = { open: '09:00', close: '21:00', closed: false }
   }
   return out
 }

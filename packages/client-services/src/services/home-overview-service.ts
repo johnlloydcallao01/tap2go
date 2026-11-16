@@ -107,6 +107,12 @@ function toMerchant(raw: Record<string, unknown>): HomeMerchantWithAddress {
     vacationMode: (raw.vacationMode as boolean | null) ?? false,
     vacationModeEndsAt: (raw.vacationModeEndsAt as string | null) ?? null,
     timezone: typeof raw.timezone === 'string' ? raw.timezone : null,
+    isOpenNow: typeof raw.isOpenNow === 'boolean' ? raw.isOpenNow : undefined,
+    storeHoursStatus:
+      raw.storeHoursStatus && typeof raw.storeHoursStatus === 'object'
+        ? raw.storeHoursStatus as HomeMerchantWithAddress['storeHoursStatus']
+        : undefined,
+    nextOpeningAt: typeof raw.nextOpeningAt === 'string' ? raw.nextOpeningAt : null,
     operationalStatus: (raw.operationalStatus as string | undefined) ?? 'open',
     deliverySettings: null,
     description: null,

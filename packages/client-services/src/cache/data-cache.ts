@@ -128,6 +128,7 @@ export const CACHE_KEYS = {
 export const CACHE_TTL = {
   PRODUCT_CATEGORIES: 10, // 10 minutes
   MERCHANTS: 5, // 5 minutes
+  MERCHANT_AVAILABILITY: 0.5, // 30 seconds; open/closed state changes with time
   MERCHANT_DETAILS: 15, // 15 minutes
   ADDRESSES: 5, // 5 minutes
   ACTIVE_ADDRESS: 10, // 10 minutes

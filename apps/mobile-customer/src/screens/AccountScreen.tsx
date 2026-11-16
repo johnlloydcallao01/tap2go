@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
-import { fetchAccountOverview, asObject } from '../services/account';
+import { fetchAccountOverview, asObject, getProfilePictureUrl } from '../services/account';
 import { formatCurrency } from '../utils/format';
 
 const AccountSkeleton = () => {
@@ -134,8 +134,9 @@ export default function AccountScreen() {
   const displayName =
     [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Guest';
   const email = user?.email || '';
+  const accountUser = asObject(overview?.customer?.user);
   const profileImageUrl =
-    user?.profilePicture?.cloudinaryURL || user?.profilePicture?.url || null;
+    getProfilePictureUrl(accountUser) || getProfilePictureUrl(user);
   const memberSince = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString('en-US', {
         month: 'short',

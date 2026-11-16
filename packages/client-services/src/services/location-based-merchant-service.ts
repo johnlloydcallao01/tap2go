@@ -129,7 +129,7 @@ export class LocationBasedMerchantService {
       const merchants = data.data.merchants || [];
       
       // Cache the result
-      dataCache.set(cacheKey, merchants, CACHE_TTL.MERCHANTS);
+      dataCache.set(cacheKey, merchants, CACHE_TTL.MERCHANT_AVAILABILITY);
       
       return merchants;
     } catch (error) {

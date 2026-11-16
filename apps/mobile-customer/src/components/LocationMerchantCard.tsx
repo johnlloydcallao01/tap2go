@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, useWindowDimensions, StyleSheet } 
 import { LocationBasedMerchant, Media } from '@encreasl/client-services';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../contexts/ThemeContext';
-import { isMerchantVacationActive } from '../utils/merchantAvailability';
+import { isMerchantClosedByStoreHours, isMerchantVacationActive } from '../utils/merchantAvailability';
 
 interface LocationMerchantCardProps {
   merchant: LocationBasedMerchant;
@@ -60,6 +60,10 @@ export default function LocationMerchantCard({
   const distanceText = typeof distanceKm === "number" ? formatDistanceKm(distanceKm) : (typeof distanceInMeters === "number" ? formatDistanceKm(distanceInMeters / 1000) : null);
   const rating = typeof merchant.metrics?.averageRating === "number" ? merchant.metrics.averageRating : null;
   const onVacation = isMerchantVacationActive(merchant);
+  const hasStoreHoursStatus =
+    typeof merchant.isOpenNow === 'boolean' || typeof merchant.storeHoursStatus?.isOpen === 'boolean';
+  const isClosedByStoreHours = !onVacation && isMerchantClosedByStoreHours(merchant);
+  const nextOpeningAt = merchant.storeHoursStatus?.nextOpeningAt ?? merchant.nextOpeningAt;
 
   return (
     <TouchableOpacity 
@@ -130,6 +134,28 @@ export default function LocationMerchantCard({
             {merchant.vacationModeEndsAt && Number.isFinite(Date.parse(merchant.vacationModeEndsAt)) && (
               <Text style={styles.vacationResume} numberOfLines={1}>
                 {formatVacationResume(merchant.vacationModeEndsAt, merchant.timezone)}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {!onVacation && hasStoreHoursStatus && (
+          <View style={[styles.hoursStatusContainer, isClosedByStoreHours && styles.hoursStatusClosed]}>
+            <Ionicons
+              name={isClosedByStoreHours ? 'time-outline' : 'checkmark-circle-outline'}
+              size={14}
+              color={isClosedByStoreHours ? '#B45309' : '#047857'}
+            />
+            <Text style={[styles.hoursStatusText, isClosedByStoreHours && styles.hoursStatusClosedText]}>
+              {isClosedByStoreHours
+                ? merchant.storeHoursStatus?.reason === 'no-hours'
+                  ? 'Hours not set'
+                  : 'Closed'
+                : 'Open now'}
+            </Text>
+            {isClosedByStoreHours && nextOpeningAt && (
+              <Text style={styles.hoursResume} numberOfLines={1}>
+                {formatVacationResume(nextOpeningAt, merchant.timezone)}
               </Text>
             )}
           </View>
@@ -269,6 +295,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   vacationResume: {
+    color: '#92400E',
+    fontSize: 12,
+  },
+  hoursStatusContainer: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#D1FAE5',
+  },
+  hoursStatusClosed: {
+    backgroundColor: '#FEF3C7',
+  },
+  hoursStatusText: {
+    color: '#065F46',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  hoursStatusClosedText: {
+    color: '#92400E',
+  },
+  hoursResume: {
     color: '#92400E',
     fontSize: 12,
   },

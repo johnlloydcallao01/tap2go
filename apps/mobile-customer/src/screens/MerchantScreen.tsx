@@ -10,6 +10,7 @@ import {
   FlatList,
   StatusBar,
   Alert,
+  Share,
   useWindowDimensions,
   ImageBackground,
   Animated,
@@ -33,8 +34,11 @@ import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-quer
 import { useCart } from '../contexts/CartContext';
 import { formatCurrency } from '../utils/format';
 import MerchantSearchModal from '../components/MerchantSearchModal';
+import MerchantActionsModal from '../components/MerchantActionsModal';
+import MerchantInfoModal from '../components/MerchantInfoModal';
 import ViewCartBar from '../components/shared/ViewCartBar';
 import { useWishlist } from '../hooks/useWishlist';
+import { useAuth } from '../contexts/AuthContext';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { apiConfig } from '../config/environment';
 import { getMerchantOrderUnavailableMessage } from '../utils/merchantAvailability';
@@ -114,6 +118,7 @@ export default function MerchantScreen() {
   const queryClient = useQueryClient();
   const { isWishlisted, toggleWishlist } = useWishlist({ includeDocs: false });
   const isHearted = isWishlisted(merchantId);
+  const { isAuthenticated } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -133,7 +138,24 @@ export default function MerchantScreen() {
   const searchBarOffset = useRef(0);
   const categoriesListOffset = useRef(0);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isMerchantInfoVisible, setIsMerchantInfoVisible] = useState(false);
+  const [isMerchantActionsVisible, setIsMerchantActionsVisible] = useState(false);
   const [isScrolledPastThreshold, setIsScrolledPastThreshold] = useState(false);
+
+  const handleToggleWishlist = useCallback(() => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Sign in required',
+        'Please sign in to save merchants to your wishlist.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Sign in', onPress: () => navigation.navigate('Login') },
+        ],
+      );
+      return;
+    }
+    toggleWishlist(merchantId);
+  }, [isAuthenticated, merchantId, navigation, toggleWishlist]);
 
   // Update threshold when search bar layout is measured
   const updateThreshold = useCallback(() => {
@@ -206,15 +228,36 @@ export default function MerchantScreen() {
   const merchantQuery = useQuery({
     queryKey: ['merchant', merchantId],
     queryFn: ({ signal }) =>
-      getMerchantByIdClient(String(merchantId), signal, forceRefreshRequested.current),
+      getMerchantByIdClient(String(merchantId), signal, true),
     enabled: !!merchantId,
     staleTime: 1000 * 30,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
   const merchant = merchantQuery.data;
   const merchantUnavailableMessage = getMerchantOrderUnavailableMessage(merchant);
   const merchantOrderingUnavailable = merchantUnavailableMessage !== null;
   const isLoadingMerchant = merchantQuery.isLoading;
   const isRefetchingMerchant = merchantQuery.isRefetching;
+  const shareMerchant = useCallback(async () => {
+    if (!merchantId) {
+      Alert.alert('Unable to share merchant', 'The merchant link is unavailable.');
+      return;
+    }
+
+    const url = `https://app.tap2goph.com/merchants/${encodeURIComponent(String(merchantId))}`;
+    const merchantName = merchant?.outletName?.trim();
+    const message = merchantName ? `Check out ${merchantName} on Tap2Go: ${url}` : url;
+
+    try {
+      await Share.share({ message, title: merchantName || 'Tap2Go merchant', url });
+    } catch (error) {
+      Alert.alert(
+        'Unable to share merchant',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
+  }, [merchantId, merchant?.outletName]);
 
   // 2. Fetch Merchant Menu with Infinite Scroll
   const merchantMenuQuery = useInfiniteQuery({
@@ -854,12 +897,19 @@ export default function MerchantScreen() {
             transform: [{ translateY: defaultIconsTranslateY }],
             zIndex: 10
           }}>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => setIsMerchantInfoVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Show merchant information"
+            >
               <Ionicons name="information-circle-outline" size={24} color="#000" />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => toggleWishlist(merchantId)}
+              onPress={handleToggleWishlist}
+              accessibilityRole="button"
+              accessibilityLabel={isHearted ? 'Remove merchant from wishlist' : 'Save merchant to wishlist'}
             >
               <Ionicons
                 name={isHearted ? "heart" : "heart-outline"}
@@ -867,7 +917,12 @@ export default function MerchantScreen() {
                 color={isHearted ? "#f3a823" : "#000"}
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={shareMerchant}
+              accessibilityRole="button"
+              accessibilityLabel="Share merchant"
+            >
               <Ionicons name="share-outline" size={24} color="#000" />
             </TouchableOpacity>
           </Animated.View>
@@ -897,7 +952,12 @@ export default function MerchantScreen() {
                 <Text style={{ fontSize: 14, color: '#999' }}>Search menu</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => setIsMerchantActionsVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="More merchant options"
+            >
               <Ionicons name="ellipsis-vertical" size={24} color="#000" />
             </TouchableOpacity>
           </Animated.View>
@@ -1028,6 +1088,19 @@ export default function MerchantScreen() {
         categories={categories}
         onAddToCart={handleAddToCart}
         isOrderingUnavailable={merchantOrderingUnavailable}
+      />
+      <MerchantActionsModal
+        visible={isMerchantActionsVisible}
+        isWishlisted={isHearted}
+        onClose={() => setIsMerchantActionsVisible(false)}
+        onToggleWishlist={handleToggleWishlist}
+        onShare={shareMerchant}
+        onShowInformation={() => setIsMerchantInfoVisible(true)}
+      />
+      <MerchantInfoModal
+        visible={isMerchantInfoVisible}
+        merchant={merchant}
+        onClose={() => setIsMerchantInfoVisible(false)}
       />
 
       {/* View Cart Floating Bar */}

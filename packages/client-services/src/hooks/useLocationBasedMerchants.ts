@@ -12,6 +12,8 @@ interface LocationMerchantsOptions {
   enabled?: boolean;
   /** Override TanStack staleTime (ms). Defaults to the shared client default. */
   staleTime?: number;
+  /** Poll availability-bearing merchant results while the screen is active. */
+  refetchInterval?: number;
 }
 
 export function useLocationBasedMerchants(
@@ -35,5 +37,8 @@ export function useLocationBasedMerchants(
     },
     enabled,
     ...(options?.staleTime !== undefined ? { staleTime: options.staleTime } : {}),
+    ...(options?.refetchInterval !== undefined
+      ? { refetchInterval: options.refetchInterval, refetchIntervalInBackground: false }
+      : {}),
   });
 }

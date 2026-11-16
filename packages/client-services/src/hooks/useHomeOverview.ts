@@ -17,6 +17,8 @@ interface HomeOverviewOptions {
   enabled?: boolean;
   /** Override TanStack staleTime (ms). Defaults to the shared client default. */
   staleTime?: number;
+  /** Poll time-sensitive merchant availability while the screen is active. */
+  refetchInterval?: number;
   section?: 'all' | 'primary' | 'recommendations';
   forceRefresh?: () => boolean;
 }
@@ -49,5 +51,8 @@ export function useHomeOverview(
     enabled,
     // Keep client freshness aligned with the Home endpoint's short cache TTL.
     ...(options?.staleTime !== undefined ? { staleTime: options.staleTime } : {}),
+    ...(options?.refetchInterval !== undefined
+      ? { refetchInterval: options.refetchInterval, refetchIntervalInBackground: false }
+      : {}),
   });
 }

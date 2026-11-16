@@ -47,7 +47,11 @@ function toArray(value: any): any[] {
 function resolveMediaUrl(media: any): string | null {
   if (!media) return null;
   if (typeof media === 'string' || typeof media === 'number') return null;
-  return media.cloudinaryURL || media.url || media.thumbnailURL || null;
+  const url = media.cloudinaryURL || media.url || media.thumbnailURL || null;
+  if (!url || /^(https?:|data:|file:|content:)/i.test(url)) return url;
+
+  const cmsBaseUrl = API_BASE.replace(/\/api\/?$/i, '').replace(/\/+$/, '');
+  return `${cmsBaseUrl}/${String(url).replace(/^\/+/, '')}`;
 }
 
 /**

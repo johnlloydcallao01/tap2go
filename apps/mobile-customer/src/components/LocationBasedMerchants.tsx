@@ -153,10 +153,10 @@ export default function LocationBasedMerchants({
     customerId,
     categoryId,
     limit,
-    // Match the service memory-cache TTL (5 min): background revalidations
-    // resolve from memory instead of churning every global staleTime.
+    // Availability changes with store hours, so refresh the status-bearing
+    // merchant list more frequently than the general merchant cache.
     // Skipped entirely when the BFF overview provides the data.
-    { staleTime: 1000 * 60 * 5, enabled: !useBff }
+    { staleTime: 1000 * 30, refetchInterval: 60_000, enabled: !useBff }
   );
 
   // Apply limit logic for display:

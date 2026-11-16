@@ -64,6 +64,7 @@ export default function HomeScreen() {
     selectedCategoryId,
     {
       staleTime: HOME_OVERVIEW_STALE_TIME_MS,
+      refetchInterval: 60_000,
       section: 'primary',
     },
   );
@@ -73,6 +74,7 @@ export default function HomeScreen() {
     selectedCategoryId,
     {
       staleTime: HOME_OVERVIEW_STALE_TIME_MS,
+      refetchInterval: 60_000,
       enabled: recommendationsVisible && !overviewFetching && !selectedCategoryId,
       section: 'recommendations',
     },

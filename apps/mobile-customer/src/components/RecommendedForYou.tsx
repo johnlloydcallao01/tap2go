@@ -26,7 +26,11 @@ import { useCart } from '../contexts/CartContext';
 import { fetchEffectiveModifierGroups } from '../services/product';
 import { apiConfig } from '../config/environment';
 import { formatCurrency } from '../utils/format';
-import { getMerchantOrderUnavailableMessage } from '../utils/merchantAvailability';
+import {
+  getMerchantOrderUnavailableMessage,
+  isMerchantClosedByStoreHours,
+  isMerchantVacationActive,
+} from '../utils/merchantAvailability';
 
 interface RecommendedForYouProps {
   customerId?: string | null;
@@ -425,6 +429,13 @@ export default function RecommendedForYou({
               const merchantUnavailable = Boolean(
                 availability && getMerchantOrderUnavailableMessage(availability),
               );
+              const unavailableLabel = !availability
+                ? null
+                : isMerchantVacationActive(availability)
+                  ? 'Merchant on vacation'
+                  : isMerchantClosedByStoreHours(availability)
+                    ? 'Merchant is closed'
+                    : 'Merchant unavailable';
               return (
                 <TouchableOpacity
                   key={`${product.merchantProductId}-${product.id}`}
@@ -453,7 +464,7 @@ export default function RecommendedForYou({
                     {product.name}
                   </Text>
                   {merchantUnavailable && (
-                    <Text style={styles.unavailableText}>Merchant on vacation</Text>
+                    <Text style={styles.unavailableText}>{unavailableLabel}</Text>
                   )}
                   {product.productType === 'simple' ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>

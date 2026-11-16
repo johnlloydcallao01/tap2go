@@ -1,8 +1,15 @@
+import { isStoreOpen } from './storeHours'
+
 export type VacationModeFields = {
   vacationMode?: boolean | null
   vacationModeEndsAt?: string | Date | null
   isActive?: boolean | null
   isAcceptingOrders?: boolean | null
+  operatingHours?: unknown
+  specialHours?: unknown
+  delivery_hours?: unknown
+  delivery_zones?: unknown
+  timezone?: unknown
 }
 
 export function getMerchantOrderUnavailableMessage(
@@ -14,6 +21,9 @@ export function getMerchantOrderUnavailableMessage(
   }
   if (!merchant || merchant.isActive === false || merchant.isAcceptingOrders === false) {
     return 'This merchant is not currently accepting orders.'
+  }
+  if (!isStoreOpen(merchant, now).isOpen) {
+    return 'This merchant is currently closed and is not accepting new orders.'
   }
   return null
 }

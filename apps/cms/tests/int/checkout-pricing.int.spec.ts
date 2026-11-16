@@ -25,7 +25,24 @@ function createPayload(
     'cart-items': cartItems,
   }
   const docs: Record<string, Record<string, any>> = {
-    merchants: { 300: merchant },
+    merchants: {
+      300: {
+        id: 300,
+        isActive: true,
+        isAcceptingOrders: true,
+        timezone: 'Asia/Manila',
+        operatingHours: {
+          monday: [{ open: '00:00', close: '00:00' }],
+          tuesday: [{ open: '00:00', close: '00:00' }],
+          wednesday: [{ open: '00:00', close: '00:00' }],
+          thursday: [{ open: '00:00', close: '00:00' }],
+          friday: [{ open: '00:00', close: '00:00' }],
+          saturday: [{ open: '00:00', close: '00:00' }],
+          sunday: [{ open: '00:00', close: '00:00' }],
+        },
+        ...merchant,
+      },
+    },
     products: {
       100: { id: 100, name: 'Burger', productType: 'simple', basePrice: 120 },
     },
@@ -235,6 +252,38 @@ describe('checkout preparation', () => {
       isAcceptingOrders: true,
       vacationMode: true,
       vacationModeEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+
+    await expect(priceCheckoutCart({
+      payload: payload as any,
+      customerId: 5,
+      merchantId: 300,
+      cartItemIds: [1],
+    })).rejects.toMatchObject<Partial<CheckoutValidationError>>({
+      code: 'MERCHANT_UNAVAILABLE',
+    })
+  })
+
+  it('blocks checkout when the outlet is outside its configured store hours', async () => {
+    const payload = createPayload([{
+      id: 1,
+      customer: 5,
+      merchant: 300,
+      product: 100,
+      merchantProduct: 900,
+      quantity: 1,
+      selectedModifiers: [],
+      selectedAddons: [],
+      status: 'active',
+    }], {
+      id: 300,
+      isActive: true,
+      isAcceptingOrders: true,
+      timezone: 'Asia/Manila',
+      operatingHours: {
+        monday: [], tuesday: [], wednesday: [], thursday: [],
+        friday: [], saturday: [], sunday: [],
+      },
     })
 
     await expect(priceCheckoutCart({
@@ -481,7 +530,21 @@ describe('checkout preparation', () => {
       })),
       findByID: vi.fn(async ({ collection }: { collection: string }) => {
         if (collection === 'addresses') return address
-        if (collection === 'merchants') return { id: 300, isActive: true, isAcceptingOrders: true }
+        if (collection === 'merchants') return {
+          id: 300,
+          isActive: true,
+          isAcceptingOrders: true,
+          timezone: 'Asia/Manila',
+          operatingHours: {
+            monday: [{ open: '00:00', close: '00:00' }],
+            tuesday: [{ open: '00:00', close: '00:00' }],
+            wednesday: [{ open: '00:00', close: '00:00' }],
+            thursday: [{ open: '00:00', close: '00:00' }],
+            friday: [{ open: '00:00', close: '00:00' }],
+            saturday: [{ open: '00:00', close: '00:00' }],
+            sunday: [{ open: '00:00', close: '00:00' }],
+          },
+        }
         if (collection === 'products') return { id: 100, name: 'Burger', productType: 'simple', basePrice: 90 }
         if (collection === 'merchant-products') {
           return {

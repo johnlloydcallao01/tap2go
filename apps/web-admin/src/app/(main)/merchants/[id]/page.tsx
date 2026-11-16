@@ -21,6 +21,8 @@ type MerchantDoc = {
   vacationModeEndsAt: string | null
   operationalStatus: string
   timezone: string
+  isOpenNow?: boolean
+  operatingHours?: unknown
   description: string | null
   merchant_categories: { id: number; name: string }[]
   activeAddress: { id: number; formatted_address: string } | null
@@ -31,6 +33,27 @@ type MerchantDoc = {
   merchant_longitude: number | null
   delivery_radius_meters: number | null
   is_currently_delivering: boolean | null
+}
+
+const STORE_HOURS_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const
+
+function formatDayHours(hours: unknown): string {
+  if (Array.isArray(hours)) {
+    if (hours.length === 0) return 'Closed'
+    return hours.map((period) => {
+      if (!period || typeof period !== 'object') return null
+      const value = period as Record<string, unknown>
+      return typeof value.open === 'string' && typeof value.close === 'string'
+        ? `${value.open}–${value.close}`
+        : null
+    }).filter((period): period is string => period !== null).join(' / ') || 'Not set'
+  }
+  if (!hours || typeof hours !== 'object') return 'Not set'
+  const value = hours as Record<string, unknown>
+  if (value.closed === true) return 'Closed'
+  return typeof value.open === 'string' && typeof value.close === 'string'
+    ? `${value.open}–${value.close}`
+    : 'Not set'
 }
 
 function operationalBadge(s: string){
@@ -145,6 +168,19 @@ function MerchantViewContent(){
             <Row label="Active address" value={doc.activeAddress?.formatted_address || '—'} icon={<MapPin className="w-3 h-3" />} />
             <Row label="Coordinates" value={doc.merchant_latitude && doc.merchant_longitude ? `${doc.merchant_latitude}, ${doc.merchant_longitude}` : '—'} mono />
             <Row label="Delivery radius" value={doc.delivery_radius_meters ? `${doc.delivery_radius_meters} m` : '—'} />
+          </Section>
+          <Section title="Weekly operating hours">
+            <Row label="Store-hours status" value={doc.isOpenNow === undefined ? '—' : doc.isOpenNow ? 'Open now' : 'Closed'} icon={<Clock className="w-3 h-3" />} />
+            {STORE_HOURS_DAYS.map((day) => {
+              const schedule = doc.operatingHours && typeof doc.operatingHours === 'object'
+                ? doc.operatingHours as Record<string, unknown>
+                : {}
+              return (
+                <div key={day} className="contents">
+                  <Row label={day} value={formatDayHours(schedule[day.toLowerCase()] ?? schedule[day])} />
+                </div>
+              )
+            })}
           </Section>
         </div>
         <div className="space-y-5">

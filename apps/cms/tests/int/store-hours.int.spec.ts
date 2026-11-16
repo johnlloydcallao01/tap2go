@@ -19,6 +19,13 @@ describe('store hours', () => {
     expect(validateWeeklyHours(weekly([{ open: '11:00', close: '14:00' }, { open: '17:00', close: '22:00' }])).friday).toHaveLength(2)
   })
 
+  it('preserves empty day schedules as closed through CMS validation', () => {
+    const operatingHours = validateWeeklyHours(weekly())
+    expect(operatingHours.monday).toEqual([])
+    expect(isStoreOpen({ timezone: 'Asia/Manila', operatingHours }, new Date('2026-09-03T06:00:00.000Z')))
+      .toMatchObject({ isOpen: false, reason: 'outside-hours' })
+  })
+
   it('evaluates schedules in the merchant timezone', () => {
     const merchant = { timezone: 'Asia/Manila', operatingHours: { ...weekly(), thursday: [{ open: '09:00', close: '17:00' }] } }
     expect(isStoreOpen(merchant, new Date('2026-09-03T06:00:00.000Z')).isOpen).toBe(true)
@@ -29,6 +36,32 @@ describe('store hours', () => {
     const merchant = { timezone: 'Asia/Manila', operatingHours: weekly([{ open: '22:00', close: '02:00' }]) }
     expect(isStoreOpen(merchant, new Date('2026-09-04T17:00:00.000Z')).isOpen).toBe(true)
     expect(isStoreOpen(merchant, new Date('2026-09-04T19:30:00.000Z')).isOpen).toBe(false)
+  })
+
+  it('does not apply the previous day overnight period to the following evening', () => {
+    const merchant = {
+      timezone: 'Asia/Manila',
+      operatingHours: {
+        monday: [{ open: '22:00', close: '02:00' }],
+        tuesday: [],
+        wednesday: [],
+        thursday: [],
+        friday: [],
+        saturday: [],
+        sunday: [],
+      },
+    }
+    expect(isStoreOpen(merchant, new Date('2026-08-31T17:00:00.000Z')).isOpen).toBe(true)
+    expect(isStoreOpen(merchant, new Date('2026-09-01T15:00:00.000Z')).isOpen).toBe(false)
+  })
+
+  it('treats the closing time as the first closed instant', () => {
+    const merchant = {
+      timezone: 'Asia/Manila',
+      operatingHours: { ...weekly(), thursday: [{ open: '09:00', close: '17:00' }] },
+    }
+    expect(isStoreOpen(merchant, new Date('2026-09-03T08:59:00.000Z')).isOpen).toBe(true)
+    expect(isStoreOpen(merchant, new Date('2026-09-03T09:00:00.000Z')).isOpen).toBe(false)
   })
 
   it('gives a special closure priority over regular hours', () => {

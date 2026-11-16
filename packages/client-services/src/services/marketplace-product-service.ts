@@ -9,6 +9,10 @@ export interface RecommendedProduct extends MerchantProductDisplay {
     isAcceptingOrders?: boolean | null;
     vacationMode?: boolean | null;
     vacationModeEndsAt?: string | null;
+    isOpenNow?: boolean | null;
+    storeHoursStatus?: { isOpen: boolean; reason: string; nextOpeningAt?: string | null } | null;
+    nextOpeningAt?: string | null;
+    timezone?: string | null;
   };
   distanceKm?: number | null;
   isWithinDeliveryRadius?: boolean;

@@ -140,11 +140,14 @@ function previousDay(day: StoreHoursDay): StoreHoursDay {
   return STORE_HOURS_DAYS[(index + 6) % 7]
 }
 
-function periodContains(period: StoreHoursPeriod, current: number): boolean {
+function periodContains(period: StoreHoursPeriod, current: number, previousDayPeriod = false): boolean {
   const open = minutes(period.open)
   const close = minutes(period.close)
   if (open === close) return true
-  return close < open ? current >= open || current <= close : current >= open && current <= close
+  if (close < open) {
+    return previousDayPeriod ? current < close : current >= open || current < close
+  }
+  return current >= open && current < close
 }
 
 export type StoreOpenResult = {
@@ -180,11 +183,11 @@ export function isStoreOpen(
   if (!hours) return { isOpen: false, reason: 'no-hours' }
 
   const currentMinutes = minutes(current.time)
-  const candidates = [
-    ...(hours[current.day] || []),
-    ...(hours[previousDay(current.day)] || []).filter((period) => minutes(period.close) < minutes(period.open)),
-  ]
-  const period = candidates.find((candidate) => periodContains(candidate, currentMinutes))
+  const period =
+    (hours[current.day] || []).find((candidate) => periodContains(candidate, currentMinutes)) ??
+    (hours[previousDay(current.day)] || [])
+      .filter((candidate) => minutes(candidate.close) < minutes(candidate.open))
+      .find((candidate) => periodContains(candidate, currentMinutes, true))
   return period ? { isOpen: true, reason: 'scheduled', period } : { isOpen: false, reason: 'outside-hours' }
 }
 
@@ -204,9 +207,11 @@ export function isStoreOpenForZone(
   return isStoreOpen(merchant, now, zoneId)
 }
 
-export function getStoreHoursStatus(merchant: Parameters<typeof isStoreOpen>[0]): StoreOpenResult {
+export function getStoreHoursStatus(
+  merchant: Parameters<typeof isStoreOpen>[0],
+  now: Date = new Date(),
+): StoreOpenResult {
   try {
-    const now = new Date()
     const result = isStoreOpen(merchant, now)
     if (result.isOpen || result.reason === 'no-hours' || result.reason === 'special-closed') return result
     const nextOpeningAt = findNextOpening(merchant, now)

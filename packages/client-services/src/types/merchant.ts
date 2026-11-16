@@ -37,6 +37,14 @@ export interface OperatingHours {
   sunday?: StoreHoursPeriod[];
 }
 
+export interface SpecialStoreHour {
+  date: string;
+  openTime?: string;
+  closeTime?: string;
+  isClosed?: boolean;
+  reason?: string;
+}
+
 export interface StoreHoursPeriod {
   open: string;
   close: string;
@@ -48,6 +56,9 @@ export interface DeliverySettings {
   minimumOrderAmount?: number | null;
   deliveryFee?: number | null;
   estimatedDeliveryTime?: string | null;
+  freeDeliveryThreshold?: number | null;
+  estimatedDeliveryTimeMinutes?: number | null;
+  maxDeliveryTimeMinutes?: number | null;
 }
 
 // Metrics interface
@@ -93,6 +104,8 @@ export interface Merchant {
   vacationModeEndsAt?: string | null;
   operationalStatus?: 'open' | 'closed' | 'busy' | null;
   operatingHours?: OperatingHours | null;
+  delivery_hours?: OperatingHours | null;
+  specialHours?: SpecialStoreHour[] | null;
   deliverySettings?: DeliverySettings | null;
   metrics?: Metrics | null;
   media?: MerchantMedia | null;
@@ -100,10 +113,31 @@ export interface Merchant {
   compliance?: Compliance | null;
   description?: string | null;
   specialInstructions?: string | null;
+  merchant_categories?: Array<{ id?: number | string; name?: string; slug?: string }> | null;
+  is_currently_delivering?: boolean | null;
+  delivery_radius_meters?: number | null;
+  min_order_amount?: number | null;
+  delivery_fee_base?: number | null;
+  delivery_fee_per_km?: number | null;
+  free_delivery_threshold?: number | null;
+  avg_delivery_time_minutes?: number | null;
   tags?: string[] | null;
   activeAddress?: {
     formatted_address?: string | null;
+    street?: string | null;
+    street_number?: string | null;
+    route?: string | null;
+    subpremise?: string | null;
+    floor_unit_room?: string | null;
+    barangay?: string | null;
     city?: string | null;
+    locality?: string | null;
+    administrative_area_level_2?: string | null;
+    administrative_area_level_1?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
     [key: string]: any;
   } | null;
   updatedAt?: string | null;

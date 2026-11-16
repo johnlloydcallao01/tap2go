@@ -1,6 +1,8 @@
 import type { Payload } from 'payload'
 import type { Merchant } from '../payload-types'
 import { GeospatialService } from './GeospatialService'
+import { isStoreOpen, type StoreOpenResult } from '../utils/storeHours'
+import { isMerchantOnVacation } from '../utils/vacationMode'
 
 export type HomeOverviewTiming = (
   phase: string,
@@ -26,8 +28,14 @@ export interface MerchantLocationResponse {
     latitude: number
     longitude: number
   }
-  merchants: Merchant[]
+  merchants: MerchantWithStoreHours[]
   totalCount: number
+}
+
+type MerchantWithStoreHours = Merchant & {
+  isOpenNow: boolean
+  storeHoursStatus: StoreOpenResult
+  nextOpeningAt: string | null
 }
 
 /**
@@ -155,6 +163,41 @@ export class MerchantLocationService {
     })
 
     const filteredMerchants = result.merchants
+    const merchantIds = filteredMerchants.map((merchant) => Number(merchant.id))
+    const scheduleResult = merchantIds.length > 0
+      ? await this.payload.find({
+          collection: 'merchants',
+          where: { id: { in: merchantIds } },
+          limit: merchantIds.length,
+          pagination: false,
+          depth: 0,
+          context: { skipStoreHours: true, skipVacationMode: true },
+          select: {
+            id: true,
+            operatingHours: true,
+            specialHours: true,
+            delivery_hours: true,
+            delivery_zones: true,
+            timezone: true,
+            vacationMode: true,
+            vacationModeEndsAt: true,
+          },
+        })
+      : { docs: [] }
+    const schedulesById = new Map(
+      scheduleResult.docs.map((merchant) => [String(merchant.id), merchant]),
+    )
+    const merchantsWithStoreHours: MerchantWithStoreHours[] = filteredMerchants.map((merchant) => {
+      const schedule = schedulesById.get(String(merchant.id)) ?? merchant
+      const storeHoursStatus = isStoreOpen(schedule)
+      const onVacation = isMerchantOnVacation(schedule)
+      return {
+        ...merchant,
+        isOpenNow: onVacation ? false : storeHoursStatus.isOpen,
+        storeHoursStatus: onVacation ? { ...storeHoursStatus, isOpen: false } : storeHoursStatus,
+        nextOpeningAt: onVacation ? schedule.vacationModeEndsAt ?? null : null,
+      }
+    })
 
     return {
       customer: {
@@ -166,8 +209,8 @@ export class MerchantLocationService {
         latitude: lat,
         longitude: lng,
       },
-      merchants: filteredMerchants,
-      totalCount: filteredMerchants.length,
+      merchants: merchantsWithStoreHours,
+      totalCount: merchantsWithStoreHours.length,
     }
   }
 

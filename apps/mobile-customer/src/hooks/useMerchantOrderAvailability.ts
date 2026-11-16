@@ -10,6 +10,8 @@ export function useMerchantOrderAvailability(merchantId: string | number | null 
     enabled: normalizedId.length > 0,
     staleTime: 10_000,
     refetchOnMount: 'always',
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
   const merchant = query.data ?? null;
   const unavailableMessage = getMerchantOrderUnavailableMessage(merchant);
