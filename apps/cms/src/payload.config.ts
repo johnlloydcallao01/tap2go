@@ -89,6 +89,7 @@ import { AppRatings } from './collections/AppRatings'
 import { AppRatingHistory } from './collections/AppRatingHistory'
 import { customerAppRatingHandler } from './endpoints/customerAppRating'
 import { deliveryFulfillmentTaskConfig } from './jobs/deliveryFulfillment'
+import { payloadJobsRunAccess } from './jobs/runAccess'
 import { notificationFanoutTaskConfig } from './jobs/notificationFanout'
 
 // Product Management Collections
@@ -235,8 +236,13 @@ export default buildConfig({
     },
   }),
   jobs: {
+    access: { run: payloadJobsRunAccess },
     tasks: [deliveryFulfillmentTaskConfig, notificationFanoutTaskConfig],
-    autoRun: [{ cron: '* * * * *', queue: 'default' }],
+    // Cloud Run uses an external Scheduler request to /api/payload-jobs/run.
+    // Set PAYLOAD_JOBS_AUTO_RUN=true only on a dedicated, always-on worker.
+    autoRun: process.env.PAYLOAD_JOBS_AUTO_RUN === 'true'
+      ? [{ cron: '* * * * *', queue: 'default' }]
+      : [],
   },
 
   // ========================================

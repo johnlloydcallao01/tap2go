@@ -6,11 +6,21 @@ import {
   mapToOrderStatus,
 } from '../services/deliveryProviders'
 import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
+import {
+  amountInMinorUnits,
+  getPayMongoSecretKey,
+  retrievePayMongoIntent,
+} from '../services/paymongoIntent'
+import { isTerminalPaymentFailure } from '../services/orderPaymentRecovery'
 import { createAdminNotificationFanout } from '../utils/notificationFanout'
 
 const LEASE_MINUTES = 5
 const BATCH_SIZE = 2
-const MAX_ATTEMPTS = 8
+const PAYMONGO_LOOKUP_BATCH_SIZE = 2
+const PAYMONGO_STALE_MINUTES = 5
+const PAYMONGO_CLAIM_MINUTES = 15
+const PAYMONGO_ALERT_AFTER_CHECKS = 5
+const PAYMONGO_MAX_ATTEMPTS = 2_147_483_647
 
 type RelationId = number | string | { id?: number | string } | null | undefined
 
@@ -20,12 +30,544 @@ function relationId(value: RelationId): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function retryDelayMinutes(attempt: number) {
+export function retryDelayMinutes(attempt: number) {
   return Math.min(60, 2 ** Math.max(0, attempt - 1))
+}
+
+export function classifySubmissionFailure(httpStatus: number, providerSubmissionStarted: boolean) {
+  const ambiguous = providerSubmissionStarted && (httpStatus === 408 || httpStatus >= 500)
+  const retryable = httpStatus === 429 ||
+    (!providerSubmissionStarted && (httpStatus === 408 || httpStatus >= 500))
+  return {
+    ambiguous,
+    retryable: retryable && !ambiguous,
+    terminal: httpStatus === 422 || httpStatus === 400,
+  }
+}
+
+export function paymongoReconcileDelayMinutes(attempt: number) {
+  return Math.min(360, 5 * 2 ** Math.max(0, attempt - 1))
+}
+
+export async function recoverStaleDeliveryPayments(
+  req: PayloadRequest,
+  now = new Date(),
+) {
+  const pendingStoppedAlerts = await req.payload.find({
+    collection: 'transactions',
+    where: {
+      and: [
+        { status: { equals: 'pending' } },
+        { paymongo_reconcile_stopped: { equals: true } },
+        { paymongo_reconcile_alerted_at: { exists: false } },
+      ],
+    },
+    limit: PAYMONGO_LOOKUP_BATCH_SIZE,
+    depth: 0,
+    overrideAccess: true,
+    req,
+  })
+  for (const transaction of pendingStoppedAlerts.docs as any[]) {
+    await alertPayMongoReconciliation(
+      req,
+      transaction,
+      now,
+      String(transaction.paymongo_reconcile_last_status || 'manual_review'),
+      String(transaction.paymongo_reconcile_last_error || 'Automated payment checks stopped.'),
+      `stopped-${transaction.paymongo_reconcile_last_status || 'manual-review'}`,
+      Number(transaction.paymongo_reconcile_attempt_count || 0),
+    )
+  }
+
+  const staleBefore = new Date(now.getTime() - PAYMONGO_STALE_MINUTES * 60_000).toISOString()
+  const dueChecks = [
+    { paymongo_reconcile_next_check_at: { exists: false } },
+    { paymongo_reconcile_next_check_at: { less_than_equal: now.toISOString() } },
+  ]
+  const candidates = await req.payload.find({
+    collection: 'transactions',
+    where: {
+      and: [
+        { status: { equals: 'pending' } },
+        { transaction_type: { not_equals: 'priority_fee' } },
+        { payment_intent_id: { exists: true } },
+        { 'order.fulfillment_type': { equals: 'delivery' } },
+        { paymongo_reconcile_stopped: { not_equals: true } },
+        { createdAt: { less_than_equal: staleBefore } },
+        { or: dueChecks },
+      ],
+    },
+    sort: 'createdAt',
+    limit: PAYMONGO_LOOKUP_BATCH_SIZE,
+    depth: 1,
+    overrideAccess: true,
+    req,
+  })
+
+  let checked = 0
+  let paid = 0
+  for (const candidate of candidates.docs.slice(0, PAYMONGO_LOOKUP_BATCH_SIZE) as any[]) {
+    const claimedAt = now.toISOString()
+    const attemptCount = Math.min(
+      PAYMONGO_MAX_ATTEMPTS,
+      Math.max(0, Number(candidate.paymongo_reconcile_attempt_count) || 0) + 1,
+    )
+    const claim = await req.payload.update({
+      collection: 'transactions',
+      where: {
+        and: [
+          { id: { equals: candidate.id } },
+          { status: { equals: 'pending' } },
+          { createdAt: { less_than_equal: staleBefore } },
+          { or: dueChecks },
+        ],
+      },
+      data: {
+        paymongo_reconcile_attempt_count: attemptCount,
+        paymongo_reconcile_last_checked_at: claimedAt,
+        paymongo_reconcile_next_check_at: new Date(
+          now.getTime() + PAYMONGO_CLAIM_MINUTES * 60_000,
+        ).toISOString(),
+        paymongo_reconcile_last_status: 'checking',
+        paymongo_reconcile_last_error: null,
+      },
+      overrideAccess: true,
+      req,
+    })
+    if (claim.docs.length !== 1) continue
+    checked += 1
+
+    const orderId = relationId(candidate.order as RelationId)
+    const paymentIntentId = String(candidate.payment_intent_id || '')
+    try {
+      if (!orderId || !paymentIntentId) {
+        await stopPayMongoReconciliation(
+          req,
+          candidate,
+          now,
+          'invalid_local_reference',
+          'The pending delivery transaction is missing its order or PayMongo intent reference.',
+        )
+        continue
+      }
+
+      const secretKey = getPayMongoSecretKey()
+      if (!secretKey) {
+        await schedulePayMongoRecheck(
+          req,
+          candidate,
+          attemptCount,
+          now,
+          'lookup_unavailable',
+          'PayMongo credentials are not configured for background verification.',
+        )
+        continue
+      }
+
+      const order = await req.payload.findByID({
+        collection: 'orders',
+        id: orderId,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      }) as any
+      if (!order || order.fulfillment_type !== 'delivery') {
+        await stopPayMongoReconciliation(
+          req,
+          candidate,
+          now,
+          'order_not_eligible',
+          'The referenced order is not a delivery order.',
+        )
+        continue
+      }
+
+      const intentsOnTransactions = await req.payload.find({
+        collection: 'transactions',
+        where: { payment_intent_id: { equals: paymentIntentId } },
+        limit: 2,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      if (
+        intentsOnTransactions.docs.length !== 1 ||
+        String(intentsOnTransactions.docs[0]?.id) !== String(candidate.id) ||
+        String(relationId(intentsOnTransactions.docs[0]?.order as RelationId)) !== String(orderId)
+      ) {
+        await stopPayMongoReconciliation(
+          req,
+          candidate,
+          now,
+          'intent_transaction_mismatch',
+          'The PayMongo intent is not linked to exactly one matching order transaction.',
+        )
+        continue
+      }
+
+      const intent = await retrievePayMongoIntent(paymentIntentId, secretKey)
+      const attributes = intent?.attributes
+      const providerStatus = String(attributes?.status || '').toLowerCase()
+
+      if (String(intent?.id || '') !== paymentIntentId) {
+        await stopPayMongoReconciliation(
+          req,
+          candidate,
+          now,
+          'intent_id_mismatch',
+          'PayMongo returned an intent ID that does not match the stored transaction.',
+        )
+        continue
+      }
+
+      if (providerStatus !== 'succeeded') {
+        if (isTerminalPaymentFailure(providerStatus)) {
+          await markPayMongoTransactionFailed(
+            req,
+            candidate,
+            now,
+            providerStatus,
+          )
+        } else {
+          await schedulePayMongoRecheck(
+            req,
+            candidate,
+            attemptCount,
+            now,
+            providerStatus || 'unknown',
+            'PayMongo has not confirmed a successful payment yet.',
+          )
+        }
+        continue
+      }
+
+      const transactionAmount = amountInMinorUnits(candidate.amount)
+      const orderAmount = amountInMinorUnits(order.total)
+      const intentAmount = Number(attributes?.amount)
+      const transactionCurrency = String(candidate.currency || '').toUpperCase()
+      const intentCurrency = String(attributes?.currency || '').toUpperCase()
+      if (
+        !Number.isSafeInteger(intentAmount) ||
+        intentAmount <= 0 ||
+        transactionAmount === null ||
+        transactionAmount !== intentAmount ||
+        orderAmount === null ||
+        orderAmount !== intentAmount ||
+        !transactionCurrency ||
+        transactionCurrency !== intentCurrency
+      ) {
+        await stopPayMongoReconciliation(
+          req,
+          candidate,
+          now,
+          'succeeded_mismatch',
+          'The succeeded PayMongo intent does not exactly match the stored order amount and currency.',
+        )
+        continue
+      }
+
+      const committed = await persistVerifiedDeliveryPayment(
+        req,
+        candidate,
+        orderId,
+        now,
+        paymentIntentId,
+        intentAmount,
+        intentCurrency,
+      )
+      if (committed) paid += 1
+      else {
+        await schedulePayMongoRecheck(
+          req,
+          candidate,
+          attemptCount,
+          now,
+          'local_state_changed',
+          'Local order or transaction state changed while PayMongo was being verified.',
+        )
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(
+        `[delivery-fulfillment] PayMongo reconciliation failed for transaction ${candidate.id}: ${message}`,
+      )
+      await schedulePayMongoRecheck(
+        req,
+        candidate,
+        attemptCount,
+        now,
+        'lookup_error',
+        message,
+      )
+    }
+  }
+
+  return { checked, paid }
+}
+
+async function schedulePayMongoRecheck(
+  req: PayloadRequest,
+  transaction: any,
+  attemptCount: number,
+  now: Date,
+  lastStatus: string,
+  lastError: string,
+) {
+  const updated = await req.payload.update({
+    collection: 'transactions',
+    where: {
+      and: [
+        { id: { equals: transaction.id } },
+        { status: { equals: 'pending' } },
+      ],
+    },
+    data: {
+      paymongo_reconcile_last_checked_at: now.toISOString(),
+      paymongo_reconcile_next_check_at: new Date(
+        now.getTime() + paymongoReconcileDelayMinutes(attemptCount) * 60_000,
+      ).toISOString(),
+      paymongo_reconcile_last_status: lastStatus.slice(0, 100),
+      paymongo_reconcile_last_error: lastError.slice(0, 2000),
+    },
+    overrideAccess: true,
+    req,
+  })
+  if (
+    updated.docs.length !== 1 ||
+    attemptCount < PAYMONGO_ALERT_AFTER_CHECKS ||
+    transaction.paymongo_reconcile_alerted_at
+  ) return
+  await alertPayMongoReconciliation(
+    req,
+    transaction,
+    now,
+    lastStatus,
+    lastError,
+    'stale-pending',
+    attemptCount,
+  )
+}
+
+async function stopPayMongoReconciliation(
+  req: PayloadRequest,
+  transaction: any,
+  now: Date,
+  lastStatus: string,
+  lastError: string,
+) {
+  const updated = await req.payload.update({
+    collection: 'transactions',
+    where: {
+      and: [
+        { id: { equals: transaction.id } },
+        { status: { equals: 'pending' } },
+      ],
+    },
+    data: {
+      paymongo_reconcile_last_checked_at: now.toISOString(),
+      paymongo_reconcile_next_check_at: null,
+      paymongo_reconcile_last_status: lastStatus.slice(0, 100),
+      paymongo_reconcile_last_error: lastError.slice(0, 2000),
+      paymongo_reconcile_stopped: true,
+    },
+    overrideAccess: true,
+    req,
+  })
+  if (updated.docs.length !== 1) return
+  await alertPayMongoReconciliation(
+    req,
+    transaction,
+    now,
+    lastStatus,
+    lastError,
+    `stopped-${lastStatus}`,
+    Number(transaction.paymongo_reconcile_attempt_count || 0) + 1,
+  )
+}
+
+async function alertPayMongoReconciliation(
+  req: PayloadRequest,
+  transaction: any,
+  now: Date,
+  lastStatus: string,
+  lastError: string,
+  alertKey: string,
+  attempts: number,
+) {
+  try {
+    const orderId = relationId(transaction.order as RelationId)
+    await createAdminNotificationFanout(req.payload, {
+      typeKey: 'payment.delivery_reconciliation_required',
+      domain: 'order',
+      title: 'Delivery payment needs review',
+      body: `PayMongo reconciliation for order #${orderId ?? 'unknown'} needs review after ${attempts} checks. Latest status: ${lastStatus}. ${lastError}`,
+      sourceEntityType: 'transaction',
+      sourceEntityId: transaction.id,
+      priority: 'critical',
+      idempotencyKey: `paymongo-reconcile:${transaction.id}:${alertKey}`,
+      metadata: {
+        transactionId: transaction.id,
+        orderId,
+        attempts,
+        lastStatus,
+        lastError: lastError.slice(0, 500),
+      },
+    })
+    await req.payload.update({
+      collection: 'transactions',
+      where: {
+        and: [
+          { id: { equals: transaction.id } },
+          { status: { equals: 'pending' } },
+          { paymongo_reconcile_alerted_at: { exists: false } },
+        ],
+      },
+      data: { paymongo_reconcile_alerted_at: now.toISOString() },
+      overrideAccess: true,
+      req,
+    })
+  } catch (error) {
+    console.error(
+      `[delivery-fulfillment] PayMongo admin alert failed for transaction ${transaction.id}:`,
+      error,
+    )
+  }
+}
+
+async function markPayMongoTransactionFailed(
+  req: PayloadRequest,
+  transaction: any,
+  now: Date,
+  providerStatus: string,
+) {
+  await req.payload.update({
+    collection: 'transactions',
+    where: {
+      and: [
+        { id: { equals: transaction.id } },
+        { status: { equals: 'pending' } },
+      ],
+    },
+    data: {
+      status: 'failed',
+      paymongo_reconcile_last_checked_at: now.toISOString(),
+      paymongo_reconcile_next_check_at: null,
+      paymongo_reconcile_last_status: providerStatus,
+      paymongo_reconcile_last_error: null,
+    },
+    overrideAccess: true,
+    req,
+  })
+}
+
+async function persistVerifiedDeliveryPayment(
+  req: PayloadRequest,
+  transaction: any,
+  orderId: number,
+  now: Date,
+  paymentIntentId: string,
+  intentAmount: number,
+  intentCurrency: string,
+): Promise<boolean> {
+  const transactionID = await req.payload.db.beginTransaction()
+  if (!transactionID) throw new Error('Database transaction support is required for payment reconciliation.')
+  req.transactionID = transactionID
+  try {
+    const currentTransaction = await req.payload.findByID({
+      collection: 'transactions',
+      id: transaction.id,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    }) as any
+    const order = await req.payload.findByID({
+      collection: 'orders',
+      id: orderId,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    }) as any
+    const transactionAmount = amountInMinorUnits(currentTransaction?.amount)
+    const orderAmount = amountInMinorUnits(order?.total)
+    if (
+      !currentTransaction ||
+      !['pending', 'paid'].includes(String(currentTransaction.status)) ||
+      String(currentTransaction.payment_intent_id || '') !== paymentIntentId ||
+      String(relationId(currentTransaction.order as RelationId)) !== String(orderId) ||
+      transactionAmount !== intentAmount ||
+      orderAmount !== intentAmount ||
+      String(currentTransaction.currency || '').toUpperCase() !== intentCurrency ||
+      !order ||
+      order.fulfillment_type !== 'delivery'
+    ) {
+      await req.payload.db.rollbackTransaction(transactionID)
+      req.transactionID = undefined
+      return false
+    }
+
+    await req.payload.update({
+      collection: 'transactions',
+      id: transaction.id,
+      data: {
+        status: 'paid',
+        paid_at: currentTransaction.paid_at || now.toISOString(),
+        paymongo_reconcile_last_checked_at: now.toISOString(),
+        paymongo_reconcile_next_check_at: null,
+        paymongo_reconcile_last_status: 'succeeded',
+        paymongo_reconcile_last_error: null,
+      },
+      overrideAccess: true,
+      req,
+    })
+
+    if (order.status === 'pending') {
+      await req.payload.update({
+        collection: 'orders',
+        id: orderId,
+        data: { status: 'accepted' },
+        overrideAccess: true,
+        req,
+      })
+    }
+    if (order.status !== 'cancelled') {
+      await ensureDeliveryFulfillment(req, orderId)
+    }
+    await req.payload.db.commitTransaction(transactionID)
+    req.transactionID = undefined
+    if (order.status === 'cancelled') {
+      try {
+        await createAdminNotificationFanout(req.payload, {
+          typeKey: 'payment.delivery_payment_after_cancellation',
+          domain: 'order',
+          title: 'Paid delivery order is cancelled',
+          body: `PayMongo confirmed payment for cancelled order #${orderId}. Review the payment and refund if appropriate.`,
+          sourceEntityType: 'transaction',
+          sourceEntityId: transaction.id,
+          priority: 'critical',
+          idempotencyKey: `paymongo-reconcile:${transaction.id}:cancelled-paid`,
+          metadata: { transactionId: transaction.id, orderId },
+        })
+      } catch (error) {
+        console.error(
+          `[delivery-fulfillment] cancelled-order payment alert failed for transaction ${transaction.id}:`,
+          error,
+        )
+      }
+    }
+    return true
+  } catch (error) {
+    await req.payload.db.rollbackTransaction(transactionID)
+    req.transactionID = undefined
+    throw error
+  }
 }
 
 export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) {
   const now = new Date()
+  const paymongoRecovery = await recoverStaleDeliveryPayments(req, now)
+  if (paymongoRecovery.checked > 0) {
+    console.info('[delivery-fulfillment] PayMongo background reconciliation', paymongoRecovery)
+  }
   const pendingAlerts = await req.payload.find({
     collection: 'delivery-fulfillment-outbox',
     where: {
@@ -96,7 +638,7 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
           overrideAccess: true,
           req,
         })
-    if (order.fulfillment_type === 'delivery') {
+    if (order.fulfillment_type === 'delivery' && order.status !== 'cancelled') {
       await ensureDeliveryFulfillment(req, orderId)
     }
   }
@@ -463,16 +1005,11 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
 
       if (!response.ok) {
         const errorMessage = body.error || `Delivery booking failed with HTTP ${response.status}.`
-        const ambiguous = providerSubmissionStarted
-          && (response.status === 408 || response.status >= 500)
-        const retryable = response.status === 429
-          || (!providerSubmissionStarted && response.status >= 500)
-        const terminal = response.status === 422 || response.status === 400
-        const status = ambiguous
-          ? 'unknown'
-          : retryable && attemptNumber < MAX_ATTEMPTS
-            ? 'retryable'
-            : 'failed'
+        const { ambiguous, retryable, terminal } = classifySubmissionFailure(
+          response.status,
+          providerSubmissionStarted,
+        )
+        const status = ambiguous ? 'unknown' : retryable ? 'retryable' : 'failed'
         const needsManual = ambiguous || terminal || status === 'failed'
 
         await req.payload.update({
@@ -576,11 +1113,7 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const ambiguous = providerSubmissionStarted
-      const status = ambiguous
-        ? 'unknown'
-        : attemptNumber < MAX_ATTEMPTS
-          ? 'retryable'
-          : 'failed'
+      const status = ambiguous ? 'unknown' : 'retryable'
       await req.payload.update({
         collection: 'delivery-fulfillment-attempts',
         id: attempt.id,
@@ -602,8 +1135,8 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
             : null,
           lease_expires_at: null,
           last_error: message,
-          manual_intervention_required: ambiguous || status === 'failed',
-          manual_alerted_at: ambiguous || status === 'failed' ? null : undefined,
+          manual_intervention_required: ambiguous,
+          manual_alerted_at: ambiguous ? null : undefined,
           reconciliation_note: ambiguous
             ? 'The booking request may have been accepted. Do not retry until Lalamove is checked.'
             : null,
@@ -611,13 +1144,19 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
         overrideAccess: true,
         req,
       })
-      if (ambiguous || status === 'failed') {
+      if (ambiguous) {
         await alertManualIntervention(req, item.id, orderId, message)
       }
     }
   }
 
-  return { output: { processed: ready.docs.length, expiredLeases: expiredLease.docs.length } }
+  return {
+    output: {
+      processed: ready.docs.length,
+      expiredLeases: expiredLease.docs.length,
+      paymongoRecovery,
+    },
+  }
 }
 
 async function alertManualIntervention(

@@ -394,6 +394,40 @@ describe('checkout preparation', () => {
     })
   })
 
+  it.each([
+    ['missing', undefined],
+    ['Philippine local format', '09468748743'],
+    ['formatted E.164', '+63 946 874 8743'],
+  ])('rejects a %s recipient phone before creating an order or payment', async (_label, contactPhone) => {
+    const create = vi.fn()
+    const providerFetch = vi.spyOn(globalThis, 'fetch')
+    const payload = {
+      find: vi.fn().mockResolvedValue({ docs: [{ id: 5 }] }),
+      create,
+    }
+    const response = await checkoutPrepareHandler({
+      headers: new Headers(),
+      user: { id: 50, role: 'customer' },
+      body: {
+        merchantId: 300,
+        addressId: 8,
+        cartItemIds: [1],
+        contactPhone,
+        paymentMethod: 'gcash',
+        expectedTotal: 90,
+        idempotencyKey: 'checkout-attempt-00000003',
+      },
+      payload,
+    } as any)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'RECIPIENT_PHONE_REQUIRED',
+    })
+    expect(create).not.toHaveBeenCalled()
+    expect(providerFetch).not.toHaveBeenCalled()
+  })
+
   it('reuses a saved checkout on an idempotent retry', async () => {
     vi.stubEnv('PAYMONGO_SANDBOX', 'true')
     const cartItem = {
@@ -445,6 +479,8 @@ describe('checkout preparation', () => {
                 ? [{ checkout_cart_item_id: '1', total_price: 90 }]
                 : collection === 'cart-items'
                   ? [cartItem]
+                  : collection === 'delivery-locations'
+                      ? [{ contact_phone: '+1 415 555 2671' }]
                   : [],
       })),
       findByID: vi.fn(async ({ collection }: { collection: string }) => {
@@ -466,6 +502,7 @@ describe('checkout preparation', () => {
         merchantId: 300,
         addressId: 8,
         cartItemIds: [1],
+        contactPhone: '+14155552671',
         paymentMethod: 'gcash',
         expectedTotal: 90,
         idempotencyKey: 'checkout-attempt-00000001',
@@ -575,6 +612,7 @@ describe('checkout preparation', () => {
         merchantId: 300,
         addressId: 8,
         cartItemIds: [1],
+        contactPhone: '+639171234567',
         paymentMethod: 'gcash',
         expectedTotal: 90,
         idempotencyKey: 'checkout-attempt-00000002',
@@ -583,6 +621,10 @@ describe('checkout preparation', () => {
     } as any)
 
     expect(response.status).toBe(503)
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'delivery-locations',
+      data: expect.objectContaining({ contact_phone: '+639171234567' }),
+    }))
     expect(commitTransaction).not.toHaveBeenCalled()
     expect(rollbackTransaction).toHaveBeenCalledWith('local-tx')
     expect(providerFetch).not.toHaveBeenCalled()

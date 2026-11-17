@@ -13,7 +13,8 @@ type TransactionDoc = {
   status?: string;
   paid_at?: string | null;
   payment_intent_id?: string | null;
-  order?: string | number | { id?: string | number } | null;
+  transaction_type?: string;
+  order?: string | number | { id?: string | number; fulfillment_type?: string } | null;
 };
 
 type OrderDoc = {
@@ -103,6 +104,42 @@ export async function requestDeliveryFulfillment(orderId: string): Promise<void>
     const data = await response.json().catch(() => ({}));
     throw new Error(data?.error || `Could not schedule delivery fulfillment (${response.status}).`);
   }
+}
+
+export async function reconcileCheckoutPayment(args: {
+  orderId: string;
+  customerId: string;
+  paymentIntentId: string;
+}): Promise<boolean> {
+  const token = await AsyncStorage.getItem('grandline_auth_token');
+  if (!token) {
+    throw new Error('Sign in again before confirming this payment.');
+  }
+
+  const response = await fetch(`${apiConfig.baseUrl}/checkout/payment-resume`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `JWT ${token}`,
+    },
+    body: JSON.stringify({
+      reconcileOnly: true,
+      orderId: Number(args.orderId),
+      customerId: Number(args.customerId),
+      paymentIntentId: args.paymentIntentId,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 409 && data?.code === 'PAYMENT_NOT_VERIFIED') {
+    return false;
+  }
+  if (!response.ok) {
+    throw new Error(data?.error || `Could not confirm payment (${response.status}).`);
+  }
+  if (data?.state !== 'paid' && data?.state !== 'processing') {
+    throw new Error('Payment reconciliation returned an unexpected response.');
+  }
+  return data.state === 'paid';
 }
 
 export async function savePendingCheckoutSession(session: PendingCheckoutSession): Promise<void> {

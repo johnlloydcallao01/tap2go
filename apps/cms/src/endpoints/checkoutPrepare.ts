@@ -8,6 +8,7 @@ import {
   getFirstOrderFreeDeliveryPromotion,
 } from '../services/firstOrderDeliveryPromotion'
 import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
+import { isE164PhoneNumber } from '../services/lalamoveClient'
 
 const PAYMENT_METHODS = new Set(['gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph', 'card'])
 const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
@@ -17,6 +18,7 @@ type CheckoutBody = {
   merchantId?: unknown
   addressId?: unknown
   cartItemIds?: unknown
+  contactPhone?: unknown
   paymentMethod?: unknown
   expectedTotal?: unknown
   idempotencyKey?: unknown
@@ -41,7 +43,22 @@ function deliveryLabel(value: unknown): 'home' | 'office' | 'other' {
   return 'other'
 }
 
-export function checkoutContextHash(cartItems: any[], address: any): string {
+function normalizeDeliveryPhone(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  const digits = value.replace(/\D/g, '')
+  if (/^09\d{9}$/.test(digits)) return `+63${digits.slice(1)}`
+  if (/^9\d{9}$/.test(digits)) return `+63${digits}`
+  if (/^639\d{9}$/.test(digits)) return `+${digits}`
+  const international = trimmed.replace(/[\s().-]/g, '')
+  return /^\+[1-9]\d{7,14}$/.test(international) ? international : null
+}
+
+export function checkoutContextHash(
+  cartItems: any[],
+  address: any,
+  recipientPhone?: string,
+): string {
   const coordinates = address.coordinates as { lat?: unknown; lng?: unknown } | null | undefined
   const context = cartItems
     .map((item) => ({
@@ -64,6 +81,7 @@ export function checkoutContextHash(cartItems: any[], address: any): string {
     deliveryInstructions: address.delivery_instructions,
     notes: address.notes ?? address.accessibility_notes,
     label: address.label ?? address.address_type,
+    recipientPhone,
   }
   return crypto
     .createHash('sha256')
@@ -204,7 +222,7 @@ async function updateTransaction(req: PayloadRequest, transactionId: number, dat
   }
 }
 
-async function ensureCheckoutPayment(args: {
+export async function ensureCheckoutPayment(args: {
   req: PayloadRequest
   order: any
   transaction: any
@@ -214,6 +232,18 @@ async function ensureCheckoutPayment(args: {
 }) {
   const { req, order, transaction, idempotencyKey, paymentMethod, requestId } = args
   if (transaction.status === 'paid') {
+    if (order.fulfillment_type === 'delivery') {
+      if (order.status === 'pending') {
+        await req.payload.update({
+          collection: 'orders',
+          id: order.id,
+          data: { status: 'accepted' } as never,
+          overrideAccess: true,
+          req,
+        })
+      }
+      await ensureDeliveryFulfillment(req, Number(order.id))
+    }
     return { sandbox: process.env.PAYMONGO_SANDBOX === 'true', paid: true }
   }
   if (transaction.status === 'failed' || order.status === 'cancelled') {
@@ -291,9 +321,21 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
     const body = await timed(requestId, 'request.parse', () => readBody(req))
     const merchantId = idOf(body.merchantId)
     const addressId = idOf(body.addressId)
+    const rawContactPhone = body.contactPhone === undefined ? user.phone : body.contactPhone
+    const recipientPhone =
+      typeof rawContactPhone === 'string' && isE164PhoneNumber(rawContactPhone)
+        ? rawContactPhone
+        : null
     const expectedTotal = amount(body.expectedTotal)
     const paymentMethod = typeof body.paymentMethod === 'string' ? body.paymentMethod : ''
     const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey : ''
+    if (!recipientPhone) {
+      return Response.json({
+        error: 'Enter a phone number in E.164 format, such as +639468748743, before paying.',
+        code: 'RECIPIENT_PHONE_REQUIRED',
+        requestId,
+      }, { status: 400 })
+    }
     const customerIdResult = await timed(requestId, 'payload.customer_resolve', () => req.payload.find({
       collection: 'customers',
       where: { user: { equals: user.id } },
@@ -377,8 +419,22 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
         depth: 0,
         overrideAccess: true,
       }))
-      const sameContext = currentCart.docs.length === cartItemIds.length &&
+      let sameContext = currentCart.docs.length === cartItemIds.length &&
+        checkoutContextHash(currentCart.docs, address, recipientPhone) === String(existing.checkout_context_hash || '')
+      if (
+        !sameContext &&
+        currentCart.docs.length === cartItemIds.length &&
         checkoutContextHash(currentCart.docs, address) === String(existing.checkout_context_hash || '')
+      ) {
+        const savedDeliveryLocation = await timed(requestId, 'payload.idempotency_delivery_lookup', () => req.payload.find({
+          collection: 'delivery-locations',
+          where: { order: { equals: existing.id } },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        }))
+        sameContext = normalizeDeliveryPhone(savedDeliveryLocation.docs[0]?.contact_phone) === recipientPhone
+      }
       if (!sameCart || !sameAddress || !sameContext) {
         return Response.json({
           error: 'A previous checkout attempt for a different cart or address is still saved. Recover or resolve it before starting another checkout.',
@@ -481,7 +537,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
     const deliveryDiscount = promotion.discount
     const discountTotal = deliveryDiscount
     const total = Math.round((pricedCart.subtotal + deliveryFee + priorityFee - discountTotal) * 100) / 100
-    const contextHash = checkoutContextHash(pricedCart.cartItems, address)
+    const contextHash = checkoutContextHash(pricedCart.cartItems, address, recipientPhone)
 
     if (Math.round(expectedTotal * 100) !== Math.round(total * 100)) {
       logSpan(requestId, 'endpoint.total', endpointStartedAt)
@@ -613,7 +669,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
           delivery_instructions: address.delivery_instructions || null,
           notes: address.notes || address.accessibility_notes || null,
           contact_name: [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Customer',
-          contact_phone: user.phone || null,
+          contact_phone: recipientPhone,
           label: deliveryLabel(address.address_type || address.label),
           merchant_formatted_address: merchant.activeAddress && typeof merchant.activeAddress === 'object'
             ? merchant.activeAddress.formatted_address || null

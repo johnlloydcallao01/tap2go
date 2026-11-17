@@ -1,9 +1,15 @@
-import type { PayloadRequest } from 'payload'
+import type { PayloadRequest, Where } from 'payload'
 import {
   classifyPayMongoIntentStatus,
   isOrderOwnedByCustomer,
 } from '../services/orderPaymentRecovery'
 import { PAYMONGO_STATEMENT_DESCRIPTOR } from '../services/paymongo'
+import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
+import {
+  amountInMinorUnits,
+  getPayMongoSecretKey,
+  retrievePayMongoIntent,
+} from '../services/paymongoIntent'
 
 const PAYMENT_METHODS = new Set([
   'qrph',
@@ -23,28 +29,6 @@ function relationId(value: unknown): string | null {
   return raw === null || raw === undefined || raw === '' ? null : String(raw)
 }
 
-function getSecretKey(): string | null {
-  return process.env.PAYMONGO_SANDBOX === 'true'
-    ? process.env.PAYMONGO_SANDBOX_API_KEY || null
-    : process.env.PAYMONGO_SECRET_KEY_LIVE || null
-}
-
-async function retrieveIntent(paymentIntentId: string, secretKey: string) {
-  const response = await fetch(
-    `https://api.paymongo.com/v1/payment_intents/${encodeURIComponent(paymentIntentId)}`,
-    {
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`,
-      },
-    },
-  )
-  const body = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    throw new Error('Unable to verify the payment with PayMongo. Please try again shortly.')
-  }
-  return body?.data
-}
-
 function getPaymentAction(intent: any) {
   const nextAction = intent?.attributes?.next_action
   const qrImage = nextAction?.code?.image_url
@@ -60,17 +44,25 @@ function getPaymentAction(intent: any) {
 
 export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
   try {
-    if (!req.user || !['service', 'admin'].includes(String(req.user.role))) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
     const body = (await (typeof (req as any).json === 'function'
       ? (req as any).json()
       : Promise.resolve((req as any).body))) ?? {}
     const orderId = Number(body.orderId)
     const customerUserId = Number(body.customerId)
     const confirmAttached = body.confirmAttached === true
-    const requestedTransactionId = body.transactionId == null ? null : String(body.transactionId)
+    const reconcileOnly = body.reconcileOnly === true
+    const requestedPaymentIntentId = typeof body.paymentIntentId === 'string'
+      ? body.paymentIntentId.trim()
+      : ''
+    const requestedTransactionId = body.transactionId == null || String(body.transactionId).trim() === ''
+      ? null
+      : String(body.transactionId).trim()
+    const role = String(req.user?.role || '')
+    const authorizedCustomer = reconcileOnly && role === 'customer'
+      && Number(req.user?.id) === customerUserId
+    if (!req.user || (!['service', 'admin'].includes(role) && !authorizedCustomer)) {
+      return Response.json({ error: 'Authentication required' }, { status: 401 })
+    }
 
     if (!Number.isSafeInteger(orderId) || orderId <= 0 ||
       !Number.isSafeInteger(customerUserId) || customerUserId <= 0) {
@@ -94,6 +86,120 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
         }) as any
     if (!isOrderOwnedByCustomer({ ...order, customer: orderCustomer }, customerUserId)) {
       return Response.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    if (reconcileOnly) {
+      if (!requestedPaymentIntentId) {
+        return Response.json({
+          error: 'paymentIntentId is required for reconciliation',
+        }, { status: 400 })
+      }
+      const transactionFilters: Where[] = [
+        { order: { equals: orderId } },
+        { payment_intent_id: { equals: requestedPaymentIntentId } },
+        { transaction_type: { not_equals: 'priority_fee' } },
+      ]
+      if (requestedTransactionId) {
+        transactionFilters.unshift({ id: { equals: requestedTransactionId } })
+      }
+      const matchingTransactions = await req.payload.find({
+        collection: 'transactions',
+        where: { and: transactionFilters },
+        limit: requestedTransactionId ? 1 : 2,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      const matchedTransaction = matchingTransactions.docs[0] as any
+      if (!requestedTransactionId && matchingTransactions.docs.length > 1) {
+        return Response.json({
+          error: 'More than one payment attempt matches this order and intent',
+          code: 'PAYMENT_ATTEMPT_AMBIGUOUS',
+        }, { status: 409 })
+      }
+      if (
+        !matchedTransaction ||
+        !String(matchedTransaction.id || '') ||
+        (requestedTransactionId && String(matchedTransaction.id) !== requestedTransactionId) ||
+        relationId(matchedTransaction.order) !== String(orderId) ||
+        String(matchedTransaction.payment_intent_id || '') !== requestedPaymentIntentId ||
+        String(matchedTransaction.transaction_type || '') === 'priority_fee'
+      ) {
+        return Response.json({ error: 'Payment attempt not found' }, { status: 404 })
+      }
+      const currentStatus = String(matchedTransaction.status || '').toLowerCase()
+      if (!['pending', 'failed', 'paid'].includes(currentStatus)) {
+        return Response.json({ error: 'This payment cannot be reconciled' }, { status: 409 })
+      }
+
+      const secretKey = getPayMongoSecretKey()
+      if (!secretKey) {
+        console.error('[checkout/payment-resume] PayMongo secret key is not configured')
+        return Response.json({ error: 'Payment recovery is temporarily unavailable' }, { status: 503 })
+      }
+      const intent = await retrievePayMongoIntent(requestedPaymentIntentId, secretKey)
+      const attributes = intent?.attributes
+      const intentAmount = Number(attributes?.amount)
+      const transactionAmount = amountInMinorUnits(matchedTransaction.amount)
+      const orderAmount = amountInMinorUnits(order.total)
+      const transactionCurrency = String(matchedTransaction.currency || '').toUpperCase()
+      const intentCurrency = String(attributes?.currency || '').toUpperCase()
+      if (
+        String(intent?.id || '') !== requestedPaymentIntentId ||
+        String(attributes?.status || '').toLowerCase() !== 'succeeded' ||
+        !Number.isSafeInteger(intentAmount) ||
+        intentAmount <= 0 ||
+        transactionAmount === null ||
+        transactionAmount !== intentAmount ||
+        orderAmount === null ||
+        orderAmount !== intentAmount ||
+        transactionCurrency !== intentCurrency
+      ) {
+        return Response.json({
+          error: 'PayMongo has not confirmed a matching successful payment',
+          code: 'PAYMENT_NOT_VERIFIED',
+        }, { status: 409 })
+      }
+
+      const transactionID = await req.payload.db.beginTransaction()
+      if (!transactionID) {
+        return Response.json({ error: 'Payment persistence is unavailable' }, { status: 503 })
+      }
+      req.transactionID = transactionID
+      try {
+        await req.payload.update({
+          collection: 'transactions',
+          id: matchedTransaction.id,
+          data: { status: 'paid', paid_at: new Date().toISOString() },
+          overrideAccess: true,
+          req,
+        })
+        if (order.status === 'pending') {
+          await req.payload.update({
+            collection: 'orders',
+            id: orderId,
+            data: { status: 'accepted' },
+            overrideAccess: true,
+            req,
+          })
+        }
+        if (order.fulfillment_type === 'delivery') {
+          await ensureDeliveryFulfillment(req, orderId)
+        }
+        await req.payload.db.commitTransaction(transactionID)
+        req.transactionID = undefined
+      } catch (error) {
+        await req.payload.db.rollbackTransaction(transactionID)
+        req.transactionID = undefined
+        throw error
+      }
+
+      return Response.json({
+        state: 'paid',
+        orderId: String(orderId),
+        paymentIntentId: requestedPaymentIntentId,
+        merchantId: relationId(order.merchant),
+      })
     }
 
     const [transactions, paidTransactions] = await Promise.all([
@@ -165,13 +271,13 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
       })
     }
 
-    const secretKey = getSecretKey()
+    const secretKey = getPayMongoSecretKey()
     if (!secretKey) {
       console.error('[checkout/payment-resume] PayMongo secret key is not configured')
       return Response.json({ error: 'Payment recovery is temporarily unavailable' }, { status: 503 })
     }
 
-    const intent = await retrieveIntent(paymentIntentId, secretKey)
+    const intent = await retrievePayMongoIntent(paymentIntentId, secretKey)
     const providerStatus = String(intent?.attributes?.status || '').toLowerCase()
     const recoveryState = classifyPayMongoIntentStatus(providerStatus)
     if (

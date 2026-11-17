@@ -34,6 +34,7 @@ declare -A SECRETS=(
   [DATABASE_URI]="tap2go-database-uri"
   [PAYLOAD_SECRET]="tap2go-payload-secret"
   [PAYLOAD_API_KEY]="tap2go-payload-api-key"
+  [PAYLOAD_JOBS_RUN_SECRET]="tap2go-payload-jobs-run-secret"
   [UPSTASH_REDIS_REST_TOKEN]="tap2go-upstash-redis-rest-token"
   [SUPABASE_SERVICE_ROLE_KEY]="tap2go-supabase-service-role-key"
   [CLOUDINARY_API_KEY]="tap2go-cloudinary-api-key"
@@ -91,6 +92,7 @@ done < "$ENV_FILE"
 
 # Force production runtime (local .env has NODE_ENV=development).
 ENV_VALUES["NODE_ENV"]="production"
+ENV_VALUES["PAYLOAD_JOBS_AUTO_RUN"]="false"
 
 echo "Parsed ${#ENV_VALUES[@]} keys from $ENV_FILE (values never echoed)."
 

@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,7 @@ import {
   clearPendingCheckoutSession,
   getCheckoutPaymentStatus,
   getPendingCheckoutSession,
+  reconcileCheckoutPayment,
   savePendingCheckoutSession,
 } from '../services/checkoutReturn';
 import type { AccountOverview } from '../services/account';
@@ -47,6 +49,24 @@ type PaymentMethod =
   | 'qrph';
 
 const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
+
+function isCanonicalE164Phone(value: string): boolean {
+  return value === value.trim() && /^\+[1-9]\d{7,14}$/.test(value);
+}
+
+function getPhilippineNationalNumber(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (value.trim().startsWith('+63') || (digits.startsWith('63') && digits.length > 10)) {
+    return digits.slice(2, 12);
+  }
+  if (digits.startsWith('0') && digits.length === 11) return digits.slice(1);
+  if (digits.startsWith('9') && digits.length === 10) return digits;
+  return '';
+}
+
+function isPhilippineE164Phone(value: string): boolean {
+  return isCanonicalE164Phone(value) && /^\+639\d{9}$/.test(value);
+}
 
 function distanceToMeters(distance: { value?: string | number; unit?: string } | null | undefined): number | null {
   if (!distance || distance.value == null) return null;
@@ -127,7 +147,7 @@ export default function CheckoutScreen() {
     markCheckedOut,
     reload,
   } = useCart();
-  const { user, customerId, token } = useAuth();
+  const { user, customerId, token, updateUser } = useAuth();
   const queryClient = useQueryClient();
   const updateAccountOverviewAfterOrder = useCallback((orderTotal: number) => {
     const userId = user?.id ?? customerId;
@@ -155,6 +175,11 @@ export default function CheckoutScreen() {
   const activeAddressId = activeAddress?.id ? String(activeAddress.id) : null;
 
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [recipientPhoneNational, setRecipientPhoneNational] = useState(
+    typeof user?.phone === 'string' ? getPhilippineNationalNumber(user.phone) : '',
+  );
+  const recipientPhone = recipientPhoneNational ? `+63${recipientPhoneNational}` : '';
+  const [isSavingRecipientPhone, setIsSavingRecipientPhone] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [hasResolvedInitialPaymentCheck, setHasResolvedInitialPaymentCheck] = useState(false);
@@ -169,6 +194,14 @@ export default function CheckoutScreen() {
   const hasNavigatedToReturnRef = useRef(false);
   const qrNavigationInProgressRef = useRef(false);
   const checkoutIdempotencyKeyRef = useRef<string | null>(null);
+  const isRecipientPhoneValid = isPhilippineE164Phone(recipientPhone);
+  const isRecipientPhoneSaved = isRecipientPhoneValid && recipientPhone === user?.phone;
+
+  useEffect(() => {
+    if (typeof user?.phone === 'string' && user.phone.trim()) {
+      setRecipientPhoneNational((current) => current || getPhilippineNationalNumber(user.phone || ''));
+    }
+  }, [user?.phone]);
 
   const merchantCart = getMerchantCart(String(merchantId));
   const hasActiveCartItems = Boolean(merchantCart?.items.length);
@@ -191,6 +224,51 @@ export default function CheckoutScreen() {
 
   const deliveryCharge = deliveryAvailable ? deliveryFee + priorityFee : 0;
   const orderTotal = Math.max(0, totalSubtotal + deliveryCharge - deliveryDiscount);
+
+  const handleSaveRecipientPhone = async () => {
+    if (!user?.id || (!token && !apiConfig.payloadApiKey)) {
+      Alert.alert('Sign in required', 'Sign in again before saving your delivery phone number.');
+      return;
+    }
+    if (!isPhilippineE164Phone(recipientPhone)) {
+      Alert.alert('Invalid phone number', 'Enter the 10-digit Philippine mobile number after +63, such as 9468748743.');
+      return;
+    }
+    if (recipientPhone === user.phone || isSavingRecipientPhone) return;
+
+    setIsSavingRecipientPhone(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (apiConfig.payloadApiKey) {
+        headers.Authorization = `users API-Key ${apiConfig.payloadApiKey}`;
+      } else if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${apiConfig.baseUrl}/users/${user.id}?depth=2`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ phone: recipientPhone }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          result?.errors?.[0]?.message || result?.message || 'Failed to save delivery phone number.',
+        );
+      }
+
+      updateUser({ ...user, phone: recipientPhone });
+      Alert.alert('Phone number saved', 'Your delivery phone number is saved in E.164 format.');
+    } catch (error) {
+      console.error('[checkout] recipient phone save failed:', error);
+      Alert.alert(
+        'Could not save phone number',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSavingRecipientPhone(false);
+    }
+  };
 
   const navigateToQrPayment = useCallback(
     (imageUrl: string, trace?: {
@@ -355,10 +433,28 @@ export default function CheckoutScreen() {
         setIsCheckingPaymentState(true);
       }
 
-      const paymentStatus = await getCheckoutPaymentStatus({
+      let paymentStatus = await getCheckoutPaymentStatus({
         paymentIntentId: pendingSession.paymentIntentId,
         orderId: pendingSession.orderId,
       });
+
+      if (paymentStatus.status === 'pending' && user?.id) {
+        try {
+          const reconciled = await reconcileCheckoutPayment({
+            orderId: pendingSession.orderId,
+            customerId: String(user.id),
+            paymentIntentId: pendingSession.paymentIntentId,
+          });
+          if (reconciled) {
+            paymentStatus = await getCheckoutPaymentStatus({
+              paymentIntentId: pendingSession.paymentIntentId,
+              orderId: pendingSession.orderId,
+            });
+          }
+        } catch (reconciliationError) {
+          console.error('[checkout-pay] server payment reconciliation deferred:', reconciliationError);
+        }
+      }
 
       if (getMerchantCart(merchantKey)?.items.length) {
         setHasPendingRecovery(false);
@@ -397,7 +493,7 @@ export default function CheckoutScreen() {
         setIsCheckingPaymentState(false);
       }
     }
-  }, [customerId, getMerchantCart, isCartLoading, merchantId, redirectToCheckoutReturn, reload]);
+  }, [customerId, getMerchantCart, isCartLoading, merchantId, redirectToCheckoutReturn, reload, user?.id]);
 
   useEffect(() => {
     if (isCartLoading) return;
@@ -503,6 +599,14 @@ export default function CheckoutScreen() {
       return;
     }
 
+    if (!isRecipientPhoneValid || !isRecipientPhoneSaved) {
+      Alert.alert(
+        'Save a valid phone number',
+        'Enter the 10-digit Philippine mobile number after +63 and save it before paying.',
+      );
+      return;
+    }
+
     if (deliveryFeeLoading) {
       Alert.alert('Please wait', 'We are still calculating your delivery fee.');
       return;
@@ -529,6 +633,7 @@ export default function CheckoutScreen() {
         addressId: Number(activeAddressId),
         cartItemIds: merchantCart.items.map((item: any) => Number(item.id)),
         paymentMethod: 'gcash',
+        contactPhone: recipientPhone,
         expectedTotal: orderTotal,
         idempotencyKey: `checkout-sandbox-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         }),
@@ -577,6 +682,14 @@ export default function CheckoutScreen() {
       return;
     }
 
+    if (!isRecipientPhoneValid || !isRecipientPhoneSaved) {
+      Alert.alert(
+        'Save a valid phone number',
+        'Enter the 10-digit Philippine mobile number after +63 and save it before paying.',
+      );
+      return;
+    }
+
     if (!paymentMethod) {
       Alert.alert('Error', 'Please select a payment method');
       return;
@@ -618,6 +731,7 @@ export default function CheckoutScreen() {
     setIsPaying(true);
     qrNavigationInProgressRef.current = false;
     let pendingCheckoutSessionSaved = false;
+    let paymentAttachStarted = false;
     let cartUnavailable = false;
     try {
       const pk = apiConfig.paymongoPublicKey;
@@ -665,6 +779,7 @@ export default function CheckoutScreen() {
               merchantId,
               addressId: Number(activeAddressId),
               cartItemIds: merchantCart.items.map((item: any) => Number(item.id)),
+              contactPhone: recipientPhone,
               paymentMethod,
               expectedTotal: orderTotal,
               idempotencyKey: checkoutIdempotencyKeyRef.current,
@@ -774,6 +889,7 @@ export default function CheckoutScreen() {
         `&order_id=${encodeURIComponent(String(createdOrderId))}` +
         `&app_redirect=${encodeURIComponent(appReturnUrl)}`;
       
+      paymentAttachStarted = true;
       const { response: attachResponse, data: attachData } = await timedRequest(
         'paymongo_attach',
         () =>
@@ -868,7 +984,22 @@ export default function CheckoutScreen() {
         }
       }
       if (pendingCheckoutSessionSaved && customerId && !Number.isNaN(merchantId)) {
-        await clearPendingCheckoutSession(String(customerId), String(merchantId));
+        if (!paymentAttachStarted) {
+          await clearPendingCheckoutSession(String(customerId), String(merchantId));
+        } else {
+          try {
+            await reconcileExistingPayment(true, true);
+          } catch (reconcileError) {
+            console.error('[checkout-pay] pending payment recovery failed after payment error:', reconcileError);
+          }
+          if (hasNavigatedToReturnRef.current) return;
+          Alert.alert(
+            'Payment Processing',
+            'We could not confirm whether your payment completed. Your checkout is saved; check Orders before trying again.',
+            [{ text: 'Go to Orders', onPress: () => router.replace('/(tabs)/orders') }],
+          );
+          return;
+        }
       }
       Alert.alert('Payment Failed', error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
@@ -1054,6 +1185,70 @@ export default function CheckoutScreen() {
               </Text>
             )}
             <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recipient phone number *</Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: isRecipientPhoneValid || !recipientPhoneNational.trim() ? '#D1D5DB' : '#DC2626',
+              borderRadius: 10,
+              paddingLeft: 12,
+            }}
+          >
+            <Text style={{ color: '#111827', fontSize: 15, paddingVertical: 11 }}>+63</Text>
+            <TextInput
+              value={recipientPhoneNational}
+              onChangeText={(value) => setRecipientPhoneNational(value.replace(/\D/g, '').slice(0, 11))}
+              placeholder="9468748743"
+              maxLength={11}
+              keyboardType="number-pad"
+              textContentType="telephoneNumber"
+              accessibilityLabel="Philippine delivery recipient phone number"
+              editable={!isPaying && !isSavingRecipientPhone}
+              style={{
+                flex: 1,
+                paddingHorizontal: 8,
+                paddingVertical: 11,
+                color: '#111827',
+                fontSize: 15,
+              }}
+            />
+          </View>
+          <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
+            Enter the 10-digit Philippine mobile number after +63, then save it before paying.
+          </Text>
+          {recipientPhoneNational.trim() && !isRecipientPhoneValid ? (
+            <Text style={{ color: '#B91C1C', fontSize: 12, marginTop: 4 }}>
+              Enter 10 digits starting with 9. Do not include the leading 0 or country code.
+            </Text>
+          ) : null}
+          <TouchableOpacity
+            onPress={handleSaveRecipientPhone}
+            disabled={!isRecipientPhoneValid || isRecipientPhoneSaved || isSavingRecipientPhone || isPaying}
+            accessibilityRole="button"
+            style={{
+              alignSelf: 'flex-start',
+              marginTop: 10,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              borderRadius: 8,
+              backgroundColor: isRecipientPhoneValid && !isRecipientPhoneSaved && !isSavingRecipientPhone
+                ? '#0F766E'
+                : '#D1D5DB',
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
+              {isSavingRecipientPhone
+                ? 'Saving...'
+                : isRecipientPhoneSaved
+                  ? 'Phone number saved'
+                  : 'Save phone number'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -1278,11 +1473,11 @@ export default function CheckoutScreen() {
             style={[
               styles.payButton,
               { backgroundColor: '#8b5cf6' },
-              (!isFormValid || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
+              (!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
                 styles.payButtonDisabled,
             ]}
             onPress={handleSandboxPay}
-            disabled={!isFormValid || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
+            disabled={!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
           >
             {isPaying ? (
               <ActivityIndicator color="#fff" />
@@ -1300,11 +1495,11 @@ export default function CheckoutScreen() {
           <TouchableOpacity
             style={[
               styles.payButton,
-              (!isFormValid || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
+              (!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
                 styles.payButtonDisabled,
             ]}
             onPress={handlePayNow}
-            disabled={!isFormValid || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
+            disabled={!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
           >
             {isPaying || (isCheckingPaymentState && !hasActiveCartItems) ? (
               <ActivityIndicator color="#fff" />

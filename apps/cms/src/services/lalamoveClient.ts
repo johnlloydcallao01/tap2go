@@ -26,6 +26,19 @@ function getMarket(): string {
   return process.env.LALAMOVE_MARKET || 'PH'
 }
 
+export function normalizeLalamovePhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  if (/^09\d{9}$/.test(digits)) return `+63${digits.slice(1)}`
+  if (/^9\d{9}$/.test(digits)) return `+63${digits}`
+  if (/^639\d{9}$/.test(digits)) return `+${digits}`
+  const international = value.trim().replace(/[\s().-]/g, '')
+  return /^\+[1-9]\d{7,14}$/.test(international) ? international : value.trim()
+}
+
+export function isE164PhoneNumber(value: string): boolean {
+  return /^\+[1-9]\d{7,14}$/.test(value)
+}
+
 function signRequest(
   method: string,
   path: string,
@@ -239,6 +252,11 @@ export async function placeOrder(params: {
   metadata?: Record<string, string>
   requestId?: string
 }): Promise<LalamoveOrderResponse> {
+  if (!isE164PhoneNumber(params.senderPhone) ||
+    params.recipients.some((recipient) => !isE164PhoneNumber(recipient.phone))) {
+    throw new LalamoveApiError('Sender and recipient phone numbers must be valid E.164 numbers.', 422)
+  }
+
   const path = '/v3/orders'
   const bodyObj: Record<string, any> = {
     data: {

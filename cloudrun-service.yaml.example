@@ -15,6 +15,8 @@ spec:
         run.googleapis.com/execution-environment: gen2
         autoscaling.knative.dev/minScale: "0"
         autoscaling.knative.dev/maxScale: "10"
+        # Payload jobs/run is invoked by Cloud Scheduler; do not enable the
+        # in-process PAYLOAD_JOBS_AUTO_RUN on this scale-to-zero web service.
     spec:
       containerConcurrency: 80
       timeoutSeconds: 300
@@ -161,6 +163,13 @@ spec:
                 secretKeyRef:
                   name: tap2go-payload-api-key
                   key: latest
+            - name: PAYLOAD_JOBS_RUN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tap2go-payload-jobs-run-secret
+                  key: latest
+            - name: PAYLOAD_JOBS_AUTO_RUN
+              value: "false"
             - name: UPSTASH_REDIS_REST_TOKEN
               valueFrom:
                 secretKeyRef:

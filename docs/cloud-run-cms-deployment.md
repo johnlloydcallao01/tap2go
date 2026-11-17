@@ -49,8 +49,8 @@ What it does (without ever printing values):
 1. Parses `apps/cms/.env` (ignores comments/blanks, splits on first `=`,
    strips matching quotes, skips `PORT`, `GOOGLE_APPLICATION_CREDENTIALS`,
    `X_GOOGLE_*`).
-2. For each of the 17 secrets (`DATABASE_URI`, `PAYLOAD_SECRET`,
-   `PAYLOAD_API_KEY`, `UPSTASH_REDIS_REST_TOKEN`,
+2. For each of the 18 secrets (`DATABASE_URI`, `PAYLOAD_SECRET`,
+   `PAYLOAD_API_KEY`, `PAYLOAD_JOBS_RUN_SECRET`, `UPSTASH_REDIS_REST_TOKEN`,
    `SUPABASE_SERVICE_ROLE_KEY`, `CLOUDINARY_API_KEY/SECRET`,
    `GOOGLE_MAPS_API_KEY`, `RESEND_API_KEY`, `PAYMONGO_*_LIVE/SANDBOX*`,
    `LALAMOVE_*`), creates the `tap2go-*` Secret Manager secret if missing, or
@@ -148,3 +148,102 @@ gcloud logging read \
 Common causes per the docs: runtime SA missing `secretAccessor` ("Permission
 denied" naming the SA + secret), a secret version deleted, a var over 32 KiB,
 or `NEXT_PUBLIC_*` changed without a rebuild (client still shows old endpoint).
+
+
+## Run Payload jobs on scale-to-zero Cloud Run
+
+The CMS service intentionally scales to zero. Do not rely on Payload's in-process
+`autoRun` timer there: use Cloud Scheduler to call Payload's built-in
+`GET /api/payload-jobs/run?queue=default` endpoint once per minute. The endpoint
+runs due schedules and then drains the queue. Payload's `jobs.access.run` guard
+requires the `X-Payload-Jobs-Secret` header; requests without the matching secret
+receive 401. The service defaults `PAYLOAD_JOBS_AUTO_RUN` off. Set it to `true`
+only for a dedicated, always-on worker, and do not configure both runners for the
+same deployment.
+
+1. Generate a unique high-entropy secret locally and put it in
+   `apps/cms/.env` as `PAYLOAD_JOBS_RUN_SECRET` (never use the example
+   placeholder). The environment sync scripts store it as Secret Manager secret
+   `tap2go-payload-jobs-run-secret` and grant the Cloud Run runtime service
+   account `roles/secretmanager.secretAccessor`. The example YAML maps the latest
+   version to `PAYLOAD_JOBS_RUN_SECRET` and explicitly disables `autoRun`.
+   Before deploying the new worker revision, apply migration
+   `20261117_045000_add_paymongo_reconcile_delivery_payments` through the CMS
+   migration workflow. Both Cloud Run env-sync scripts force
+   `PAYLOAD_JOBS_AUTO_RUN=false` to prevent local dedicated-worker settings from
+   enabling a duplicate runner.
+2. In Cloud Scheduler (same region as the CMS), create an HTTP job with schedule
+   `* * * * *`, timezone `Asia/Manila`, method `GET`, and URL
+   `https://YOUR_CMS_HOST/api/payload-jobs/run?queue=default`. The commands below
+   read the header value directly from Secret Manager into a PowerShell variable;
+   they do not print it. Use a high-entropy hex secret (no commas, because
+   `--headers` accepts comma-separated key/value pairs). Cloud Scheduler does not
+   resolve custom-header values from Secret Manager automatically, so restrict
+   who can view or update the Scheduler job.
+
+   From the repository root in PowerShell, set the project, host, and job name:
+
+   ```powershell
+   $project = "YOUR_PROJECT_ID"
+   $region = "asia-southeast1"
+   $job = "tap2go-payload-jobs"
+   $cmsUrl = "https://YOUR_CMS_HOST"
+   $secretValue = (gcloud secrets versions access latest --secret="tap2go-payload-jobs-run-secret" --project=$project | Out-String).TrimEnd([char[]]"`r`n")
+   if ([string]::IsNullOrWhiteSpace($secretValue)) { throw "Payload jobs secret is empty." }
+   ```
+
+   Create the job (bounded 300-second deadline and one retry):
+
+   ```powershell
+   gcloud scheduler jobs create http $job `
+     --project=$project --location=$region `
+     --schedule="* * * * *" --time-zone="Asia/Manila" `
+     --uri="$cmsUrl/api/payload-jobs/run?queue=default" `
+     --http-method=GET --attempt-deadline=300s --max-retry-attempts=1 `
+     "--headers=X-Payload-Jobs-Secret=$secretValue" `
+     --format="value(name)" --quiet
+   if ($LASTEXITCODE -ne 0) { throw "Cloud Scheduler job creation failed." }
+   ```
+
+   To rotate the header or update an existing job, use `--update-headers`:
+
+   ```powershell
+   gcloud scheduler jobs update http $job `
+     --project=$project --location=$region `
+     --schedule="* * * * *" --time-zone="Asia/Manila" `
+     --uri="$cmsUrl/api/payload-jobs/run?queue=default" `
+     --http-method=GET --attempt-deadline=300s --max-retry-attempts=1 `
+     "--update-headers=X-Payload-Jobs-Secret=$secretValue" `
+     --format="value(name)" --quiet
+   if ($LASTEXITCODE -ne 0) { throw "Cloud Scheduler job update failed." }
+   ```
+
+   Trigger an immediate run after creation/update, then verify the execution's
+   HTTP response is 2xx in Cloud Scheduler execution history:
+
+   ```powershell
+   gcloud scheduler jobs run $job --project=$project --location=$region --format="value(name)" --quiet
+   ```
+
+   The command output contains only the job name. Do not echo `$secretValue`,
+   include the header value literally in shell history, or log the Scheduler
+   job's header configuration.
+
+   See the official [`create http`](https://cloud.google.com/sdk/gcloud/reference/scheduler/jobs/create/http)
+   and [`update http`](https://cloud.google.com/sdk/gcloud/reference/scheduler/jobs/update/http)
+   references for the `--headers` and `--update-headers` flags.
+3. The worker checks at most two stale pending delivery transactions with stored
+   PayMongo intent IDs per run, validates the exact
+   intent/status/amount/currency, and never creates or attaches payment intents.
+   Checks back off from five minutes to a six-hour cap; an admin alert is sent
+   after five unresolved checks, and capped checks continue until paid or
+   terminal. A succeeded intent with an amount/currency/link mismatch is never
+   enqueued; it stops automatic checks and immediately alerts an admin for
+   manual review. Monitor Scheduler execution failures, oldest pending/retryable
+   outbox age, and records requiring manual intervention. Scheduler success means
+   the runner endpoint responded; it does not guarantee that Lalamove accepted a
+   booking. The worker's persisted outbox/attempt state remains authoritative.
+
+The jobs run endpoint processes the requested `default` queue and due schedules.
+The endpoint is GET by Payload design; protect it with this explicit shared-secret
+guard and restrict Scheduler/IAM access to the CMS service as appropriate.

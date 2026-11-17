@@ -1,6 +1,11 @@
 import { PayloadRequest } from 'payload'
 import { getDeliveryProvider, mapLalamoveStatus } from '../services/deliveryProviders'
-import { LalamoveApiError, type LalamoveStop } from '../services/lalamoveClient'
+import {
+  LalamoveApiError,
+  isE164PhoneNumber,
+  normalizeLalamovePhoneNumber,
+  type LalamoveStop,
+} from '../services/lalamoveClient'
 import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
 import {
   buildLalamoveOrderRemarks,
@@ -225,8 +230,11 @@ export const deliveryBookHandler = async (
 
     // Sender = merchant (pickup)
     let senderName = merchant.outletName || 'Merchant'
-    const senderPhone =
-      typeof merchant.contactInfo?.phone === 'string' ? merchant.contactInfo.phone.trim() : ''
+    const senderPhone = normalizeLalamovePhoneNumber(
+      typeof merchant.contactInfo?.phone === 'string' && merchant.contactInfo.phone.trim()
+        ? merchant.contactInfo.phone.trim()
+        : '+639000000000',
+    )
 
     // Recipient = customer (dropoff)
     let recipientName = 'Tap2Go Customer'
@@ -245,17 +253,18 @@ export const deliveryBookHandler = async (
 
     // Override with delivery-location snapshot if available
     const finalRecipientName = deliveryLocation?.contact_name || recipientName
-    const finalRecipientPhone =
+    const finalRecipientPhone = normalizeLalamovePhoneNumber(
       typeof deliveryLocation?.contact_phone === 'string' && deliveryLocation.contact_phone.trim()
         ? deliveryLocation.contact_phone.trim()
-        : recipientPhone
+        : recipientPhone,
+    )
 
-    if (!senderPhone || !finalRecipientPhone) {
+    if (!isE164PhoneNumber(senderPhone) || !isE164PhoneNumber(finalRecipientPhone)) {
       return Response.json(
         {
-          error: !senderPhone
-            ? 'Merchant pickup phone number is missing. Add a contact phone before booking delivery.'
-            : 'Customer phone number is missing. Add a phone number to the customer profile before booking delivery.',
+          error: !isE164PhoneNumber(finalRecipientPhone)
+            ? 'Customer phone number is missing or invalid. Add a valid international phone number before booking delivery.'
+            : 'Merchant pickup phone number is invalid. Add a valid international phone number before booking delivery.',
         },
         { status: 422 },
       )

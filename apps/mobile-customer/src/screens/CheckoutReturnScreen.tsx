@@ -6,6 +6,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCart } from '../contexts/CartContext';
 import {
   clearPendingCheckoutSession,
+  reconcileCheckoutPayment,
+  requestDeliveryFulfillment,
   waitForPaidTransaction,
 } from '../services/checkoutReturn';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +19,7 @@ export default function CheckoutReturnScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { reload } = useCart();
-  const { customerId } = useAuth();
+  const { customerId, user, isLoading: authLoading } = useAuth();
   const hasStartedRef = useRef(false);
 
   const paymentIntentId =
@@ -26,7 +28,7 @@ export default function CheckoutReturnScreen() {
   const orderId = typeof params.order_id === 'string' ? params.order_id : '';
 
   useEffect(() => {
-    if (hasStartedRef.current) {
+    if (hasStartedRef.current || authLoading) {
       return;
     }
 
@@ -44,10 +46,41 @@ export default function CheckoutReturnScreen() {
       }
 
       try {
-        const { orderId: resolvedOrderId } = await waitForPaidTransaction(
+        if (orderId && user?.id) {
+          try {
+            await reconcileCheckoutPayment({
+              orderId,
+              customerId: String(user.id),
+              paymentIntentId,
+            });
+          } catch (reconciliationError) {
+            console.error(
+              `[checkout-return] server payment reconciliation deferred for order ${orderId}:`,
+              reconciliationError,
+            );
+          }
+        }
+
+        const { orderId: resolvedOrderId, transaction } = await waitForPaidTransaction(
           paymentIntentId,
           orderId || undefined,
         );
+
+        if (
+          transaction.transaction_type !== 'priority_fee' &&
+          transaction.order &&
+          typeof transaction.order === 'object' &&
+          transaction.order.fulfillment_type === 'delivery'
+        ) {
+          try {
+            await requestDeliveryFulfillment(resolvedOrderId);
+          } catch (fulfillmentError) {
+            console.error(
+              `[checkout-return] could not ensure delivery fulfillment for order ${resolvedOrderId}:`,
+              fulfillmentError,
+            );
+          }
+        }
 
         if (customerId && merchantId) {
           await clearPendingCheckoutSession(String(customerId), merchantId);
@@ -78,7 +111,7 @@ export default function CheckoutReturnScreen() {
     };
 
     confirmPayment().catch(() => undefined);
-  }, [customerId, merchantId, orderId, paymentIntentId, reload, router]);
+  }, [authLoading, customerId, merchantId, orderId, paymentIntentId, reload, router, user?.id]);
 
   return (
     <View style={styles.container}>

@@ -11,6 +11,7 @@ import {
   findLinkedPendingOrder,
 } from '../../src/services/checkoutSnapshotPersistence'
 import { checkoutPaymentResumeHandler } from '../../src/endpoints/checkoutPaymentResume'
+import { ensureCheckoutPayment } from '../../src/endpoints/checkoutPrepare'
 import { paymongoWebhook } from '../../src/endpoints/paymongoWebhook'
 
 describe('pending order payment recovery', () => {
@@ -60,6 +61,198 @@ describe('pending order payment recovery', () => {
 
     expect(response.status).toBe(404)
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('reconciles only the authenticated customer’s exact successful intent and transaction', async () => {
+    const request = createReconcileRequest()
+    const fetch = vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'succeeded', amount: 12500, currency: 'PHP' },
+    }))
+    vi.stubGlobal('fetch', fetch)
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      state: 'paid',
+      orderId: '17',
+      paymentIntentId: 'pi_existing',
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch.mock.calls[0][0]).toBe('https://api.paymongo.com/v1/payment_intents/pi_existing')
+    expect(fetch.mock.calls[0][1].method).toBeUndefined()
+    expect(request.payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'transactions',
+      id: 20,
+      data: expect.objectContaining({ status: 'paid' }),
+    }))
+    expect(request.payload.db.commitTransaction).toHaveBeenCalledTimes(1)
+    expect(request.payload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'delivery-fulfillment-outbox',
+      data: { order: 17, status: 'pending', attempt_count: 0 },
+    }))
+  })
+
+  it('resolves the unique existing transaction when the customer provides its order and intent', async () => {
+    const request = createReconcileRequest({ omitTransactionId: true })
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'succeeded', amount: 12500, currency: 'PHP' },
+    })))
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(200)
+    expect(request.payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'transactions',
+      id: 20,
+      data: expect.objectContaining({ status: 'paid' }),
+    }))
+  })
+
+  it('rejects reconciliation for a different authenticated customer before provider lookup', async () => {
+    const request = createReconcileRequest({ userId: 43 })
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(401)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(request.payload.update).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['not succeeded', { status: 'awaiting_next_action', amount: 12500, currency: 'PHP' }],
+    ['amount mismatch', { status: 'succeeded', amount: 12499, currency: 'PHP' }],
+    ['currency mismatch', { status: 'succeeded', amount: 12500, currency: 'USD' }],
+  ])('does not reconcile a PayMongo intent with %s', async (_label, attributes) => {
+    const request = createReconcileRequest()
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes,
+    })))
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(409)
+    expect(request.payload.db.beginTransaction).not.toHaveBeenCalled()
+    expect(request.payload.update).not.toHaveBeenCalled()
+    expect(request.payload.create).not.toHaveBeenCalled()
+  })
+
+  it('requires the requested transaction ID to match the order and intent', async () => {
+    const request = createReconcileRequest({ transactionId: '999' })
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(404)
+    expect(request.payload.find).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'transactions',
+      where: expect.objectContaining({
+        and: expect.arrayContaining([
+          { id: { equals: '999' } },
+          { order: { equals: 17 } },
+          { payment_intent_id: { equals: 'pi_existing' } },
+        ]),
+      }),
+    }))
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a successful intent whose amount no longer matches the order total', async () => {
+    const request = createReconcileRequest({ orderTotal: 126 })
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'succeeded', amount: 12500, currency: 'PHP' },
+    })))
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(409)
+    expect(request.payload.db.beginTransaction).not.toHaveBeenCalled()
+    expect(request.payload.update).not.toHaveBeenCalled()
+  })
+
+  it('does not reconcile when an intent maps to multiple transactions for the order', async () => {
+    const request = createReconcileRequest({
+      omitTransactionId: true,
+      ambiguousTransactions: true,
+    })
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(409)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(request.payload.db.beginTransaction).not.toHaveBeenCalled()
+  })
+
+  it('repeats paid reconciliation without creating a duplicate delivery outbox', async () => {
+    const request = createReconcileRequest()
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'succeeded', amount: 12500, currency: 'PHP' },
+    })))
+
+    const first = await checkoutPaymentResumeHandler(request as any)
+    const second = await checkoutPaymentResumeHandler(request as any)
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(request.payload.create).toHaveBeenCalledTimes(1)
+    expect(request.payload.db.commitTransaction).toHaveBeenCalledTimes(2)
+  })
+
+  it('rolls back paid reconciliation if delivery outbox persistence fails', async () => {
+    const request = createReconcileRequest()
+    request.payload.create.mockRejectedValue(new Error('outbox write failed'))
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'succeeded', amount: 12500, currency: 'PHP' },
+    })))
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(500)
+    expect(request.payload.db.rollbackTransaction).toHaveBeenCalledTimes(1)
+    expect(request.payload.db.commitTransaction).not.toHaveBeenCalled()
+  })
+
+  it('ensures a delivery outbox when checkout reuses an already-paid transaction', async () => {
+    const outboxes: any[] = []
+    const req = {
+      payload: {
+        find: vi.fn(async () => ({ docs: [...outboxes] })),
+        create: vi.fn(async ({ data }: any) => {
+          const outbox = { id: 40, ...data }
+          outboxes.push(outbox)
+          return outbox
+        }),
+        update: vi.fn(async () => undefined),
+      },
+    }
+    const args = {
+      req: req as any,
+      order: { id: 17, status: 'pending', fulfillment_type: 'delivery' },
+      transaction: { id: 20, status: 'paid' },
+      idempotencyKey: 'checkout-idempotency-key',
+      paymentMethod: 'qrph',
+      requestId: 'request-1',
+    }
+
+    await ensureCheckoutPayment(args)
+    await ensureCheckoutPayment(args)
+
+    expect(req.payload.create).toHaveBeenCalledTimes(1)
+    expect(req.payload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'delivery-fulfillment-outbox',
+      data: { order: 17, status: 'pending', attempt_count: 0 },
+    }))
   })
 
   it('returns the original QR action without attaching another payment method', async () => {
@@ -405,6 +598,66 @@ function createResumeRequest(options: {
       }),
       update: vi.fn(async () => transaction),
       create: vi.fn(async () => ({ id: 21 })),
+    },
+  }
+}
+
+function createReconcileRequest(options: {
+  userId?: number
+  transactionId?: string
+  orderTotal?: number
+  omitTransactionId?: boolean
+  ambiguousTransactions?: boolean
+} = {}) {
+  const transaction = {
+    id: 20,
+    order: 17,
+    status: 'pending',
+    payment_intent_id: 'pi_existing',
+    transaction_type: 'order',
+    amount: 125,
+    currency: 'PHP',
+  }
+  const outboxes: any[] = []
+  const order = {
+    id: 17,
+    customer: { id: 2, user: { id: 42 } },
+    merchant: { id: 3, outletName: 'Test Merchant' },
+    status: 'pending',
+    fulfillment_type: 'delivery',
+    total: options.orderTotal ?? 125,
+  }
+  return {
+    user: { id: options.userId ?? 42, role: 'customer' },
+    json: async () => ({
+      orderId: 17,
+      customerId: 42,
+      ...(!options.omitTransactionId && {
+        transactionId: options.transactionId ?? '20',
+      }),
+      paymentIntentId: 'pi_existing',
+      reconcileOnly: true,
+    }),
+    payload: {
+      findByID: vi.fn(async () => order),
+      find: vi.fn(async ({ collection }: { collection: string }) => ({
+        docs: collection === 'transactions'
+          ? options.ambiguousTransactions
+            ? [transaction, { ...transaction, id: 21 }]
+            : [transaction]
+          : [...outboxes],
+      })),
+      update: vi.fn(async () => transaction),
+      create: vi.fn(async ({ data }: { data: object }) => {
+        const outbox = { id: 40, ...data }
+        outboxes.push(outbox)
+        return outbox
+      }),
+      db: {
+        beginTransaction: vi.fn(async () => 'payment-tx'),
+        commitTransaction: vi.fn(async () => undefined),
+        rollbackTransaction: vi.fn(async () => undefined),
+      },
     },
   }
 }

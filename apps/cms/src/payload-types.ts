@@ -2247,6 +2247,13 @@ export interface Transaction {
    * Timestamp of successful payment
    */
   paid_at?: string | null;
+  paymongo_reconcile_attempt_count?: number | null;
+  paymongo_reconcile_next_check_at?: string | null;
+  paymongo_reconcile_last_checked_at?: string | null;
+  paymongo_reconcile_last_status?: string | null;
+  paymongo_reconcile_last_error?: string | null;
+  paymongo_reconcile_alerted_at?: string | null;
+  paymongo_reconcile_stopped?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -4403,6 +4410,13 @@ export interface TransactionsSelect<T extends boolean = true> {
   currency?: T;
   status?: T;
   paid_at?: T;
+  paymongo_reconcile_attempt_count?: T;
+  paymongo_reconcile_next_check_at?: T;
+  paymongo_reconcile_last_checked_at?: T;
+  paymongo_reconcile_last_status?: T;
+  paymongo_reconcile_last_error?: T;
+  paymongo_reconcile_alerted_at?: T;
+  paymongo_reconcile_stopped?: T;
   updatedAt?: T;
   createdAt?: T;
 }

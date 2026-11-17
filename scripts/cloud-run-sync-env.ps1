@@ -26,6 +26,7 @@ $Secrets = [ordered]@{
   'DATABASE_URI' = 'tap2go-database-uri'
   'PAYLOAD_SECRET' = 'tap2go-payload-secret'
   'PAYLOAD_API_KEY' = 'tap2go-payload-api-key'
+  'PAYLOAD_JOBS_RUN_SECRET' = 'tap2go-payload-jobs-run-secret'
   'UPSTASH_REDIS_REST_TOKEN' = 'tap2go-upstash-redis-rest-token'
   'SUPABASE_SERVICE_ROLE_KEY' = 'tap2go-supabase-service-role-key'
   'CLOUDINARY_API_KEY' = 'tap2go-cloudinary-api-key'
@@ -69,6 +70,7 @@ Get-Content -LiteralPath $EnvFile | ForEach-Object {
   $EnvValues[$key] = $val
 }
 $EnvValues['NODE_ENV'] = 'production'
+$EnvValues['PAYLOAD_JOBS_AUTO_RUN'] = 'false'
 Write-Output "Parsed $($EnvValues.Count) keys from $EnvFile (values never echoed)."
 
 foreach ($key in $Secrets.Keys) {

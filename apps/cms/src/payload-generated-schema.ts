@@ -1953,6 +1953,25 @@ export const transactions = pgTable(
     currency: varchar('currency').default('PHP'),
     status: enum_transactions_status('status').notNull().default('pending'),
     paid_at: timestamp('paid_at', { mode: 'string', withTimezone: true, precision: 3 }),
+    paymongo_reconcile_attempt_count: numeric('paymongo_reconcile_attempt_count').default('0').notNull(),
+    paymongo_reconcile_next_check_at: timestamp('paymongo_reconcile_next_check_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    paymongo_reconcile_last_checked_at: timestamp('paymongo_reconcile_last_checked_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    paymongo_reconcile_last_status: varchar('paymongo_reconcile_last_status'),
+    paymongo_reconcile_last_error: varchar('paymongo_reconcile_last_error'),
+    paymongo_reconcile_alerted_at: timestamp('paymongo_reconcile_alerted_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
+    paymongo_reconcile_stopped: boolean('paymongo_reconcile_stopped').default(false).notNull(),
     updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true, precision: 3 })
       .defaultNow()
       .notNull(),
@@ -1962,6 +1981,12 @@ export const transactions = pgTable(
   },
   (columns) => ({
     transactions_order_idx: index('transactions_order_idx').on(columns.order),
+    transactions_status_paymongo_reconcile_next_check_at_idx: index(
+      'transactions_status_paymongo_reconcile_next_check_at_idx',
+    ).on(columns.status, columns.paymongo_reconcile_next_check_at),
+    transactions_payment_intent_id_idx: index('transactions_payment_intent_id_idx').on(
+      columns.payment_intent_id,
+    ),
     transactions_updated_at_idx: index('transactions_updated_at_idx').on(columns.updatedAt),
     transactions_created_at_idx: index('transactions_created_at_idx').on(columns.createdAt),
   }),

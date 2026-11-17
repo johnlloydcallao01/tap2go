@@ -127,6 +127,48 @@ export const Transactions: CollectionConfig = {
         description: 'Timestamp of successful payment',
       },
     },
+    {
+      name: 'paymongo_reconcile_attempt_count',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      admin: { description: 'Background PayMongo intent verification attempts' },
+    },
+    {
+      name: 'paymongo_reconcile_next_check_at',
+      type: 'date',
+      admin: { description: 'Next bounded background PayMongo intent verification time' },
+    },
+    {
+      name: 'paymongo_reconcile_last_checked_at',
+      type: 'date',
+      admin: { description: 'Last background PayMongo intent verification time' },
+    },
+    {
+      name: 'paymongo_reconcile_last_status',
+      type: 'text',
+      admin: { description: 'Latest PayMongo status or reconciliation outcome' },
+    },
+    {
+      name: 'paymongo_reconcile_last_error',
+      type: 'textarea',
+      admin: { description: 'Latest PayMongo reconciliation error or verification mismatch' },
+    },
+    {
+      name: 'paymongo_reconcile_alerted_at',
+      type: 'date',
+      admin: { description: 'When an admin was alerted about stale unresolved payment' },
+    },
+    {
+      name: 'paymongo_reconcile_stopped',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { description: 'Whether automated PayMongo checks stopped for terminal data mismatch' },
+    },
+  ],
+  indexes: [
+    { fields: ['status', 'paymongo_reconcile_next_check_at'] },
+    { fields: ['payment_intent_id'] },
   ],
   hooks: {
     afterChange: [
