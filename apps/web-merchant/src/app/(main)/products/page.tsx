@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { ClientOnly } from '@/components/ClientOnly';
 import {
   Package,
@@ -14,6 +15,8 @@ import {
   XCircle,
   Clock,
   Tag,
+  Plus,
+  Edit,
 } from '@/components/ui/IconWrapper';
 
 type ProductRow = {
@@ -25,7 +28,7 @@ type ProductRow = {
     slug: string;
     sku: string;
     productType: string;
-    basePrice: number;
+    basePrice: number | null;
     primaryImage: { url: string } | null;
   } | null;
   priceOverride: number | null;
@@ -210,6 +213,9 @@ function ProductsPageContent() {
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Vendor catalog across your outlets — availability, stock & pricing.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/products/new" className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#eba236] px-3 text-sm font-semibold text-white hover:bg-[#c88a20]">
+            <Plus className="h-4 w-4" /> Create product
+          </Link>
           <button
             onClick={() => void load({ hard: true })}
             disabled={loading}
@@ -308,10 +314,13 @@ function ProductsPageContent() {
                     <th className="text-left px-4 py-3 font-medium">Status</th>
                     <th className="text-right px-4 py-3 font-medium">Price</th>
                     <th className="text-right px-4 py-3 font-medium hidden xl:table-cell">Stock</th>
+                    <th className="text-right px-4 py-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-[#262626]">
-                  {paged.map((r) => (
+                  {paged.map((r) => {
+                    const price = r.priceOverride ?? r.product?.basePrice ?? null
+                    return (
                     <tr key={r.merchantProductId} className="hover:bg-gray-50 dark:hover:bg-[#0a0a0a]/50 transition">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3 min-w-[220px]">
@@ -334,7 +343,15 @@ function ProductsPageContent() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{fmtCurrency(r.priceOverride ?? r.product?.basePrice ?? 0)}</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {price !== null
+                            ? fmtCurrency(price)
+                            : r.product?.productType === 'variable'
+                              ? 'Varies by option'
+                              : r.product?.productType === 'grouped'
+                                ? 'Priced by included products'
+                                : '—'}
+                        </span>
                         {r.priceOverride != null && <div className="text-[11px] text-gray-400">override</div>}
                       </td>
                       <td className="px-4 py-3 text-right hidden xl:table-cell">
@@ -342,8 +359,21 @@ function ProductsPageContent() {
                           <Tag className="w-3 h-3 text-[#eba236]" /> {r.stockQuantity}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        {r.product && (
+                          <Link
+                            href={`/products/${r.product.id}/edit`}
+                            aria-label={`Edit ${r.product.name}`}
+                            title="Edit product"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-[#eba236] hover:text-[#eba236] dark:border-[#333] dark:text-[#a1a1aa]"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

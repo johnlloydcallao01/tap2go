@@ -37,8 +37,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const qs = new URLSearchParams()
-    qs.set('userId', String(user.id))
-    for (const k of ['merchantId', 'outletId', 'vendorId', 'search', 'productType', 'isActive', 'page', 'limit']) {
+    for (const k of ['merchantId', 'outletId', 'vendorId', 'search', 'productType', 'isActive', 'page', 'limit', 'includeOptions']) {
       const v = searchParams.get(k)
       if (v != null && v !== '') qs.set(k, v)
     }
@@ -49,6 +48,38 @@ export async function GET(request: NextRequest) {
     const data = await res.json()
     if (!res.ok) return NextResponse.json({ error: data.error || 'Failed to fetch products' }, { status: res.status })
     return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const { token, error } = await authenticateVendorProxy(request)
+  if (error) return error
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  try {
+    const res = await fetch(`${CMS_BASE}/vendor/products`, {
+      method: 'POST',
+      headers: {
+        Authorization: `JWT ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      return NextResponse.json({ error: data.error || 'Failed to create product' }, { status: res.status })
+    }
+    return NextResponse.json(data, { status: res.status })
   } catch {
     return NextResponse.json({ error: 'Failed to reach CMS' }, { status: 502 })
   }

@@ -52,25 +52,11 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
   const [isVendorsExpanded, setIsVendorsExpanded] = React.useState(false);
   const [isMerchantsExpanded, setIsMerchantsExpanded] = React.useState(false);
-  const [isAttributesExpanded, setIsAttributesExpanded] = React.useState(false);
-  const [isModifiersExpanded, setIsModifiersExpanded] = React.useState(false);
   const [isTagsExpanded, setIsTagsExpanded] = React.useState(false);
   const [isPromotionsExpanded, setIsPromotionsExpanded] = React.useState(false);
   const [isCustomerActivityExpanded, setIsCustomerActivityExpanded] = React.useState(false);
   const hasActiveVendorsChild = dropdownActive(pathname, '/vendors');
   const hasActiveMerchantsChild = dropdownActive(pathname, '/merchants') || dropdownActive(pathname, '/merchant-categories');
-  const hasActiveAttributesChild = dropdownActive(pathname, '/catalog/attributes') || dropdownActive(pathname, '/catalog/attribute-terms') || dropdownActive(pathname, '/catalog/variations') || dropdownActive(pathname, '/catalog/variation-values');
-  const hasActiveModifiersChild =
-    dropdownActive(pathname, '/catalog/modifier-groups') ||
-    dropdownActive(pathname, '/catalog/modifier-options') ||
-    dropdownActive(pathname, '/catalog/variation-modifier-groups') ||
-    dropdownActive(pathname, '/catalog/variation-modifier-options') ||
-    dropdownActive(pathname, '/catalog/variation-modifier-group-overrides') ||
-    dropdownActive(pathname, '/catalog/variation-modifier-option-overrides') ||
-    dropdownActive(pathname, '/catalog/merchant-product-modifier-group-overrides') ||
-    dropdownActive(pathname, '/catalog/merchant-product-modifier-option-overrides') ||
-    dropdownActive(pathname, '/catalog/merchant-variation-modifier-group-overrides') ||
-    dropdownActive(pathname, '/catalog/merchant-variation-modifier-option-overrides');
   const hasActiveTagsChild = dropdownActive(pathname, '/catalog/tags') || dropdownActive(pathname, '/catalog/tag-groups');
 
   const hasActivePromotionsChild = dropdownActive(pathname, '/promotions') || dropdownActive(pathname, '/coupons');
@@ -79,8 +65,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
   React.useEffect(() => { if (hasActiveVendorsChild) setIsVendorsExpanded(true); }, [hasActiveVendorsChild]);
   React.useEffect(() => { if (hasActiveMerchantsChild) setIsMerchantsExpanded(true); }, [hasActiveMerchantsChild]);
-  React.useEffect(() => { if (hasActiveAttributesChild) setIsAttributesExpanded(true); }, [hasActiveAttributesChild]);
-  React.useEffect(() => { if (hasActiveModifiersChild) setIsModifiersExpanded(true); }, [hasActiveModifiersChild]);
   React.useEffect(() => { if (hasActiveTagsChild) setIsTagsExpanded(true); }, [hasActiveTagsChild]);
 
   React.useEffect(() => { if (hasActivePromotionsChild) setIsPromotionsExpanded(true); }, [hasActivePromotionsChild]);
@@ -158,40 +142,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
             <SidebarSectionLabel isOpen={expanded}>Catalog</SidebarSectionLabel>
 
             <SidebarItem icon="products" label="Products" active={dropdownActive(pathname, '/products')} collapsed={!expanded} href="/products" prefetch={true} />
-
-            <SidebarDropdownGroup
-              icon="settings"
-              label="Attributes & Variations"
-              isOpen={expanded}
-              isExpanded={isAttributesExpanded}
-              onToggle={() => setIsAttributesExpanded((c) => !c)}
-              active={hasActiveAttributesChild}
-            >
-              {renderChildLink({ label: 'Attributes', href: '/catalog/attributes', isActive: dropdownActive(pathname, '/catalog/attributes') })}
-              {renderChildLink({ label: 'Attribute Terms', href: '/catalog/attribute-terms', isActive: dropdownActive(pathname, '/catalog/attribute-terms') })}
-              {renderChildLink({ label: 'Variations', href: '/catalog/variations', isActive: dropdownActive(pathname, '/catalog/variations') })}
-              {renderChildLink({ label: 'Variation Values', href: '/catalog/variation-values', isActive: dropdownActive(pathname, '/catalog/variation-values') })}
-            </SidebarDropdownGroup>
-
-            <SidebarDropdownGroup
-              icon="modifiers"
-              label="Modifiers (Add-ons)"
-              isOpen={expanded}
-              isExpanded={isModifiersExpanded}
-              onToggle={() => setIsModifiersExpanded((c) => !c)}
-              active={hasActiveModifiersChild}
-            >
-              {renderChildLink({ label: 'Modifier Groups', href: '/catalog/modifier-groups', isActive: dropdownActive(pathname, '/catalog/modifier-groups') })}
-              {renderChildLink({ label: 'Modifier Options', href: '/catalog/modifier-options', isActive: dropdownActive(pathname, '/catalog/modifier-options') })}
-              {renderChildLink({ label: 'Variation Modifier Groups', href: '/catalog/variation-modifier-groups', isActive: dropdownActive(pathname, '/catalog/variation-modifier-groups') })}
-              {renderChildLink({ label: 'Variation Modifier Options', href: '/catalog/variation-modifier-options', isActive: dropdownActive(pathname, '/catalog/variation-modifier-options') })}
-              {renderChildLink({ label: 'Variation Modifier Group Overrides', href: '/catalog/variation-modifier-group-overrides', isActive: dropdownActive(pathname, '/catalog/variation-modifier-group-overrides') })}
-              {renderChildLink({ label: 'Variation Modifier Option Overrides', href: '/catalog/variation-modifier-option-overrides', isActive: dropdownActive(pathname, '/catalog/variation-modifier-option-overrides') })}
-              {renderChildLink({ label: 'Merchant Product Modifier Group Overrides', href: '/catalog/merchant-product-modifier-group-overrides', isActive: dropdownActive(pathname, '/catalog/merchant-product-modifier-group-overrides') })}
-              {renderChildLink({ label: 'Merchant Product Modifier Option Overrides', href: '/catalog/merchant-product-modifier-option-overrides', isActive: dropdownActive(pathname, '/catalog/merchant-product-modifier-option-overrides') })}
-              {renderChildLink({ label: 'Merchant Variation Modifier Group Overrides', href: '/catalog/merchant-variation-modifier-group-overrides', isActive: dropdownActive(pathname, '/catalog/merchant-variation-modifier-group-overrides') })}
-              {renderChildLink({ label: 'Merchant Variation Modifier Option Overrides', href: '/catalog/merchant-variation-modifier-option-overrides', isActive: dropdownActive(pathname, '/catalog/merchant-variation-modifier-option-overrides') })}
-            </SidebarDropdownGroup>
 
             <SidebarItem icon="products" label="Grouped Items" active={dropdownActive(pathname, '/catalog/grouped-items')} collapsed={!expanded} href="/catalog/grouped-items" />
 

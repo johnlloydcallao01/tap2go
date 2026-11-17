@@ -435,7 +435,7 @@ function OrdersContent() {
       </div>
 
       <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4 text-xs text-gray-500 dark:text-[#a1a1aa]">
-        Revenue reflects <span className="font-semibold text-gray-700 dark:text-white">verified paid transactions</span> only, matching your dashboard analytics — never raw order totals. Fulfillment and delivery statuses update automatically as riders and outlets progress the order. Details and per-order item lines live under <Link href="/order-items" className="font-semibold text-[#eba236] hover:text-[#c88a20]">Order Items</Link>.
+        Revenue reflects <span className="font-semibold text-gray-700 dark:text-white">verified paid transactions</span> only, matching your dashboard analytics — never raw order totals. Fulfillment and delivery statuses update automatically as riders and outlets progress the order.
       </div>
     </div>
   )

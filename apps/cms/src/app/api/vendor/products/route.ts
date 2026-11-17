@@ -1,19 +1,28 @@
 /**
  * @file apps/cms/src/app/api/vendor/products/route.ts
  * @description BFF aggregation endpoint for web-merchant products list.
- * GET /api/vendor/products?userId=123&merchantId=5&search=pizza&productType=simple&isActive=true&page=1&limit=50
+ * GET /api/vendor/products?merchantId=5&search=pizza&productType=simple&isActive=true&page=1&limit=50
  *
  * Mirrors the outlets BFF (docs/BFF-pattern.md): authenticate vendor JWT, resolve
- * vendor (vendors where user == userId), scope merchants to that vendor (with
+ * the vendor from the authenticated user, scope merchants to that vendor (with
  * outlet/vendor context + ownership guards like vendor/addresses), join
  * merchant-products -> products in memory (precedent: admin/merchant-products),
  * return sanitized rows + metrics. Frontend stays thin.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayload } from 'payload'
+import { createLocalReq, getPayload, type PayloadRequest } from 'payload'
 import configPromise from '@payload-config'
 import { authenticateVendor } from '@/utils/mediaLibrary'
+import { normalizeProductDescription, ProductDescriptionError } from '@/services/productDescription'
+import {
+  parseVendorProductType,
+  parseVendorVariationConfiguration,
+  resolveVendorGroupedItems,
+  resolveVendorProductOutlets,
+  validateVendorVariationAttributes,
+  VendorProductCreationError,
+} from '@/services/vendorProductCreation'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,9 +68,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId') || String(authUser.id)
     const merchantParam = searchParams.get('merchantId') || searchParams.get('outletId')
     const vendorParam = searchParams.get('vendorId')
+    const includeOptions = searchParams.get('includeOptions') === 'true'
     const search = (searchParams.get('search') || '').trim().toLowerCase()
     const productType = (searchParams.get('productType') || '').trim().toLowerCase()
     const isActiveParam = searchParams.get('isActive')
@@ -71,7 +80,7 @@ export async function GET(request: NextRequest) {
     // 1. Resolve vendor for user (same as outlets BFF).
     const vendorRes = await payload.find({
       collection: 'vendors',
-      where: { user: { equals: userId } },
+      where: { user: { equals: authUser.id } },
       limit: 1,
       depth: 0,
       overrideAccess: true,
@@ -116,11 +125,59 @@ export async function GET(request: NextRequest) {
       merchantIds = (mRes.docs as Record<string, any>[]).map((m) => Number(m.id)).filter((v) => Number.isFinite(v))
     }
 
+    let productOptions: Record<string, unknown>[] | undefined
+    if (includeOptions) {
+      const ownedProductResult = await payload.find({
+        collection: 'products',
+        where: { createdByVendor: { equals: Number(vendor.id) } },
+        limit: 5000,
+        pagination: false,
+        depth: 0,
+        overrideAccess: true,
+      })
+      const ownedProducts = ownedProductResult.docs as unknown as Record<string, any>[]
+      const ownedProductIds = ownedProducts.map((product) => Number(product.id)).filter(Number.isFinite)
+      const assignments = ownedProductIds.length > 0 && merchantIds.length > 0
+        ? await payload.find({
+            collection: 'merchant-products',
+            where: {
+              and: [
+                { product_id: { in: ownedProductIds } },
+                { merchant_id: { in: merchantIds } },
+                { is_active: { equals: true } },
+              ],
+            },
+            limit: 10000,
+            pagination: false,
+            depth: 0,
+            overrideAccess: true,
+          })
+        : { docs: [] }
+      const assignedOutlets = new Map<number, Set<number>>()
+      for (const assignment of assignments.docs as unknown as Record<string, unknown>[]) {
+        const productId = relId(assignment.product_id)
+        const outletId = relId(assignment.merchant_id)
+        if (productId === null || outletId === null) continue
+        const outletIds = assignedOutlets.get(productId) ?? new Set<number>()
+        outletIds.add(outletId)
+        assignedOutlets.set(productId, outletIds)
+      }
+      productOptions = ownedProducts.map((product) => ({
+        id: Number(product.id),
+        name: getStr(product.name),
+        slug: getStr(product.slug),
+        productType: getStr(product.productType, 'simple'),
+        isActive: product.isActive !== false,
+        assignedOutletIds: Array.from(assignedOutlets.get(Number(product.id)) ?? []),
+      }))
+    }
+
     if (merchantIds.length === 0) {
       return NextResponse.json({
         vendor: { id: String(vendor.id), businessName: getStr(vendor.businessName) },
         metrics: { totalListings: 0, activeListings: 0, availableListings: 0, outOfStock: 0, totalProducts: 0 },
         products: [],
+        ...(includeOptions ? { productOptions: productOptions ?? [] } : {}),
         pagination: { page, limit, totalDocs: 0, totalPages: 1 },
       })
     }
@@ -179,7 +236,7 @@ export async function GET(request: NextRequest) {
               slug: getStr(p?.slug),
               sku: getStr(p?.sku),
               productType: getStr(p?.productType, 'simple'),
-              basePrice: getNum(p?.basePrice, 0),
+              basePrice: p?.basePrice == null ? null : getNum(p.basePrice, 0),
               primaryImage: sanitizeMedia(media?.primaryImage),
             }
           : null,
@@ -221,11 +278,392 @@ export async function GET(request: NextRequest) {
       vendor: { id: String(vendor.id), businessName: getStr(vendor.businessName) },
       metrics,
       products: paged,
+      ...(includeOptions ? { productOptions: productOptions ?? [] } : {}),
       pagination: { page: safePage, limit, totalDocs: rows.length, totalPages },
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch products'
     console.error('[vendor/products] GET error:', err)
     return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  let transactionID: string | number | null = null
+  let req: Awaited<ReturnType<typeof createLocalReq>> | undefined
+  let payloadInstance: Awaited<ReturnType<typeof getPayload>> | undefined
+
+  try {
+    const payload = await getPayload({ config: configPromise })
+    payloadInstance = payload
+    const authUser = await authenticateVendor(payload, request)
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized: vendor authentication required' }, { status: 401 })
+    }
+
+    const vendorResult = await payload.find({
+      collection: 'vendors',
+      where: { user: { equals: authUser.id } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const vendor = vendorResult.docs[0]
+    if (!vendor) {
+      return NextResponse.json({ error: 'Vendor profile not found.' }, { status: 404 })
+    }
+
+    let body: Record<string, unknown>
+    try {
+      const parsed = await request.json()
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return NextResponse.json({ error: 'Invalid product data.' }, { status: 400 })
+      }
+      body = parsed as Record<string, unknown>
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
+    }
+
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (name.length < 2) {
+      return NextResponse.json({ error: 'Product name must be at least 2 characters.' }, { status: 400 })
+    }
+    if (name.length > 200) {
+      return NextResponse.json({ error: 'Product name cannot exceed 200 characters.' }, { status: 400 })
+    }
+
+    const productType = parseVendorProductType(body.productType ?? 'simple')
+    let basePrice: number | null = null
+    let compareAtPrice: number | null = null
+    let initialStockQuantity = 0
+    if (productType === 'simple') {
+      if (body.basePrice == null || body.basePrice === '') {
+        return NextResponse.json({ error: 'A valid base price greater than or equal to zero is required for simple products.' }, { status: 400 })
+      }
+      if (typeof body.basePrice !== 'number' && typeof body.basePrice !== 'string') {
+        return NextResponse.json({ error: 'A valid base price greater than or equal to zero is required for simple products.' }, { status: 400 })
+      }
+      basePrice = Number(body.basePrice)
+      if (!Number.isFinite(basePrice) || basePrice < 0) {
+        return NextResponse.json({ error: 'A valid base price greater than or equal to zero is required for simple products.' }, { status: 400 })
+      }
+
+      if (
+        body.compareAtPrice != null &&
+        body.compareAtPrice !== '' &&
+        typeof body.compareAtPrice !== 'number' &&
+        typeof body.compareAtPrice !== 'string'
+      ) {
+        return NextResponse.json({ error: 'Compare-at price must be a number.' }, { status: 400 })
+      }
+      compareAtPrice = body.compareAtPrice == null || body.compareAtPrice === '' ? null : Number(body.compareAtPrice)
+      if (compareAtPrice !== null && (!Number.isFinite(compareAtPrice) || compareAtPrice < 0)) {
+        return NextResponse.json({ error: 'Compare-at price must be greater than or equal to zero.' }, { status: 400 })
+      }
+      if (body.stockQuantity !== undefined) {
+        initialStockQuantity = Number(body.stockQuantity)
+        if (!Number.isSafeInteger(initialStockQuantity) || initialStockQuantity < 0) {
+          return NextResponse.json({ error: 'Initial stock quantity must be a whole number zero or greater.' }, { status: 400 })
+        }
+      }
+    }
+
+    if (body.sku != null && typeof body.sku !== 'string') {
+      return NextResponse.json({ error: 'SKU must be a string.' }, { status: 400 })
+    }
+    const sku = typeof body.sku === 'string' ? body.sku.trim().toUpperCase() || null : null
+    if (sku && sku.length < 2) {
+      return NextResponse.json({ error: 'SKU must be at least 2 characters if provided.' }, { status: 400 })
+    }
+    if (sku) {
+      const existingSku = await payload.find({
+        collection: 'products',
+        where: { sku: { equals: sku } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (existingSku.docs.length > 0) {
+        return NextResponse.json({ error: 'This SKU is already in use.' }, { status: 409 })
+      }
+    }
+
+    const categories = body.categories === undefined ? [] : body.categories
+    if (!Array.isArray(categories) || categories.some((id) =>
+      !(typeof id === 'number' && Number.isInteger(id) && id > 0) &&
+      !(typeof id === 'string' && /^\d+$/.test(id) && Number(id) > 0)
+    )) {
+      return NextResponse.json({ error: 'Categories must be a list of valid category IDs.' }, { status: 400 })
+    }
+    const categoryIds = Array.from(new Set(categories.map(Number)))
+    if (categoryIds.length > 0) {
+      const categoryResult = await payload.find({
+        collection: 'product-categories',
+        where: {
+          and: [
+            { id: { in: categoryIds } },
+            { isActive: { equals: true } },
+          ],
+        },
+        limit: categoryIds.length,
+        pagination: false,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (categoryResult.docs.length !== categoryIds.length) {
+        return NextResponse.json({ error: 'One or more selected categories are unavailable.' }, { status: 400 })
+      }
+    }
+
+    const assignmentValue = body.assignment
+    if (!assignmentValue || typeof assignmentValue !== 'object' || Array.isArray(assignmentValue)) {
+      return NextResponse.json({ error: 'Choose one outlet or all active outlets.' }, { status: 400 })
+    }
+    const assignmentBody = assignmentValue as Record<string, unknown>
+    let assignment: { scope: 'all' } | { scope: 'outlet'; outletId: number }
+    if (assignmentBody.scope === 'all') {
+      assignment = { scope: 'all' }
+    } else if (assignmentBody.scope === 'outlet') {
+      const rawOutletId = assignmentBody.outletId
+      const outletId = Number(rawOutletId)
+      if (
+        !(typeof rawOutletId === 'number' && Number.isInteger(rawOutletId) && rawOutletId > 0) &&
+        !(typeof rawOutletId === 'string' && /^\d+$/.test(rawOutletId) && outletId > 0)
+      ) {
+        return NextResponse.json({ error: 'Select a valid outlet.' }, { status: 400 })
+      }
+      assignment = { scope: 'outlet', outletId }
+    } else {
+      return NextResponse.json({ error: 'Assignment scope must be "outlet" or "all".' }, { status: 400 })
+    }
+
+    const outlets = await resolveVendorProductOutlets(payload, Number(vendor.id), assignment)
+    if (productType !== 'variable' && body.variableProduct !== undefined) {
+      return NextResponse.json({ error: 'Variable-product configuration is only valid for variable products.' }, { status: 400 })
+    }
+    if (productType !== 'grouped' && body.groupedItems !== undefined) {
+      return NextResponse.json({ error: 'Grouped-item configuration is only valid for grouped products.' }, { status: 400 })
+    }
+    const variableConfiguration = productType === 'variable'
+      ? parseVendorVariationConfiguration(body.variableProduct)
+      : null
+    const variationTermNames = variableConfiguration
+      ? await validateVendorVariationAttributes(payload, variableConfiguration.attributeIds, variableConfiguration.variations)
+      : null
+    const groupedItems = productType === 'grouped'
+      ? await resolveVendorGroupedItems(
+          payload,
+          Number(vendor.id),
+          outlets.map((outlet) => Number(outlet.id)),
+          body.groupedItems,
+        )
+      : []
+
+    const shortDescription = typeof body.shortDescription === 'string' ? body.shortDescription.trim() : ''
+    if (shortDescription.length > 500) {
+      return NextResponse.json({ error: 'Short description cannot exceed 500 characters.' }, { status: 400 })
+    }
+    let description: Record<string, unknown> | null
+    try {
+      description = normalizeProductDescription(body.description)
+    } catch (error) {
+      if (error instanceof ProductDescriptionError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+      throw error
+    }
+    const catalogVisibility = body.catalogVisibility ?? 'visible'
+    if (!['visible', 'catalog', 'search', 'hidden'].includes(String(catalogVisibility))) {
+      return NextResponse.json({ error: 'Invalid catalog visibility.' }, { status: 400 })
+    }
+    if (body.isActive !== undefined && typeof body.isActive !== 'boolean') {
+      return NextResponse.json({ error: 'isActive must be a boolean.' }, { status: 400 })
+    }
+
+    let primaryImage: number | null = null
+    if (body.primaryImage != null && body.primaryImage !== '') {
+      if (
+        !(typeof body.primaryImage === 'number' && Number.isInteger(body.primaryImage) && body.primaryImage > 0) &&
+        !(typeof body.primaryImage === 'string' && /^\d+$/.test(body.primaryImage) && Number(body.primaryImage) > 0)
+      ) {
+        return NextResponse.json({ error: 'Primary image must be a valid media ID.' }, { status: 400 })
+      }
+      primaryImage = Number(body.primaryImage)
+      const mediaResult = await payload.find({
+        collection: 'media',
+        where: { id: { equals: primaryImage } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (mediaResult.docs.length === 0) {
+        return NextResponse.json({ error: 'Selected product image was not found.' }, { status: 400 })
+      }
+    }
+    const variationImageIds = variableConfiguration
+      ? Array.from(new Set(variableConfiguration.variations
+          .map((variation) => variation.imageId)
+          .filter((id): id is number => id !== null)))
+      : []
+    if (variationImageIds.length > 0) {
+      const imageResult = await payload.find({
+        collection: 'media',
+        where: { id: { in: variationImageIds } },
+        limit: variationImageIds.length,
+        pagination: false,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (imageResult.docs.length !== variationImageIds.length) {
+        return NextResponse.json({ error: 'One or more selected variation images were not found.' }, { status: 400 })
+      }
+    }
+
+    const vendorId = Number(vendor.id)
+    const baseSlug = name
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/[\s-]+/g, '-') || 'product'
+    transactionID = await payload.db.beginTransaction()
+    if (!transactionID) {
+      return NextResponse.json({ error: 'Database transaction support is required to create products safely.' }, { status: 503 })
+    }
+    req = await createLocalReq({
+      user: authUser as NonNullable<PayloadRequest['user']>,
+    }, payload)
+    req.transactionID = transactionID
+
+    const product = await payload.create({
+      collection: 'products',
+      data: {
+        name,
+        slug: baseSlug,
+        sku,
+        productType,
+        basePrice,
+        compareAtPrice,
+        categories: categoryIds,
+        shortDescription: shortDescription || null,
+        description,
+        catalogVisibility,
+        isActive: body.isActive !== false,
+        approvalStatus: 'approved',
+        createdByVendor: vendorId,
+        assign_to_all_vendor_merchants: false,
+        media: { primaryImage },
+      } as never,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+
+    for (const outlet of outlets) {
+      await payload.create({
+        collection: 'merchant-products',
+        data: {
+          merchant_id: Number(outlet.id),
+          product_id: Number(product.id),
+          added_by: 'vendor',
+          price_override: null,
+          stock_quantity: initialStockQuantity,
+          is_active: body.isActive !== false,
+          is_available: true,
+        } as never,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+    }
+
+    if (variableConfiguration && variationTermNames) {
+      for (const [index, variation] of variableConfiguration.variations.entries()) {
+        const generatedName = variation.values
+          .map((item) => variationTermNames.get(item.termId))
+          .filter((termName): termName is string => Boolean(termName))
+          .join(' / ')
+        const createdVariation = await payload.create({
+          collection: 'prod-variations',
+          data: {
+            product_id: Number(product.id),
+            modifier_behavior_mode: 'inherit_product',
+            name: variation.name || generatedName || `Variation ${index + 1}`,
+            short_description: variation.shortDescription,
+            image: variation.imageId,
+            base_price: variation.basePrice,
+            compare_at_price: variation.compareAtPrice,
+            stock_quantity: variation.stockQuantity,
+            is_used_for_variations: true,
+            is_visible: variation.isVisible,
+            sort_order: index,
+          } as never,
+          depth: 0,
+          overrideAccess: true,
+          req,
+        })
+        for (const value of variation.values) {
+          await payload.create({
+            collection: 'prod-variation-values',
+            data: {
+              variation_id: Number(createdVariation.id),
+              attribute_id: value.attributeId,
+              term_id: value.termId,
+            } as never,
+            depth: 0,
+            overrideAccess: true,
+            req,
+          })
+        }
+      }
+    }
+
+    for (const [index, item] of groupedItems.entries()) {
+      await payload.create({
+        collection: 'prod-grouped-items',
+        data: {
+          parent_product_id: Number(product.id),
+          child_product_id: item.productId,
+          default_quantity: item.defaultQuantity,
+          sort_order: index,
+        } as never,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+    }
+
+    await payload.db.commitTransaction(transactionID)
+    req.transactionID = undefined
+    return NextResponse.json({
+      success: true,
+      doc: {
+        id: product.id,
+        name: product.name,
+        productType,
+        assignedOutlets: outlets.map((outlet) => ({ id: outlet.id, outletName: outlet.outletName })),
+        variationsCreated: variableConfiguration?.variations.length ?? 0,
+        groupedItemsCreated: groupedItems.length,
+      },
+    }, { status: 201 })
+  } catch (err: unknown) {
+    if (transactionID) {
+      try {
+        await payloadInstance?.db.rollbackTransaction(transactionID)
+      } catch (rollbackError) {
+        console.error('[vendor/products] POST rollback error:', rollbackError)
+      }
+      if (req) req.transactionID = undefined
+    }
+    if (err instanceof VendorProductCreationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    const message = err instanceof Error ? err.message : 'Failed to create product.'
+    console.error('[vendor/products] POST error:', err)
+    if (/unique|duplicate/i.test(message)) {
+      return NextResponse.json({ error: 'Product SKU is already in use.' }, { status: 409 })
+    }
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

@@ -74,4 +74,5 @@ export type IconName =
   | 'fulfillment'
   | 'modifiers'
   | 'reviews'
-  | 'activity';
+  | 'activity'
+  | 'logout';

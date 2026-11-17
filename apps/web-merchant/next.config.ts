@@ -60,18 +60,13 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Redirect legacy dashboard/analytics/reports URLs to their new semantic
-  // locations under /dashboard/* (Dashboard & Analytics group)
+  // Redirect legacy dashboard and reports URLs to their semantic locations
+  // under /dashboard/* (Dashboard & Reports group)
   async redirects() {
     return [
       {
         source: '/dashboard',
         destination: '/dashboard/overview',
-        permanent: true,
-      },
-      {
-        source: '/analytics',
-        destination: '/dashboard/analytics',
         permanent: true,
       },
       {

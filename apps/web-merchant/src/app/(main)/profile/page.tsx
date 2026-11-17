@@ -1546,10 +1546,6 @@ function ProfileInner() {
   <p className="text-xs text-slate-300 dark:text-[#a1a1aa] mt-2 leading-relaxed">
   For changes to business registration, verification, or outlet onboarding, contact the operations team via the support channel.
   </p>
-  <div className="mt-3 grid grid-cols-2 gap-2">
-  <a href="/business/profile" className="text-center py-2 bg-white dark:bg-[#171717] text-slate-900 dark:text-white border border-gray-200 dark:border-[#262626] rounded-lg text-xs font-semibold">Business profile</a>
-  <a href="/business/verification" className="text-center py-2 bg-white/10 dark:bg-[#262626] text-white border border-white/20 rounded-lg text-xs font-semibold">Verification</a>
-  </div>
   </div>
   </div>
   </div>
@@ -1890,9 +1886,6 @@ function ProfileInner() {
   </a>
   <a href="/settings/audit" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-[#262626] hover:bg-gray-50 dark:hover:bg-[#262626] dark:bg-[#171717] dark:bg-[#262626] text-sm font-medium text-gray-900 dark:text-[#ededed] hover:text-gray-900 dark:text-[#ededed] dark:hover:text-gray-100 dark:text-[#ededed]">
   Audit logs <span className="text-gray-400 dark:text-[#a1a1aa]">→</span>
-  </a>
-  <a href="/business/profile" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-[#262626] hover:bg-gray-50 dark:hover:bg-[#262626] dark:bg-[#171717] dark:bg-[#262626] text-sm font-medium text-gray-900 dark:text-[#ededed] hover:text-gray-900 dark:text-[#ededed] dark:hover:text-gray-100 dark:text-[#ededed]">
-  Business profile <span className="text-gray-400 dark:text-[#a1a1aa]">→</span>
   </a>
   </div>
   </div>
