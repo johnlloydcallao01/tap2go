@@ -520,6 +520,13 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
       merchantAddress,
       customerAddress: address,
     }))
+    if (!quote.available) {
+      throw new CheckoutValidationError(
+        'Lalamove delivery is currently unavailable for this order. Please try again later.',
+        'DELIVERY_UNAVAILABLE',
+        503,
+      )
+    }
     if (quote.currency !== 'PHP') {
       throw new CheckoutValidationError('The delivery quote currency is not supported for this checkout.', 'DELIVERY_CURRENCY_UNSUPPORTED', 503)
     }

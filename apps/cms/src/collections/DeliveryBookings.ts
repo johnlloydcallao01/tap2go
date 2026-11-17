@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { bustCustomerOrdersForOrder } from '../utils/dashboardCache'
+import { broadcastCustomerOrderUpdate } from '../utils/notificationFanout'
 
 export const DeliveryBookings: CollectionConfig = {
   slug: 'delivery-bookings',
@@ -37,12 +38,33 @@ export const DeliveryBookings: CollectionConfig = {
   },
   hooks: {
     afterChange: [
-      async ({ doc, req }) => {
+      async ({ doc, previousDoc, req }) => {
         const orderId = typeof doc.order === 'object' ? doc.order?.id : doc.order
         if (orderId != null) {
           void bustCustomerOrdersForOrder(req.payload, orderId).catch((error) =>
             console.error('[delivery-bookings] customer orders cache invalidation failed:', error),
           )
+
+          const realtimeFields = [
+            'status',
+            'lalamove_order_id',
+            'share_link',
+            'driver_name',
+            'driver_phone',
+            'driver_plate_number',
+            'driver_photo_url',
+            'driver_lat',
+            'driver_lng',
+            'driver_location_updated_at',
+          ] as const
+          if (
+            !previousDoc ||
+            realtimeFields.some((field) => doc[field] !== previousDoc[field])
+          ) {
+            void broadcastCustomerOrderUpdate(req.payload, orderId).catch((error) =>
+              console.error('[delivery-bookings] customer Realtime update failed:', error),
+            )
+          }
         }
         return doc
       },

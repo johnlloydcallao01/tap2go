@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { apiConfig } from '../config/environment';
 import { useQuery } from '@tanstack/react-query';
@@ -194,6 +194,14 @@ export default function OrdersScreen() {
   const handleRefresh = useCallback(async () => {
     await refreshOrders(true, true);
   }, [refreshOrders]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (ordersQuery.data !== undefined) {
+        void refreshOrders();
+      }
+    }, [ordersQuery.data, refreshOrders]),
+  );
 
   const handleCancelOrder = useCallback(async (order: Order) => {
     if (cancelingId) return;

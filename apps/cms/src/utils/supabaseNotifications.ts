@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
 
 // ============================================================================
 // Supabase Realtime Notifications - Server-side broadcaster
@@ -37,6 +38,71 @@ export function getSupabaseServiceClient(): SupabaseClient | null {
   })
 
   return serviceClient
+}
+
+export function getOrderRealtimeChannelName(userId: string | number): string | null {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!key) return null
+
+  const token = crypto.createHmac('sha256', key).update(String(userId)).digest('hex')
+  return `orders:${token}`
+}
+
+async function broadcast(
+  channelName: string,
+  event: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const supabase = getSupabaseServiceClient()
+  if (!supabase) return
+
+  const channel = supabase.channel(channelName)
+  await new Promise<void>((resolve) => {
+    let finished = false
+    let sendStarted = false
+    const timeout = setTimeout(() => finish(), 5000)
+
+    const finish = () => {
+      if (finished) return
+      finished = true
+      clearTimeout(timeout)
+      void supabase.removeChannel(channel).finally(resolve)
+    }
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED' && !sendStarted) {
+        sendStarted = true
+        void channel.send({ type: 'broadcast', event, payload }).then((result) => {
+          if (result !== 'ok') {
+            console.error(`[SupabaseNotifications] Broadcast ${event} failed:`, result)
+          }
+          finish()
+        }).catch((error) => {
+          console.error(`[SupabaseNotifications] Broadcast ${event} failed:`, error)
+          finish()
+        })
+      } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+        console.error(`[SupabaseNotifications] Broadcast channel ${status}: ${event}`)
+        finish()
+      }
+    })
+  })
+}
+
+export async function broadcastUserOrderUpdate(
+  userId: string | number,
+  orderId: string | number,
+): Promise<void> {
+  const channelName = getOrderRealtimeChannelName(userId)
+  if (!channelName) {
+    console.warn('[SupabaseNotifications] Order Realtime is disabled: service role key is missing.')
+    return
+  }
+
+  await broadcast(channelName, 'order_updated', {
+    orderId: String(orderId),
+    updatedAt: new Date().toISOString(),
+  })
 }
 
 export interface BroadcastNotificationPayload {

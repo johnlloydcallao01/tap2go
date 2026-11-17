@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ExpoLinking from 'expo-linking';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationsContext';
 import { apiConfig } from '../../src/config/environment';
 import { formatCurrency } from '../../src/utils/format';
 import { PullToRefreshLayout } from '../../src/components/PullToRefreshLayout';
@@ -402,6 +403,7 @@ export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { subscribeToOrderUpdates } = useNotifications();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -656,6 +658,16 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     fetchOrder();
   }, [fetchOrder]);
+
+  useEffect(
+    () =>
+      subscribeToOrderUpdates((updatedOrderId) => {
+        if (updatedOrderId === String(id)) {
+          void fetchOrder(true);
+        }
+      }),
+    [fetchOrder, id, subscribeToOrderUpdates],
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

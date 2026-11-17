@@ -38,6 +38,8 @@ import { couponsValidateHandler } from './endpoints/couponsValidate'
 import { couponsAttachHandler } from './endpoints/couponsAttach'
 import { checkoutPaymentResumeHandler } from './endpoints/checkoutPaymentResume'
 import { checkoutPrepareHandler } from './endpoints/checkoutPrepare'
+import { customerOrderRealtimeChannelHandler } from './endpoints/customerOrderRealtimeChannel'
+import { payloadJobsTickHandler } from './endpoints/payloadJobsTick'
 import { CouponService, roundMoney } from './services/CouponService'
 import { getMerchantOrderUnavailableMessage } from './utils/vacationMode'
 import {
@@ -238,7 +240,7 @@ export default buildConfig({
   jobs: {
     access: { run: payloadJobsRunAccess },
     tasks: [deliveryFulfillmentTaskConfig, notificationFanoutTaskConfig],
-    // Cloud Run uses an external Scheduler request to /api/payload-jobs/run.
+    // Cloud Run uses external webhook/scheduler requests to /api/payload-jobs/run.
     // Set PAYLOAD_JOBS_AUTO_RUN=true only on a dedicated, always-on worker.
     autoRun: process.env.PAYLOAD_JOBS_AUTO_RUN === 'true'
       ? [{ cron: '* * * * *', queue: 'default' }]
@@ -1188,6 +1190,18 @@ export default buildConfig({
       path: '/paymongo/webhook',
       method: 'post',
       handler: paymongoWebhook,
+    },
+
+    {
+      path: '/payload-jobs/tick',
+      method: 'get',
+      handler: payloadJobsTickHandler,
+    },
+
+    {
+      path: '/customer/order-realtime-channel',
+      method: 'get',
+      handler: customerOrderRealtimeChannelHandler,
     },
 
     {

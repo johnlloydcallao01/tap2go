@@ -4,6 +4,7 @@ import { createAdminNotificationFanout, createMerchantNotificationFanout, create
 import { bustCustomerOrdersForCustomer } from '../utils/dashboardCache'
 import { extractRelationshipId } from '../services/modifierUtils'
 import { getMerchantOrderUnavailableMessage } from '../utils/vacationMode'
+import { broadcastCustomerOrderUpdate } from '../utils/notificationFanout'
 
 function resolveId(value: unknown): string | null {
   if (value == null) return null
@@ -153,6 +154,18 @@ export const Orders: CollectionConfig = {
           const merchantId = resolveId(doc?.merchant)
           const status = doc?.status ?? null
           const previousStatus = previousDoc?.status ?? null
+          const deliveryStatus = doc?.delivery_status ?? null
+          const previousDeliveryStatus = previousDoc?.delivery_status ?? null
+
+          if (
+            operation === 'create' ||
+            status !== previousStatus ||
+            deliveryStatus !== previousDeliveryStatus
+          ) {
+            void broadcastCustomerOrderUpdate(req.payload, orderId).catch((error) =>
+              console.error('[orders] customer Realtime update failed:', error),
+            )
+          }
 
           if (operation === 'create') {
             void createAdminNotificationFanout(req.payload, {

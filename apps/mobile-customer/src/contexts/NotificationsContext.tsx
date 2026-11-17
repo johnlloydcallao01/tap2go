@@ -7,9 +7,10 @@ import React, {
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { supabaseConfig, isSupabaseRealtimeEnabled } from '../config/environment';
+import { apiConfig, supabaseConfig, isSupabaseRealtimeEnabled } from '../config/environment';
 import { useAuth } from '../contexts/AuthContext';
 import {
   fetchNotifications as fetchNotificationsApi,
@@ -33,9 +34,11 @@ interface NotificationsContextValue {
   markAsUnread: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   markAllAsSeen: () => Promise<void>;
+  subscribeToOrderUpdates: (listener: (orderId: string) => void) => () => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
+type OrderUpdateListener = (orderId: string) => void;
 
 function buildItem(raw: any): NotificationItem | null {
   if (!raw) return null;
@@ -69,6 +72,15 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const channelRef = useRef<any>(null);
+  const orderChannelRef = useRef<any>(null);
+  const orderUpdateListenersRef = useRef(new Set<OrderUpdateListener>());
+
+  const subscribeToOrderUpdates = useCallback((listener: OrderUpdateListener) => {
+    orderUpdateListenersRef.current.add(listener);
+    return () => {
+      orderUpdateListenersRef.current.delete(listener);
+    };
+  }, []);
 
   const setAccountUnreadCount = useCallback((count: number) => {
     if (!userId) return;
@@ -166,10 +178,32 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     if (!userId) return;
     if (!isSupabaseRealtimeEnabled()) return;
 
+    let active = true;
     let supabase: SupabaseClient | null = null;
     let channel: any = null;
+    let orderChannel: any = null;
 
-    try {
+    const connect = async () => {
+      const token = await AsyncStorage.getItem('grandline_auth_token');
+      if (!token) return;
+
+      const channelResponse = await fetch(
+        `${apiConfig.baseUrl}/customer/order-realtime-channel`,
+        {
+          headers: { Authorization: `JWT ${token}` },
+          cache: 'no-store',
+        },
+      );
+      const channelData = await channelResponse.json().catch(() => ({}));
+      if (!channelResponse.ok) {
+        throw new Error(channelData?.error || `Could not connect to live order updates (${channelResponse.status}).`);
+      }
+      const orderChannelName = channelData?.channelName;
+      if (typeof orderChannelName !== 'string' || !/^orders:[a-f0-9]{64}$/.test(orderChannelName)) {
+        throw new Error('The server returned an invalid live order channel.');
+      }
+      if (!active) return;
+
       supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
@@ -219,11 +253,37 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         });
 
       channelRef.current = channel;
-    } catch (err) {
-      console.warn('[NotificationsContext] Realtime init failed:', err);
-    }
+
+      orderChannel = supabase
+        .channel(orderChannelName, { config: { broadcast: { self: true } } })
+        .on('broadcast', { event: 'order_updated' }, ({ payload }: any) => {
+          const orderId = payload?.orderId;
+          if (typeof orderId !== 'string' && typeof orderId !== 'number') return;
+
+          const normalizedOrderId = String(orderId);
+          void queryClient.invalidateQueries({
+            queryKey: ['customer-orders', userId],
+          });
+          for (const listener of orderUpdateListenersRef.current) {
+            listener(normalizedOrderId);
+          }
+        })
+        .subscribe((status: string, err?: any) => {
+          if (err || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('[NotificationsContext] Order Realtime subscription failed:', err?.message || status);
+          }
+        });
+      orderChannelRef.current = orderChannel;
+    };
+
+    connect().catch((err) => {
+      if (active) {
+        console.warn('[NotificationsContext] Realtime init failed:', err);
+      }
+    });
 
     return () => {
+      active = false;
       if (channel) {
         try {
           supabase?.removeChannel(channel);
@@ -231,11 +291,19 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
           // cleanup best-effort
         }
       }
+      if (orderChannel) {
+        try {
+          supabase?.removeChannel(orderChannel);
+        } catch {
+          // cleanup best-effort
+        }
+      }
       supabaseRef.current = null;
       channelRef.current = null;
+      orderChannelRef.current = null;
       setIsRealtimeConnected(false);
     };
-  }, [adjustAccountUnreadCount, userId]);
+  }, [adjustAccountUnreadCount, queryClient, userId]);
 
   const markAsRead = useCallback(
     async (id: string) => {
@@ -311,6 +379,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     markAsUnread,
     markAllAsRead,
     markAllAsSeen,
+    subscribeToOrderUpdates,
   };
 
   return (

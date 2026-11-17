@@ -1,5 +1,8 @@
 import type { Payload } from 'payload'
-import { broadcastUserNotification } from './supabaseNotifications'
+import {
+  broadcastUserNotification,
+  broadcastUserOrderUpdate,
+} from './supabaseNotifications'
 
 // ============================================================================
 // Notification Fanout for the ordering system
@@ -168,6 +171,75 @@ export async function createNotificationFanout({
   return { notificationEvent, userNotification }
 }
 
+export async function createCustomerDeliveryBookingNotification(
+  payload: Payload,
+  orderId: number,
+) {
+  const order = await payload.findByID({
+    collection: 'orders',
+    id: orderId,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const customerId = resolveRelationId(order.customer)
+  if (!customerId) return null
+
+  const customer = await payload.findByID({
+    collection: 'customers',
+    id: customerId,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const userId = resolveRelationId(customer.user)
+  if (!userId) return null
+
+  return createNotificationFanout({
+    payload,
+    userId,
+    typeKey: 'delivery.booking_created',
+    domain: 'order',
+    title: 'Lalamove booking created',
+    body: 'Your delivery booking is confirmed. A rider is being assigned.',
+    sourceEntityType: 'order',
+    sourceEntityId: orderId,
+    idempotencyKey: `delivery.booking_created:${orderId}`,
+  })
+}
+
+export async function broadcastCustomerOrderUpdate(
+  payload: Payload,
+  orderId: string | number,
+) {
+  const order = await payload.findByID({
+    collection: 'orders',
+    id: Number(orderId),
+    depth: 0,
+    overrideAccess: true,
+  })
+  const customerId = resolveRelationId(order.customer)
+  if (!customerId) return
+
+  const customer = await payload.findByID({
+    collection: 'customers',
+    id: customerId,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const userId = resolveRelationId(customer.user)
+  if (!userId) return
+
+  await broadcastUserOrderUpdate(userId, orderId)
+}
+
+function resolveRelationId(value: unknown): string | number | null {
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'id' in value) {
+    const id = (value as { id?: unknown }).id
+    return typeof id === 'string' || typeof id === 'number' ? id : null
+  }
+  return null
+}
+
 export async function createMerchantNotificationFanout(
   payload: Payload,
   merchantId: string | number | null | undefined,
@@ -181,6 +253,7 @@ export async function createMerchantNotificationFanout(
     depth: 0,
     overrideAccess: true,
   })
+
   const vendorId = typeof merchant.vendor === 'object' && merchant.vendor !== null
     ? merchant.vendor.id
     : merchant.vendor

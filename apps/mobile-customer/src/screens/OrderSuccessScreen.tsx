@@ -20,7 +20,7 @@ export default function OrderSuccessScreen() {
 
         <Text style={styles.title}>Thank you for your order</Text>
         <Text style={styles.subtitle}>
-          Your payment has been confirmed and your order is now with the merchant.
+          Your payment is confirmed. We are arranging your Lalamove delivery; check Orders for live updates.
         </Text>
 
         {orderId ? (

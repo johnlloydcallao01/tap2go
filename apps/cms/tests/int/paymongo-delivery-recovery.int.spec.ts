@@ -271,6 +271,9 @@ function createRecoveryRequest(options: { transactions?: any[] } = {}) {
       }
       return { id: 41, ...data }
     }),
+    jobs: {
+      queue: vi.fn(async () => undefined),
+    },
     db: {
       beginTransaction: vi.fn(async () => {
         transactionSnapshot = transactions.map((item) => ({ ...item }))

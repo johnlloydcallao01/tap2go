@@ -14,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationsContext';
 import { apiConfig } from '../config/environment';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { GoMapView, IN_EXPO_GO, type GoMapMarker } from '../components/shared/GoMapView';
@@ -152,6 +153,7 @@ export default function TrackingScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { subscribeToOrderUpdates } = useNotifications();
   const insets = useSafeAreaInsets();
   const cardTranslateY = useRef(new Animated.Value(0)).current;
   const mapBottomInset = useRef(new Animated.Value(0)).current;
@@ -293,6 +295,16 @@ export default function TrackingScreen() {
   useEffect(() => {
     fetchTracking();
   }, [fetchTracking]);
+
+  useEffect(
+    () =>
+      subscribeToOrderUpdates((updatedOrderId) => {
+        if (updatedOrderId === String(id)) {
+          void fetchTracking();
+        }
+      }),
+    [fetchTracking, id, subscribeToOrderUpdates],
+  );
 
   const hasTrackingData = data !== null;
   const pickupLat = data?.pickup.lat;

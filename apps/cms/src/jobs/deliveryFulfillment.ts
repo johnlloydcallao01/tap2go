@@ -12,7 +12,10 @@ import {
   retrievePayMongoIntent,
 } from '../services/paymongoIntent'
 import { isTerminalPaymentFailure } from '../services/orderPaymentRecovery'
-import { createAdminNotificationFanout } from '../utils/notificationFanout'
+import {
+  createAdminNotificationFanout,
+  createCustomerDeliveryBookingNotification,
+} from '../utils/notificationFanout'
 
 const LEASE_MINUTES = 5
 const BATCH_SIZE = 2
@@ -783,6 +786,12 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
         overrideAccess: true,
         req,
       })
+      await createCustomerDeliveryBookingNotification(req.payload, orderId).catch((error) =>
+        console.error(
+          `[delivery-fulfillment] customer booking notification failed for order ${orderId}:`,
+          error,
+        ),
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       console.error(`[delivery-fulfillment] reconciliation failed for outbox ${item.id}: ${message}`)
@@ -1110,6 +1119,12 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
         overrideAccess: true,
         req,
       })
+      await createCustomerDeliveryBookingNotification(req.payload, orderId).catch((error) =>
+        console.error(
+          `[delivery-fulfillment] customer booking notification failed for order ${orderId}:`,
+          error,
+        ),
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const ambiguous = providerSubmissionStarted

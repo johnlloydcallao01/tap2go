@@ -75,7 +75,7 @@ One-time APIs:
 
 ```bash
 gcloud config set project grandline-508001
-gcloud services enable run.googleapis.com secretmanager.googleapis.com
+gcloud services enable run.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com
 ```
 
 Secrets (example; repeat per key, values from your local `apps/cms/.env`):
@@ -153,13 +153,55 @@ or `NEXT_PUBLIC_*` changed without a rebuild (client still shows old endpoint).
 ## Run Payload jobs on scale-to-zero Cloud Run
 
 The CMS service intentionally scales to zero. Do not rely on Payload's in-process
-`autoRun` timer there: use Cloud Scheduler to call Payload's built-in
-`GET /api/payload-jobs/run?queue=default` endpoint once per minute. The endpoint
-runs due schedules and then drains the queue. Payload's `jobs.access.run` guard
-requires the `X-Payload-Jobs-Secret` header; requests without the matching secret
-receive 401. The service defaults `PAYLOAD_JOBS_AUTO_RUN` off. Set it to `true`
-only for a dedicated, always-on worker, and do not configure both runners for the
-same deployment.
+`autoRun` timer there. Use the Supabase Database Webhook below as the immediate
+wake-up for new paid delivery outbox rows, and keep Cloud Scheduler calling
+the protected `GET /api/payload-jobs/tick?queue=default` endpoint once per
+minute for delayed retries and reconciliation. It handles due schedules and
+then drains the queue in one request. The tick endpoint and Payload's built-in
+`/api/payload-jobs/run` endpoint both require the `X-Payload-Jobs-Secret` header;
+requests without the matching secret receive 401. The service defaults
+`PAYLOAD_JOBS_AUTO_RUN` off. Set it to `true` only for a dedicated, always-on
+worker, and do not configure both runners for the same deployment.
+
+### Immediate wake-up for paid delivery orders
+
+After PayMongo is verified and the paid transaction is persisted, CMS creates a
+durable `delivery_fulfillment_outbox` row and queues the `delivery-fulfillment`
+task in the same request transaction. Configure a Supabase Database Webhook to
+wake the Payload runner as soon as the outbox row is inserted:
+
+1. In Supabase **Integrations > Database Webhooks**, create a webhook for schema
+   `public`, table `delivery_fulfillment_outbox`, event `INSERT`, type **HTTP
+   Request**, and method `GET`.
+2. Set its URL to
+   `https://YOUR_CMS_HOST/api/payload-jobs/run?queue=default`.
+3. Add header `X-Payload-Jobs-Secret` with the same value as
+   `PAYLOAD_JOBS_RUN_SECRET` in Cloud Run. Configure it through the Dashboard;
+   never put the secret in source control or a committed SQL migration.
+
+Supabase notes that webhook headers are represented in the trigger definition
+and can be visible in `pg_net`'s queued requests while pending. Restrict database
+login and dashboard access accordingly, and rotate the shared secret if exposed.
+
+The webhook is the immediate trigger for a new paid delivery. Supabase sends
+Database Webhooks asynchronously through `pg_net`, which does not guarantee
+delivery or retries. The outbox remains the durable source of work; keep the
+periodic runner below for delayed retries, stale-payment reconciliation, and
+recovery if a webhook request is missed. Do not manually insert a live outbox
+row to test this: the worker can create a real Lalamove booking.
+
+Once Lalamove confirms a booking, CMS persists a customer notification and
+broadcasts it through the existing `notifications:user:{userId}` Realtime
+channel. For order status, CMS sends a separate `order_updated` broadcast to a
+per-customer channel whose name is HMAC-derived from the server-only
+`SUPABASE_SERVICE_ROLE_KEY`. The mobile app obtains that channel name from an
+authenticated CMS endpoint, then refreshes the order from the CMS API when an
+event arrives. Only the order ID is broadcast; payment and order data continue
+to come from the authenticated CMS API. This uses the existing Supabase URL,
+anon key, and service-role key; it does not require adding Payload tables to the
+Supabase Realtime publication. REST refresh and active-order polling remain as
+fallbacks because Realtime broadcasts are ephemeral. Realtime is a UI signal,
+not the payment authority or fulfillment trigger.
 
 1. Generate a unique high-entropy secret locally and put it in
    `apps/cms/.env` as `PAYLOAD_JOBS_RUN_SECRET` (never use the example
@@ -174,7 +216,7 @@ same deployment.
    enabling a duplicate runner.
 2. In Cloud Scheduler (same region as the CMS), create an HTTP job with schedule
    `* * * * *`, timezone `Asia/Manila`, method `GET`, and URL
-   `https://YOUR_CMS_HOST/api/payload-jobs/run?queue=default`. The commands below
+   `https://YOUR_CMS_HOST/api/payload-jobs/tick?queue=default`. The commands below
    read the header value directly from Secret Manager into a PowerShell variable;
    they do not print it. Use a high-entropy hex secret (no commas, because
    `--headers` accepts comma-separated key/value pairs). Cloud Scheduler does not
@@ -198,7 +240,7 @@ same deployment.
    gcloud scheduler jobs create http $job `
      --project=$project --location=$region `
      --schedule="* * * * *" --time-zone="Asia/Manila" `
-     --uri="$cmsUrl/api/payload-jobs/run?queue=default" `
+     --uri="$cmsUrl/api/payload-jobs/tick?queue=default" `
      --http-method=GET --attempt-deadline=300s --max-retry-attempts=1 `
      "--headers=X-Payload-Jobs-Secret=$secretValue" `
      --format="value(name)" --quiet
@@ -211,7 +253,7 @@ same deployment.
    gcloud scheduler jobs update http $job `
      --project=$project --location=$region `
      --schedule="* * * * *" --time-zone="Asia/Manila" `
-     --uri="$cmsUrl/api/payload-jobs/run?queue=default" `
+     --uri="$cmsUrl/api/payload-jobs/tick?queue=default" `
      --http-method=GET --attempt-deadline=300s --max-retry-attempts=1 `
      "--update-headers=X-Payload-Jobs-Secret=$secretValue" `
      --format="value(name)" --quiet
@@ -244,6 +286,6 @@ same deployment.
    the runner endpoint responded; it does not guarantee that Lalamove accepted a
    booking. The worker's persisted outbox/attempt state remains authoritative.
 
-The jobs run endpoint processes the requested `default` queue and due schedules.
-The endpoint is GET by Payload design; protect it with this explicit shared-secret
-guard and restrict Scheduler/IAM access to the CMS service as appropriate.
+The jobs tick endpoint handles due schedules and then processes the requested
+queue in the same request. The immediate Supabase Database Webhook continues to
+call Payload's built-in run endpoint for newly queued work.

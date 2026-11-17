@@ -220,7 +220,9 @@ export default function CheckoutScreen() {
   const [deliveryDistanceMeters, setDeliveryDistanceMeters] = useState<number | null>(null);
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false);
   const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
+  const [deliveryQuoteResolved, setDeliveryQuoteResolved] = useState(false);
   const deliveryQuoteCacheKeyRef = useRef<string | null>(null);
+  const deliveryQuoteRequestRef = useRef(0);
 
   const deliveryCharge = deliveryAvailable ? deliveryFee + priorityFee : 0;
   const orderTotal = Math.max(0, totalSubtotal + deliveryCharge - deliveryDiscount);
@@ -295,13 +297,21 @@ export default function CheckoutScreen() {
   );
 
   const fetchDeliveryQuote = useCallback(async () => {
-    if (!merchantId || !activeAddressId || !customerId || !token || deliveryFeeLoading) return;
+    if (!merchantId || !activeAddressId || !customerId || !token) return;
 
     const cacheKey = `${merchantId}:${activeAddressId}`;
     if (deliveryQuoteCacheKeyRef.current === cacheKey) return;
     deliveryQuoteCacheKeyRef.current = cacheKey;
+    const requestId = ++deliveryQuoteRequestRef.current;
 
     setDeliveryFeeLoading(true);
+    setDeliveryQuoteResolved(false);
+    setDeliveryAvailable(false);
+    setDeliveryFee(0);
+    setPriorityFee(0);
+    setDeliveryDiscount(0);
+    setFreeDeliveryApplied(false);
+    setDeliveryDistanceMeters(null);
     setDeliveryFeeError(null);
 
     try {
@@ -321,14 +331,10 @@ export default function CheckoutScreen() {
 
       const quoteData = await quoteRes.json();
       if (!quoteRes.ok) throw new Error(quoteData?.error || 'Could not get delivery quote');
+      if (requestId !== deliveryQuoteRequestRef.current) return;
 
       if (quoteData?.data?.available === false) {
-        setDeliveryAvailable(false);
-        setDeliveryFee(0);
-        setPriorityFee(0);
-        setDeliveryDiscount(0);
-        setFreeDeliveryApplied(false);
-        setDeliveryDistanceMeters(null);
+        setDeliveryFeeError(quoteData?.data?.error || 'Delivery is currently unavailable. Please try again later.');
         return;
       }
       setDeliveryAvailable(true);
@@ -342,17 +348,16 @@ export default function CheckoutScreen() {
       const distance = quoteData?.data?.distance as { value?: string | number; unit?: string } | null;
       setDeliveryDistanceMeters(distanceToMeters(distance));
     } catch (err: any) {
+      if (requestId !== deliveryQuoteRequestRef.current) return;
       deliveryQuoteCacheKeyRef.current = null;
-      setDeliveryFee(0);
-      setPriorityFee(0);
-      setDeliveryDiscount(0);
-      setFreeDeliveryApplied(false);
-      setDeliveryDistanceMeters(null);
       setDeliveryFeeError(err?.message || 'Could not estimate delivery fee');
     } finally {
-      setDeliveryFeeLoading(false);
+      if (requestId === deliveryQuoteRequestRef.current) {
+        setDeliveryFeeLoading(false);
+        setDeliveryQuoteResolved(true);
+      }
     }
-  }, [merchantId, activeAddressId, customerId, token, deliveryFeeLoading]);
+  }, [merchantId, activeAddressId, customerId, token]);
 
   useEffect(() => {
     fetchDeliveryQuote();
@@ -362,6 +367,8 @@ export default function CheckoutScreen() {
     dataCache.clear();
     await queryClient.resetQueries({ queryKey: ADDRESS_KEYS.all });
     deliveryQuoteCacheKeyRef.current = null;
+    deliveryQuoteRequestRef.current += 1;
+    setDeliveryQuoteResolved(false);
     setIsAddressModalVisible(false);
   }, [queryClient]);
 
@@ -607,12 +614,20 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (deliveryFeeLoading) {
+    if (deliveryFeeLoading || !deliveryQuoteResolved) {
       Alert.alert('Please wait', 'We are still calculating your delivery fee.');
       return;
     }
 
-    if (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied) {
+    if (!deliveryAvailable) {
+      Alert.alert(
+        'Delivery unavailable',
+        deliveryFeeError || 'We could not confirm Lalamove delivery for this address. Please try again later.',
+      );
+      return;
+    }
+
+    if (deliveryFee <= 0 && !freeDeliveryApplied) {
       Alert.alert(
         'Delivery fee unavailable',
         deliveryFeeError || 'We could not calculate your delivery fee. Please try again.',
@@ -695,12 +710,20 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (deliveryFeeLoading) {
+    if (deliveryFeeLoading || !deliveryQuoteResolved) {
       Alert.alert('Please wait', 'We are still calculating your delivery fee.');
       return;
     }
 
-    if (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied) {
+    if (!deliveryAvailable) {
+      Alert.alert(
+        'Delivery unavailable',
+        deliveryFeeError || 'We could not confirm Lalamove delivery for this address. Please try again later.',
+      );
+      return;
+    }
+
+    if (deliveryFee <= 0 && !freeDeliveryApplied) {
       Alert.alert(
         'Delivery fee unavailable',
         deliveryFeeError || 'We could not calculate your delivery fee. Please try again.',
@@ -1312,7 +1335,7 @@ export default function CheckoutScreen() {
                 </Text>
               </View>
             )}
-            {deliveryAvailable && deliveryFeeError ? (
+            {deliveryQuoteResolved && !deliveryFeeLoading && deliveryFeeError ? (
               <Text style={styles.deliveryFeeErrorText}>
                 Delivery fee unavailable — {deliveryFeeError}
               </Text>
@@ -1473,11 +1496,11 @@ export default function CheckoutScreen() {
             style={[
               styles.payButton,
               { backgroundColor: '#8b5cf6' },
-              (!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
+              (!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || !deliveryQuoteResolved || !deliveryAvailable || (deliveryFee <= 0 && !freeDeliveryApplied)) &&
                 styles.payButtonDisabled,
             ]}
             onPress={handleSandboxPay}
-            disabled={!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
+            disabled={!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || deliveryFeeLoading || !deliveryQuoteResolved || !deliveryAvailable || (deliveryFee <= 0 && !freeDeliveryApplied)}
           >
             {isPaying ? (
               <ActivityIndicator color="#fff" />
@@ -1485,7 +1508,7 @@ export default function CheckoutScreen() {
               <Text style={styles.payButtonText}>
                 {deliveryFeeLoading
                   ? 'Calculating delivery fee...'
-                  : deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied
+                  : (!deliveryAvailable || (deliveryFee <= 0 && !freeDeliveryApplied))
                     ? 'Delivery fee unavailable'
                     : `Simulate Payment (Sandbox)`}
               </Text>
@@ -1495,11 +1518,11 @@ export default function CheckoutScreen() {
           <TouchableOpacity
             style={[
               styles.payButton,
-              (!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)) &&
+              (!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || !deliveryQuoteResolved || !deliveryAvailable || (deliveryFee <= 0 && !freeDeliveryApplied)) &&
                 styles.payButtonDisabled,
             ]}
             onPress={handlePayNow}
-            disabled={!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || (deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied)}
+            disabled={!isFormValid || !isRecipientPhoneSaved || isPaying || merchantAvailability.isUnavailable || showExistingPaymentBlock || isBelowPayMongoMinimum || deliveryFeeLoading || !deliveryQuoteResolved || !deliveryAvailable || (deliveryFee <= 0 && !freeDeliveryApplied)}
           >
             {isPaying || (isCheckingPaymentState && !hasActiveCartItems) ? (
               <ActivityIndicator color="#fff" />
@@ -1507,7 +1530,7 @@ export default function CheckoutScreen() {
               <Text style={styles.payButtonText}>
                 {deliveryFeeLoading
                   ? 'Calculating delivery fee...'
-                  : deliveryAvailable && deliveryFee <= 0 && !freeDeliveryApplied
+                  : (!deliveryAvailable || (deliveryFee <= 0 && !freeDeliveryApplied))
                     ? 'Delivery fee unavailable'
                     : `Pay ${formatCurrency(orderTotal)}`}
               </Text>

@@ -233,7 +233,7 @@ export const deliveryBookHandler = async (
     const senderPhone = normalizeLalamovePhoneNumber(
       typeof merchant.contactInfo?.phone === 'string' && merchant.contactInfo.phone.trim()
         ? merchant.contactInfo.phone.trim()
-        : '+639000000000',
+        : '+639468748743',
     )
 
     // Recipient = customer (dropoff)
