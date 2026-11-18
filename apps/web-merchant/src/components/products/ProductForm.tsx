@@ -16,6 +16,7 @@ export type ProductDoc = {
   description?: unknown
   descriptionText?: string
   categories: { id: number; name: string; slug: string }[]
+  tags?: ProductTag[]
   primaryImage: { id: number; url: string | null } | null
   isActive: boolean
   catalogVisibility: string
@@ -39,6 +40,15 @@ type Outlet = {
 type ProductCategory = {
   id: number
   name: string
+}
+
+type ProductTag = {
+  id: number
+  name: string
+  slug: string
+  tag_type: string
+  color: string | null
+  is_active: boolean
 }
 
 type ProductType = ProductDoc['productType']
@@ -136,6 +146,9 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
   const isEdit = mode === 'edit'
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [categories, setCategories] = useState<ProductCategory[]>([])
+  const [tags, setTags] = useState<ProductTag[]>(initial?.tags || [])
+  const [selectedTags, setSelectedTags] = useState<number[]>(initial?.tags?.map((tag) => tag.id) || [])
+  const [tagsLoadError, setTagsLoadError] = useState<string | null>(null)
   const [attributes, setAttributes] = useState<AttributeOption[]>([])
   const [termsByAttribute, setTermsByAttribute] = useState<Record<number, AttributeTerm[]>>({})
   const [loadingAttributeIds, setLoadingAttributeIds] = useState<number[]>([])
@@ -198,11 +211,18 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
         const productOptionsRequest = isEdit
           ? Promise.resolve(null)
           : fetch('/api/products?includeOptions=true&limit=1', { cache: 'no-store' })
-        const [categoryResponse, outletResponse, attributeDocs, productOptionsResponse] = await Promise.all([
+        const tagRequest = isEdit
+          ? fetchAllDocs<ProductTag>('/api/catalog/tags?is_active=true').catch((loadError: unknown) => {
+              if (active) setTagsLoadError(loadError instanceof Error ? loadError.message : 'Failed to load product tags.')
+              return null
+            })
+          : Promise.resolve(null)
+        const [categoryResponse, outletResponse, attributeDocs, productOptionsResponse, tagDocs] = await Promise.all([
           categoryRequest,
           outletRequest,
           attributeRequest,
           productOptionsRequest,
+          tagRequest,
         ])
         const categoryData = await categoryResponse.json()
         const outletData = outletResponse ? await outletResponse.json() : null
@@ -222,6 +242,14 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
                 .map((category: ProductCategory) => ({ id: Number(category.id), name: category.name }))
             : [],
         )
+        if (isEdit && Array.isArray(tagDocs)) {
+          const options = new Map<number, ProductTag>()
+          for (const tag of [...tagDocs, ...(initial?.tags || [])]) {
+            if (Number.isSafeInteger(Number(tag.id)) && tag.name) options.set(Number(tag.id), { ...tag, id: Number(tag.id) })
+          }
+          setTags(Array.from(options.values()))
+          setTagsLoadError(null)
+        }
         if (Array.isArray(outletData?.outlets)) setOutlets(outletData.outlets)
         setAttributes(attributeDocs.filter((attribute) => Number.isInteger(Number(attribute.id)) && attribute.name))
         setProductOptions(
@@ -236,7 +264,10 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
             : [],
         )
       } catch (loadError) {
-        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load product options.')
+        if (active) {
+          const message = loadError instanceof Error ? loadError.message : 'Failed to load product options.'
+          setError(message)
+        }
       } finally {
         if (active) setLoadingOptions(false)
       }
@@ -253,6 +284,14 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
       current.includes(categoryId)
         ? current.filter((id) => id !== categoryId)
         : [...current, categoryId],
+    )
+  }
+
+  function toggleTag(tagId: number) {
+    setSelectedTags((current) =>
+      current.includes(tagId)
+        ? current.filter((id) => id !== tagId)
+        : [...current, tagId],
     )
   }
 
@@ -433,6 +472,7 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
       shortDescription: shortDescription.trim(),
       ...(!isEdit || descriptionChanged ? { description } : {}),
       categories: selectedCategories,
+      ...(isEdit ? { tags: selectedTags } : {}),
       primaryImage: primaryImage || null,
       catalogVisibility,
       isActive,
@@ -488,7 +528,7 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
 
   const inputClass = 'mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-[#eba236] focus:ring-2 focus:ring-[#eba236]/20 dark:border-[#333] dark:bg-[#0a0a0a] dark:text-white'
   const labelClass = 'text-xs font-medium text-gray-700 dark:text-[#a1a1aa]'
-  const formDisabled = saving || loadingOptions || loadingAttributeIds.length > 0 || (!isEdit && activeOutlets.length === 0)
+  const formDisabled = saving || loadingAttributeIds.length > 0 || (!isEdit && activeOutlets.length === 0)
 
   return (
     <form onSubmit={submit} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-[#262626] dark:bg-[#171717]">
@@ -499,10 +539,6 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
           </div>
         )}
 
-        {loadingOptions ? (
-          <div className="flex items-center gap-2 py-10 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading product options…</div>
-        ) : (
-          <>
             <section>
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white"><Package className="h-4 w-4 text-[#eba236]" /> Basic information</h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -627,6 +663,8 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
                       <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Select at least one active catalog attribute before adding variations.</p>
                     )}
                   </div>
+                ) : loadingOptions ? (
+                  <p className="text-sm text-gray-500">Active product attributes are still loading…</p>
                 ) : (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300">
                     No active product attributes are available. Ask your platform administrator to configure shared attributes before creating a variable product.
@@ -777,7 +815,9 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
                 </button>
                 {eligibleGroupedProducts.length === 0 && (
                   <p className="text-xs text-amber-700 dark:text-amber-400">
-                    No eligible products are assigned to the selected outlet scope yet. Create and assign simple products first.
+                    {loadingOptions
+                      ? 'Eligible products are still loading…'
+                      : 'No eligible products are assigned to the selected outlet scope yet. Create and assign simple products first.'}
                   </p>
                 )}
               </section>
@@ -802,7 +842,11 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
                     {activeOutlets.map((outlet) => <option key={outlet.id} value={outlet.id}>{outlet.outletName} ({outlet.outletCode})</option>)}
                   </select>
                 )}
-                {activeOutlets.length === 0 && <p className="mt-2 text-xs text-amber-700">You need an active outlet before creating a product listing.</p>}
+                {activeOutlets.length === 0 && (
+                  <p className={`mt-2 text-xs ${loadingOptions ? 'text-gray-500' : 'text-amber-700'}`}>
+                    {loadingOptions ? 'Your active outlets are still loading…' : 'You need an active outlet before creating a product listing.'}
+                  </p>
+                )}
               </section>
             ) : (
               <section>
@@ -833,8 +877,31 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
                     </label>
                   ))}
                 </div>
-              ) : <p className="text-sm text-gray-500">No active product categories are available.</p>}
+              ) : <p className="text-sm text-gray-500">{loadingOptions ? 'Active product categories are still loading…' : 'No active product categories are available.'}</p>}
             </section>
+
+            {isEdit && (
+              <section>
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white"><Tag className="h-4 w-4 text-blue-600" /> Product tags</h2>
+                {tags.length ? (
+                  <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-[#333]">
+                    {tags.map((tag) => (
+                      <label key={tag.id} className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs text-gray-700 dark:bg-[#0a0a0a] dark:text-[#a1a1aa]">
+                        <input
+                          type="checkbox"
+                          checked={selectedTags.includes(tag.id)}
+                          onChange={() => toggleTag(tag.id)}
+                          className="accent-[#eba236]"
+                        />
+                        {tag.name}{!tag.is_active ? ' (inactive)' : ''}
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">{tagsLoadError || (loadingOptions ? 'Product tags are still loading…' : 'No product tags are available.')}</p>
+                )}
+              </section>
+            )}
 
             <section>
               <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Product image</h2>
@@ -845,8 +912,6 @@ export function ProductForm({ mode, initial, onCancel, onSuccess }: ProductFormP
               <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} className="h-4 w-4 accent-[#eba236]" />
               Active
             </label>
-          </>
-        )}
       </div>
 
       <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-[#262626] dark:bg-[#0a0a0a] sm:px-6">

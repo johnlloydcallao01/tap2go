@@ -4,6 +4,7 @@ import configPromise from '@payload-config'
 import { authenticateVendor } from '@/utils/mediaLibrary'
 import { findVendorOwnedProduct } from '@/services/vendorProductCreation'
 import { normalizeProductDescription, productDescriptionToPlainText, ProductDescriptionError } from '@/services/productDescription'
+import { getProductTags, syncProductTags, validateProductTagIds } from '@/services/productTags'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,6 @@ function sanitizeProduct(product: Record<string, any>) {
         return { id: relationId(category) ?? 0, name: '', slug: '' }
       }).filter((category: { id: number }) => category.id > 0)
     : []
-
   return {
     id: Number(product.id),
     name: String(product.name || ''),
@@ -153,7 +153,7 @@ export async function GET(
       })
 
     return NextResponse.json({
-      doc: { ...sanitizeProduct(product), assignedOutlets },
+      doc: { ...sanitizeProduct(product), tags: await getProductTags(payload, Number(id)), assignedOutlets },
     })
   } catch (error: unknown) {
     console.error('[vendor/products/[id]] GET error:', error)
@@ -177,8 +177,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized: vendor authentication required' }, { status: 401 })
     }
 
-    const { product } = await getVendorProduct(payload, Number(id), Number(authUser.id))
+    const { vendor, product } = await getVendorProduct(payload, Number(id), Number(authUser.id))
     if (!product) return NextResponse.json({ error: 'Product not found.' }, { status: 404 })
+    if (!vendor) return NextResponse.json({ error: 'Vendor profile not found.' }, { status: 404 })
 
     let body: Record<string, unknown>
     try {
@@ -189,6 +190,13 @@ export async function PATCH(
       body = parsed as Record<string, unknown>
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
+    }
+    if (body.tags !== undefined) {
+      try {
+        await validateProductTagIds(payload, Number(id), body.tags)
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid product tags.' }, { status: 400 })
+      }
     }
 
     const patch: Record<string, unknown> = {}
@@ -354,15 +362,27 @@ export async function PATCH(
     const req = await createLocalReq({
       user: authUser as NonNullable<PayloadRequest['user']>,
     }, payload)
-    const updated = await payload.update({
-      collection: 'products',
-      id: Number(id),
-      data: patch as never,
-      depth: 2,
-      overrideAccess: true,
-      req,
-    }) as unknown as Record<string, any>
-    return NextResponse.json({ success: true, doc: sanitizeProduct(updated) })
+    const tagsProvided = body.tags !== undefined
+    if (Object.keys(patch).length === 0 && !tagsProvided) {
+      return NextResponse.json({ error: 'No product changes were provided.' }, { status: 400 })
+    }
+    const updated = Object.keys(patch).length
+      ? await payload.update({
+          collection: 'products',
+          id: Number(id),
+          data: patch as never,
+          depth: 2,
+          overrideAccess: true,
+          req,
+        }) as unknown as Record<string, any>
+      : product
+    if (body.tags !== undefined) {
+      await syncProductTags(payload, Number(id), body.tags, { type: 'vendor', vendorId: Number(vendor.id) })
+    }
+    return NextResponse.json({
+      success: true,
+      doc: { ...sanitizeProduct(updated), tags: await getProductTags(payload, Number(id)) },
+    })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to update product.'
     console.error('[vendor/products/[id]] PATCH error:', error)

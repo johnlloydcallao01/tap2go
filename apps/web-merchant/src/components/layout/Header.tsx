@@ -8,6 +8,7 @@ import { useAuth, getFullName, getUserInitials } from '@/hooks/useAuth';
 import { SearchBar } from '@/components/search/SearchBar';
 import SearchModal from '@/components/search/SearchModal';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { OrderSoundControl } from '@/components/notifications/OrderSoundControl';
 
 /**
  * Admin Header component with navigation, search, and user controls
@@ -114,7 +115,8 @@ export function Header({
           </div>
 
           {/* Right section */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1 sm:space-x-3">
+            <OrderSoundControl />
             <NotificationBell />
             <div className="relative" ref={dropdownRef}>
               <button

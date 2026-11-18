@@ -134,7 +134,7 @@ function MerchantProductsListPageContent(){
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/products/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
+          <Link href="/products/assign" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
             <Plus className="w-4 h-4" /> Assign Product
           </Link>
         </div>
@@ -154,7 +154,7 @@ function MerchantProductsListPageContent(){
             <div className="h-16 w-16 bg-gray-100 dark:bg-[#262626] rounded-2xl flex items-center justify-center mb-4"><Package className="w-8 h-8 text-gray-400" /></div>
             <h3 className="font-semibold text-gray-900 dark:text-white">No products for this outlet</h3>
             <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Assign a product to this outlet to get started.</p>
-            <Link href="/products/new" className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-semibold"><Plus className="w-4 h-4" /> Assign Product</Link>
+            <Link href="/products/assign" className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#eba236] text-white rounded-lg text-sm font-semibold"><Plus className="w-4 h-4" /> Assign Product</Link>
           </div>
         ) : (
           <>

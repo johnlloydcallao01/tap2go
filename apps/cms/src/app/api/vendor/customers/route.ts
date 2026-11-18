@@ -1,10 +1,10 @@
 /**
  * @file apps/cms/src/app/api/vendor/customers/route.ts
  * @description BFF aggregation endpoint for web-merchant /customers (vendor-scoped, read-only).
- * Follows docs/BFF-pattern.md: backend owns userId -> vendors.user -> merchants.vendor
+ * Follows docs/BFF-pattern.md: backend derives vendors.user -> merchants.vendor
  * resolution, joins, filtering, pagination and sanitization with overrideAccess:true.
  *
- * GET /api/vendor/customers?userId=&page=&limit=&search=&outletId=&sort=
+ * GET /api/vendor/customers?page=&limit=&search=&outletId=&sort=
  *     -> { docs, pagination, stats, meta }
  *
  * Merchant differences vs admin BFF (admin/customers): scope is limited to customers
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     if (!authUser) return NextResponse.json({ error: 'Unauthorized: vendor authentication required' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId') || String(authUser.id)
+    const userId = String(authUser.id)
 
     const { vendor, vendorId, merchantIds, merchants } = await resolveVendorContext(payload, userId)
     if (!vendor || vendorId == null) {

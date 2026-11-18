@@ -60,7 +60,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
   const hasActiveTagsChild = dropdownActive(pathname, '/catalog/tags') || dropdownActive(pathname, '/catalog/tag-groups');
 
   const hasActivePromotionsChild = dropdownActive(pathname, '/promotions') || dropdownActive(pathname, '/coupons');
-  const hasActiveCustomerActivityChild = dropdownActive(pathname, '/activity');
+  const hasActiveCustomerActivityChild = dropdownActive(pathname, '/activity') || dropdownActive(pathname, '/settings/audit');
   const hasActivePlatformConfigChild = dropdownActive(pathname, '/settings/configuration');
 
   React.useEffect(() => { if (hasActiveVendorsChild) setIsVendorsExpanded(true); }, [hasActiveVendorsChild]);
@@ -94,12 +94,13 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
       <div className="p-3 pb-20">
         <nav className="space-y-4">
 
-          {/* Dashboard & Analytics */}
+          {/* Overview */}
           <div className="space-y-1">
-            <SidebarSectionLabel isOpen={expanded}>Dashboard & Analytics</SidebarSectionLabel>
+            <SidebarSectionLabel isOpen={expanded}>Overview</SidebarSectionLabel>
             <SidebarItem icon="dashboard" label="Overview" active={exactActive(pathname, '/dashboard/overview') || exactActive(pathname, '/')} collapsed={!expanded} href="/dashboard/overview" />
             <SidebarItem icon="analytics" label="Analytics" active={dropdownActive(pathname, '/dashboard/analytics')} collapsed={!expanded} href="/dashboard/analytics" />
             <SidebarItem icon="reports" label="Reports" active={dropdownActive(pathname, '/dashboard/reports')} collapsed={!expanded} href="/dashboard/reports" />
+            <SidebarItem icon="orders" label="All Orders" active={exactActive(pathname, '/orders')} collapsed={!expanded} href="/orders" prefetch={true} />
           </div>
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
@@ -143,9 +144,9 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
 
             <SidebarItem icon="products" label="Products" active={dropdownActive(pathname, '/products')} collapsed={!expanded} href="/products" prefetch={true} />
 
-            <SidebarItem icon="products" label="Grouped Items" active={dropdownActive(pathname, '/catalog/grouped-items')} collapsed={!expanded} href="/catalog/grouped-items" />
-
             <SidebarItem icon="categories" label="Product Categories" active={dropdownActive(pathname, '/product-categories')} collapsed={!expanded} href="/product-categories" prefetch={true} />
+
+            <SidebarItem icon="tags" label="Attributes" active={dropdownActive(pathname, '/catalog/attributes')} collapsed={!expanded} href="/catalog/attributes" />
 
             <SidebarDropdownGroup
               icon="tags"
@@ -158,19 +159,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
               {renderChildLink({ label: 'Product Tags', href: '/catalog/tags', isActive: dropdownActive(pathname, '/catalog/tags') })}
               {renderChildLink({ label: 'Tag Groups', href: '/catalog/tag-groups', isActive: dropdownActive(pathname, '/catalog/tag-groups') })}
             </SidebarDropdownGroup>
-          </div>
-
-          {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
-
-          {/* Orders */}
-          <div className="space-y-1">
-            <SidebarSectionLabel isOpen={expanded}>Orders</SidebarSectionLabel>
-
-            <SidebarItem icon="orders" label="All Orders" active={exactActive(pathname, '/orders')} collapsed={!expanded} href="/orders" prefetch={true} />
-
-            <SidebarItem icon="pages" label="Order Items" active={dropdownActive(pathname, '/order-items')} collapsed={!expanded} href="/order-items" />
-
-
           </div>
 
           {expanded && <hr className="border-gray-200 dark:border-[#262626]" />}
@@ -223,6 +211,7 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
               {renderChildLink({ label: 'Wishlists', href: '/activity/wishlists', isActive: dropdownActive(pathname, '/activity/wishlists') })}
               {renderChildLink({ label: 'Recent Searches', href: '/activity/searches', isActive: dropdownActive(pathname, '/activity/searches') })}
               {renderChildLink({ label: 'Recently Viewed', href: '/activity/views', isActive: dropdownActive(pathname, '/activity/views') })}
+              {renderChildLink({ label: 'User Events / Audit Logs', href: '/settings/audit', isActive: dropdownActive(pathname, '/settings/audit') })}
             </SidebarDropdownGroup>
 
             <SidebarItem
@@ -234,7 +223,6 @@ export function Sidebar({ isOpen, onToggle: _onToggle, mobileOpen = false, onClo
             />
 
             <SidebarItem icon="security" label="Security" active={dropdownActive(pathname, '/settings/security')} collapsed={!expanded} href="/settings/security" />
-            <SidebarItem icon="audit" label="User Events / Audit Logs" active={dropdownActive(pathname, '/settings/audit')} collapsed={!expanded} href="/settings/audit" />
           </div>
 
         </nav>

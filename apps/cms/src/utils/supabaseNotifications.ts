@@ -5,7 +5,7 @@ import crypto from 'crypto'
 // Supabase Realtime Notifications - Server-side broadcaster
 //
 // Mirrors the pattern used by the grandline CMS: the CMS server pushes an
-// ephemeral broadcast to the user's private channel (`notifications:user:{id}`)
+// ephemeral broadcast to the user's notification channel (`notifications:user:{id}`)
 // over Supabase Realtime. Clients that are subscribed to that channel update
 // the notification bell instantly without polling.
 // ============================================================================
@@ -60,7 +60,10 @@ async function broadcast(
   await new Promise<void>((resolve) => {
     let finished = false
     let sendStarted = false
-    const timeout = setTimeout(() => finish(), 5000)
+    const timeout = setTimeout(() => {
+      console.error(`[SupabaseNotifications] Broadcast ${event} timed out before delivery`)
+      finish()
+    }, 5000)
 
     const finish = () => {
       if (finished) return
@@ -120,8 +123,8 @@ export interface BroadcastNotificationPayload {
 
 /**
  * Broadcast a notification event to a specific user via Supabase Realtime.
- * Delivery is fire-and-forget - if it fails, the persisted notification rows
- * are unaffected (the client reconciles via REST on next fetch).
+ * Delivery is best-effort - persisted notification rows remain available for
+ * the client's REST reconciliation if the Realtime broadcast fails.
  */
 export async function broadcastUserNotification(
   userId: string | number,
@@ -132,32 +135,10 @@ export async function broadcastUserNotification(
     if (!supabase) return
 
     const channelName = `notifications:user:${userId}`
-
-    const channel = supabase.channel(channelName, {
-      config: {
-        broadcast: {
-          self: true,
-        },
-      },
-    })
-
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'new_notification',
-          payload: {
-            type: 'new_notification',
-            notification,
-            timestamp: new Date().toISOString(),
-          },
-        })
-
-        // Cleanup after sending - the channel is ephemeral.
-        setTimeout(() => {
-          supabase.removeChannel(channel)
-        }, 1000)
-      }
+    await broadcast(channelName, 'new_notification', {
+      type: 'new_notification',
+      notification,
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
     console.error('[SupabaseNotifications] Failed to broadcast notification:', error)

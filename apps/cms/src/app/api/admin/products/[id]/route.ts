@@ -9,6 +9,7 @@ import configPromise from '@payload-config'
 import { authenticateAdmin } from '@/utils/mediaLibrary'
 import { withAdminRequestSlot } from '@/utils/adminRequestGate'
 import { bustProductsCache, getOrBuildDashboard } from '@/utils/dashboardCache'
+import { getProductTags, syncProductTags, validateProductTagIds } from '@/services/productTags'
 
 function sanitizeMediaRef(v: unknown): { id: number; url: string | null } | null {
   if (!v || typeof v !== 'object') return null
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         let doc: Record<string, any>
         try { doc = await payload.findByID({ collection: 'products', id: docId as number, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) { throw Object.assign(new Error('Product not found'), { status: 404, details: e?.message }) }
         if (!doc) throw Object.assign(new Error('Product not found'), { status: 404 })
-        return { doc: sanitizeDoc(doc) }
+        return { doc: { ...sanitizeDoc(doc), tags: await getProductTags(payload, Number(doc.id)) } }
       }),
     )
     return NextResponse.json(data, { headers: { 'X-Products-Cache': status } })
@@ -128,20 +129,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (body.createdByMerchant === null || body.createdByMerchant === '') patch.createdByMerchant = null
       else { const n = Number(body.createdByMerchant); if (Number.isNaN(n)) return NextResponse.json({ error: 'createdByMerchant must be numeric' }, { status: 400 }); patch.createdByMerchant = n }
     }
-    if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+    const tagsProvided = body.tags !== undefined
+    if (Object.keys(patch).length === 0 && !tagsProvided) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+    if (tagsProvided) {
+      try {
+        await validateProductTagIds(payload, Number(docId), body.tags)
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid product tags.' }, { status: 400 })
+      }
+    }
     // handle media nested structure: if patch.media exists, ensure correct shape
     if (patch.media && typeof patch.media.primaryImage !== 'undefined' && patch.media.primaryImage === null) {
       // keep null to clear
     }
 
     let updated: Record<string, any>
-    try { updated = await payload.update({ collection: 'products', id: docId as number, data: patch as any, depth: 2, overrideAccess: true }) as unknown as Record<string, any> } catch (e: any) {
+    try {
+      updated = Object.keys(patch).length
+        ? await payload.update({ collection: 'products', id: docId as number, data: patch as any, depth: 2, overrideAccess: true }) as unknown as Record<string, any>
+        : await payload.findByID({ collection: 'products', id: docId as number, depth: 2, overrideAccess: true }) as unknown as Record<string, any>
+      if (tagsProvided) await syncProductTags(payload, Number(docId), body.tags, { type: 'system' })
+    } catch (e: any) {
       const msg = e?.message || 'Failed to update product'
       const lower = String(msg).toLowerCase()
       if (lower.includes('unique') || lower.includes('duplicate')) return NextResponse.json({ error: 'Duplicate slug/sku: already exists', details: msg }, { status: 409 })
       return NextResponse.json({ error: msg, details: e?.data || e?.errors }, { status: 400 })
     }
-    const sanitized = sanitizeDoc(updated)
+    const sanitized = { ...sanitizeDoc(updated), tags: await getProductTags(payload, Number(docId)) }
     // Bust list cache so the update reflects immediately on /products.
     // Master names are embedded in the merchant-products aggregate, so bust that too.
     await bustProductsCache()

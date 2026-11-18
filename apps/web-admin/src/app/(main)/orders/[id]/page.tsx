@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useParams, useRouter, notFound } from 'next/navigation'
 import { ClientOnly } from '@/components/ClientOnly'
 import {
-  Receipt, ArrowLeft, Building, Store, MapPin, Phone, Mail, Clock, Tag, CalendarDays,
+  Receipt, ArrowLeft, Building, Store, MapPin, Phone, Mail, Clock, Tag, CalendarDays, FileText,
   AlertCircle, CheckCircle, Truck, Package, CreditCard, History, Ticket, Star, Pencil,
 } from '@/components/ui/IconWrapper'
 
@@ -135,16 +136,28 @@ function OrderViewContent(){
   const customerName = doc.customer?.user ? `${doc.customer.user.firstName} ${doc.customer.user.lastName}`.trim() || doc.customer.email : doc.customer?.email || '—'
 
   return (
-    <div className="space-y-6 py-5 px-2.5">
-      <button onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/orders'))} className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white">
+    <div className="order-print-root space-y-6 py-5 px-2.5">
+      <div className="print-brand hidden items-center gap-3">
+        <Image src="/logo.png" alt="Tap2Go" width={52} height={52} className="h-12 w-12 object-contain" />
+        <div>
+          <p className="text-lg font-bold text-gray-900">Tap2Go</p>
+          <p className="text-xs text-gray-500">Order details</p>
+        </div>
+      </div>
+      <button onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/orders'))} className="print-hide inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center shrink-0">
+          <div className="print-hide h-12 w-12 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center shrink-0">
             <Receipt className="w-6 h-6" />
           </div>
+          {doc.merchant?.vendor?.logo?.url && (
+            <div className="print-vendor-logo hidden h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white p-1">
+              <Image src={doc.merchant.vendor.logo.url} alt={`${doc.merchant.vendor.businessName} logo`} width={48} height={48} unoptimized className="h-full w-full object-contain" />
+            </div>
+          )}
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
               {doc.orderNumber || `#${doc.id}`}
@@ -153,7 +166,10 @@ function OrderViewContent(){
             <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">{doc.merchant?.outletName || '—'} • {doc.fulfillment_type} • {fmtDateTime(doc.placed_at)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="print-hide flex items-center gap-2">
+          <button onClick={() => window.print()} title="Print or save this order as a PDF" className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl text-sm font-medium text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-50">
+            <FileText className="w-4 h-4" /> Print / Save PDF
+          </button>
           <Link href={`/orders/${doc.id}/edit`} className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition"><Pencil className="w-4 h-4" /> Edit</Link>
           <Link href="/orders" className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl text-sm font-medium text-gray-700 dark:text-[#a1a1aa] hover:bg-gray-50">Close</Link>
         </div>

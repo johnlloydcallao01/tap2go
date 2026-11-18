@@ -988,6 +988,7 @@ export default function OrderDetailScreen() {
   const activeIdx = getActiveStepIndex(
     delivery?.status || order.delivery_status || order.status || 'pending',
   );
+  const initialOrderStatus = order.status === 'accepted' ? 'accepted' : 'pending';
   const deliveryFee = order.delivery_fee ?? delivery?.delivery_fee ?? 0;
   const priorityFee = order.priorityFee ?? delivery?.priority_fee ?? 0;
   const totalDeliveryFee = deliveryFee + priorityFee;
@@ -1231,7 +1232,7 @@ export default function OrderDetailScreen() {
             { borderLeftColor: getStatusColor(isDeliveryCancelled
               ? 'canceled'
               : (order.status === 'pending' || order.status === 'accepted')
-                ? (order.isPaid ? 'accepted' : 'pending')
+                ? initialOrderStatus
                 : (delivery?.status || order.delivery_status || order.status || 'pending')) },
           ]}
         >
@@ -1241,7 +1242,7 @@ export default function OrderDetailScreen() {
               { backgroundColor: getStatusColor(isDeliveryCancelled
                 ? 'canceled'
                 : (order.status === 'pending' || order.status === 'accepted')
-                  ? (order.isPaid ? 'accepted' : 'pending')
+                  ? initialOrderStatus
                   : (delivery?.status || order.delivery_status || order.status || 'pending')) },
             ]}
           />
@@ -1249,10 +1250,10 @@ export default function OrderDetailScreen() {
             <Text style={styles.statusText}>
               {isDeliveryCancelled
                 ? deliveryCancelledTitle
-                : !order.isPaid && order.paymentStatus === 'failed'
+                : order.status !== 'accepted' && !order.isPaid && order.paymentStatus === 'failed'
                   ? 'Payment failed'
                 : (order.status === 'pending' || order.status === 'accepted')
-                  ? (order.isPaid ? 'Accepted' : 'Pending')
+                  ? (initialOrderStatus === 'accepted' ? 'Accepted' : 'Pending')
                   : formatStatus(delivery?.status || order.delivery_status || order.status || 'pending')}
             </Text>
             {order.placed_at && (
@@ -1492,7 +1493,7 @@ export default function OrderDetailScreen() {
                     isActive && { color: '#111827', fontWeight: isCurrent ? '700' : '500' },
                   ]}
                 >
-                  {idx === 0 ? (order.isPaid ? 'Accepted' : 'Pending') : step.label}
+                  {idx === 0 ? (initialOrderStatus === 'accepted' ? 'Accepted' : 'Pending') : step.label}
                 </Text>
               </View>
             );

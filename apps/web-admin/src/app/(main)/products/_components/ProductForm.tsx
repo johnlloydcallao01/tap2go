@@ -27,6 +27,7 @@ type ProductDoc = {
   isActive: boolean
   catalogVisibility: string
   categories: { id: number; name: string; slug: string }[]
+  tags?: ProductTag[]
   shortDescription: string | null
   description: any
   primaryImage: { id: number; url: string | null } | null
@@ -34,12 +35,16 @@ type ProductDoc = {
   assign_to_all_vendor_merchants: boolean
 }
 
+type ProductTag = { id: number; name: string; slug: string; tag_type: string; color: string | null; is_active: boolean }
+
 export function ProductForm({ initial, onSuccess, onCancel }: { initial?: ProductDoc | null; onSuccess: () => void; onCancel: () => void }) {
   const isEdit = !!initial
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [vendors, setVendors] = useState<{ id: number; businessName: string }[]>([])
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
+  const [tags, setTags] = useState<ProductTag[]>(initial?.tags || [])
+  const [tagsLoadError, setTagsLoadError] = useState<string | null>(null)
   const [primaryImageId, setPrimaryImageId] = useState<string | number | undefined>(initial?.primaryImage?.id)
 
   const [form, setForm] = useState({
@@ -51,12 +56,45 @@ export function ProductForm({ initial, onSuccess, onCancel }: { initial?: Produc
     basePrice: initial?.basePrice != null ? String(initial.basePrice) : '',
     compareAtPrice: initial?.compareAtPrice != null ? String(initial.compareAtPrice) : '',
     categories: initial?.categories?.map(c => String(c.id)) || [],
+    tags: initial?.tags?.map(tag => String(tag.id)) || [],
     shortDescription: initial?.shortDescription || '',
     isActive: initial?.isActive ?? true,
     catalogVisibility: initial?.catalogVisibility || 'visible',
     assign_to_all_vendor_merchants: initial?.assign_to_all_vendor_merchants ?? true,
   })
   const set = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }))
+
+  useEffect(() => {
+    if (!isEdit) return
+    let active = true
+    async function loadTags() {
+      try {
+        const docs: ProductTag[] = []
+        let page = 1
+        let totalPages = 1
+        do {
+          const response = await fetch(`/api/catalog/tags?page=${page}&limit=100`, { cache: 'no-store' })
+          const data = await response.json()
+          if (!response.ok) throw new Error(data.error || 'Failed to load product tags.')
+          if (Array.isArray(data.docs)) docs.push(...data.docs)
+          totalPages = Number.isInteger(data.pagination?.totalPages) ? data.pagination.totalPages : 1
+          page += 1
+        } while (page <= totalPages)
+
+        if (!active) return
+        const options = new Map<number, ProductTag>()
+        for (const tag of [...docs, ...(initial?.tags || [])]) {
+          if (Number.isSafeInteger(Number(tag.id)) && tag.name) options.set(Number(tag.id), { ...tag, id: Number(tag.id) })
+        }
+        setTags(Array.from(options.values()))
+        setTagsLoadError(null)
+      } catch (loadError) {
+        if (active) setTagsLoadError(loadError instanceof Error ? loadError.message : 'Failed to load product tags.')
+      }
+    }
+    void loadTags()
+    return () => { active = false }
+  }, [initial?.tags, isEdit])
 
   useEffect(() => {
     fetch('/api/vendors?limit=100', { cache: 'no-store' })
@@ -91,6 +129,7 @@ export function ProductForm({ initial, onSuccess, onCancel }: { initial?: Produc
       basePrice: initial.basePrice != null ? String(initial.basePrice) : '',
       compareAtPrice: initial.compareAtPrice != null ? String(initial.compareAtPrice) : '',
       categories: initial.categories?.map(c => String(c.id)) || [],
+      tags: initial.tags?.map(tag => String(tag.id)) || [],
       shortDescription: initial.shortDescription || '',
       isActive: initial.isActive ?? true,
       catalogVisibility: initial.catalogVisibility || 'visible',
@@ -110,9 +149,13 @@ export function ProductForm({ initial, onSuccess, onCancel }: { initial?: Produc
   const toggleCategory = (id: string) => {
     setForm(p => ({ ...p, categories: p.categories.includes(id) ? p.categories.filter(x => x !== id) : [...p.categories, id] }))
   }
+  const toggleTag = (id: string) => {
+    setForm(p => ({ ...p, tags: p.tags.includes(id) ? p.tags.filter(x => x !== id) : [...p.tags, id] }))
+  }
 
   const submit = async () => {
     setError(null)
+    if (isEdit && tagsLoadError) return setError(`Unable to load product tags: ${tagsLoadError}`)
     if (!form.name.trim() || form.name.trim().length < 2) return setError('Name is required (min 2 chars)')
     if (!form.vendor) return setError('Vendor is required — product must belong to a vendor')
     if (form.productType === 'simple' && (!form.basePrice || Number.isNaN(Number(form.basePrice)) || Number(form.basePrice) < 0)) return setError('Base price is required for simple products and must be >= 0')
@@ -130,6 +173,7 @@ export function ProductForm({ initial, onSuccess, onCancel }: { initial?: Produc
         isActive: !!form.isActive,
         shortDescription: form.shortDescription.trim() || null,
         categories: form.categories.length ? form.categories.map(v => Number(v)) : null,
+        ...(isEdit ? { tags: form.tags.map(Number) } : {}),
         basePrice: form.basePrice !== '' ? Number(form.basePrice) : null,
         compareAtPrice: form.compareAtPrice !== '' ? Number(form.compareAtPrice) : null,
         assign_to_all_vendor_merchants: !!form.assign_to_all_vendor_merchants,
@@ -207,6 +251,35 @@ export function ProductForm({ initial, onSuccess, onCancel }: { initial?: Produc
             ) : <p className="text-sm text-gray-500">No categories found — create product categories first.</p>}
           </div>
         </div>
+
+        {isEdit && (
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><Tag className="w-4 h-4 text-blue-600" /> Product tags</h4>
+            <div className="rounded-xl border border-gray-200 p-3 dark:border-[#262626]">
+              {tags.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map(tag => {
+                    const selected = form.tags.includes(String(tag.id))
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(String(tag.id))}
+                        aria-pressed={selected}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 dark:border-[#262626] dark:bg-[#0a0a0a] dark:text-[#a1a1aa]'}`}
+                      >
+                        {tag.name}{!tag.is_active ? ' (inactive)' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">{tagsLoadError || 'No product tags are available.'}</p>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Select the product tags that describe this item.</p>
+          </div>
+        )}
 
         <div>
           <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><ImageIcon className="w-4 h-4 text-[#eba236]" /> Media</h4>

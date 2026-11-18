@@ -9,7 +9,7 @@ import { QUERY_KEYS } from '@encreasl/client-services'
 import { useMerchantProducts } from '@/hooks/useMerchantProducts'
 import {
   Package, Search, X, Plus, RefreshCw, AlertCircle,
-  Store, ChevronRight, Layers, Tag, Building, ShieldCheck, CheckCircle
+  Store, ChevronRight, Layers, Tag, Building, ShieldCheck, CheckCircle, Eye, Pencil, Trash2
 } from 'lucide-react'
 
 const APPROVAL_STATUS_OPTS = [
@@ -62,6 +62,9 @@ export function ProductsPageContent(){
   const [page,setPage]=useState(1)
   const [openApprovalProductId,setOpenApprovalProductId]=useState<number|null>(null)
   const [updatingApprovalProductId,setUpdatingApprovalProductId]=useState<number|null>(null)
+  const [deleteTarget,setDeleteTarget]=useState<{id:number;name:string}|null>(null)
+  const [deletingProduct,setDeletingProduct]=useState(false)
+  const [deleteProductError,setDeleteProductError]=useState<string|null>(null)
   const limit=10
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(q.trim().toLowerCase()),400); return()=>clearTimeout(t)},[q])
@@ -120,6 +123,28 @@ export function ProductsPageContent(){
     }
   }
 
+  const deleteMasterProduct=async()=>{
+    if(!deleteTarget||deletingProduct) return
+    setDeletingProduct(true)
+    setDeleteProductError(null)
+    try{
+      const res=await fetch(`/api/products/${deleteTarget.id}`,{method:'DELETE'})
+      const result=await res.json().catch(()=>({}))
+      if(!res.ok) throw new Error(result.error||result.details||'Failed to delete product')
+      setOpenApprovalProductId(null)
+      setDeleteTarget(null)
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:QUERY_KEYS.adminMerchantProducts().slice(0,2)}),
+        queryClient.invalidateQueries({queryKey:QUERY_KEYS.adminProducts().slice(0,2)}),
+      ])
+      await refetch()
+    }catch(cause){
+      setDeleteProductError(cause instanceof Error?cause.message:'Failed to delete product')
+    }finally{
+      setDeletingProduct(false)
+    }
+  }
+
   const avgPerOutlet = stats && stats.totalMerchants ? Math.round(stats.totalMerchantProducts / stats.totalMerchants) : 0
   const switchView=(nextView:'merchants'|'all')=>{
     setPage(1)
@@ -136,7 +161,7 @@ export function ProductsPageContent(){
           </h1>
           <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">{isAllView?'Browse product assignments across all merchant outlets.':'Outlets → Merchant Products. Select an outlet to view its products.'}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 dark:border-[#262626] dark:bg-[#171717]" role="group" aria-label="Product browsing scope">
             <button type="button" onClick={()=>switchView('merchants')} aria-pressed={!isAllView} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${!isAllView?'bg-[#eba236] text-white':'text-gray-600 hover:bg-gray-100 dark:text-[#a1a1aa] dark:hover:bg-[#262626]'}`}>Merchants</button>
             <button type="button" onClick={()=>switchView('all')} aria-pressed={isAllView} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${isAllView?'bg-[#eba236] text-white':'text-gray-600 hover:bg-gray-100 dark:text-[#a1a1aa] dark:hover:bg-[#262626]'}`}>All Merchants</button>
@@ -145,7 +170,10 @@ export function ProductsPageContent(){
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading?'animate-spin':''}`} />
           </button>
           <Link href="/products/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#eba236] hover:bg-[#c88a20] text-white rounded-xl text-sm font-semibold shadow-sm transition">
-            <Plus className="w-4 h-4" /> New Merchant Product
+            <Plus className="w-4 h-4" /> Create Product
+          </Link>
+          <Link href="/products/assign" className="inline-flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] hover:bg-gray-50 dark:hover:bg-[#262626] text-gray-700 dark:text-gray-200 rounded-xl text-sm font-semibold transition">
+            <Building className="w-4 h-4" /> Assign Existing
           </Link>
         </div>
       </div>
@@ -227,7 +255,14 @@ export function ProductsPageContent(){
                         <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${row.isActive&&row.isAvailable?'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300':'bg-gray-100 text-gray-600 dark:bg-[#262626] dark:text-[#a1a1aa]'}`}>{row.isActive&&row.isAvailable?'Active':'Inactive'}</span><p className="mt-1 text-xs text-gray-500">Catalog: {row.product?.approvalStatus||'pending'}</p></td>
                         <td className="px-4 py-3 text-right">
                           {row.product?(
-                            <div className="relative inline-block text-left">
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <Link href={`/products/${row.product.id}`} aria-label={`View ${row.product.name}`} title="View product" className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-[#a1a1aa] dark:hover:bg-[#262626] dark:hover:text-white">
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                              <Link href={`/products/${row.product.id}/edit`} aria-label={`Edit ${row.product.name}`} title="Edit product" className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:text-[#a1a1aa] dark:hover:bg-blue-900/20">
+                                <Pencil className="h-4 w-4" />
+                              </Link>
+                              <div className="relative inline-block text-left">
                               <button
                                 type="button"
                                 onClick={()=>setOpenApprovalProductId(current=>current===row.product!.id?null:row.product!.id)}
@@ -266,6 +301,17 @@ export function ProductsPageContent(){
                                   ))}
                                 </div>
                               )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={()=>{setOpenApprovalProductId(null);setDeleteProductError(null);setDeleteTarget({id:row.product!.id,name:row.product!.name})}}
+                                aria-label={`Delete ${row.product.name}`}
+                                title="Delete product and all outlet listings"
+                                disabled={deletingProduct}
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-[#a1a1aa] dark:hover:bg-red-900/20"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </div>
                           ):<span className="text-xs text-gray-400">Unavailable</span>}
                         </td>
@@ -311,6 +357,24 @@ export function ProductsPageContent(){
           </>
         )}
       </div>
+      {deleteTarget&&(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={()=>{if(!deletingProduct)setDeleteTarget(null)}}>
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-product-title" className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-[#262626] dark:bg-[#171717]" onClick={event=>event.stopPropagation()}>
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20"><Trash2 className="h-6 w-6 text-red-600" /></div>
+            <h2 id="delete-product-title" className="font-bold text-gray-900 dark:text-white">Delete product?</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-[#a1a1aa]">
+              This permanently deletes <span className="font-semibold text-gray-900 dark:text-white">{deleteTarget.name}</span> and removes its outlet listings and linked catalog configuration.
+            </p>
+            {deleteProductError&&<div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{deleteProductError}</div>}
+            <div className="mt-6 flex gap-2">
+              <button onClick={()=>setDeleteTarget(null)} disabled={deletingProduct} className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-[#262626] dark:text-[#a1a1aa] dark:hover:bg-[#262626]">Cancel</button>
+              <button onClick={()=>void deleteMasterProduct()} disabled={deletingProduct} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                {deletingProduct&&<RefreshCw className="h-4 w-4 animate-spin" />}{deletingProduct?'Deleting…':'Confirm delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,11 +1,16 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { Pencil, XCircle } from 'lucide-react'
 import { ClientOnly } from '@/components/ClientOnly'
+import { useNotifications } from '@/contexts/NotificationsContext'
+import { getEffectiveOrderStatus, getOrderStatusLabel } from '@/utils/orderStatus'
 import {
   ShoppingBag, Clock, Package, CheckCircle, DollarSign, Store, MapPin, Search, X,
-  SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle, Truck, Store as OutletIcon
+  SlidersHorizontal, ChevronDown, RefreshCw, AlertCircle, Truck, Store as OutletIcon,
+  Eye, Plus, Trash2
 } from '@/components/ui/IconWrapper'
 
 type OrderDoc = {
@@ -23,6 +28,7 @@ type OrderDoc = {
   free_delivery_applied: boolean
   placed_at: string | null
   notes: string | null
+  isPaid: boolean
   lalamove: { orderId: string | null; serviceType: string; status: string; trackingLink: string | null }
   merchant: { id: number; outletName: string; outletCode: string; isActive: boolean | null } | null
   customer: { id: number; email: string; firstName: string; lastName: string } | null
@@ -58,19 +64,21 @@ const FULFILL_OPTS = [
 const DELIVERY_OPTS = [
   { value: 'pending', label: 'Pending' },
   { value: 'assigning_driver', label: 'Assigning Driver' },
-  { value: 'driver_assigned', label: 'Driver Assigned' },
+  { value: 'driver_assigned', label: 'On Going' },
   { value: 'picked_up', label: 'Picked Up' },
   { value: 'completed', label: 'Completed' },
   { value: 'canceled', label: 'Canceled' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'expired', label: 'Expired' },
 ]
 
 function statusBadge(s: string) {
   const v = (s || '').toLowerCase()
-  if (v === 'delivered') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
+  if (v === 'delivered' || v === 'completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
   if (v === 'pending') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
-  if (v === 'cancelled') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
-  if (v === 'on_delivery') return 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-800'
-  if (v === 'preparing') return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800'
+  if (['cancelled', 'canceled', 'rejected', 'expired'].includes(v)) return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+  if (v === 'on_delivery' || v === 'picked_up' || v === 'driver_assigned') return 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-800'
+  if (v === 'preparing' || v === 'assigning_driver') return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800'
   if (v === 'accepted') return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
   if (v === 'ready_for_pickup') return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800'
   return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-[#262626] dark:text-[#a1a1aa] dark:border-[#262626]'
@@ -86,7 +94,7 @@ function deliveryBadge(s: string | null) {
   if (v === 'completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
   if (v === 'none') return 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-[#262626] dark:text-[#a1a1aa] dark:border-[#262626]'
   if (v === 'picked_up' || v === 'driver_assigned') return 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-800'
-  if (v === 'canceled' || v === 'expired') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+  if (v === 'canceled' || v === 'cancelled' || v === 'rejected' || v === 'expired') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
   return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
 }
 function fmtPeso(v: number) {
@@ -159,6 +167,7 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
 }
 
 function OrdersContent() {
+  const notifications = useNotifications()
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string[]>([])
@@ -175,6 +184,11 @@ function OrdersContent() {
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<OrderDoc | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [statusActionError, setStatusActionError] = useState<string | null>(null)
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null)
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQ(q.trim()), 400)
@@ -224,6 +238,78 @@ function OrdersContent() {
     void load()
   }, [debouncedQ, statusFilter, fulfillFilter, deliveryFilter, discountFilter, sort, page])
 
+  const deleteOrder = async () => {
+    if (!deleting || isDeleting) return
+    setIsDeleting(true)
+    setDeleteError(null)
+    try {
+      const response = await fetch(`/api/orders/${deleting.id}`, { method: 'DELETE' })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Failed to delete order')
+      setDeleting(null)
+      if (filtered.length === 1 && page > 1) setPage((current) => Math.max(1, current - 1))
+      else await load()
+    } catch (failure) {
+      setDeleteError(failure instanceof Error ? failure.message : 'Failed to delete order')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const toggleOrderStatus = async (order: OrderDoc) => {
+    if (statusUpdatingId !== null) return
+    const nextStatus = order.status.toLowerCase() === 'pending' ? 'accepted' : 'pending'
+    setStatusUpdatingId(order.id)
+    setStatusActionError(null)
+    try {
+      const response = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: nextStatus,
+          description: nextStatus === 'accepted' ? 'Vendor accepted the order' : 'Vendor returned the order to pending',
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Failed to update order status')
+      if (nextStatus === 'accepted') await notifications?.markOrderAsSeen(order.id)
+      await load()
+    } catch (failure) {
+      setStatusActionError(failure instanceof Error ? failure.message : 'Failed to update order status')
+    } finally {
+      setStatusUpdatingId(null)
+    }
+  }
+
+  const cancelOrder = async (order: OrderDoc) => {
+    if (statusUpdatingId !== null) return
+    const deliveryCancellation = order.fulfillment_type === 'delivery'
+    const details = deliveryCancellation
+      ? 'If a Lalamove delivery is active, cancellation is subject to provider rules and may adjust the delivery fee.'
+      : 'This action cannot be undone.'
+    if (!window.confirm(`Cancel ${order.orderNumber}? ${details}`)) return
+
+    setStatusUpdatingId(order.id)
+    setStatusActionError(null)
+    try {
+      const response = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          description: 'Vendor cancelled the order',
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Failed to cancel order')
+      await load()
+    } catch (failure) {
+      setStatusActionError(failure instanceof Error ? failure.message : 'Failed to cancel order')
+    } finally {
+      setStatusUpdatingId(null)
+    }
+  }
+
   const toggleFilter = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (v: string) =>
     setter((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
 
@@ -265,16 +351,21 @@ function OrdersContent() {
             <span className="h-8 w-8 rounded-lg bg-[#eba236] text-white flex items-center justify-center"><ShoppingBag className="w-4 h-4" /></span>
             All Orders
           </h1>
-          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">Orders placed across your outlets, with live status and verified revenue (read-only).</p>
+          <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">View and manage orders placed across your outlets.</p>
         </div>
-        <button
-          onClick={() => void load({ hard: true })}
-          disabled={loading}
-          aria-label="Refresh orders"
-          className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void load({ hard: true })}
+            disabled={loading}
+            aria-label="Refresh orders"
+            className="h-9 w-9 inline-flex items-center justify-center bg-white dark:bg-[#171717] border border-gray-200 dark:border-[#262626] rounded-xl hover:bg-gray-50 dark:hover:bg-[#262626] disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-[#a1a1aa] ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <Link href="/orders/new" className="inline-flex items-center gap-2 rounded-xl bg-[#eba236] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#c88a20]">
+            <Plus className="h-4 w-4" /> New order
+          </Link>
+        </div>
       </div>
 
       {stats ? (
@@ -337,6 +428,12 @@ function OrdersContent() {
         )}
       </div>
 
+      {statusActionError && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+          {statusActionError}
+        </p>
+      )}
+
       <div className="bg-white dark:bg-[#171717] rounded-xl border border-gray-200 dark:border-[#262626] shadow-sm overflow-hidden">
         {error ? (
           <div className="flex flex-col items-center justify-center py-16 px-6">
@@ -369,6 +466,7 @@ function OrdersContent() {
                     <th className="text-left px-4 py-3 font-medium hidden xl:table-cell">Delivery</th>
                     <th className="text-right px-4 py-3 font-medium">Total</th>
                     <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Placed</th>
+                    <th className="text-right px-4 py-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-[#262626]">
@@ -376,6 +474,17 @@ function OrdersContent() {
                     const fulfillment = o.fulfillment_type || 'delivery'
                     const placed = o.placed_at || o.createdAt
                     const total = o.total ?? 0
+                    const effectiveStatus = getEffectiveOrderStatus(o.fulfillment_type, o.status, o.lalamove.status)
+                    const normalizedStatus = o.status.toLowerCase()
+                    const canQuickToggleStatus = ['pending', 'accepted'].includes(normalizedStatus)
+                      && (fulfillment !== 'delivery' || ['none', 'pending'].includes(o.lalamove.status.toLowerCase()))
+                    const canQuickCancelOrder =
+                      !['delivered', 'cancelled'].includes(normalizedStatus)
+                      && (
+                        fulfillment !== 'delivery'
+                        || ['none', 'pending', 'assigning_driver'].includes(o.lalamove.status.toLowerCase())
+                      )
+                    const nextStatus = normalizedStatus === 'pending' ? 'accepted' : 'pending'
                     return (
                       <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-[#0a0a0a]/50 transition">
                         <td className="px-4 py-3">
@@ -400,15 +509,56 @@ function OrdersContent() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusBadge(o.status)}`}>{o.status.replace('_', ' ')}</span>
+                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border ${statusBadge(effectiveStatus)}`}>{getOrderStatusLabel(effectiveStatus)}</span>
                         </td>
                         <td className="px-4 py-3 hidden xl:table-cell">
                           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border capitalize ${deliveryBadge(o.lalamove.status)}`}>
-                            <MapPin className="w-3 h-3" /> {o.lalamove.status.replace('_', ' ')}
+                            <MapPin className="w-3 h-3" /> {getOrderStatusLabel(o.lalamove.status)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">{fmtPeso(total)}</td>
                         <td className="px-4 py-3 hidden md:table-cell text-xs text-gray-500 dark:text-[#a1a1aa]">{fmtDate(placed)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            {canQuickToggleStatus && (
+                              <button
+                                onClick={() => void toggleOrderStatus(o)}
+                                disabled={statusUpdatingId !== null}
+                                aria-label={`${nextStatus === 'accepted' ? 'Accept' : 'Set to pending'} ${o.orderNumber}`}
+                                title={nextStatus === 'accepted' ? 'Accept order' : 'Set order to pending'}
+                                className={`inline-flex h-8 w-8 items-center justify-center rounded-lg disabled:cursor-not-allowed disabled:opacity-50 ${nextStatus === 'accepted' ? 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20' : 'text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}
+                              >
+                                {statusUpdatingId === o.id
+                                  ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                  : nextStatus === 'accepted'
+                                    ? <CheckCircle className="h-4 w-4" />
+                                    : <Clock className="h-4 w-4" />}
+                              </button>
+                            )}
+                            {canQuickCancelOrder && (
+                              <button
+                                onClick={() => void cancelOrder(o)}
+                                disabled={statusUpdatingId !== null}
+                                aria-label={`Cancel ${o.orderNumber}`}
+                                title="Cancel order"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                              >
+                                {statusUpdatingId === o.id
+                                  ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                  : <XCircle className="h-4 w-4" />}
+                              </button>
+                            )}
+                            <Link href={`/orders/${o.id}`} aria-label={`View ${o.orderNumber}`} title="View" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-[#a1a1aa] dark:hover:bg-[#262626]">
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                            <Link href={`/orders/${o.id}/edit`} aria-label={`Edit ${o.orderNumber}`} title="Edit" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:text-[#a1a1aa] dark:hover:bg-blue-900/20">
+                              <Pencil className="h-4 w-4" />
+                            </Link>
+                            <button onClick={() => { setDeleting(o); setDeleteError(null) }} aria-label={`Delete ${o.orderNumber}`} title="Delete" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-[#a1a1aa] dark:hover:bg-red-900/20">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}
@@ -433,6 +583,22 @@ function OrdersContent() {
           </>
         )}
       </div>
+
+      {deleting && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!isDeleting) setDeleting(null) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-order-title" className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-[#262626] dark:bg-[#171717]" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20"><Trash2 className="h-6 w-6 text-red-600" /></div>
+            <h2 id="delete-order-title" className="font-bold text-gray-900 dark:text-white">Delete order permanently?</h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-[#a1a1aa]">This will permanently delete order <span className="font-semibold">{deleting.orderNumber}</span> and its dependent records. Orders with paid or refunded transactions are protected.</p>
+            {deleteError && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
+            <div className="mt-6 flex gap-2">
+              <button onClick={() => setDeleting(null)} disabled={isDeleting} className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium disabled:opacity-50 dark:border-[#262626]">Keep order</button>
+              <button onClick={() => void deleteOrder()} disabled={isDeleting} className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{isDeleting ? 'Deleting…' : 'Delete permanently'}</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       <div className="rounded-xl border border-gray-200 dark:border-[#262626] bg-white dark:bg-[#171717] p-4 text-xs text-gray-500 dark:text-[#a1a1aa]">
         Revenue reflects <span className="font-semibold text-gray-700 dark:text-white">verified paid transactions</span> only, matching your dashboard analytics — never raw order totals. Fulfillment and delivery statuses update automatically as riders and outlets progress the order.
