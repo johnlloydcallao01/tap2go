@@ -18,7 +18,7 @@ import { submitInitialLalamovePriorityFee } from '../services/initialLalamovePri
 type FulfillmentCallbacks = {
   requestId: string
   onRemarksPrepared: (remarks: string) => Promise<void>
-  onProviderSubmissionStarted: () => void
+  onProviderSubmissionStarted: () => Promise<void>
   onProviderAccepted: (lalamoveOrderId: string) => Promise<void>
 }
 
@@ -378,7 +378,7 @@ export const deliveryBookHandler = async (
     if (fulfillment) {
       await fulfillment.onRemarksPrepared(remarks)
     }
-    fulfillment.onProviderSubmissionStarted()
+    await fulfillment.onProviderSubmissionStarted()
     const lalamoveOrder = await provider.placeOrder({
       quotation,
       senderName,

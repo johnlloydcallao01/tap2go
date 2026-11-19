@@ -81,6 +81,7 @@ import { Transactions } from './collections/Transactions'
 import { OrderTracking } from './collections/OrderTracking'
 import { DriverAssignments } from './collections/DriverAssignments'
 import { DeliveryBookings } from './collections/DeliveryBookings'
+import { DeliveryLocationHistory } from './collections/DeliveryLocationHistory'
 import { DeliveryFulfillmentOutbox } from './collections/DeliveryFulfillmentOutbox'
 import { DeliveryFulfillmentAttempts } from './collections/DeliveryFulfillmentAttempts'
 import { OrderDiscounts } from './collections/OrderDiscounts'
@@ -167,6 +168,7 @@ export default buildConfig({
     OrderTracking,
     DriverAssignments,
     DeliveryBookings,
+    DeliveryLocationHistory,
     DeliveryFulfillmentOutbox,
     DeliveryFulfillmentAttempts,
     OrderDiscounts,

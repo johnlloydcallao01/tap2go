@@ -2,6 +2,7 @@
   "name": "@encreasl/cache",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Enterprise-level caching utilities with Upstash Redis for Encreasl monorepo",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

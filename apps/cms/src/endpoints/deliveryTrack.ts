@@ -1,8 +1,18 @@
 import { PayloadRequest } from 'payload'
 import { getDeliveryProvider, mapLalamoveStatus, mapToOrderStatus } from '../services/deliveryProviders'
 import type { LalamoveDriverDetails } from '../services/lalamoveClient'
+import { getDriverLocationTrail, recordDriverLocationSample } from '../services/deliveryLocationHistory'
 
 type AnyDoc = Record<string, any>
+
+function relationId(value: unknown): string | null {
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (typeof value === 'object' && value !== null && 'id' in value) {
+    const id = (value as { id?: unknown }).id
+    return typeof id === 'string' || typeof id === 'number' ? String(id) : null
+  }
+  return null
+}
 
 /**
  * GET /api/delivery/track?orderId=123
@@ -11,9 +21,8 @@ type AnyDoc = Record<string, any>
  * can render an in-app map without exposing the HMAC Lalamove API to clients.
  *
  * Fetches the order + driver from Lalamove (driver location refreshes every
- * ~10s), persists refreshed coords/status into delivery-bookings, and returns
- * a lightweight payload:
- *   { data: { deliveryStatus, driver, pickup, dropoff, distanceMeters, shareLink } }
+ * ~10s), persists refreshed coords/status into delivery-bookings, records
+ * sampled location history, and returns the trail with the current snapshot.
  */
 export const deliveryTrackHandler = async (req: PayloadRequest) => {
   try {
@@ -21,21 +30,48 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
       return Response.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const { orderId } = req.query as { orderId?: string }
+    const role = String(req.user.role || '')
+    if (!['customer', 'admin', 'service'].includes(role)) {
+      return Response.json({ error: 'Not authorized to view delivery tracking' }, { status: 403 })
+    }
 
-    if (!orderId) {
-      return Response.json({ error: 'orderId is required' }, { status: 400 })
+    const { orderId: rawOrderId } = req.query as { orderId?: string }
+
+    if (typeof rawOrderId !== 'string' || !/^[1-9]\d*$/.test(rawOrderId)) {
+      return Response.json({ error: 'A valid orderId is required' }, { status: 400 })
+    }
+
+    const orderId = Number(rawOrderId)
+    if (!Number.isSafeInteger(orderId)) {
+      return Response.json({ error: 'A valid orderId is required' }, { status: 400 })
     }
 
     // 1. Load the order + booking
     const order = await req.payload.findByID({
       collection: 'orders',
-      id: Number(orderId),
+      id: orderId,
       depth: 1,
+      overrideAccess: true,
+      req,
     })
 
     if (!order) {
       return Response.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    if (role === 'customer') {
+      const customerRecords = await req.payload.find({
+        collection: 'customers',
+        where: { user: { equals: req.user.id } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      const customerId = relationId(order.customer)
+      if (!customerId || !customerRecords.docs.some((customer) => String(customer.id) === customerId)) {
+        return Response.json({ error: 'Not authorized to view delivery tracking' }, { status: 403 })
+      }
     }
 
     if (order.fulfillment_type !== 'delivery') {
@@ -44,8 +80,11 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
 
     const bookings = await req.payload.find({
       collection: 'delivery-bookings',
-      where: { order: { equals: Number(orderId) } },
+      where: { order: { equals: orderId } },
       limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      req,
     })
 
     const booking = bookings.docs[0] as AnyDoc | undefined
@@ -84,18 +123,34 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
     }
 
     // 4. Persist refreshed data back into delivery-bookings (denormalized)
+    const liveCoordinates = liveDriver?.coordinates
+    const liveLat = Number(liveCoordinates?.lat)
+    const liveLng = Number(liveCoordinates?.lng)
+    const hasLiveCoordinates =
+      liveCoordinates?.lat != null &&
+      liveCoordinates?.lng != null &&
+      Number.isFinite(liveLat) &&
+      Number.isFinite(liveLng) &&
+      liveLat >= -90 &&
+      liveLat <= 90 &&
+      liveLng >= -180 &&
+      liveLng <= 180
+    const locationObservedAt = hasLiveCoordinates
+      ? new Date().toISOString()
+      : null
+
     const bookingUpdateData: Record<string, any> = {
       status: mappedStatus,
       lalamove_raw_status: rawStatus,
     }
 
     if (liveDriver) {
-      const coords = liveDriver?.coordinates
-      if (coords?.lat != null && coords?.lng != null) {
-        bookingUpdateData.driver_lat = Number(coords.lat)
-        bookingUpdateData.driver_lng = Number(coords.lng)
-        bookingUpdateData.driver_location_updated_at =
-          coords.updatedAt || new Date().toISOString()
+      if (hasLiveCoordinates) {
+        bookingUpdateData.driver_lat = liveLat
+        bookingUpdateData.driver_lng = liveLng
+        if (liveCoordinates?.updatedAt) {
+          bookingUpdateData.driver_location_updated_at = liveCoordinates.updatedAt
+        }
       }
       if (liveDriver.name) bookingUpdateData.driver_name = liveDriver.name
       if (liveDriver.phone) bookingUpdateData.driver_phone = liveDriver.phone
@@ -103,11 +158,28 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
       if (liveDriver.photo) bookingUpdateData.driver_photo_url = liveDriver.photo
     }
 
+    if (hasLiveCoordinates && driverId && locationObservedAt) {
+      await recordDriverLocationSample(
+        req.payload,
+        {
+          orderId,
+          driverId,
+          latitude: liveLat,
+          longitude: liveLng,
+          providerUpdatedAt: liveCoordinates?.updatedAt || null,
+          observedAt: locationObservedAt,
+        },
+        req,
+      )
+    }
+
     if (booking) {
       await req.payload.update({
         collection: 'delivery-bookings',
         id: booking.id,
         data: bookingUpdateData,
+        overrideAccess: true,
+        req,
       })
     }
 
@@ -144,8 +216,17 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
         collection: 'orders',
         id: order.id,
         data: orderStatusUpdate,
+        overrideAccess: true,
+        req,
       })
     }
+
+    const trail = await getDriverLocationTrail(
+      req.payload,
+      orderId,
+      driverId || null,
+      req,
+    )
 
     // 6. Build the tracking payload (live driver data, cached booking as fallback)
     const driver = {
@@ -155,17 +236,19 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
       plateNumber: liveDriver?.plateNumber || booking?.driver_plate_number || null,
       photoUrl: liveDriver?.photo || booking?.driver_photo_url || null,
       lat:
-        liveDriver?.coordinates?.lat != null
-          ? Number(liveDriver.coordinates.lat)
+        hasLiveCoordinates
+          ? liveLat
           : (booking?.driver_lat ?? null),
       lng:
-        liveDriver?.coordinates?.lng != null
-          ? Number(liveDriver.coordinates.lng)
+        hasLiveCoordinates
+          ? liveLng
           : (booking?.driver_lng ?? null),
       locationUpdatedAt:
-        liveDriver?.coordinates?.updatedAt ||
-        booking?.driver_location_updated_at ||
-        null,
+        hasLiveCoordinates
+          ? liveCoordinates?.updatedAt || null
+          : booking?.driver_location_updated_at || null,
+      locationObservedAt,
+      locationIsLive: hasLiveCoordinates,
     }
 
     return Response.json({
@@ -187,6 +270,7 @@ export const deliveryTrackHandler = async (req: PayloadRequest) => {
         distanceMeters: Number(booking?.distance_meters || 0) || null,
         priorityFee: Number(booking?.priority_fee || 0) || 0,
         shareLink: booking?.share_link || null,
+        trail,
       },
     })
   } catch (error: any) {

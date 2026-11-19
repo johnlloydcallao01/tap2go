@@ -94,6 +94,7 @@ export interface Config {
     'order-tracking': OrderTracking;
     'driver-assignments': DriverAssignment;
     'delivery-bookings': DeliveryBooking;
+    'delivery-location-history': DeliveryLocationHistory;
     'delivery-fulfillment-outbox': DeliveryFulfillmentOutbox;
     'delivery-fulfillment-attempts': DeliveryFulfillmentAttempt;
     'order-discounts': OrderDiscount;
@@ -158,6 +159,7 @@ export interface Config {
     'order-tracking': OrderTrackingSelect<false> | OrderTrackingSelect<true>;
     'driver-assignments': DriverAssignmentsSelect<false> | DriverAssignmentsSelect<true>;
     'delivery-bookings': DeliveryBookingsSelect<false> | DeliveryBookingsSelect<true>;
+    'delivery-location-history': DeliveryLocationHistorySelect<false> | DeliveryLocationHistorySelect<true>;
     'delivery-fulfillment-outbox': DeliveryFulfillmentOutboxSelect<false> | DeliveryFulfillmentOutboxSelect<true>;
     'delivery-fulfillment-attempts': DeliveryFulfillmentAttemptsSelect<false> | DeliveryFulfillmentAttemptsSelect<true>;
     'order-discounts': OrderDiscountsSelect<false> | OrderDiscountsSelect<true>;
@@ -1951,7 +1953,7 @@ export interface Order {
    */
   priority_fee: number;
   /**
-   * Total coupon discount applied (food + delivery legs)
+   * Total coupon or campaign discount applied (food + delivery and priority legs)
    */
   discount_total: number;
   /**
@@ -1959,7 +1961,7 @@ export interface Order {
    */
   coupon_code?: string | null;
   /**
-   * A free-delivery coupon zeroed the delivery leg
+   * A free-delivery promotion waived customer delivery and priority charges
    */
   free_delivery_applied?: boolean | null;
   /**
@@ -2247,12 +2249,33 @@ export interface Transaction {
    * Timestamp of successful payment
    */
   paid_at?: string | null;
+  /**
+   * Background PayMongo intent verification attempts
+   */
   paymongo_reconcile_attempt_count?: number | null;
+  /**
+   * Next bounded background PayMongo intent verification time
+   */
   paymongo_reconcile_next_check_at?: string | null;
+  /**
+   * Last background PayMongo intent verification time
+   */
   paymongo_reconcile_last_checked_at?: string | null;
+  /**
+   * Latest PayMongo status or reconciliation outcome
+   */
   paymongo_reconcile_last_status?: string | null;
+  /**
+   * Latest PayMongo reconciliation error or verification mismatch
+   */
   paymongo_reconcile_last_error?: string | null;
+  /**
+   * When an admin was alerted about stale unresolved payment
+   */
   paymongo_reconcile_alerted_at?: string | null;
+  /**
+   * Whether automated PayMongo checks stopped for terminal data mismatch
+   */
   paymongo_reconcile_stopped?: boolean | null;
   updatedAt: string;
   createdAt: string;
@@ -2450,6 +2473,24 @@ export interface DeliveryBooking {
   createdAt: string;
 }
 /**
+ * Sampled Lalamove driver coordinates for delivery tracking
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-location-history".
+ */
+export interface DeliveryLocationHistory {
+  id: number;
+  order: number | Order;
+  driver_id: string;
+  latitude: number;
+  longitude: number;
+  provider_updated_at?: string | null;
+  observed_at: string;
+  dedupe_key: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Durable delivery fulfillment work and reconciliation status
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2463,6 +2504,7 @@ export interface DeliveryFulfillmentOutbox {
   next_attempt_at?: string | null;
   lease_expires_at?: string | null;
   last_attempt_at?: string | null;
+  submission_started_at?: string | null;
   lalamove_order_id?: string | null;
   rider_remarks?: string | null;
   last_request_id?: string | null;
@@ -2538,7 +2580,7 @@ export interface OrderDiscount {
    */
   food_discount?: number | null;
   /**
-   * Pesos discounted on the delivery fee leg
+   * Pesos discounted on the delivery and priority fee legs
    */
   delivery_discount?: number | null;
   /**
@@ -3610,6 +3652,10 @@ export interface PayloadLockedDocument {
         value: number | DeliveryBooking;
       } | null)
     | ({
+        relationTo: 'delivery-location-history';
+        value: number | DeliveryLocationHistory;
+      } | null)
+    | ({
         relationTo: 'delivery-fulfillment-outbox';
         value: number | DeliveryFulfillmentOutbox;
       } | null)
@@ -4486,6 +4532,21 @@ export interface DeliveryBookingsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "delivery-location-history_select".
+ */
+export interface DeliveryLocationHistorySelect<T extends boolean = true> {
+  order?: T;
+  driver_id?: T;
+  latitude?: T;
+  longitude?: T;
+  provider_updated_at?: T;
+  observed_at?: T;
+  dedupe_key?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "delivery-fulfillment-outbox_select".
  */
 export interface DeliveryFulfillmentOutboxSelect<T extends boolean = true> {
@@ -4495,6 +4556,7 @@ export interface DeliveryFulfillmentOutboxSelect<T extends boolean = true> {
   next_attempt_at?: T;
   lease_expires_at?: T;
   last_attempt_at?: T;
+  submission_started_at?: T;
   lalamove_order_id?: T;
   rider_remarks?: T;
   last_request_id?: T;

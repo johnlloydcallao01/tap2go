@@ -5,16 +5,23 @@ import {
 } from '../../src/jobs/deliveryFulfillment'
 
 describe('delivery fulfillment retries', () => {
+  it('retries rate limits only before the provider booking request starts', () => {
+    expect(classifySubmissionFailure(429, false)).toMatchObject({
+      retryable: true,
+      ambiguous: false,
+    })
+    expect(classifySubmissionFailure(429, true)).toMatchObject({
+      retryable: false,
+      ambiguous: true,
+    })
+  })
+
   it('retries definite pre-submission timeout and server failures', () => {
     expect(classifySubmissionFailure(408, false)).toMatchObject({
       retryable: true,
       ambiguous: false,
     })
     expect(classifySubmissionFailure(500, false)).toMatchObject({
-      retryable: true,
-      ambiguous: false,
-    })
-    expect(classifySubmissionFailure(429, true)).toMatchObject({
       retryable: true,
       ambiguous: false,
     })

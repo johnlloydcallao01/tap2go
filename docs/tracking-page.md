@@ -100,8 +100,8 @@ Based on this research, here is the recommended structure for the Tap2Go trackin
     *   Keep the item list hidden by default (or "View Receipt") to reduce clutter.
     *   Always show the **Delivery Address** at the bottom of the card to reassure the user.
 
-## Motorcycle route geometry
+## Rider path history
 
-The tracking map requests pickup-to-delivery geometry from the CMS `/delivery/route` endpoint. The CMS calls Google Routes API v2 `computeRoutes` with `travelMode: TWO_WHEELER` and `polylineQuality: HIGH_QUALITY`, then returns decoded route coordinates for both native and Expo Go maps. The route is requested separately from live tracking polls, so Google Routes is not called every time rider location is refreshed.
+The tracking map draws the rider's observed movement from live Lalamove driver coordinates; it does not use a Google-predicted road route. The CMS stores sampled points in `delivery-location-history`, keyed to the order and Lalamove driver, and returns the saved trail with `/delivery/track`. The app can therefore restore points already collected when the customer leaves and reopens the tracking screen. Points are recorded only from valid live provider coordinates, with a 12 m movement threshold and duplicate protection.
 
-`GOOGLE_MAPS_API_KEY` must be configured on the CMS server with Routes API enabled; do not send this server key to the mobile app. Google lists the Philippines as supported for two-wheeled routes, but documents that this travel mode is in beta. The tracking screen displays Google's beta warning and does not draw a fabricated straight-line route if route calculation fails.
+Sampling is driven by requests to `/delivery/track` (the customer tracking screen polls while open). There is no background location poller, so the trail cannot include times when the endpoint was not being requested, and past orders cannot be backfilled. Lalamove provides current driver coordinates rather than route geometry; the saved trail represents sampled movement, not a complete or turn-by-turn route.

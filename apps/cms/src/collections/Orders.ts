@@ -63,6 +63,7 @@ export const Orders: CollectionConfig = {
           'order-items',
           'transactions',
           'delivery-bookings',
+          'delivery-location-history',
           'delivery-locations',
           'order-tracking',
           'driver-assignments',

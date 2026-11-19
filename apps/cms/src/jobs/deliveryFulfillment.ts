@@ -5,7 +5,11 @@ import {
   mapLalamoveStatus,
   mapToOrderStatus,
 } from '../services/deliveryProviders'
-import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
+import {
+  claimDeliveryFulfillmentOutbox,
+  ensureDeliveryFulfillment,
+  latchDeliveryFulfillmentSubmission,
+} from '../services/deliveryFulfillmentOutbox'
 import {
   amountInMinorUnits,
   getPayMongoSecretKey,
@@ -38,9 +42,10 @@ export function retryDelayMinutes(attempt: number) {
 }
 
 export function classifySubmissionFailure(httpStatus: number, providerSubmissionStarted: boolean) {
-  const ambiguous = providerSubmissionStarted && (httpStatus === 408 || httpStatus >= 500)
-  const retryable = httpStatus === 429 ||
-    (!providerSubmissionStarted && (httpStatus === 408 || httpStatus >= 500))
+  const ambiguous = providerSubmissionStarted &&
+    (httpStatus === 408 || httpStatus === 429 || httpStatus >= 500)
+  const retryable = !providerSubmissionStarted &&
+    (httpStatus === 408 || httpStatus === 429 || httpStatus >= 500)
   return {
     ambiguous,
     retryable: retryable && !ambiguous,
@@ -897,6 +902,7 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
     where: {
       and: [
         { status: { in: ['pending', 'retryable'] } },
+        { submission_started_at: { exists: false } },
         {
           or: [
             { next_attempt_at: { exists: false } },
@@ -936,30 +942,16 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
       continue
     }
 
-    const attemptNumber = Number(item.attempt_count || 0) + 1
     const requestId = crypto.randomUUID()
-    const claimed = await req.payload.update({
-      collection: 'delivery-fulfillment-outbox',
-      where: {
-        and: [
-          { id: { equals: item.id } },
-          { status: { equals: item.status } },
-        ],
-      },
-      data: {
-        status: 'submitting',
-        attempt_count: attemptNumber,
-        last_attempt_at: now.toISOString(),
-        last_request_id: requestId,
-        lease_expires_at: new Date(now.getTime() + LEASE_MINUTES * 60_000).toISOString(),
-        next_attempt_at: null,
-        last_error: null,
-        manual_alerted_at: null,
-      },
-      overrideAccess: true,
+    const attemptNumber = await claimDeliveryFulfillmentOutbox(
       req,
-    })
-    if (claimed.docs.length !== 1) continue
+      item.id,
+      item.status as 'pending' | 'retryable',
+      requestId,
+      now,
+      new Date(now.getTime() + LEASE_MINUTES * 60_000),
+    )
+    if (attemptNumber === null) continue
 
     const attempt = await req.payload.create({
       collection: 'delivery-fulfillment-attempts',
@@ -987,7 +979,15 @@ export async function deliveryFulfillmentTask({ req }: { req: PayloadRequest }) 
             req,
           })
         },
-        onProviderSubmissionStarted: () => {
+        onProviderSubmissionStarted: async () => {
+          const latched = await latchDeliveryFulfillmentSubmission(
+            req,
+            item.id,
+            requestId,
+          )
+          if (!latched) {
+            throw new Error('Could not persist the Lalamove submission latch before Place Order.')
+          }
           providerSubmissionStarted = true
         },
         onProviderAccepted: async (lalamoveOrderId) => {

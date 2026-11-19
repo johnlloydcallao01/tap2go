@@ -190,6 +190,29 @@ periodic runner below for delayed retries, stale-payment reconciliation, and
 recovery if a webhook request is missed. Do not manually insert a live outbox
 row to test this: the worker can create a real Lalamove booking.
 
+After a Lalamove order-submission request starts, an HTTP 429, timeout, or
+server error has an uncertain outcome and is not automatically retried. The
+public Lalamove API docs describe `Request-ID` as a unique request identifier
+and advise waiting for the rate-limit reset after 429, but do not guarantee
+that repeating Create Order is idempotent or that a 429 means no order was
+created. These attempts remain latched and are not eligible for automatic or
+CMS requeue. Contact Lalamove with the recorded request ID to determine whether
+an order exists. If Lalamove confirms that no order exists, recovery requires a
+separately reviewed operator procedure; do not clear the latch or delete and
+recreate the outbox row.
+
+The worker atomically claims each outbox row in PostgreSQL and persists its
+one-way `submission_started_at` latch immediately before Place Order. Once set,
+the latch and order relationship cannot be reset through Payload, and outbox
+deletion is disabled through the CMS. The migration conservatively latches
+legacy non-pending/attempted outbox rows and restores missing outbox rows for
+legacy paid orders with booking records or Lalamove order IDs. Some old
+retryable rows may represent quote failures before Place Order; rows without a
+known Lalamove order ID are moved to manual reconciliation until an operator
+verifies their history with Lalamove. Known order IDs can use the normal
+reconciliation path. Do not clear the latch or delete/recreate an outbox row to
+resume work.
+
 Once Lalamove confirms a booking, CMS persists a customer notification and
 broadcasts it through the existing `notifications:user:{userId}` Realtime
 channel. For order status, CMS sends a separate `order_updated` broadcast to a
@@ -210,8 +233,8 @@ not the payment authority or fulfillment trigger.
    account `roles/secretmanager.secretAccessor`. The example YAML maps the latest
    version to `PAYLOAD_JOBS_RUN_SECRET` and explicitly disables `autoRun`.
    Before deploying the new worker revision, apply migration
-   `20261117_045000_add_paymongo_reconcile_delivery_payments` through the CMS
-   migration workflow. Both Cloud Run env-sync scripts force
+   `20261119_210000_lalamove_submission_latch` (and any earlier unapplied
+   migrations) through the CMS migration workflow. Both Cloud Run env-sync scripts force
    `PAYLOAD_JOBS_AUTO_RUN=false` to prevent local dedicated-worker settings from
    enabling a duplicate runner.
 2. In Cloud Scheduler (same region as the CMS), create an HTTP job with schedule

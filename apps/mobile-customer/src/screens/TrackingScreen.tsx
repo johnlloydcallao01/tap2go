@@ -11,7 +11,7 @@ import {
   PanResponder,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationsContext';
@@ -55,12 +55,7 @@ type TrackingData = {
   dropoff: StopInfo;
   distanceMeters: number | null;
   shareLink: string | null;
-};
-
-type DeliveryRouteData = {
-  coordinates: LatLng[];
-  distanceMeters: number;
-  durationSeconds: number;
+  trail?: LatLng[];
 };
 
 function statusLabel(status: string): string {
@@ -211,18 +206,18 @@ export default function TrackingScreen() {
   const [data, setData] = useState<TrackingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
+  const [driverTrailCoordinates, setDriverTrailCoordinates] = useState<LatLng[]>([]);
 
   const mounted = useRef(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nativeMapRef = useRef<MapView | null>(null);
   const latestDataRef = useRef(data);
-  const latestRouteRef = useRef(routeCoordinates);
+  const driverTrailRef = useRef<LatLng[]>([]);
 
   const fitNativeMap = useCallback(() => {
     const currentData = latestDataRef.current;
     const points = [
-      ...latestRouteRef.current,
+      ...driverTrailRef.current,
       ...(currentData
         ? [
             { latitude: currentData.pickup.lat, longitude: currentData.pickup.lng },
@@ -253,8 +248,12 @@ export default function TrackingScreen() {
 
   useEffect(() => {
     latestDataRef.current = data;
-    latestRouteRef.current = routeCoordinates;
-  }, [data, routeCoordinates]);
+  }, [data]);
+
+  useEffect(() => {
+    driverTrailRef.current = [];
+    setDriverTrailCoordinates([]);
+  }, [id]);
 
   const fetchTracking = useCallback(async () => {
     if (!id || !user?.id) return;
@@ -269,7 +268,20 @@ export default function TrackingScreen() {
       }
       const body = await res.json();
       if (mounted.current) {
-        setData(body?.data || null);
+        const nextData = (body?.data || null) as TrackingData | null;
+        const trail = Array.isArray(nextData?.trail)
+          ? nextData.trail.filter((point) =>
+              Number.isFinite(point.latitude) &&
+              Number.isFinite(point.longitude) &&
+              point.latitude >= -90 &&
+              point.latitude <= 90 &&
+              point.longitude >= -180 &&
+              point.longitude <= 180,
+            )
+          : [];
+        setData(nextData);
+        driverTrailRef.current = trail;
+        setDriverTrailCoordinates(trail);
         setError(null);
       }
     } catch (err: any) {
@@ -305,77 +317,6 @@ export default function TrackingScreen() {
       }),
     [fetchTracking, id, subscribeToOrderUpdates],
   );
-
-  const hasTrackingData = data !== null;
-  const pickupLat = data?.pickup.lat;
-  const pickupLng = data?.pickup.lng;
-  const dropoffLat = data?.dropoff.lat;
-  const dropoffLng = data?.dropoff.lng;
-
-  useEffect(() => {
-    if (!hasTrackingData || !id || !user?.id) return;
-
-    let active = true;
-    setRouteCoordinates([]);
-
-    if (pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) {
-      return () => {
-        active = false;
-      };
-    }
-
-    const fetchRoute = async () => {
-      try {
-        const response = await fetch(
-          `${apiConfig.baseUrl}/delivery/route?orderId=${encodeURIComponent(id)}`,
-          { headers: CMS_HEADERS },
-        );
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(body?.error || 'Failed to calculate the motorcycle route');
-        }
-
-        const route = body?.data as DeliveryRouteData | undefined;
-        if (
-          !Array.isArray(route?.coordinates) ||
-          route.coordinates.length < 2 ||
-          !route.coordinates.every(
-            (point) =>
-              Number.isFinite(point?.latitude) &&
-              Number.isFinite(point?.longitude),
-          )
-        ) {
-          throw new Error('Google did not return valid motorcycle route geometry');
-        }
-
-        if (active) {
-          setRouteCoordinates(route.coordinates);
-        }
-      } catch (routeFetchError) {
-        console.error('[TrackingScreen] Motorcycle route unavailable:', routeFetchError);
-        if (active) {
-          setRouteCoordinates([]);
-        }
-      }
-    };
-
-    void fetchRoute();
-    return () => {
-      active = false;
-    };
-  }, [
-    hasTrackingData,
-    pickupLat,
-    pickupLng,
-    dropoffLat,
-    dropoffLng,
-    id,
-    user?.id,
-  ]);
-
-  useEffect(() => {
-    if (routeCoordinates.length >= 2) fitNativeMap();
-  }, [fitNativeMap, routeCoordinates]);
 
   // Poll every 10s while active; stop when delivered/cancelled
   useEffect(() => {
@@ -469,11 +410,12 @@ export default function TrackingScreen() {
       goMarkers.push({
         latitude: Number(driver.lat),
         longitude: Number(driver.lng),
-        color: '#111827',
+        color: '#f97316',
+        symbol: 'motorcycle',
         title: driver.name || 'Your rider',
       });
     }
-    const goRoute = routeCoordinates;
+    const goTrail = driverTrailCoordinates;
 
     return (
       <View style={styles.mapContainer}>
@@ -485,9 +427,8 @@ export default function TrackingScreen() {
               latitudeDelta={initialRegion.latitudeDelta}
               interactive
               markers={goMarkers}
-              polyline={goRoute}
+              polyline={goTrail}
               autoFit
-              fitOnPolylineChange
             />
           ) : (
             <MapView
@@ -533,16 +474,16 @@ export default function TrackingScreen() {
               description={driver.plateNumber || undefined}
             >
               <View style={styles.driverMarker}>
-                <Ionicons name="bicycle" size={18} color="#fff" />
+                <MaterialCommunityIcons name="motorbike" size={20} color="#fff" />
               </View>
             </Marker>
           )}
 
-          {routeCoordinates.length >= 2 && (
+          {driverTrailCoordinates.length >= 2 && (
             <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#f97316"
-              strokeWidth={4}
+              coordinates={driverTrailCoordinates}
+              strokeColor="#fb923c"
+              strokeWidth={3}
               lineCap="round"
               lineJoin="round"
             />
@@ -556,6 +497,9 @@ export default function TrackingScreen() {
             <View style={[styles.statusPillDot, { backgroundColor: statusColor(data.deliveryStatus) }]} />
             <Text style={styles.statusPillText}>{statusLabel(data.deliveryStatus)}</Text>
           </View>
+          {driverTrailCoordinates.length >= 2 && (
+            <Text style={styles.trailLabel}>Rider path so far</Text>
+          )}
         </View>
         </Animated.View>
 
@@ -642,7 +586,7 @@ export default function TrackingScreen() {
 
           {(data.distanceMeters != null && data.distanceMeters > 0) && (
             <Text style={styles.distanceText}>
-              {(data.distanceMeters / 1000).toFixed(1)} km delivery
+              {(data.distanceMeters / 1000).toFixed(1)} km delivery distance
             </Text>
           )}
 
@@ -723,7 +667,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#111827',
+    backgroundColor: '#f97316',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     borderWidth: 2,
@@ -734,9 +678,10 @@ const styles = StyleSheet.create({
     top: 12,
     left: 12,
     right: 12,
-    flexDirection: 'row' as const,
+    flexDirection: 'column' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
+    gap: 8,
     zIndex: 2,
   },
   statusPill: {
@@ -756,6 +701,16 @@ const styles = StyleSheet.create({
   },
   statusPillText: { fontSize: 14, fontWeight: '600' as const, color: '#111827' },
   statusPillDot: { width: 8, height: 8, borderRadius: 4 },
+  trailLabel: {
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    color: '#9a3412',
+    fontSize: 11,
+    fontWeight: '600' as const,
+    overflow: 'hidden' as const,
+  },
   bottomCard: {
     position: 'absolute' as const,
     left: 12,

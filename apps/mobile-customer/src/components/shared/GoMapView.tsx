@@ -17,6 +17,7 @@ export interface GoMapMarker {
   latitude: number;
   longitude: number;
   color?: string;
+  symbol?: 'motorcycle';
   title?: string;
 }
 
@@ -86,9 +87,17 @@ function buildHtml(apiKey: string, init: {
   var ready = false;
   var pending = [];
 
-  function pinIcon(color){
+  function pinIcon(color, symbol){
+    var motorcycle = symbol === 'motorcycle'
+      ? "<g fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>" +
+        "<circle cx='14' cy='25' r='3'/>" +
+        "<circle cx='27' cy='25' r='3'/>" +
+        "<path d='M14 25l4-7h5l4 7m-9-7 5 7h-7l4-7m1-3h4l2 3m-8 0h-3l-2 2m10-2 2-3h2'/>" +
+        "</g>"
+      : "";
     var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'>" +
-      "<circle cx='20' cy='20' r='13' fill='" + color + "' stroke='white' stroke-width='4'/></svg>";
+      "<circle cx='20' cy='20' r='13' fill='" + color + "' stroke='white' stroke-width='4'/>" +
+      motorcycle + "</svg>";
     return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
   }
 
@@ -100,7 +109,7 @@ function buildHtml(apiKey: string, init: {
         position: { lat: m.latitude, lng: m.longitude },
         map: map,
         title: m.title || '',
-        icon: pinIcon(m.color || '#f3a823'),
+        icon: pinIcon(m.color || '#f3a823', m.symbol),
       }));
     });
   }

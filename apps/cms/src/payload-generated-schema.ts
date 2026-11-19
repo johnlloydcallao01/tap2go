@@ -2160,6 +2160,11 @@ export const delivery_fulfillment_outbox = pgTable(
       withTimezone: true,
       precision: 3,
     }),
+    submission_started_at: timestamp('submission_started_at', {
+      mode: 'string',
+      withTimezone: true,
+      precision: 3,
+    }),
     lalamove_order_id: varchar('lalamove_order_id'),
     last_request_id: varchar('last_request_id'),
     last_error: varchar('last_error'),

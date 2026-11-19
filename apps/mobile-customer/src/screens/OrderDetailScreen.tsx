@@ -1555,7 +1555,7 @@ export default function OrderDetailScreen() {
             )}
             {delivery.distance_meters && (
               <Text style={styles.distanceText}>
-                {(delivery.distance_meters / 1000).toFixed(1)} km
+                {(delivery.distance_meters / 1000).toFixed(1)} km delivery distance
               </Text>
             )}
           </View>
@@ -1917,7 +1917,7 @@ export default function OrderDetailScreen() {
                   <View style={styles.infoRow}>
                     <Ionicons name="map-outline" size={16} color="#6b7280" />
                     <Text style={styles.infoValue}>
-                      {(delivery.distance_meters / 1000).toFixed(1)} km
+                      {(delivery.distance_meters / 1000).toFixed(1)} km delivery distance
                     </Text>
                   </View>
                 </View>
