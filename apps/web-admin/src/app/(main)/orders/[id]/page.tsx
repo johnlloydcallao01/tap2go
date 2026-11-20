@@ -79,6 +79,15 @@ function orderStatusBadge(s: string){
 function fmtDate(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric'})}catch{return String(iso).slice(0,10)} }
 function fmtDateTime(iso: string | null){ if(!iso) return '—'; try{return new Date(iso).toLocaleString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}catch{return String(iso).slice(0,16)} }
 function fmtCurrency(n: number | null | undefined){ if(n==null) return '—'; try{return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP',maximumFractionDigits:2}).format(n)}catch{return `₱${Number(n).toFixed(2)}`} }
+function safePrintImageUrl(value: string | null | undefined) {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }){
   return <div><h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{title}</h4><div className="rounded-xl border border-gray-200 dark:border-[#262626] divide-y divide-gray-100 dark:divide-[#262626] overflow-hidden bg-white dark:bg-[#171717]">{children}</div></div>
@@ -134,15 +143,29 @@ function OrderViewContent(){
   }
 
   const customerName = doc.customer?.user ? `${doc.customer.user.firstName} ${doc.customer.user.lastName}`.trim() || doc.customer.email : doc.customer?.email || '—'
+  const vendorLogoUrl = safePrintImageUrl(doc.merchant?.vendor?.logo?.url)
+  const vendorName = doc.merchant?.vendor?.businessName || doc.merchant?.outletName || 'Merchant'
 
   return (
     <div className="order-print-root space-y-6 py-5 px-2.5">
-      <div className="print-brand hidden items-center gap-3">
-        <Image src="/logo.png" alt="Tap2Go" width={52} height={52} className="h-12 w-12 object-contain" />
-        <div>
-          <p className="text-lg font-bold text-gray-900">Tap2Go</p>
-          <p className="text-xs text-gray-500">Order details</p>
+      <div className="print-brand hidden items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="Tap2Go" width={52} height={52} className="h-12 w-12 object-contain" />
+          <div>
+            <p className="text-lg font-bold text-gray-900">Tap2Go</p>
+            <p className="text-xs text-gray-500">Order details</p>
+          </div>
         </div>
+        {vendorLogoUrl && (
+          <div className="print-vendor-logo flex items-center gap-3">
+            {/* Use a direct image for reliable browser print/PDF rendering. */}
+            <img src={vendorLogoUrl} alt={`${vendorName} logo`} className="h-14 w-14 object-contain" />
+            <div className="text-right">
+              <p className="text-sm font-bold text-gray-900">{vendorName}</p>
+              <p className="text-xs text-gray-500">Merchant</p>
+            </div>
+          </div>
+        )}
       </div>
       <button onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/orders'))} className="print-hide inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-white">
         <ArrowLeft className="w-4 h-4" /> Back
@@ -153,11 +176,6 @@ function OrderViewContent(){
           <div className="print-hide h-12 w-12 rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white flex items-center justify-center shrink-0">
             <Receipt className="w-6 h-6" />
           </div>
-          {doc.merchant?.vendor?.logo?.url && (
-            <div className="print-vendor-logo hidden h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white p-1">
-              <Image src={doc.merchant.vendor.logo.url} alt={`${doc.merchant.vendor.businessName} logo`} width={48} height={48} unoptimized className="h-full w-full object-contain" />
-            </div>
-          )}
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
               {doc.orderNumber || `#${doc.id}`}

@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Pencil, XCircle } from 'lucide-react'
 import { ClientOnly } from '@/components/ClientOnly'
-import { useNotifications } from '@/contexts/NotificationsContext'
 import { getEffectiveOrderStatus, getOrderStatusLabel } from '@/utils/orderStatus'
 import {
   ShoppingBag, Clock, Package, CheckCircle, DollarSign, Store, MapPin, Search, X,
@@ -167,7 +166,6 @@ function FilterPills({ label, options, value, onToggle }: { label: string; optio
 }
 
 function OrdersContent() {
-  const notifications = useNotifications()
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string[]>([])
@@ -272,7 +270,6 @@ function OrdersContent() {
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Failed to update order status')
-      if (nextStatus === 'accepted') await notifications?.markOrderAsSeen(order.id)
       await load()
     } catch (failure) {
       setStatusActionError(failure instanceof Error ? failure.message : 'Failed to update order status')

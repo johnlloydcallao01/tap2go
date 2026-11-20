@@ -198,15 +198,29 @@ export default function OrderDetailPage() {
     order.booking?.status || order.lalamove?.status,
   )
   const activeStepIndex = getOrderProgressStepIndex(progressStatus)
+  const vendorLogoUrl = safeHttpUrl(order.merchant?.vendor?.logo?.url)
+  const vendorName = order.merchant?.vendor?.businessName || order.merchant?.outletName || 'Merchant'
 
   return (
     <div className="order-print-root space-y-6 py-5 px-2.5">
-      <div className="print-brand hidden items-center gap-3">
-        <Image src="/logo.png" alt="Tap2Go" width={52} height={52} className="h-12 w-12 object-contain" />
-        <div>
-          <p className="text-lg font-bold text-gray-900">Tap2Go</p>
-          <p className="text-xs text-gray-500">Order details</p>
+      <div className="print-brand hidden items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="Tap2Go" width={52} height={52} className="h-12 w-12 object-contain" />
+          <div>
+            <p className="text-lg font-bold text-gray-900">Tap2Go</p>
+            <p className="text-xs text-gray-500">Order details</p>
+          </div>
         </div>
+        {vendorLogoUrl && (
+          <div className="print-vendor-logo flex items-center gap-3">
+            {/* Use a direct image for reliable browser print/PDF rendering. */}
+            <img src={vendorLogoUrl} alt={`${vendorName} logo`} className="h-14 w-14 object-contain" />
+            <div className="text-right">
+              <p className="text-sm font-bold text-gray-900">{vendorName}</p>
+              <p className="text-xs text-gray-500">Merchant</p>
+            </div>
+          </div>
+        )}
       </div>
       <button onClick={() => router.back()} className="print-hide inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-[#a1a1aa] dark:hover:text-white">
         <ArrowLeft className="h-4 w-4" /> Back
@@ -215,11 +229,6 @@ export default function OrderDetailPage() {
       <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <div className="print-hide flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#eba236] to-[#c88a20] text-white"><Receipt className="h-6 w-6" /></div>
-          {order.merchant?.vendor?.logo?.url && (
-            <div className="print-vendor-logo hidden h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white p-1">
-              <Image src={order.merchant.vendor.logo.url} alt={`${order.merchant.vendor.businessName} logo`} width={48} height={48} unoptimized className="h-full w-full object-contain" />
-            </div>
-          )}
           <div>
             <h1 className="flex flex-wrap items-center gap-2 text-xl font-bold text-gray-900 dark:text-white">
               {order.orderNumber || `#${order.id}`}

@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle } from '@/components/ui/IconWrapper'
-import { useNotifications } from '@/contexts/NotificationsContext'
 import { getOrderDetailProgressStatus, getOrderStatusLabel } from '@/utils/orderStatus'
 
 type CustomerOption = { id: number; label: string }
@@ -68,7 +67,6 @@ function displayOutlet(outlet: Record<string, unknown>): OutletOption | null {
 
 export function OrderForm({ orderId }: { orderId?: string }) {
   const router = useRouter()
-  const notifications = useNotifications()
   const editing = Boolean(orderId)
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [outlets, setOutlets] = useState<OutletOption[]>([])
@@ -239,9 +237,6 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       if (!response.ok) throw new Error(result.error || `Failed to ${editing ? 'update' : 'create'} order`)
 
       const savedId = result.doc?.id ?? orderId
-      if (editing && status.toLowerCase() === 'accepted' && savedId != null) {
-        await notifications?.markOrderAsSeen(savedId)
-      }
       setSaved(true)
       setSaveWarning(typeof result.warning === 'string' ? result.warning : null)
       window.setTimeout(() => router.push(`/orders/${savedId}`), result.warning ? 1800 : 800)

@@ -116,3 +116,20 @@ export async function markAllMyNotifications(data: { status?: 'read'; seenAt?: s
   await Promise.all(result.docs.map((item) => updateMyNotification(item.id, data)))
   return true
 }
+
+export async function acknowledgeMyOrderNotifications(seenAt: string) {
+  const user = await getServerUser()
+  if (!user || user.role !== 'vendor') return null
+
+  const query = new URLSearchParams({
+    'where[user][equals]': String(user.id),
+    'where[notificationEvent.typeKey][equals]': 'order.created',
+    'where[seenAt][exists]': 'false',
+  })
+  const response = await cmsRequest(`/user-notifications?${query.toString()}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ seenAt }),
+  })
+  if (!response.ok) throw new Error('Unable to acknowledge new order notifications')
+  return true
+}

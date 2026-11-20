@@ -7,6 +7,7 @@ import { ProtectedRoute } from '@/components/auth';
 import { usePathname } from 'next/navigation';
 import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { useAuth } from '@/hooks/useAuth';
+import { NewOrderNotice } from '@/components/notifications/NewOrderNotice';
 
 interface MerchantLayoutProps {
   children: React.ReactNode;
@@ -31,6 +32,7 @@ export default function MerchantLayout({ children }: MerchantLayoutProps) {
   return (
     <NotificationsProvider userId={user?.id}>
       <ProtectedRoute redirectTo="/signin">
+        <NewOrderNotice />
         <Suspense fallback={null}>
           <AdminDashboard>
             {children}

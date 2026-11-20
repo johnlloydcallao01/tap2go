@@ -2,8 +2,18 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { getMyNotifications, markAllMyNotifications, updateMyNotification, type MerchantNotification } from '@/app/actions/notifications'
-import { OrderAlertSound } from '@/utils/orderAlertSound'
+import {
+  acknowledgeMyOrderNotifications,
+  getMyNotifications,
+  markAllMyNotifications,
+  updateMyNotification,
+  type MerchantNotification,
+} from '@/app/actions/notifications'
+import {
+  ORDER_ALERT_SOUND_ERROR_EVENT,
+  ORDER_ALERT_SOUND_READY_EVENT,
+  orderAlertSound,
+} from '@/utils/orderAlertSound'
 
 type RealtimeStatus = 'disabled' | 'connecting' | 'connected' | 'disconnected'
 
@@ -13,19 +23,15 @@ interface NotificationsContextValue {
   unseenCount: number
   isLoading: boolean
   realtimeStatus: RealtimeStatus
-  orderSoundEnabled: boolean
-  orderSoundReady: boolean
-  orderSoundPreferenceLoaded: boolean
+  activeOrderNotice: MerchantNotification | null
   orderSoundError: string | null
   activeOrderAlertCount: number
   markAsRead: (id: number | string) => Promise<void>
   markAsUnread: (id: number | string) => Promise<void>
   markAsSeen: (id: number | string) => Promise<void>
-  markOrderAsSeen: (orderId: number | string) => Promise<void>
   markAllAsRead: () => Promise<void>
   markAllAsSeen: () => Promise<void>
-  enableOrderSound: () => Promise<void>
-  disableOrderSound: () => void
+  dismissAllOrderNotices: () => Promise<void>
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null)
@@ -65,25 +71,21 @@ function mapBroadcastNotification(value: unknown): MerchantNotification | null {
   }
 }
 
-function orderSoundPreferenceKey(userId: number | string) {
-  return `tap2go:merchant:order-sound:${userId}`
-}
-
 function seenNotificationsKey(userId: number | string) {
   return `tap2go:merchant:notifications-seen:${userId}`
 }
 
 export function NotificationsProvider({ children, userId }: { children: React.ReactNode; userId?: number | string }) {
   const [notifications, setNotifications] = useState<MerchantNotification[]>([])
+  const [orderNoticeQueue, setOrderNoticeQueue] = useState<MerchantNotification[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('disabled')
-  const [orderSoundEnabled, setOrderSoundEnabled] = useState(false)
-  const [orderSoundReady, setOrderSoundReady] = useState(false)
-  const [orderSoundPreferenceLoaded, setOrderSoundPreferenceLoaded] = useState(false)
+  const [orderSoundReady, setOrderSoundReady] = useState(orderAlertSound.isReady)
+  const [orderSounding, setOrderSounding] = useState(false)
   const [orderSoundError, setOrderSoundError] = useState<string | null>(null)
-  const soundRef = useRef<OrderAlertSound | null>(null)
   const notificationRequestRef = useRef(0)
   const notificationVersionRef = useRef(0)
+  const orderNoticeIdsRef = useRef(new Set<string>())
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => notification.status === 'unread').length,
@@ -93,12 +95,16 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
     () => notifications.filter((notification) => !notification.seenAt).length,
     [notifications],
   )
-  const activeOrderAlertIds = useMemo(
-    () => notifications
-      .filter((notification) => notification.typeKey === 'order.created' && !notification.seenAt && !notification.archivedAt)
-      .map((notification) => String(notification.id)),
-    [notifications],
-  )
+  const enqueueOrderNotices = useCallback((items: MerchantNotification[]) => {
+    const newNotices = items.filter((notification) => {
+      if (notification.typeKey !== 'order.created' || notification.seenAt || notification.archivedAt) return false
+      const id = String(notification.id)
+      if (orderNoticeIdsRef.current.has(id)) return false
+      orderNoticeIdsRef.current.add(id)
+      return true
+    })
+    if (newNotices.length) setOrderNoticeQueue((queue) => [...queue, ...newNotices])
+  }, [])
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return
@@ -110,42 +116,45 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
       if (!result) return
       if (requestId !== notificationRequestRef.current || version !== notificationVersionRef.current) return
       setNotifications(result.docs)
+      enqueueOrderNotices(result.docs)
     } catch (error) {
       console.error('[MerchantNotifications] Failed to fetch notifications', error)
     } finally {
       if (requestId === notificationRequestRef.current) setIsLoading(false)
     }
-  }, [userId])
+  }, [enqueueOrderNotices, userId])
 
   useEffect(() => {
     notificationVersionRef.current += 1
     notificationRequestRef.current += 1
     setNotifications([])
+    setOrderNoticeQueue([])
+    orderNoticeIdsRef.current = new Set()
     setIsLoading(Boolean(userId))
     setRealtimeStatus(userId ? 'connecting' : 'disabled')
-    setOrderSoundEnabled(false)
-    setOrderSoundReady(false)
-    setOrderSoundPreferenceLoaded(false)
+    setOrderSoundReady(orderAlertSound.isReady)
+    setOrderSounding(false)
     setOrderSoundError(null)
-
-    if (userId) {
-      try {
-        setOrderSoundEnabled(window.localStorage.getItem(orderSoundPreferenceKey(userId)) === 'true')
-      } catch (error) {
-        console.error('[MerchantNotifications] Failed to load order sound preference', error)
-        setOrderSoundError('Could not load the saved sound preference.')
-      }
-    }
-    setOrderSoundPreferenceLoaded(true)
-
-    return () => {
-      const sound = soundRef.current
-      soundRef.current = null
-      if (sound) {
-        void sound.close().catch((error) => console.error('[MerchantNotifications] Failed to close order sound', error))
-      }
-    }
   }, [userId])
+
+  useEffect(() => {
+    const onSoundReady = () => {
+      setOrderSoundReady(orderAlertSound.isReady)
+      setOrderSoundError(null)
+    }
+    const onSoundError = () => {
+      setOrderSoundReady(false)
+      setOrderSounding(false)
+      orderAlertSound.stop()
+      setOrderSoundError('Order alert audio could not start. Click or press a key to retry.')
+    }
+    window.addEventListener(ORDER_ALERT_SOUND_READY_EVENT, onSoundReady)
+    window.addEventListener(ORDER_ALERT_SOUND_ERROR_EVENT, onSoundError)
+    return () => {
+      window.removeEventListener(ORDER_ALERT_SOUND_READY_EVENT, onSoundReady)
+      window.removeEventListener(ORDER_ALERT_SOUND_ERROR_EVENT, onSoundError)
+    }
+  }, [])
 
   useEffect(() => { void fetchNotifications() }, [fetchNotifications])
 
@@ -178,6 +187,7 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
         const notification = mapBroadcastNotification(outer?.notification ?? nested?.notification)
         if (notification) {
           notificationVersionRef.current += 1
+          enqueueOrderNotices([notification])
           setNotifications((items) => {
             if (items.some((item) => String(item.id) === String(notification.id))) return items
             return [notification, ...items].slice(0, 100)
@@ -201,21 +211,19 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
         console.error('[MerchantNotifications] Failed to close Supabase Realtime channel', error)
       })
     }
-  }, [fetchNotifications, userId])
+  }, [enqueueOrderNotices, fetchNotifications, userId])
 
   const markAsRead = useCallback(async (id: number | string) => {
     const item = notifications.find((notification) => String(notification.id) === String(id))
     if (!item || item.status !== 'unread') return
     const readAt = new Date().toISOString()
-    const seenAt = item.typeKey === 'order.created' && !item.seenAt ? readAt : undefined
     notificationVersionRef.current += 1
     try {
-      const result = await updateMyNotification(id, { status: 'read', readAt, ...(seenAt ? { seenAt } : {}) })
+      const result = await updateMyNotification(id, { status: 'read', readAt })
       if (!result) throw new Error('Unable to mark notification as read')
       setNotifications((items) => items.map((notification) => String(notification.id) === String(id)
-        ? { ...notification, status: 'read', readAt, ...(seenAt ? { seenAt } : {}) }
+        ? { ...notification, status: 'read', readAt }
         : notification))
-      if (seenAt && userId) announceNotificationsSeen(userId, [id], seenAt)
     } catch (error) {
       console.error('[MerchantNotifications] Failed to mark notification as read', error)
       await fetchNotifications()
@@ -256,36 +264,47 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
     }
   }, [fetchNotifications, notifications, userId])
 
-  const markOrderAsSeen = useCallback(async (orderId: number | string) => {
-    const targetId = String(orderId)
-    const alertIds = notifications
-      .filter((item) => {
-        if (item.typeKey !== 'order.created' || item.seenAt) return false
-        const metadataOrderId = item.metadata?.orderId
-        const notificationOrderId = metadataOrderId ?? item.sourceEntityId
-        return notificationOrderId !== null && notificationOrderId !== undefined
-          && String(notificationOrderId) === targetId
-      })
-      .map((item) => item.id)
-    await Promise.all(alertIds.map(markAsSeen))
-  }, [markAsSeen, notifications])
+  const dismissAllOrderNotices = useCallback(async () => {
+    if (!orderNoticeQueue.length) return
+
+    const seenAt = new Date().toISOString()
+    const ids = new Set([
+      ...orderNoticeQueue.map((item) => String(item.id)),
+      ...notifications
+        .filter((item) => item.typeKey === 'order.created' && !item.seenAt)
+        .map((item) => String(item.id)),
+    ])
+    setOrderNoticeQueue([])
+    setOrderSounding(false)
+    orderAlertSound.stop()
+    notificationVersionRef.current += 1
+    setNotifications((items) => items.map((item) => item.typeKey === 'order.created' && !item.seenAt
+      ? { ...item, seenAt }
+      : item))
+    if (userId) announceNotificationsSeen(userId, [...ids], seenAt)
+
+    try {
+      const result = await acknowledgeMyOrderNotifications(seenAt)
+      if (!result) throw new Error('Unable to acknowledge new order notifications')
+      setOrderSoundError(null)
+    } catch (error) {
+      console.error('[MerchantNotifications] Failed to acknowledge all new order notifications', error)
+      setOrderSoundError('The alert was closed, but its dismissal could not be saved.')
+    }
+  }, [notifications, orderNoticeQueue, userId])
 
   const markAllAsRead = useCallback(async () => {
     if (!unreadCount) return
     const readAt = new Date().toISOString()
-    const seenAt = new Date().toISOString()
-    const ids = notifications.filter((item) => !item.seenAt).map((item) => item.id)
     notificationVersionRef.current += 1
     try {
-      const result = await markAllMyNotifications({ status: 'read', seenAt })
+      const result = await markAllMyNotifications({ status: 'read' })
       if (!result) throw new Error('Unable to mark notifications as read')
       setNotifications((items) => items.map((item) => ({
         ...item,
         status: 'read',
         readAt: item.readAt || readAt,
-        seenAt: item.seenAt || seenAt,
       })))
-      if (userId) announceNotificationsSeen(userId, ids, seenAt)
     } catch (error) {
       console.error('[MerchantNotifications] Failed to mark all notifications as read', error)
       await fetchNotifications()
@@ -293,98 +312,40 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
   }, [fetchNotifications, notifications, unreadCount, userId])
 
   const markAllAsSeen = useCallback(async () => {
-    if (!unseenCount) return
-    const seenAt = new Date().toISOString()
-    const ids = notifications.filter((item) => !item.seenAt).map((item) => item.id)
-    notificationVersionRef.current += 1
-    setNotifications((items) => items.map((item) => ({ ...item, seenAt: item.seenAt || seenAt })))
-    try {
-      const result = await markAllMyNotifications({ seenAt })
-      if (!result) throw new Error('Unable to mark notifications as seen')
-      if (userId) announceNotificationsSeen(userId, ids, seenAt)
-    } catch (error) {
-      console.error('[MerchantNotifications] Failed to mark notifications seen', error)
-      await fetchNotifications()
-    }
-  }, [fetchNotifications, notifications, unseenCount, userId])
-
-  const enableOrderSound = useCallback(async () => {
-    setOrderSoundError(null)
-    const sound = soundRef.current ?? new OrderAlertSound()
-    soundRef.current = sound
-    try {
-      await sound.unlock()
-      if (activeOrderAlertIds.length === 0 && !sound.playBell()) {
-        throw new Error('Order sound playback is not available.')
-      }
-      setOrderSoundEnabled(true)
-      setOrderSoundReady(true)
-      if (userId) {
-        try {
-          window.localStorage.setItem(orderSoundPreferenceKey(userId), 'true')
-        } catch (error) {
-          console.error('[MerchantNotifications] Failed to save order sound preference', error)
-          setOrderSoundError('Sound is enabled for this session, but the preference could not be saved.')
-        }
-      }
-    } catch (error) {
-      console.error('[MerchantNotifications] Failed to enable order sound', error)
-      setOrderSoundReady(false)
-      setOrderSoundError('Sound could not be enabled. Check your browser audio settings and try again.')
-    }
-  }, [activeOrderAlertIds.length, userId])
-
-  const disableOrderSound = useCallback(() => {
-    setOrderSoundEnabled(false)
-    setOrderSoundReady(false)
-    setOrderSoundError(null)
-    if (userId) {
-      try {
-        window.localStorage.setItem(orderSoundPreferenceKey(userId), 'false')
-      } catch (error) {
-        console.error('[MerchantNotifications] Failed to save order sound preference', error)
-        setOrderSoundError('Sound is disabled for this session, but the preference could not be saved.')
-      }
-    }
-    const sound = soundRef.current
-    soundRef.current = null
-    if (sound) {
-      void sound.close().catch((error) => console.error('[MerchantNotifications] Failed to close order sound', error))
-    }
-  }, [userId])
+    const ids = notifications
+      .filter((item) => !item.seenAt && item.typeKey !== 'order.created')
+      .map((item) => item.id)
+    await Promise.all(ids.map(markAsSeen))
+  }, [markAsSeen, notifications])
 
   useEffect(() => {
-    if (!orderSoundEnabled || !orderSoundReady || activeOrderAlertIds.length === 0) return
-    const sound = soundRef.current
-    if (!sound) return
+    if (!orderSoundReady || orderNoticeQueue.length === 0) {
+      if (orderNoticeQueue.length === 0) {
+        orderAlertSound.stop()
+        setOrderSounding(false)
+      }
+      return
+    }
 
     const ring = () => {
-      if (!sound.playBell()) {
+      if (!orderAlertSound.playBell()) {
+        orderAlertSound.stop()
         setOrderSoundReady(false)
-        setOrderSoundError('Audio playback was interrupted. Click the sound control to reactivate it.')
+        setOrderSounding(false)
+        setOrderSoundError('Order alert audio stopped. Click or press a key to resume it.')
+        return
       }
+      setOrderSounding(true)
     }
     ring()
     const interval = window.setInterval(ring, 2800)
     return () => window.clearInterval(interval)
-  }, [activeOrderAlertIds.length, orderSoundEnabled, orderSoundReady])
+  }, [orderNoticeQueue.length, orderSoundReady])
 
   useEffect(() => {
     if (!userId) return
-    const preferenceKey = orderSoundPreferenceKey(userId)
     const seenKey = seenNotificationsKey(userId)
     const onStorage = (event: StorageEvent) => {
-      if (event.key === preferenceKey) {
-        setOrderSoundEnabled(event.newValue === 'true')
-        if (event.newValue !== 'true') {
-          setOrderSoundReady(false)
-          const sound = soundRef.current
-          soundRef.current = null
-          if (sound) {
-            void sound.close().catch((error) => console.error('[MerchantNotifications] Failed to close order sound', error))
-          }
-        }
-      }
       if (event.key !== seenKey || !event.newValue) return
       try {
         const update = JSON.parse(event.newValue) as { ids?: unknown; seenAt?: unknown }
@@ -393,6 +354,7 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
         if (!ids.size) return
         notificationVersionRef.current += 1
         setNotifications((items) => items.map((item) => ids.has(String(item.id)) ? { ...item, seenAt: update.seenAt as string } : item))
+        setOrderNoticeQueue((items) => items.filter((item) => !ids.has(String(item.id))))
       } catch (error) {
         console.error('[MerchantNotifications] Failed to sync seen notifications across tabs', error)
       }
@@ -408,19 +370,15 @@ export function NotificationsProvider({ children, userId }: { children: React.Re
       unseenCount,
       isLoading,
       realtimeStatus,
-      orderSoundEnabled,
-      orderSoundReady,
-      orderSoundPreferenceLoaded,
+      activeOrderNotice: orderSounding ? orderNoticeQueue[0] ?? null : null,
       orderSoundError,
-      activeOrderAlertCount: activeOrderAlertIds.length,
+      activeOrderAlertCount: orderNoticeQueue.length,
       markAsRead,
       markAsUnread,
       markAsSeen,
-      markOrderAsSeen,
       markAllAsRead,
       markAllAsSeen,
-      enableOrderSound,
-      disableOrderSound,
+      dismissAllOrderNotices,
     }}>
       {children}
     </NotificationsContext.Provider>
