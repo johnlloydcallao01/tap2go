@@ -11,6 +11,7 @@ import {
   waitForPaidTransaction,
 } from '../services/checkoutReturn';
 import { useAuth } from '../contexts/AuthContext';
+import { apiConfig } from '../config/environment';
 
 const handledReturnFlowTimestamps = new Map<string, number>();
 const RETURN_FLOW_DEDUP_WINDOW_MS = 15000;
@@ -26,6 +27,7 @@ export default function CheckoutReturnScreen() {
     typeof params.payment_intent_id === 'string' ? params.payment_intent_id : '';
   const merchantId = typeof params.merchantId === 'string' ? params.merchantId : '';
   const orderId = typeof params.order_id === 'string' ? params.order_id : '';
+  const isPriorityFeePayment = params.priorityFeePayment === 'true';
 
   useEffect(() => {
     if (hasStartedRef.current || authLoading) {
@@ -37,7 +39,13 @@ export default function CheckoutReturnScreen() {
     const confirmPayment = async () => {
       if (!paymentIntentId) {
         Alert.alert('Payment Error', 'Missing payment confirmation reference.');
-        router.replace(merchantId ? `/checkout/${merchantId}` : '/(tabs)/orders');
+        router.replace(
+          isPriorityFeePayment && orderId
+            ? `/order/${orderId}`
+            : merchantId
+              ? `/checkout/${merchantId}`
+              : '/(tabs)/orders',
+        );
         return;
       }
 
@@ -46,6 +54,44 @@ export default function CheckoutReturnScreen() {
       }
 
       try {
+        if (isPriorityFeePayment) {
+          if (!orderId || !user?.id) {
+            throw new Error('Missing order or customer information for priority-fee confirmation.');
+          }
+          for (let attempt = 0; attempt < 12; attempt += 1) {
+            const response = await fetch(`${apiConfig.baseUrl}/delivery/priority-fee/status`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `users API-Key ${apiConfig.payloadApiKey}`,
+              },
+              body: JSON.stringify({
+                orderId: Number(orderId),
+                customerId: Number(user.id),
+                paymentIntentId,
+              }),
+            });
+            const status = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw new Error(status?.error || 'Could not confirm the priority-fee payment.');
+            }
+            if (status.status === 'applied') {
+              router.replace(`/order/${orderId}`);
+              return;
+            }
+            if (status.status === 'failed') {
+              throw new Error(status.message || 'The payment could not be applied. Check the order for the latest status.');
+            }
+            if (attempt < 11) await new Promise((resolve) => setTimeout(resolve, 2500));
+          }
+          Alert.alert(
+            'Payment confirmation in progress',
+            'PayMongo has not confirmed the priority fee yet. You can check its status on your order.',
+            [{ text: 'View order', onPress: () => router.replace(`/order/${orderId}`) }],
+          );
+          return;
+        }
+
         if (orderId && user?.id) {
           try {
             await reconcileCheckoutPayment({
@@ -102,8 +148,10 @@ export default function CheckoutReturnScreen() {
             : 'We are still confirming your payment. Please check your Orders shortly.',
           [
             {
-              text: 'Go to Orders',
-              onPress: () => router.replace('/(tabs)/orders'),
+              text: isPriorityFeePayment ? 'View order' : 'Go to Orders',
+              onPress: () => router.replace(
+                isPriorityFeePayment && orderId ? `/order/${orderId}` : '/(tabs)/orders',
+              ),
             },
           ],
         );
@@ -111,7 +159,17 @@ export default function CheckoutReturnScreen() {
     };
 
     confirmPayment().catch(() => undefined);
-  }, [authLoading, customerId, merchantId, orderId, paymentIntentId, reload, router, user?.id]);
+  }, [
+    authLoading,
+    customerId,
+    isPriorityFeePayment,
+    merchantId,
+    orderId,
+    paymentIntentId,
+    reload,
+    router,
+    user?.id,
+  ]);
 
   return (
     <View style={styles.container}>

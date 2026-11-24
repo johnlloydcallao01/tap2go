@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ExpoLinking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { formatCurrency } from '../utils/format';
 import { getCheckoutPaymentStatus } from '../services/checkoutReturn';
 import { useAuth } from '../contexts/AuthContext';
 import { apiConfig } from '../config/environment';
+import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from '../utils/paymentMethods';
 
 export default function QrPaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const qrImage = typeof params.qrImage === 'string' ? params.qrImage : '';
   const merchantName = typeof params.merchantName === 'string' ? params.merchantName : 'Merchant';
+  const paymentMethod = typeof params.paymentMethod === 'string' ? params.paymentMethod : 'qrph';
+  const paymentMethodLabel = PAYMENT_METHOD_OPTIONS[paymentMethod as PaymentMethod]?.label || 'payment provider';
   const amount = typeof params.amount === 'string' ? Number(params.amount) : NaN;
   const redirectUrl = typeof params.redirectUrl === 'string' ? params.redirectUrl : '';
   const orderId = typeof params.orderId === 'string' ? params.orderId : '';
@@ -25,6 +30,33 @@ export default function QrPaymentScreen() {
   const checkoutRequestId =
     typeof params.checkoutRequestId === 'string' ? params.checkoutRequestId : '';
   const payStartedAt = typeof params.payStartedAt === 'string' ? Number(params.payStartedAt) : NaN;
+
+  const openRedirectPayment = async () => {
+    if (!redirectUrl) return;
+    const appReturnUrl = ExpoLinking.createURL('checkout/return', {
+      queryParams: {
+        payment_intent_id: paymentIntentId,
+        merchantId,
+        order_id: orderId,
+        ...(isPriorityFeePayment ? { priorityFeePayment: 'true' } : {}),
+      },
+    });
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (url.startsWith('gcash://')) {
+        void Linking.openURL(url);
+      }
+    });
+    try {
+      await WebBrowser.openAuthSessionAsync(redirectUrl, appReturnUrl);
+    } catch (error) {
+      Alert.alert(
+        'Unable to open payment',
+        error instanceof Error ? error.message : 'Please try opening the payment again.',
+      );
+    } finally {
+      subscription.remove();
+    }
+  };
 
   useEffect(() => {
     if (checkoutRequestId && Number.isFinite(payStartedAt)) {
@@ -110,7 +142,7 @@ export default function QrPaymentScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
             accessibilityRole="button"
-            accessibilityLabel="Back to checkout"
+            accessibilityLabel={isPriorityFeePayment ? 'Back to order' : 'Back to checkout'}
           >
             <Ionicons name="arrow-back" size={22} color="#374151" />
           </TouchableOpacity>
@@ -128,11 +160,15 @@ export default function QrPaymentScreen() {
         </View>
 
         <Text style={styles.title}>
-          {isPriorityFeePayment ? 'Scan to add the priority fee' : redirectUrl ? 'Continue your payment' : 'Scan to pay'}
+          {isPriorityFeePayment
+            ? qrImage ? 'Scan to add the priority fee' : `Continue with ${paymentMethodLabel}`
+            : redirectUrl ? 'Continue your payment' : 'Scan to pay'}
         </Text>
         <Text style={styles.subtitle}>
           {isPriorityFeePayment
-            ? 'Scan this QR code to pay the additional fee. We’ll apply it to your Lalamove delivery after payment is confirmed.'
+            ? qrImage
+              ? 'Scan this QR code to pay the additional fee. We’ll apply it to your Lalamove delivery after payment is confirmed.'
+              : `Complete the payment with ${paymentMethodLabel}. We’ll apply the extra fee to your Lalamove delivery after PayMongo confirms it.`
             : redirectUrl
             ? 'Continue in the payment provider to complete this order.'
             : 'Use your banking or e-wallet app on another device to scan this QR Ph code.'}
@@ -145,7 +181,7 @@ export default function QrPaymentScreen() {
         ) : redirectUrl ? (
           <TouchableOpacity
             style={styles.openPaymentButton}
-            onPress={() => Linking.openURL(redirectUrl)}
+            onPress={() => void openRedirectPayment()}
             accessibilityRole="button"
           >
             <Text style={styles.openPaymentButtonText}>Open payment provider</Text>
@@ -204,7 +240,7 @@ export default function QrPaymentScreen() {
             </TouchableOpacity>
           ) : null}
           <Text style={styles.footerHint}>
-            Your payment will remain in progress until it is confirmed.
+            Your payment status updates automatically after PayMongo confirms it.
           </Text>
         </View>
       </SafeAreaView>

@@ -20,6 +20,11 @@ import { useNotifications } from '../contexts/NotificationsContext';
 import { apiConfig } from '../../src/config/environment';
 import { formatCurrency } from '../../src/utils/format';
 import { PullToRefreshLayout } from '../../src/components/PullToRefreshLayout';
+import {
+  AVAILABLE_PAYMENT_METHODS,
+  PAYMENT_METHOD_OPTIONS,
+  type PaymentMethod,
+} from '../../src/utils/paymentMethods';
 
 const CMS_HEADERS = {
   'Content-Type': 'application/json',
@@ -105,8 +110,21 @@ type OrderDetail = {
   paymentMethod?: string | null;
   canResumePayment?: boolean;
   priorityFeePaymentPending?: boolean;
+  priorityFeePaymentAmount?: number | null;
+  priorityFeePaymentUnavailableReason?: string | null;
   priorityFeePaymentFailed?: boolean;
   priorityFeePaymentRefunded?: boolean;
+  priorityFeeHistory?: {
+    id: number;
+    amount: number;
+    currency: string;
+    paymentMethod: string | null;
+    status: string;
+    fulfillmentStatus: string | null;
+    paidAt: string | null;
+    createdAt: string;
+  }[];
+  priorityFeeAddedTotal?: number;
 };
 
 type AppRatingState = {
@@ -410,11 +428,12 @@ export default function OrderDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
-  const [resumingPayment, setResumingPayment] = useState(false);
   const [showRiderInfo, setShowRiderInfo] = useState(false);
   const [showPriorityFeeModal, setShowPriorityFeeModal] = useState(false);
   const [priorityFeeAmount, setPriorityFeeAmount] = useState('');
+  const [priorityFeePaymentMethod, setPriorityFeePaymentMethod] = useState<PaymentMethod>('qrph');
   const [addingPriorityFee, setAddingPriorityFee] = useState(false);
+  const [resumingPriorityFee, setResumingPriorityFee] = useState(false);
   const [appRating, setAppRating] = useState<AppRatingState | null>(null);
   const [appRatingLoading, setAppRatingLoading] = useState(false);
   const [appRatingValue, setAppRatingValue] = useState<number | null>(null);
@@ -543,8 +562,12 @@ export default function OrderDetailScreen() {
         paymentMethod: agg.paymentMethod || null,
         canResumePayment: agg.canResumePayment || false,
         priorityFeePaymentPending: agg.priorityFeePaymentPending || false,
+        priorityFeePaymentAmount: agg.priorityFeePaymentAmount ?? null,
+        priorityFeePaymentUnavailableReason: agg.priorityFeePaymentUnavailableReason ?? null,
         priorityFeePaymentFailed: agg.priorityFeePaymentFailed || false,
         priorityFeePaymentRefunded: agg.priorityFeePaymentRefunded || false,
+        priorityFeeHistory: agg.priorityFeeHistory || [],
+        priorityFeeAddedTotal: Number(agg.priorityFeeAddedTotal) || 0,
       });
       setError(null);
     } catch (err: any) {
@@ -734,175 +757,23 @@ export default function OrderDetailScreen() {
     );
   }, [handleCancelOrder]);
 
-  const openPaymentAction = useCallback((payment: any) => {
-    if (payment?.state === 'paid') {
-      router.replace({
-        pathname: '/checkout/return',
-        params: {
-          payment_intent_id: payment.paymentIntentId || '',
-          merchantId: String(
-            payment.merchantId ||
-            (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
-          ),
-          order_id: String(payment.orderId || order?.id || ''),
-        },
-      });
+  const handleResumePayment = useCallback(() => {
+    const merchant = order?.merchant && typeof order.merchant === 'object'
+      ? order.merchant
+      : null;
+    if (!order?.id || !merchant?.id) {
+      Alert.alert('Checkout unavailable', 'This order is missing its merchant information.');
       return;
     }
-    if (payment?.state === 'processing') {
-      if (payment.paymentIntentId) {
-        router.replace({
-          pathname: '/checkout/return',
-          params: {
-            payment_intent_id: payment.paymentIntentId,
-            merchantId: String(
-              payment.merchantId ||
-              (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
-            ),
-            order_id: String(payment.orderId || order?.id || ''),
-          },
-        });
-        return;
-      }
-      Alert.alert(
-        'Payment confirmation in progress',
-        payment.message || 'We are waiting for PayMongo to confirm your payment.',
-      );
-      return;
-    }
-    if (payment?.state === 'unavailable') {
-      Alert.alert('Payment unavailable', payment.message || 'Please contact support to continue this order.');
-      return;
-    }
-    if (payment?.state !== 'qr' && payment?.state !== 'redirect') return;
 
     router.push({
-      pathname: '/checkout/qr',
+      pathname: '/checkout/[id]',
       params: {
-        qrImage: payment.state === 'qr' ? payment.qrImage : undefined,
-        redirectUrl: payment.state === 'redirect' ? payment.redirectUrl : undefined,
-        amount: String(payment.amount || order?.total || 0),
-        merchantName:
-          payment.merchantName ||
-          (order?.merchant && typeof order.merchant === 'object'
-            ? order.merchant.outletName || order.merchant.name || 'Merchant'
-            : 'Merchant'),
-        merchantId: String(
-          payment.merchantId ||
-          (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
-        ),
-        orderId: String(payment.orderId || order?.id || ''),
-        paymentIntentId: String(payment.paymentIntentId || ''),
+        id: String(merchant.id),
+        retryOrderId: String(order.id),
       },
     });
-  }, [order?.id, order?.merchant, order?.total, router]);
-
-  const handleResumePayment = useCallback(async () => {
-    if (!id || !user?.id || resumingPayment) return;
-    setResumingPayment(true);
-    try {
-      const resumeResponse = await fetch(`${apiConfig.baseUrl}/checkout/payment-resume`, {
-        method: 'POST',
-        headers: CMS_HEADERS,
-        body: JSON.stringify({ orderId: Number(id), customerId: Number(user.id) }),
-      });
-      const resumeData = await resumeResponse.json().catch(() => ({}));
-      if (!resumeResponse.ok) {
-        throw new Error(resumeData?.error || 'Unable to resume payment.');
-      }
-
-      if (resumeData.state !== 'retry') {
-        openPaymentAction(resumeData);
-        return;
-      }
-
-      const publicKey = apiConfig.paymongoPublicKey;
-      if (!publicKey) throw new Error('Payment is temporarily unavailable.');
-      const customerUser = order?.customer?.user && typeof order.customer.user === 'object'
-        ? order.customer.user
-        : null;
-      const billing = {
-        name: [customerUser?.firstName, customerUser?.lastName].filter(Boolean).join(' ') || 'Tap2Go Customer',
-        email: customerUser?.email || order?.customer?.email || 'customer@example.com',
-        phone: customerUser?.phone || '',
-        address: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'PH' },
-      };
-      const methodResponse = await fetch('https://api.paymongo.com/v1/payment_methods', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${btoa(`${publicKey}:`)}`,
-        },
-        body: JSON.stringify({
-          data: { attributes: { type: resumeData.paymentMethod, billing } },
-        }),
-      });
-      const methodData = await methodResponse.json().catch(() => ({}));
-      if (!methodResponse.ok || !methodData?.data?.id) {
-        throw new Error(methodData?.errors?.[0]?.detail || 'Could not start a new payment attempt.');
-      }
-
-      const merchantId = String(
-        resumeData.merchantId ||
-        (order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
-      );
-      const appReturnUrl = ExpoLinking.createURL('checkout/return', {
-        queryParams: {
-          payment_intent_id: resumeData.paymentIntentId,
-          merchantId,
-          order_id: String(id),
-        },
-      });
-      const returnUrl =
-        `https://app.tap2goph.com/checkout/${merchantId}/return?` +
-        `payment_intent_id=${encodeURIComponent(String(resumeData.paymentIntentId))}` +
-        `&order_id=${encodeURIComponent(String(id))}` +
-        `&app_redirect=${encodeURIComponent(appReturnUrl)}`;
-      const attachResponse = await fetch(
-        `https://api.paymongo.com/v1/payment_intents/${encodeURIComponent(String(resumeData.paymentIntentId))}/attach`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Basic ${btoa(`${publicKey}:`)}`,
-          },
-          body: JSON.stringify({
-            data: {
-              attributes: {
-                payment_method: methodData.data.id,
-                client_key: resumeData.clientKey,
-                return_url: returnUrl,
-              },
-            },
-          }),
-        },
-      );
-      const attachData = await attachResponse.json().catch(() => ({}));
-      if (!attachResponse.ok) {
-        throw new Error(attachData?.errors?.[0]?.detail || 'PayMongo could not resume this payment.');
-      }
-
-      const confirmationResponse = await fetch(`${apiConfig.baseUrl}/checkout/payment-resume`, {
-        method: 'POST',
-        headers: CMS_HEADERS,
-        body: JSON.stringify({
-          orderId: Number(id),
-          customerId: Number(user.id),
-          transactionId: resumeData.transactionId,
-          confirmAttached: true,
-        }),
-      });
-      const confirmation = await confirmationResponse.json().catch(() => ({}));
-      if (!confirmationResponse.ok) {
-        throw new Error(confirmation?.error || 'Payment was sent, but confirmation is still processing.');
-      }
-      openPaymentAction(confirmation);
-    } catch (err: any) {
-      Alert.alert('Unable to resume payment', err?.message || 'Please try again shortly.');
-    } finally {
-      setResumingPayment(false);
-    }
-  }, [id, openPaymentAction, order?.customer, order?.merchant, resumingPayment, user?.id]);
+  }, [order?.id, order?.merchant, router]);
 
   const showSkeleton = loading || refreshing;
 
@@ -994,6 +865,9 @@ export default function OrderDetailScreen() {
   const totalDeliveryFee = deliveryFee + priorityFee;
   const platformFee = order.platform_fee || 0;
   const discountTotal = Number(order.discountTotal) || 0;
+  const pendingPriorityFeeMethod = order.priorityFeeHistory?.find(
+    (payment) => payment.status === 'pending',
+  )?.paymentMethod as PaymentMethod | undefined;
   const canAddPriorityFee =
     order.isPaid === true &&
     order.fulfillment_type === 'delivery' &&
@@ -1004,6 +878,16 @@ export default function OrderDetailScreen() {
     !addingPriorityFee;
 
   const continuePriorityFeePayment = async (payment: any) => {
+    if (payment?.state === 'expired') {
+      setShowPriorityFeeModal(false);
+      setPriorityFeeAmount('');
+      await fetchOrder(true);
+      Alert.alert(
+        'QR payment expired',
+        'The previous priority-fee QR can no longer be paid. You can start a new payment from this order.',
+      );
+      return;
+    }
     if (payment?.state === 'failed') {
       throw new Error(payment.message || 'The payment was received, but the priority fee could not be applied. Please contact support.');
     }
@@ -1015,22 +899,42 @@ export default function OrderDetailScreen() {
       return;
     }
 
-    let paymentIntentId = String(payment?.paymentIntentId || '');
-    let qrImage = typeof payment?.qrImage === 'string' ? payment.qrImage : '';
+    const paymentIntentId = String(payment?.paymentIntentId || '');
+    const paymentMethod = String(payment?.paymentMethod || priorityFeePaymentMethod);
+    let nextAction = payment?.nextAction;
+    if (payment?.state === 'qr') {
+      nextAction = { code: { image_url: payment.qrImage } };
+    }
+
     if (payment?.state === 'attach') {
       const publicKey = apiConfig.paymongoPublicKey;
       if (!publicKey) throw new Error('Payment is temporarily unavailable.');
+      if (!AVAILABLE_PAYMENT_METHODS.includes(paymentMethod as PaymentMethod)) {
+        throw new Error('The saved payment method is not supported. Please contact support.');
+      }
       const methodResponse = await fetch('https://api.paymongo.com/v1/payment_methods', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Basic ${btoa(`${publicKey}:`)}`,
         },
-        body: JSON.stringify({ data: { attributes: { type: 'qrph' } } }),
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              type: paymentMethod,
+              billing: {
+                name: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Tap2Go Customer',
+                email: user?.email || 'customer@example.com',
+                phone: '',
+                address: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'PH' },
+              },
+            },
+          },
+        }),
       });
       const methodData = await methodResponse.json().catch(() => ({}));
       if (!methodResponse.ok || !methodData?.data?.id) {
-        throw new Error(methodData?.errors?.[0]?.detail || 'Could not prepare the QR Ph payment.');
+        throw new Error(methodData?.errors?.[0]?.detail || 'Could not prepare this payment method.');
       }
 
       const merchantId = String(
@@ -1041,6 +945,7 @@ export default function OrderDetailScreen() {
           payment_intent_id: paymentIntentId,
           merchantId,
           order_id: String(order?.id || ''),
+          priorityFeePayment: 'true',
         },
       });
       const returnUrl =
@@ -1069,10 +974,10 @@ export default function OrderDetailScreen() {
       );
       const attachData = await attachResponse.json().catch(() => ({}));
       if (!attachResponse.ok) {
-        throw new Error(attachData?.errors?.[0]?.detail || 'Could not start the QR Ph payment.');
+        throw new Error(attachData?.errors?.[0]?.detail || 'Could not start this payment.');
       }
-      qrImage = String(attachData?.data?.attributes?.next_action?.code?.image_url || '');
-      if (String(attachData?.data?.attributes?.status || '') === 'succeeded') {
+      const attachAttributes = attachData?.data?.attributes;
+      if (String(attachAttributes?.status || '') === 'succeeded') {
         const statusResponse = await fetch(`${apiConfig.baseUrl}/delivery/priority-fee/status`, {
           method: 'POST',
           headers: CMS_HEADERS,
@@ -1097,16 +1002,29 @@ export default function OrderDetailScreen() {
         }
         return;
       }
+      if (String(attachAttributes?.status || '') !== 'awaiting_next_action') {
+        throw new Error(
+          `PayMongo returned an unexpected payment status: ${String(attachAttributes?.status || 'unknown')}.`,
+        );
+      }
+      nextAction = attachAttributes?.next_action;
     }
 
-    if (!paymentIntentId || !qrImage) {
-      throw new Error(payment?.message || 'The QR Ph payment code is not available.');
+    const qrImage = typeof nextAction?.code?.image_url === 'string'
+      ? nextAction.code.image_url
+      : '';
+    const redirectUrl = typeof nextAction?.redirect?.url === 'string'
+      ? nextAction.redirect.url
+      : '';
+    if (!paymentIntentId || (!qrImage && !redirectUrl)) {
+      throw new Error(payment?.message || 'The payment action is not available.');
     }
     setShowPriorityFeeModal(false);
     router.push({
       pathname: '/checkout/qr',
       params: {
-        qrImage,
+        qrImage: qrImage || undefined,
+        redirectUrl: redirectUrl || undefined,
         amount: String(payment.amount || 0),
         merchantName:
           order?.merchant && typeof order.merchant === 'object'
@@ -1115,6 +1033,7 @@ export default function OrderDetailScreen() {
         merchantId: String(order?.merchant && typeof order.merchant === 'object' ? order.merchant.id : ''),
         orderId: String(order?.id || ''),
         paymentIntentId,
+        paymentMethod,
         priorityFeePayment: 'true',
       },
     });
@@ -1137,6 +1056,7 @@ export default function OrderDetailScreen() {
           orderId: order.id,
           customerId: Number(user.id),
           additionalAmount,
+          paymentMethod: priorityFeePaymentMethod,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -1149,6 +1069,33 @@ export default function OrderDetailScreen() {
       );
     } finally {
       setAddingPriorityFee(false);
+    }
+  };
+
+  const handleResumePriorityFeePayment = async () => {
+    const amount = Number(order?.priorityFeePaymentAmount);
+    if (!order?.id || !user?.id || !Number.isFinite(amount) || amount <= 0) return;
+    setResumingPriorityFee(true);
+    try {
+      const response = await fetch(`${apiConfig.baseUrl}/delivery/priority-fee/prepare`, {
+        method: 'POST',
+        headers: CMS_HEADERS,
+        body: JSON.stringify({
+          orderId: order.id,
+          customerId: Number(user.id),
+          additionalAmount: amount,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Could not resume the priority-fee payment.');
+      await continuePriorityFeePayment(data);
+    } catch (error) {
+      Alert.alert(
+        'Unable to resume payment',
+        error instanceof Error ? error.message : 'Please try again shortly.',
+      );
+    } finally {
+      setResumingPriorityFee(false);
     }
   };
 
@@ -1426,21 +1373,16 @@ export default function OrderDetailScreen() {
                   {order.paymentStatus === 'failed' ? 'Payment not completed' : 'Payment pending'}
                 </Text>
                 <Text style={styles.paymentRecoveryText}>
-                  Continue with the existing payment attempt. Your order will remain unpaid until PayMongo confirms it.
+                  Choose a payment method to start a fresh attempt. Your order stays unpaid until PayMongo confirms payment.
                 </Text>
               </View>
               <TouchableOpacity
                 style={styles.paymentRecoveryButton}
                 onPress={handleResumePayment}
-                disabled={resumingPayment}
                 accessibilityRole="button"
-                accessibilityLabel="Resume payment"
+                accessibilityLabel="Choose payment method"
               >
-                {resumingPayment ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.paymentRecoveryButtonText}>Resume payment</Text>
-                )}
+                <Text style={styles.paymentRecoveryButtonText}>Choose payment method</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1661,15 +1603,96 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
+        {order.priorityFeeHistory?.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Additional priority-fee history</Text>
+            <View style={styles.priorityFeeHistoryCard}>
+              <View style={styles.priorityFeeHistoryTotalRow}>
+                <Text style={styles.priceLabel}>Successfully applied</Text>
+                <Text style={styles.priceTotalValue}>
+                  {formatCurrency(order.priorityFeeAddedTotal || 0)}
+                </Text>
+              </View>
+              {order.priorityFeeHistory.map((payment) => {
+                const method = payment.paymentMethod as PaymentMethod | null;
+                const methodLabel = method && PAYMENT_METHOD_OPTIONS[method]
+                  ? PAYMENT_METHOD_OPTIONS[method].label
+                  : method?.replace(/_/g, ' ') || 'Payment method';
+                const paymentStatus = payment.status === 'paid' && payment.fulfillmentStatus === 'applied'
+                  ? 'Applied to delivery'
+                  : payment.status === 'refunded'
+                    ? 'Refunded'
+                    : payment.status === 'paid' && payment.fulfillmentStatus === 'failed'
+                      ? 'Paid, not applied'
+                      : payment.status === 'pending'
+                        ? 'Payment pending'
+                        : formatStatus(payment.status);
+                return (
+                  <View key={payment.id} style={styles.priorityFeeHistoryRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.priorityFeeHistoryMethod}>{methodLabel}</Text>
+                      <Text style={styles.priorityFeeHistoryMeta}>
+                        {paymentStatus}
+                        {payment.paidAt || payment.createdAt
+                          ? ` · ${formatDate(payment.paidAt || payment.createdAt)}`
+                          : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.priorityFeeHistoryAmount}>
+                      {formatCurrency(payment.amount)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         {order.priorityFeePaymentPending ? (
           <View style={styles.section}>
-            <View style={styles.priorityFeePendingCard}>
-              <ActivityIndicator size="small" color="#0F766E" />
+            <View
+              style={[
+                styles.priorityFeePendingCard,
+                order.priorityFeePaymentUnavailableReason && {
+                  borderColor: '#FECACA',
+                  backgroundColor: '#FEF2F2',
+                },
+              ]}
+            >
+              {order.priorityFeePaymentUnavailableReason ? (
+                <Ionicons name="alert-circle-outline" size={20} color="#B91C1C" />
+              ) : (
+                <ActivityIndicator size="small" color="#0F766E" />
+              )}
               <View style={{ flex: 1 }}>
-                <Text style={styles.priorityFeeTitle}>Priority-fee payment in progress</Text>
-                <Text style={styles.priorityFeeDescription}>
-                  We’ll apply the extra fee after PayMongo confirms payment. Refresh this order for updates.
+                <Text style={styles.priorityFeeTitle}>
+                  {order.priorityFeePaymentUnavailableReason
+                    ? 'Priority-fee payment cannot be resumed'
+                    : 'Priority-fee payment in progress'}
                 </Text>
+                <Text style={styles.priorityFeeDescription}>
+                  {order.priorityFeePaymentUnavailableReason ||
+                    (order.priorityFeePaymentAmount
+                      ? `Your ${pendingPriorityFeeMethod
+                        ? PAYMENT_METHOD_OPTIONS[pendingPriorityFeeMethod]?.label || pendingPriorityFeeMethod
+                        : 'payment'} is saved. Resume it here if you left before completing it.`
+                      : 'We’ll apply the extra fee after PayMongo confirms payment. Refresh this order for updates.')}
+                </Text>
+                {order.priorityFeePaymentAmount && !order.priorityFeePaymentUnavailableReason ? (
+                  <TouchableOpacity
+                    style={[styles.priorityFeeButton, { marginTop: 10 }]}
+                    onPress={handleResumePriorityFeePayment}
+                    disabled={resumingPriorityFee}
+                    accessibilityRole="button"
+                    accessibilityLabel="Resume priority-fee payment"
+                  >
+                    {resumingPriorityFee ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.priorityFeeButtonText}>Resume payment</Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
               </View>
             </View>
           </View>
@@ -1959,37 +1982,80 @@ export default function OrderDetailScreen() {
                   <Ionicons name="close" size={20} color="#374151" />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.priorityFeeModalDescription}>
-                This is an extra amount on top of the ₱{priorityFee.toFixed(2)} already included in your order. You’ll pay it separately using QR Ph.
-              </Text>
-              <Text style={styles.priorityFeeInputLabel}>Additional amount (PHP)</Text>
-              <TextInput
-                value={priorityFeeAmount}
-                onChangeText={setPriorityFeeAmount}
-                placeholder="e.g. 25.00"
-                keyboardType="decimal-pad"
-                editable={!addingPriorityFee}
-                style={styles.priorityFeeInput}
-                accessibilityLabel="Additional priority fee amount"
-              />
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  style={styles.priorityFeeSubmitButton}
-                  onPress={handleAddPriorityFee}
-                  disabled={addingPriorityFee}
-                  activeOpacity={0.75}
-                >
-                  {addingPriorityFee ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.priorityFeeSubmitText}>Continue to QR Ph payment</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+              <ScrollView
+                style={styles.priorityFeeOptionsScroll}
+                contentContainerStyle={styles.priorityFeeOptionsContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.priorityFeeModalDescription}>
+                  Add an amount on top of the ₱{priorityFee.toFixed(2)} already included in your order, then choose how to pay.
+                </Text>
+                <Text style={styles.priorityFeeInputLabel}>Payment method</Text>
+                <View style={styles.priorityFeePaymentMethods}>
+                  {AVAILABLE_PAYMENT_METHODS.map((method) => {
+                    const option = PAYMENT_METHOD_OPTIONS[method];
+                    const selected = priorityFeePaymentMethod === method;
+                    return (
+                      <TouchableOpacity
+                        key={method}
+                        style={[
+                          styles.priorityFeePaymentMethod,
+                          selected && styles.priorityFeePaymentMethodSelected,
+                        ]}
+                        onPress={() => setPriorityFeePaymentMethod(method)}
+                        disabled={addingPriorityFee}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected, disabled: addingPriorityFee }}
+                      >
+                        <View style={styles.priorityFeePaymentLogos}>
+                          {option.srcs.map((source, index) => (
+                            <Image
+                              key={`${method}-${index}`}
+                              source={source}
+                              style={styles.priorityFeePaymentLogo}
+                              resizeMode="contain"
+                            />
+                          ))}
+                        </View>
+                        <Text style={styles.priorityFeePaymentMethodLabel}>{option.label}</Text>
+                        {selected ? <Ionicons name="checkmark-circle" size={18} color="#0F766E" /> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={styles.priorityFeeInputLabel}>Additional amount (PHP)</Text>
+                <TextInput
+                  value={priorityFeeAmount}
+                  onChangeText={setPriorityFeeAmount}
+                  placeholder="e.g. 25.00"
+                  keyboardType="decimal-pad"
+                  editable={!addingPriorityFee}
+                  style={styles.priorityFeeInput}
+                  accessibilityLabel="Additional priority fee amount"
+                />
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    style={styles.priorityFeeSubmitButton}
+                    onPress={handleAddPriorityFee}
+                    disabled={addingPriorityFee}
+                    activeOpacity={0.75}
+                  >
+                    {addingPriorityFee ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.priorityFeeSubmitText}>
+                        Continue with {PAYMENT_METHOD_OPTIONS[priorityFeePaymentMethod].label}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </SafeAreaView>
         </SafeAreaProvider>
       </Modal>
+
     </View>
   );
 }
@@ -2297,6 +2363,31 @@ const styles = {
     borderWidth: 1,
     borderColor: '#99F6E4',
   },
+  priorityFeeHistoryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  priorityFeeHistoryTotalRow: {
+    minHeight: 52,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  priorityFeeHistoryRow: {
+    minHeight: 60,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  priorityFeeHistoryMethod: { fontSize: 13, fontWeight: '600' as const, color: '#111827' },
+  priorityFeeHistoryMeta: { fontSize: 11, color: '#6b7280', marginTop: 4, textTransform: 'capitalize' as const },
+  priorityFeeHistoryAmount: { fontSize: 14, fontWeight: '700' as const, color: '#111827' },
   priorityFeeModalSheet: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
@@ -2304,9 +2395,27 @@ const styles = {
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 16,
+    maxHeight: '90%' as const,
   },
+  priorityFeeOptionsScroll: { flexShrink: 1 },
+  priorityFeeOptionsContent: { paddingBottom: 8 },
   priorityFeeModalDescription: { fontSize: 13, lineHeight: 19, color: '#6b7280', marginBottom: 18 },
   priorityFeeInputLabel: { fontSize: 13, fontWeight: '600' as const, color: '#374151', marginBottom: 8 },
+  priorityFeePaymentMethods: { gap: 8, marginBottom: 16 },
+  priorityFeePaymentMethod: {
+    minHeight: 48,
+    paddingHorizontal: 12,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  priorityFeePaymentMethodSelected: { borderColor: '#0F766E', backgroundColor: '#F0FDFA' },
+  priorityFeePaymentLogos: { flexDirection: 'row' as const, alignItems: 'center' as const, marginRight: 10 },
+  priorityFeePaymentLogo: { width: 30, height: 20, marginRight: 3 },
+  priorityFeePaymentMethodLabel: { flex: 1, fontSize: 12, fontWeight: '500' as const, color: '#111827' },
   priorityFeeInput: {
     height: 48,
     borderWidth: 1,

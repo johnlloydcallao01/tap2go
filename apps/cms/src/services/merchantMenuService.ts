@@ -76,6 +76,7 @@ export async function buildMerchantMenuPage(
         { merchant_id: { equals: merchantId } },
         { is_active: { equals: true } },
         { is_available: { equals: true } },
+        { 'product_id.isActive': { not_equals: false } },
         { 'product_id.catalogVisibility': { not_equals: 'hidden' } },
       ],
     },

@@ -42,6 +42,7 @@ describe('pending order payment recovery', () => {
     expect(classifyPayMongoIntentStatus('awaiting_payment_method')).toBe('retryable')
     expect(classifyPayMongoIntentStatus('succeeded')).toBe('processing')
     expect(classifyPayMongoIntentStatus('canceled')).toBe('terminal')
+    expect(classifyPayMongoIntentStatus('cancelled')).toBe('terminal')
     expect(classifyPayMongoIntentStatus('unknown')).toBe('unknown')
   })
 
@@ -56,11 +57,45 @@ describe('pending order payment recovery', () => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
     const response = await checkoutPaymentResumeHandler(createResumeRequest({
-      customerId: 99,
+      role: 'customer',
+      userId: 99,
     }) as any)
 
     expect(response.status).toBe(404)
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['omitted', null],
+    ['mismatched', 99],
+  ])('uses the authenticated user when the client customer ID is %s', async (_label, customerId) => {
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'awaiting_payment_method' },
+    })))
+    const request = createResumeRequest({
+      role: 'customer',
+      userId: 42,
+      customerId,
+    })
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ state: 'choose_method' })
+  })
+
+  it('allows the authenticated customer to access their own retry checkout', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'awaiting_payment_method' },
+    })))
+    const request = createResumeRequest({ role: 'customer', userId: 42 })
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ state: 'choose_method' })
   })
 
   it('reconciles only the authenticated customer’s exact successful intent and transaction', async () => {
@@ -255,7 +290,7 @@ describe('pending order payment recovery', () => {
     }))
   })
 
-  it('returns the original QR action without attaching another payment method', async () => {
+  it('offers method selection instead of reopening an active QR payment action', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
       id: 'pi_existing',
       attributes: {
@@ -266,14 +301,13 @@ describe('pending order payment recovery', () => {
     const response = await checkoutPaymentResumeHandler(createResumeRequest() as any)
 
     await expect(response.json()).resolves.toMatchObject({
-      state: 'qr',
+      state: 'choose_method',
       orderId: '17',
-      paymentIntentId: 'pi_existing',
-      qrImage: 'data:image/png;base64,qr',
+      previousPaymentMethod: 'qrph',
     })
   })
 
-  it('offers same-intent retry only when PayMongo is awaiting a payment method', async () => {
+  it('asks the customer to choose a method when PayMongo allows a retry', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => providerResponse({
       id: 'pi_existing',
       attributes: { status: 'awaiting_payment_method', client_key: 'pi_existing_secret_key' },
@@ -281,14 +315,13 @@ describe('pending order payment recovery', () => {
     const response = await checkoutPaymentResumeHandler(createResumeRequest() as any)
 
     await expect(response.json()).resolves.toMatchObject({
-      state: 'retry',
-      paymentIntentId: 'pi_existing',
-      clientKey: 'pi_existing_secret_key',
-      paymentMethod: 'qrph',
+      state: 'choose_method',
+      orderId: '17',
+      previousPaymentMethod: 'qrph',
     })
   })
 
-  it('creates a replacement intent on the same order only after the prior attempt is failed and terminal', async () => {
+  it('creates a fresh intent with the selected method after a retryable attempt', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(providerResponse({
         id: 'pi_existing',
@@ -296,10 +329,18 @@ describe('pending order payment recovery', () => {
       }))
       .mockResolvedValueOnce(providerResponse({
         id: 'pi_replacement',
-        attributes: { client_key: 'pi_replacement_secret_key' },
+        attributes: {
+          client_key: 'pi_replacement_secret_key',
+          amount: 12500,
+          currency: 'PHP',
+        },
       }))
     vi.stubGlobal('fetch', fetch)
-    const request = createResumeRequest({ transactionStatus: 'failed' })
+    const request = createResumeRequest({
+      transactionStatus: 'failed',
+      paymentMethod: 'dob',
+      bankCode: 'bpi',
+    })
     const response = await checkoutPaymentResumeHandler(request as any)
 
     await expect(response.json()).resolves.toMatchObject({
@@ -313,21 +354,253 @@ describe('pending order payment recovery', () => {
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toMatchObject({
       data: {
         attributes: {
+          amount: 12500,
+          payment_method_allowed: ['card', 'gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph'],
+          payment_method_options: { card: { request_three_d_secure: 'any' } },
           statement_descriptor: 'TAP2GO',
+          metadata: {
+            orderId: '17',
+            payment_recovery: 'true',
+            payment_recovery_attempt_id: 'retry-attempt-1',
+          },
         },
       },
     })
+    expect(fetch.mock.calls[1][1].headers['Idempotency-Key']).toMatch(/^[a-f0-9]{64}$/)
     expect(request.payload.create).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'transactions',
       data: expect.objectContaining({
         order: 17,
         payment_intent_id: 'pi_replacement',
+        payment_method: 'dob',
         status: 'pending',
       }),
     }))
     expect(request.payload.update).not.toHaveBeenCalledWith(expect.objectContaining({
       collection: 'cart-items',
     }))
+  })
+
+  it('reuses the fresh recovery intent for a repeated retry request', async () => {
+    const fetch = vi.fn(async () => providerResponse({
+      id: 'pi_replacement',
+      attributes: {
+        status: 'awaiting_payment_method',
+        client_key: 'pi_replacement_secret_key',
+        amount: 12500,
+        currency: 'PHP',
+        metadata: {
+          payment_recovery: 'true',
+          payment_recovery_attempt_id: 'retry-attempt-1',
+        },
+      },
+    }))
+    vi.stubGlobal('fetch', fetch)
+    const request = createResumeRequest({
+      transactionStatus: 'pending',
+      transactionPaymentMethod: 'gcash',
+      paymentIntentId: 'pi_replacement',
+      paymentMethod: 'gcash',
+    })
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    await expect(response.json()).resolves.toMatchObject({
+      state: 'retry',
+      transactionId: '20',
+      paymentIntentId: 'pi_replacement',
+      paymentMethod: 'gcash',
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(request.payload.create).not.toHaveBeenCalled()
+  })
+
+  it('creates a new recovery intent when the customer starts another checkout retry', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_previous_retry',
+        attributes: {
+          status: 'awaiting_payment_method',
+          client_key: 'pi_previous_retry_secret_key',
+          amount: 12500,
+          currency: 'PHP',
+          metadata: {
+            payment_recovery: 'true',
+            payment_recovery_attempt_id: 'retry-attempt-1',
+          },
+        },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_new_retry',
+        attributes: {
+          client_key: 'pi_new_retry_secret_key',
+          amount: 12500,
+          currency: 'PHP',
+        },
+      }))
+    vi.stubGlobal('fetch', fetch)
+    const request = createResumeRequest({
+      transactionStatus: 'pending',
+      transactionPaymentMethod: 'gcash',
+      paymentIntentId: 'pi_previous_retry',
+      paymentMethod: 'gcash',
+      retryAttemptId: 'retry-attempt-2',
+    })
+
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    await expect(response.json()).resolves.toMatchObject({
+      state: 'retry',
+      paymentIntentId: 'pi_new_retry',
+    })
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(request.payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'transactions',
+      id: 20,
+      data: { status: 'failed' },
+    }))
+  })
+
+  it('rejects invalid bank codes before creating a replacement intent', async () => {
+    const fetch = vi.fn(async () => providerResponse({
+      id: 'pi_existing',
+      attributes: { status: 'awaiting_payment_method' },
+    }))
+    vi.stubGlobal('fetch', fetch)
+    const response = await checkoutPaymentResumeHandler(createResumeRequest({
+      paymentMethod: 'dob',
+      bankCode: 'bdo',
+    }) as any)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Select a valid bank for this payment method.',
+    })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('cancels the active intent before creating a fresh attempt with the selected method', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: {
+          status: 'awaiting_next_action',
+          next_action: { redirect: { url: 'https://paymongo.example/continue' } },
+        },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'cancelled' },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_replacement',
+        attributes: {
+          client_key: 'pi_replacement_secret_key',
+          amount: 12500,
+          currency: 'PHP',
+        },
+      }))
+    vi.stubGlobal('fetch', fetch)
+    const request = createResumeRequest({
+      paymentMethod: 'gcash',
+    })
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    await expect(response.json()).resolves.toMatchObject({
+      state: 'retry',
+      transactionId: '21',
+      paymentIntentId: 'pi_replacement',
+      paymentMethod: 'gcash',
+    })
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(fetch.mock.calls[1][0]).toBe('https://api.paymongo.com/v1/payment_intents/pi_existing/cancel')
+    expect(fetch.mock.calls[1][1].method).toBe('POST')
+    expect(fetch.mock.calls[1][1].body).toBeUndefined()
+    expect(request.payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'transactions',
+      id: 20,
+      data: { status: 'failed' },
+    }))
+    expect(response.status).toBe(200)
+  })
+
+  it('retries a transient PayMongo lock and starts a fresh attempt after cancellation', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'awaiting_next_action' },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        errors: [{ code: 'resource_locked', detail: 'Payment is temporarily locked.' }],
+      }, false, 409))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'awaiting_next_action' },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'cancelled' },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_replacement',
+        attributes: {
+          client_key: 'pi_replacement_secret_key',
+          amount: 12500,
+          currency: 'PHP',
+        },
+      }))
+    vi.stubGlobal('fetch', fetch)
+    const request = createResumeRequest({ paymentMethod: 'gcash' })
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      state: 'retry',
+      paymentIntentId: 'pi_replacement',
+    })
+    expect(fetch).toHaveBeenCalledTimes(5)
+    expect(fetch.mock.calls[3][0]).toBe('https://api.paymongo.com/v1/payment_intents/pi_existing/cancel')
+  })
+
+  it('does not create a new intent while PayMongo keeps the previous attempt locked', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'awaiting_next_action' },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        errors: [{ code: 'resource_locked', detail: 'Payment is still locked.' }],
+      }, false, 409))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'awaiting_next_action' },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        errors: [{ code: 'resource_locked', detail: 'Payment is still locked.' }],
+      }, false, 409))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'awaiting_next_action' },
+      }))
+      .mockResolvedValueOnce(providerResponse({
+        errors: [{ code: 'resource_locked', detail: 'Payment is still locked.' }],
+      }, false, 409))
+      .mockResolvedValueOnce(providerResponse({
+        id: 'pi_existing',
+        attributes: { status: 'awaiting_next_action' },
+      }))
+    vi.stubGlobal('fetch', fetch)
+    const request = createResumeRequest({ paymentMethod: 'gcash' })
+    const response = await checkoutPaymentResumeHandler(request as any)
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      state: 'unavailable',
+      code: 'PREVIOUS_PAYMENT_STILL_ACTIVE',
+      providerErrorCode: 'resource_locked',
+      previousPaymentStatus: 'awaiting_next_action',
+    })
+    expect(fetch).toHaveBeenCalledTimes(7)
+    expect(request.payload.create).not.toHaveBeenCalled()
   })
 
   it('keeps checked-out cart items linked to the pending order after payment failure', async () => {
@@ -569,15 +842,22 @@ describe('pending order payment recovery', () => {
 })
 
 function createResumeRequest(options: {
-  customerId?: number
+  customerId?: number | null
+  role?: string
+  userId?: number
   transactionStatus?: string
+  paymentMethod?: string
+  bankCode?: string
+  retryAttemptId?: string
+  transactionPaymentMethod?: string
+  paymentIntentId?: string
 } = {}) {
   const transaction = {
     id: 20,
     order: 17,
     status: options.transactionStatus || 'pending',
-    payment_intent_id: 'pi_existing',
-    payment_method: 'qrph',
+    payment_intent_id: options.paymentIntentId || 'pi_existing',
+    payment_method: options.transactionPaymentMethod || 'qrph',
     amount: 125,
     currency: 'PHP',
   }
@@ -589,13 +869,25 @@ function createResumeRequest(options: {
     total: 125,
   }
   return {
-    user: { id: 1, role: 'service' },
-    json: async () => ({ orderId: 17, customerId: options.customerId || 42 }),
+    user: { id: options.userId ?? 1, role: options.role || 'service' },
+    json: async () => ({
+      orderId: 17,
+      ...(options.customerId === null ? {} : { customerId: options.customerId || 42 }),
+      ...(options.paymentMethod ? { paymentMethod: options.paymentMethod } : {}),
+      ...(options.bankCode ? { bankCode: options.bankCode } : {}),
+      ...(options.paymentMethod && {
+        retryAttemptId: options.retryAttemptId || 'retry-attempt-1',
+      }),
+    }),
     payload: {
       findByID: async () => order,
-      find: async ({ where }: any) => ({
-        docs: JSON.stringify(where).includes('"equals":"paid"') ? [] : [transaction],
-      }),
+      find: async ({ where }: any) => {
+        const whereString = JSON.stringify(where)
+        if (whereString.includes('"equals":"paid"')) return { docs: [] }
+        const requestedIntent = where?.and?.find((filter: any) => filter.payment_intent_id)?.payment_intent_id?.equals
+        if (requestedIntent && requestedIntent !== transaction.payment_intent_id) return { docs: [] }
+        return { docs: [transaction] }
+      },
       update: vi.fn(async () => transaction),
       create: vi.fn(async () => ({ id: 21 })),
     },
@@ -662,10 +954,10 @@ function createReconcileRequest(options: {
   }
 }
 
-function providerResponse(data: unknown, ok = true) {
+function providerResponse(data: unknown, ok = true, status = ok ? 200 : 400) {
   return {
     ok,
-    status: ok ? 200 : 400,
-    json: async () => ({ data }),
+    status,
+    json: async () => ok ? { data } : data,
   } as Response
 }

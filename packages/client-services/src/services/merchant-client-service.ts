@@ -225,7 +225,7 @@ export class MerchantClientService {
       }
       const result = response.data as MerchantMenuData;
       if (!signal?.aborted) {
-        dataCache.set(cacheKey, result, CACHE_TTL.MERCHANTS);
+        dataCache.set(cacheKey, result, CACHE_TTL.MERCHANT_MENU);
       }
       return result;
     }

@@ -1,11 +1,22 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { View, Image, useWindowDimensions, Text, TouchableOpacity, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import {
+  View,
+  Image,
+  FlatList,
+  useWindowDimensions,
+  Text,
+  TouchableOpacity,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import MobileHeader from '../components/MobileHeader';
 import {
+  ADDRESS_KEYS,
+  AddressService,
   useHomeOverview,
   HomeOverviewService,
   HOME_OVERVIEW_KEYS,
@@ -18,6 +29,18 @@ import { useNavigation } from '../navigation/NavigationContext';
 import LocationBasedMerchants from '../components/LocationBasedMerchants';
 
 const HOME_OVERVIEW_STALE_TIME_MS = 30_000;
+const HOME_BANNER_AUTOPLAY_INTERVAL_MS = 5_000;
+const HOME_BANNER_ASPECT_RATIO = 2.65;
+const HOME_BANNERS = [
+  require('../../assets/home-banners/banner-1.jpg'),
+  require('../../assets/home-banners/banner-2.jpg'),
+  require('../../assets/home-banners/banner-3.jpg'),
+  require('../../assets/home-banners/banner-4.jpg'),
+  require('../../assets/home-banners/banner-5.jpg'),
+  require('../../assets/home-banners/banner-6.jpg'),
+  require('../../assets/home-banners/banner-7.jpg'),
+  require('../../assets/home-banners/banner-8.jpg'),
+];
 
 export default function HomeScreen() {
   // console.log('🏠 HomeScreen: Component initializing...');
@@ -26,9 +49,29 @@ export default function HomeScreen() {
   const queryClient = useQueryClient();
 
   const colors = useThemeColors();
-  const { customerId } = useAuth();
+  const { customerId, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const { width } = useWindowDimensions();
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  const bannerListRef = useRef<FlatList<number>>(null);
+  const bannerInteraction = useRef(false);
+  const bannerWidth = width - 32;
+  const bannerHeight = bannerWidth / HOME_BANNER_ASPECT_RATIO;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (bannerInteraction.current) return;
+
+      const nextIndex = (activeBannerIndex + 1) % HOME_BANNERS.length;
+      bannerListRef.current?.scrollToIndex({
+        index: nextIndex,
+        animated: nextIndex !== 0,
+      });
+      setActiveBannerIndex(nextIndex);
+    }, HOME_BANNER_AUTOPLAY_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [activeBannerIndex, width]);
 
   // State for location-based features
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
@@ -87,6 +130,7 @@ export default function HomeScreen() {
       mirrorRecommendations?: boolean;
     }[],
     showRefreshIndicator = false,
+    refreshActiveAddress = false,
   ) => {
     if (!customerId) return;
     if (refreshInProgress.current) return;
@@ -95,6 +139,13 @@ export default function HomeScreen() {
     try {
       if (showRefreshIndicator) {
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      if (refreshActiveAddress && user?.id) {
+        AddressService.clearCache();
+        await queryClient.resetQueries({
+          queryKey: ADDRESS_KEYS.active(String(user.id)),
+          exact: true,
+        });
       }
       clearHomeOverviewCache();
       const queryKeysToCancel = requests.flatMap(({ queryKey, mirrorRecommendations }) => [
@@ -162,7 +213,7 @@ export default function HomeScreen() {
         mirrorRecommendations: !selectedCategoryId,
       },
     ];
-    return forceRefetchHome(requests, true);
+    return forceRefetchHome(requests, true, true);
   };
 
   const retryOverview = () =>
@@ -241,17 +292,75 @@ export default function HomeScreen() {
           scrollEventThrottle={100}
           contentContainerStyle={{ flexGrow: 1, padding: 0, margin: 0 }}
         >
-          {/* Banner Image */}
-          <Image
-            source={require('../../assets/tap2go-campaign-banner(1).png')}
-            style={{
-              width: width - 20, // Full width minus 10px padding on each side (margin: 10 * 2)
-              height: (width - 20) * (300 / 1400), // Maintain aspect ratio based on new width
-              margin: 10,
-              borderRadius: 12,
-            }}
-            resizeMode="cover"
-          />
+          <View>
+            <FlatList
+              ref={bannerListRef}
+              data={HOME_BANNERS}
+              horizontal
+              pagingEnabled
+              initialNumToRender={1}
+              keyExtractor={(_, index) => `home-banner-${index}`}
+              getItemLayout={(_, index) => ({
+                length: width,
+                offset: width * index,
+                index,
+              })}
+              showsHorizontalScrollIndicator={false}
+              onScrollBeginDrag={() => {
+                bannerInteraction.current = true;
+              }}
+              onMomentumScrollBegin={() => {
+                bannerInteraction.current = true;
+              }}
+              onScrollEndDrag={(event) => {
+                const index = Math.round(event.nativeEvent.contentOffset.x / width);
+                setActiveBannerIndex(index);
+                bannerInteraction.current = false;
+              }}
+              onMomentumScrollEnd={(event) => {
+                const index = Math.round(event.nativeEvent.contentOffset.x / width);
+                setActiveBannerIndex(index);
+                bannerInteraction.current = false;
+              }}
+              renderItem={({ item, index }) => (
+                <View
+                  style={{
+                    width,
+                    height: bannerHeight + 8,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: bannerWidth,
+                      height: bannerHeight,
+                      borderRadius: 12,
+                      backgroundColor: '#fff7ed',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.12,
+                      shadowRadius: 4,
+                      elevation: 3,
+                    }}
+                  >
+                    <Image
+                      source={item}
+                      accessible
+                      accessibilityLabel={`Featured promotion ${index + 1} of ${HOME_BANNERS.length}`}
+                      resizeMode="contain"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: 12,
+                        backgroundColor: '#fff7ed',
+                      }}
+                    />
+                  </View>
+                </View>
+              )}
+            />
+          </View>
 
           {/* Categories Carousel (BFF-driven) */}
           {customerId ? (

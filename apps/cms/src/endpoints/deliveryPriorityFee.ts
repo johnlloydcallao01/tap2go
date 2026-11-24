@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import type { PayloadRequest } from 'payload'
 import { getDeliveryProvider } from '../services/deliveryProviders'
 import { PAYMONGO_STATEMENT_DESCRIPTOR } from '../services/paymongo'
+import { getPriorityFeeEligibilityError } from '../services/priorityFeeEligibility'
 
 type PriorityFeeTransaction = {
   id: number
@@ -11,10 +12,21 @@ type PriorityFeeTransaction = {
   refund_id?: string | null
   amount: number
   status: string
+  payment_method?: string | null
   transaction_type?: string | null
   priority_fee_total?: number | null
   priority_fee_fulfillment_status?: string | null
 }
+
+const PRIORITY_FEE_PAYMENT_METHODS = new Set([
+  'gcash',
+  'grab_pay',
+  'paymaya',
+  'billease',
+  'dob',
+  'brankas',
+  'qrph',
+])
 
 function relationId(value: unknown): number | null {
   const raw = value && typeof value === 'object' && 'id' in value
@@ -342,21 +354,6 @@ async function hasPaidOrder(req: PayloadRequest, orderId: number): Promise<boole
   return docs.length > 0
 }
 
-async function checkOrderEligibility(req: PayloadRequest, order: Record<string, any>, booking: Record<string, any>) {
-  if (order.fulfillment_type !== 'delivery' || !order.lalamove_order_id || !booking?.lalamove_order_id) {
-    return 'This order does not have an active delivery.'
-  }
-  if (['cancelled', 'canceled', 'delivered'].includes(String(order.status || '').toLowerCase())) {
-    return 'This order is no longer active.'
-  }
-  const provider = await getDeliveryProvider(req.payload)
-  const liveOrder = await provider.getOrderDetails(String(booking.lalamove_order_id))
-  if (String(liveOrder?.status || '').toUpperCase() !== 'ASSIGNING_DRIVER') {
-    return 'Priority fees can only be added while Lalamove is searching for a rider.'
-  }
-  return null
-}
-
 async function findActivePriorityFeePayment(req: PayloadRequest, orderId: number) {
   const { docs } = await req.payload.find({
     collection: 'transactions',
@@ -400,7 +397,7 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
     if (!order) return Response.json({ error: 'Order not found' }, { status: 404 })
     const booking = await getBooking(req, orderId)
     if (!booking) return Response.json({ error: 'No delivery booking was found for this order.' }, { status: 409 })
-    const eligibilityError = await checkOrderEligibility(req, order, booking)
+    const eligibilityError = await getPriorityFeeEligibilityError(req.payload, order, booking)
     if (eligibilityError) return Response.json({ error: eligibilityError }, { status: 409 })
     if (!(await hasPaidOrder(req, orderId))) {
       return Response.json({ error: 'The original order payment must be confirmed before adding a priority fee.' }, { status: 409 })
@@ -429,6 +426,14 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
         error: 'A previous priority-fee payment was received but could not be applied. Please contact support before making another payment.',
         code: 'PRIORITY_FEE_REQUIRES_SUPPORT',
       }, { status: 409 })
+    }
+
+    const requestedPaymentMethod = String(body.paymentMethod || 'qrph')
+    if (!PRIORITY_FEE_PAYMENT_METHODS.has(requestedPaymentMethod)) {
+      return Response.json({
+        error: 'Select a supported payment method.',
+        code: 'INVALID_PAYMENT_METHOD',
+      }, { status: 400 })
     }
 
     const activePayment = await findActivePriorityFeePayment(req, orderId)
@@ -466,14 +471,30 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
         const applied = await applyPaidPriorityFee(req, updated)
         return Response.json({ ...applied, amount: additionalAmount })
       }
-      const qrImage = intent?.attributes?.next_action?.code?.image_url
-      if (intentStatus === 'awaiting_next_action' && typeof qrImage === 'string') {
+      const nextAction = intent?.attributes?.next_action
+      if (intentStatus === 'awaiting_next_action' && nextAction) {
         return Response.json({
-          state: 'qr',
-          qrImage,
+          state: 'action',
+          nextAction,
           paymentIntentId: activePayment.payment_intent_id,
+          paymentMethod: activePayment.payment_method || 'qrph',
           amount: Number(activePayment.amount),
           targetFee: Number(activePayment.priority_fee_total),
+        })
+      }
+      if (['canceled', 'cancelled', 'failed', 'expired'].includes(intentStatus)) {
+        await req.payload.update({
+          collection: 'transactions',
+          id: activePayment.id,
+          data: {
+            status: 'failed',
+            priority_fee_fulfillment_status: 'failed',
+          },
+          overrideAccess: true,
+        })
+        return Response.json({
+          state: 'expired',
+          amount: Number(activePayment.amount),
         })
       }
       if (intentStatus !== 'awaiting_payment_method') {
@@ -486,6 +507,7 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
         state: 'attach',
         paymentIntentId: activePayment.payment_intent_id,
         clientKey: intent?.attributes?.client_key || null,
+        paymentMethod: activePayment.payment_method || 'qrph',
         amount: Number(activePayment.amount),
         targetFee: Number(activePayment.priority_fee_total),
       })
@@ -497,7 +519,7 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
         data: {
           order: orderId,
           payment_intent_id: `sandbox_priority_${crypto.randomUUID()}`,
-          payment_method: 'qrph',
+          payment_method: requestedPaymentMethod,
           amount: additionalAmount,
           currency: 'PHP',
           status: 'paid',
@@ -533,7 +555,7 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
             currency: 'PHP',
             description: `Tap2Go priority fee for order #${orderId}`,
             statement_descriptor: PAYMONGO_STATEMENT_DESCRIPTOR,
-            payment_method_allowed: ['qrph'],
+            payment_method_allowed: [requestedPaymentMethod],
             metadata: {
               orderId: String(orderId),
               transactionType: 'priority_fee',
@@ -567,7 +589,7 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
         data: {
           order: orderId,
           payment_intent_id: String(intent.id),
-          payment_method: 'qrph',
+          payment_method: requestedPaymentMethod,
           amount: additionalAmount,
           currency: 'PHP',
           status: 'pending',
@@ -592,6 +614,7 @@ export async function deliveryPriorityFeePrepareHandler(req: PayloadRequest) {
       transactionId: transaction.id,
       paymentIntentId: String(intent.id),
       clientKey: String(intent.attributes.client_key),
+      paymentMethod: requestedPaymentMethod,
       amount: additionalAmount,
       targetFee,
     })
@@ -652,6 +675,7 @@ export async function deliveryPriorityFeeStatusHandler(req: PayloadRequest) {
           data: {
             status: 'paid',
             paid_at: new Date().toISOString(),
+            payment_id: String(intent?.attributes?.payments?.data?.[0]?.id || ''),
             priority_fee_fulfillment_status: 'pending',
           },
           overrideAccess: true,

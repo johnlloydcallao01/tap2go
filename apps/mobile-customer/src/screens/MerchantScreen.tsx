@@ -28,6 +28,7 @@ import {
   getMerchantMenuClient,
   MerchantProductDisplay,
   MerchantCategoryDisplay,
+  UNCATEGORIZED_PRODUCT_CATEGORY_ID,
   clearMerchantDataCache
 } from '@encreasl/client-services';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -344,9 +345,10 @@ export default function MerchantScreen() {
     const allCategories = Array.from(categoryMap.values());
 
     // Products without categories
-    const others = products.filter(p => !p.categoryIds || p.categoryIds.length === 0);
+    const uncategorizedProducts = products.filter(p => !p.categoryIds || p.categoryIds.length === 0);
 
     const result: Section[] = [];
+    const categories = [...allCategories];
 
     // Add sections for each category
     allCategories.forEach(cat => {
@@ -368,27 +370,29 @@ export default function MerchantScreen() {
       }
     });
 
-    // Add "Others" section if any
-    if (others.length > 0) {
-      const chunkedOthers: MerchantProductDisplay[][] = [];
-      for (let i = 0; i < others.length; i += 2) {
-        chunkedOthers.push(others.slice(i, i + 2));
+    // Keep the uncategorized group after every catalog category.
+    if (uncategorizedProducts.length > 0) {
+      const chunkedUncategorized: MerchantProductDisplay[][] = [];
+      for (let i = 0; i < uncategorizedProducts.length; i += 2) {
+        chunkedUncategorized.push(uncategorizedProducts.slice(i, i + 2));
       }
 
-      const othersId = 'others';
       result.push({
-        title: 'Others',
-        data: chunkedOthers,
-        id: othersId
+        title: 'Uncategorized',
+        data: chunkedUncategorized,
+        id: UNCATEGORIZED_PRODUCT_CATEGORY_ID
       });
-      // Add "Others" to categories list for navigation pill
-      allCategories.push({ id: othersId, name: 'Others', slug: 'others' });
+      categories.push({
+        id: UNCATEGORIZED_PRODUCT_CATEGORY_ID,
+        name: 'Uncategorized',
+        slug: UNCATEGORIZED_PRODUCT_CATEGORY_ID
+      });
     }
 
     // Deduplicate products for search
     const uniqueProducts = Array.from(new Map(products.map(p => [p.id, p])).values());
 
-    return { sections: result, categories: allCategories, allProducts: uniqueProducts };
+    return { sections: result, categories, allProducts: uniqueProducts };
   }, [menuData]);
 
   // Sync Category Tabs with Selection

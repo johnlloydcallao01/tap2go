@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 import { buildOrderPaymentSummary } from './orderPaymentRecovery'
+import { getPriorityFeeEligibilityError } from './priorityFeeEligibility'
 import {
   buildLalamoveOrderRemarks,
   LalamoveOrderDetailsError,
@@ -37,6 +38,7 @@ export async function buildCustomerOrderDetail(
       free_delivery_applied: true,
       placed_at: true,
       notes: true,
+      lalamove_order_id: true,
       customer: true,
       merchant: true,
     },
@@ -141,11 +143,17 @@ export async function buildCustomerOrderDetail(
       pagination: false,
       overrideAccess: true,
       select: {
+        id: true,
         order: true,
+        amount: true,
+        currency: true,
         status: true,
         payment_method: true,
         transaction_type: true,
+        priority_fee_total: true,
         priority_fee_fulfillment_status: true,
+        paid_at: true,
+        createdAt: true,
       },
     }),
   ])
@@ -238,11 +246,27 @@ export async function buildCustomerOrderDetail(
         null,
     }
   })
-  const paymentSummary = buildOrderPaymentSummary(
-    order.status,
-    transactionsResult.docs as Array<Record<string, unknown>>,
-  )
-  const priorityFeePaymentPending = (transactionsResult.docs as Array<Record<string, unknown>>)
+  const transactions = transactionsResult.docs
+  const paymentSummary = buildOrderPaymentSummary(order.status, transactions)
+  const priorityFeeHistory = transactions
+    .filter((transaction) => transaction.transaction_type === 'priority_fee')
+    .map((transaction) => ({
+      id: transaction.id,
+      amount: Number(transaction.amount) || 0,
+      currency: transaction.currency || 'PHP',
+      paymentMethod: transaction.payment_method || null,
+      status: transaction.status || 'pending',
+      fulfillmentStatus: transaction.priority_fee_fulfillment_status || null,
+      priorityFeeTotal: transaction.priority_fee_total == null
+        ? null
+        : Number(transaction.priority_fee_total),
+      paidAt: transaction.paid_at || null,
+      createdAt: transaction.createdAt,
+    }))
+  const priorityFeeAddedTotal = priorityFeeHistory
+    .filter((payment) => payment.status === 'paid' && payment.fulfillmentStatus === 'applied')
+    .reduce((total, payment) => total + payment.amount, 0)
+  const priorityFeePaymentPending = transactions
     .some((transaction) =>
       transaction.transaction_type === 'priority_fee' &&
       (
@@ -250,13 +274,40 @@ export async function buildCustomerOrderDetail(
         ['pending', 'applying'].includes(String(transaction.priority_fee_fulfillment_status || ''))
       ),
     )
-  const priorityFeePaymentFailed = (transactionsResult.docs as Array<Record<string, unknown>>)
+  const pendingPriorityFeePayment = transactions
+    .find((transaction) =>
+      transaction.transaction_type === 'priority_fee' &&
+      transaction.status === 'pending' &&
+      ['pending', 'applying'].includes(String(transaction.priority_fee_fulfillment_status || '')),
+    )
+  const pendingPriorityFeeAmount = Number(pendingPriorityFeePayment?.amount)
+  const priorityFeePaymentAmount = Number.isFinite(pendingPriorityFeeAmount) && pendingPriorityFeeAmount > 0
+    ? pendingPriorityFeeAmount
+    : null
+  let priorityFeePaymentUnavailableReason: string | null = null
+  if (priorityFeePaymentAmount !== null) {
+    try {
+      priorityFeePaymentUnavailableReason = await getPriorityFeeEligibilityError(
+        payload,
+        order,
+        booking,
+      )
+    } catch (error) {
+      console.warn(
+        `[customer-order-detail] Could not verify priority-fee eligibility for order ${orderId}:`,
+        error,
+      )
+      priorityFeePaymentUnavailableReason =
+        'Unable to verify the delivery status. Refresh this order before resuming payment.'
+    }
+  }
+  const priorityFeePaymentFailed = transactions
     .some((transaction) =>
       transaction.transaction_type === 'priority_fee' &&
       transaction.status === 'paid' &&
       transaction.priority_fee_fulfillment_status === 'failed',
     )
-  const priorityFeePaymentRefunded = (transactionsResult.docs as Array<Record<string, unknown>>)
+  const priorityFeePaymentRefunded = transactions
     .some((transaction) =>
       transaction.transaction_type === 'priority_fee' &&
       transaction.status === 'refunded' &&
@@ -279,8 +330,12 @@ export async function buildCustomerOrderDetail(
     notes: order.notes || null,
     ...paymentSummary,
     priorityFeePaymentPending,
+    priorityFeePaymentAmount,
+    priorityFeePaymentUnavailableReason,
     priorityFeePaymentFailed,
     priorityFeePaymentRefunded,
+    priorityFeeHistory,
+    priorityFeeAddedTotal,
     riderRemarksPreview,
     merchant: merchant
       ? {

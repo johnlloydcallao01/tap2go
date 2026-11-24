@@ -1,12 +1,14 @@
+import crypto from 'crypto'
 import type { PayloadRequest, Where } from 'payload'
+import { createPaymentIntent } from './checkoutPrepare'
 import {
   classifyPayMongoIntentStatus,
   isOrderOwnedByCustomer,
 } from '../services/orderPaymentRecovery'
-import { PAYMONGO_STATEMENT_DESCRIPTOR } from '../services/paymongo'
 import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
 import {
   amountInMinorUnits,
+  cancelPayMongoIntent,
   getPayMongoSecretKey,
   retrievePayMongoIntent,
 } from '../services/paymongoIntent'
@@ -21,6 +23,20 @@ const PAYMENT_METHODS = new Set([
   'brankas',
   'card',
 ])
+const SELECTABLE_PAYMENT_METHODS = [
+  'gcash',
+  'grab_pay',
+  'paymaya',
+  'billease',
+  'dob',
+  'brankas',
+  'qrph',
+] as const
+const SELECTABLE_PAYMENT_METHOD_SET = new Set<string>(SELECTABLE_PAYMENT_METHODS)
+const BANK_CODES_BY_METHOD: Record<string, Set<string>> = {
+  dob: new Set(['bpi', 'ubp']),
+  brankas: new Set(['bdo', 'landbank', 'metrobank']),
+}
 
 function relationId(value: unknown): string | null {
   const raw = value && typeof value === 'object' && 'id' in value
@@ -48,7 +64,6 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
       ? (req as any).json()
       : Promise.resolve((req as any).body))) ?? {}
     const orderId = Number(body.orderId)
-    const customerUserId = Number(body.customerId)
     const confirmAttached = body.confirmAttached === true
     const reconcileOnly = body.reconcileOnly === true
     const requestedPaymentIntentId = typeof body.paymentIntentId === 'string'
@@ -57,12 +72,26 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
     const requestedTransactionId = body.transactionId == null || String(body.transactionId).trim() === ''
       ? null
       : String(body.transactionId).trim()
+    const requestedPaymentMethod = typeof body.paymentMethod === 'string'
+      ? body.paymentMethod.trim()
+      : ''
+    const requestedBankCode = typeof body.bankCode === 'string'
+      ? body.bankCode.trim().toLowerCase()
+      : ''
+    const retryAttemptId = typeof body.retryAttemptId === 'string'
+      ? body.retryAttemptId.trim()
+      : ''
     const role = String(req.user?.role || '')
-    const authorizedCustomer = reconcileOnly && role === 'customer'
-      && Number(req.user?.id) === customerUserId
-    if (!req.user || (!['service', 'admin'].includes(role) && !authorizedCustomer)) {
+    if (
+      !req.user ||
+      !['customer', 'service', 'admin'].includes(role) ||
+      (role === 'customer' && req.user.isActive === false)
+    ) {
       return Response.json({ error: 'Authentication required' }, { status: 401 })
     }
+    const customerUserId = role === 'customer'
+      ? Number(req.user.id)
+      : Number(body.customerId)
 
     if (!Number.isSafeInteger(orderId) || orderId <= 0 ||
       !Number.isSafeInteger(customerUserId) || customerUserId <= 0) {
@@ -86,6 +115,21 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
         }) as any
     if (!isOrderOwnedByCustomer({ ...order, customer: orderCustomer }, customerUserId)) {
       return Response.json({ error: 'Order not found' }, { status: 404 })
+    }
+    if (requestedPaymentMethod) {
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(retryAttemptId)) {
+        return Response.json({ error: 'A valid payment retry attempt ID is required.' }, { status: 400 })
+      }
+      if (!SELECTABLE_PAYMENT_METHOD_SET.has(requestedPaymentMethod)) {
+        return Response.json({ error: 'Select a supported payment method.' }, { status: 400 })
+      }
+      const bankCodes = BANK_CODES_BY_METHOD[requestedPaymentMethod]
+      if (bankCodes && !bankCodes.has(requestedBankCode)) {
+        return Response.json({ error: 'Select a valid bank for this payment method.' }, { status: 400 })
+      }
+      if (!bankCodes && requestedBankCode) {
+        return Response.json({ error: 'A bank can only be selected for an online banking method.' }, { status: 400 })
+      }
     }
 
     if (reconcileOnly) {
@@ -277,9 +321,9 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
       return Response.json({ error: 'Payment recovery is temporarily unavailable' }, { status: 503 })
     }
 
-    const intent = await retrievePayMongoIntent(paymentIntentId, secretKey)
-    const providerStatus = String(intent?.attributes?.status || '').toLowerCase()
-    const recoveryState = classifyPayMongoIntentStatus(providerStatus)
+    let intent = await retrievePayMongoIntent(paymentIntentId, secretKey)
+    let providerStatus = String(intent?.attributes?.status || '').toLowerCase()
+    let recoveryState = classifyPayMongoIntentStatus(providerStatus)
     if (
       transactionStatus === 'failed' &&
       (recoveryState === 'action_required' || recoveryState === 'processing')
@@ -302,17 +346,57 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
       }
     }
 
-    const action = getPaymentAction(intent)
-    if (recoveryState === 'action_required' && action) {
-      return Response.json({
-        state: action.type,
-        ...action,
-        orderId: String(orderId),
-        paymentIntentId,
-        amount: Number(order.total) || Number((transaction as any).amount) || 0,
-        merchantId: relationId(order.merchant),
-        merchantName: (order.merchant as any)?.outletName || (order.merchant as any)?.name || 'Merchant',
-      })
+    if (!confirmAttached && recoveryState === 'action_required') {
+      if (!requestedPaymentMethod) {
+        return Response.json({
+          state: 'choose_method',
+          orderId: String(orderId),
+          previousPaymentMethod: PAYMENT_METHODS.has(String((transaction as any).payment_method))
+            ? String((transaction as any).payment_method)
+            : null,
+          amount: Number(order.total) || Number((transaction as any).amount) || 0,
+          merchantId: relationId(order.merchant),
+          message: 'Choose a payment method to replace the previous payment attempt.',
+        })
+      }
+
+      const cancellation = await cancelPayMongoIntent(paymentIntentId, secretKey)
+      intent = cancellation.intent
+      providerStatus = String(intent?.attributes?.status || '').toLowerCase()
+      recoveryState = classifyPayMongoIntentStatus(providerStatus)
+      if (recoveryState === 'processing') {
+        return Response.json({
+          state: 'processing',
+          orderId: String(orderId),
+          paymentIntentId,
+          merchantId: relationId(order.merchant),
+          message: 'PayMongo is confirming the previous payment. Wait for confirmation before starting another attempt.',
+        })
+      }
+      if (!['retryable', 'terminal'].includes(recoveryState)) {
+        return Response.json({
+          state: 'unavailable',
+          code: 'PREVIOUS_PAYMENT_STILL_ACTIVE',
+          providerErrorCode: cancellation.providerErrorCode,
+          previousPaymentStatus: providerStatus,
+          message: `PayMongo still reports the previous payment as ${providerStatus || 'active'}. It has not confirmed cancellation, so no new attempt was started.`,
+        }, { status: 409 })
+      }
+    }
+
+    if (confirmAttached && recoveryState === 'action_required') {
+      const action = getPaymentAction(intent)
+      if (action) {
+        return Response.json({
+          state: action.type,
+          ...action,
+          orderId: String(orderId),
+          paymentIntentId,
+          amount: Number(order.total) || Number((transaction as any).amount) || 0,
+          merchantId: relationId(order.merchant),
+          merchantName: (order.merchant as any)?.outletName || (order.merchant as any)?.name || 'Merchant',
+        })
+      }
     }
 
     if (recoveryState === 'processing') {
@@ -325,88 +409,134 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
       })
     }
 
-    if (recoveryState === 'retryable' && transactionStatus !== 'failed') {
-      const clientKey = String(intent?.attributes?.client_key || '')
-      const paymentMethod = String((transaction as any).payment_method || '')
-      if (!clientKey || !PAYMENT_METHODS.has(paymentMethod)) {
-        return Response.json({
-          state: 'unavailable',
-          message: 'PayMongo requires a new payment attempt that cannot be safely resumed here. Please contact support.',
-        })
-      }
-      return Response.json({
-        state: 'retry',
-        orderId: String(orderId),
-        transactionId: String((transaction as any).id),
-        paymentIntentId,
-        clientKey,
-        paymentMethod,
-        amount: Number(order.total) || Number((transaction as any).amount) || 0,
-        merchantId: relationId(order.merchant),
-        merchantName: (order.merchant as any)?.outletName || (order.merchant as any)?.name || 'Merchant',
-      })
-    }
-
     if (
       !confirmAttached &&
-      (recoveryState === 'terminal' ||
-        (recoveryState === 'retryable' && transactionStatus === 'failed'))
+      (recoveryState === 'terminal' || recoveryState === 'retryable')
     ) {
-      const method = PAYMENT_METHODS.has(String((transaction as any).payment_method))
-        ? String((transaction as any).payment_method)
-        : 'qrph'
+      if (!requestedPaymentMethod) {
+        return Response.json({
+          state: 'choose_method',
+          orderId: String(orderId),
+          previousPaymentMethod: PAYMENT_METHODS.has(String((transaction as any).payment_method))
+            ? String((transaction as any).payment_method)
+            : null,
+          amount: Number(order.total) || Number((transaction as any).amount) || 0,
+          merchantId: relationId(order.merchant),
+          message: 'The previous payment attempt is no longer active. Choose a payment method to try again.',
+        })
+      }
+
       const amount = Math.round(Number(order.total) * 100)
       if (!Number.isSafeInteger(amount) || amount < 100) {
         return Response.json({ error: 'Order amount is invalid for payment recovery' }, { status: 409 })
       }
-      const replacementResponse = await fetch('https://api.paymongo.com/v1/payment_intents', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`,
-        },
-        body: JSON.stringify({
-          data: {
-            attributes: {
-              amount,
-              currency: String((transaction as any).currency || 'PHP'),
-              payment_method_allowed: [method],
-              description: `Order #${orderId}`,
-              statement_descriptor: PAYMONGO_STATEMENT_DESCRIPTOR,
-            },
-          },
-        }),
-      })
-      const replacement = await replacementResponse.json().catch(() => ({}))
-      const replacementIntent = replacement?.data
-      const replacementIntentId = String(replacementIntent?.id || '')
-      const replacementClientKey = String(replacementIntent?.attributes?.client_key || '')
-      if (!replacementResponse.ok || !replacementIntentId || !replacementClientKey) {
-        console.error('[checkout/payment-resume] PayMongo replacement intent creation failed', {
-          status: replacementResponse.status,
+      const currency = String((transaction as any).currency || 'PHP').toUpperCase()
+      const currentClientKey = String(intent?.attributes?.client_key || '')
+      const intentAmount = Number(intent?.attributes?.amount)
+      const intentCurrency = String(intent?.attributes?.currency || '').toUpperCase()
+      if (
+        transactionStatus === 'pending' &&
+        String((transaction as any).payment_method || '') === requestedPaymentMethod &&
+        intent?.attributes?.metadata?.payment_recovery === 'true' &&
+        intent?.attributes?.metadata?.payment_recovery_attempt_id === retryAttemptId &&
+        currentClientKey &&
+        intentAmount === amount &&
+        intentCurrency === currency
+      ) {
+        return Response.json({
+          state: 'retry',
+          orderId: String(orderId),
+          transactionId: String((transaction as any).id),
+          paymentIntentId,
+          clientKey: currentClientKey,
+          paymentMethod: requestedPaymentMethod,
+          bankCode: requestedBankCode || null,
+          amount: Number(order.total),
+          merchantId: relationId(order.merchant),
+          merchantName: (order.merchant as any)?.outletName || (order.merchant as any)?.name || 'Merchant',
         })
+      }
+
+      const idempotencyKey = crypto
+        .createHash('sha256')
+        .update(`order-payment-retry:${orderId}:${String((transaction as any).id)}:${requestedPaymentMethod}:${retryAttemptId}`)
+        .digest('hex')
+      await req.payload.update({
+        collection: 'transactions',
+        id: (transaction as any).id,
+        data: { status: 'failed' },
+        overrideAccess: true,
+      })
+      let replacementIntent: any
+      try {
+        replacementIntent = await createPaymentIntent({
+          amount: Number(order.total),
+          currency,
+          idempotencyKey,
+          orderId,
+          secret: secretKey,
+          requestId: `retry-${retryAttemptId}`,
+          metadata: {
+            payment_recovery: 'true',
+            payment_recovery_attempt_id: retryAttemptId,
+          },
+        })
+      } catch (error) {
+        console.error('[checkout/payment-resume] PayMongo replacement intent creation failed:', error)
+        return Response.json({
+          error: 'A new payment attempt could not be started. Please try again.',
+        }, { status: 502 })
+      }
+      const replacementAttributes = replacementIntent?.attributes
+      const replacementIntentId = String(replacementIntent?.id || '')
+      const replacementClientKey = String(replacementAttributes?.client_key || '')
+      if (
+        !replacementIntentId ||
+        !replacementClientKey ||
+        Number(replacementAttributes?.amount) !== amount ||
+        String(replacementAttributes?.currency || '').toUpperCase() !== currency
+      ) {
+        console.error('[checkout/payment-resume] PayMongo replacement intent failed validation')
         return Response.json({ error: 'A new payment attempt could not be started. Please try again.' }, { status: 502 })
       }
 
-      const replacementTransaction = await req.payload.create({
+      const existingReplacement = await req.payload.find({
         collection: 'transactions',
-        data: {
-          order: orderId,
-          payment_intent_id: replacementIntentId,
-          payment_method: method,
-          amount: Number(order.total),
-          currency: String((transaction as any).currency || 'PHP'),
-          status: 'pending',
+        where: {
+          and: [
+            { order: { equals: orderId } },
+            { payment_intent_id: { equals: replacementIntentId } },
+            { transaction_type: { not_equals: 'priority_fee' } },
+          ],
         },
+        limit: 1,
+        depth: 0,
         overrideAccess: true,
       })
+      let replacementTransaction = existingReplacement.docs[0]
+      if (!replacementTransaction) {
+        replacementTransaction = await req.payload.create({
+          collection: 'transactions',
+          data: {
+            order: orderId,
+            payment_intent_id: replacementIntentId,
+            payment_method: requestedPaymentMethod,
+            amount: Number(order.total),
+            currency,
+            status: 'pending',
+            transaction_type: 'order',
+          },
+          overrideAccess: true,
+        })
+      }
       return Response.json({
         state: 'retry',
         orderId: String(orderId),
-        transactionId: String(replacementTransaction.id),
+        transactionId: String((replacementTransaction as any).id),
         paymentIntentId: replacementIntentId,
         clientKey: replacementClientKey,
-        paymentMethod: method,
+        paymentMethod: requestedPaymentMethod,
+        bankCode: requestedBankCode || null,
         amount: Number(order.total),
         merchantId: relationId(order.merchant),
         merchantName: (order.merchant as any)?.outletName || (order.merchant as any)?.name || 'Merchant',

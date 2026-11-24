@@ -57,7 +57,7 @@ export const merchantMenuHandler = async (req: PayloadRequest) => {
   }
 
   const limit = Math.min(requestedLimit, MAX_LIMIT)
-  const cacheKey = `customer:merchant:menu:v1:${merchantId}:${page}:${limit}`
+  const cacheKey = `customer:merchant:menu:v2:${merchantId}:${page}:${limit}`
   try {
     const { data, status: cacheStatus } = await getOrBuildDashboard(
       cacheKey,

@@ -58,6 +58,46 @@ function mapEffectiveModifierGroups(rawGroups: any[] = []): ModifierGroup[] {
   }));
 }
 
+async function fetchAllPages<T>(
+  collection: string,
+  params: URLSearchParams,
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const limit = Number(params.get('limit')) || 100;
+  const docs: T[] = [];
+  let page = 1;
+
+  while (true) {
+    const pageParams = new URLSearchParams(params);
+    pageParams.set('page', String(page));
+    const response = await fetch(`${API_BASE}/${collection}?${pageParams.toString()}`, {
+      headers: buildHeaders(),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to load ${collection} (${response.status})`);
+    }
+
+    const data = await response.json() as {
+      docs?: T[];
+      totalPages?: number;
+      hasNextPage?: boolean;
+    };
+    const pageDocs = Array.isArray(data.docs) ? data.docs : [];
+    docs.push(...pageDocs);
+
+    const hasNextPage = typeof data.hasNextPage === 'boolean'
+      ? data.hasNextPage
+      : typeof data.totalPages === 'number'
+        ? page < data.totalPages
+        : pageDocs.length >= limit;
+
+    if (!hasNextPage || pageDocs.length === 0) return docs;
+    page += 1;
+  }
+}
+
 export async function fetchEffectiveModifierGroups(
   productId: string | number,
   variationId?: string | number | null,
@@ -185,119 +225,111 @@ export async function fetchProductWithMerchantContext(
     let variations: ProductVariation[] = [];
     let defaultVariationId: string | number | undefined;
     if (finalProduct.productType === 'variable') {
-      const variationsRes = await fetch(`${API_BASE}/prod-variations?where[product_id][equals]=${encodeURIComponent(String(productData.id))}&where[is_visible][equals]=true&limit=100&sort=sort_order&depth=1`, {
-        headers,
-        signal,
+      const variationQuery = new URLSearchParams({
+        'where[product_id][equals]': String(productData.id),
+        'where[is_visible][equals]': 'true',
+        limit: '100',
+        sort: 'sort_order',
+        depth: '1',
       });
+      const rawVariations = await fetchAllPages<any>('prod-variations', variationQuery, signal);
+      const variationIds: (string | number)[] = rawVariations
+        .map((v: any) => getRelationId(v?.id))
+        .filter((id: string | number | undefined): id is string | number => id !== undefined);
 
-      if (!variationsRes.ok) {
-        throw new Error(`Failed to load product variations (${variationsRes.status})`);
-      }
+      const firstInStockVariation = rawVariations.find((variation: any) => (variation.stock_quantity ?? 0) > 0);
+      defaultVariationId = firstInStockVariation?.id ?? rawVariations[0]?.id;
 
-      {
-        const varData = await variationsRes.json();
-        const rawVariations = varData.docs || [];
-        const variationIds: (string | number)[] = rawVariations
-          .map((v: any) => getRelationId(v?.id))
-          .filter((id: string | number | undefined): id is string | number => id !== undefined);
-
-        const firstInStockVariation = rawVariations.find((variation: any) => (variation.stock_quantity ?? 0) > 0);
-        defaultVariationId = firstInStockVariation?.id ?? rawVariations[0]?.id;
-
-        const variationValueMap = new Map<string, ProductVariation['attributeItems']>();
-        if (variationIds.length > 0) {
+      const variationValueMap = new Map<string, ProductVariation['attributeItems']>();
+      const variationValuesPromise = (async () => {
+        const values: any[] = [];
+        const variationIdBatchSize = 100;
+        for (let index = 0; index < variationIds.length; index += variationIdBatchSize) {
+          const variationIdBatch = variationIds.slice(index, index + variationIdBatchSize);
           const valuesQuery = new URLSearchParams({
-            'where[variation_id][in]': variationIds.join(','),
+            'where[variation_id][in]': variationIdBatch.join(','),
             limit: '500',
             depth: '2',
           });
-          const modifierPromise = fetchEffectiveModifierGroups(
-            productData.id,
-            defaultVariationId ?? null,
-            merchantId,
-            signal,
-          );
-          const [valuesRes, effectiveGroups] = await Promise.all([
-            fetch(`${API_BASE}/prod-variation-values?${valuesQuery.toString()}`, { headers, signal }),
-            modifierPromise,
-          ]);
-
-          if (!valuesRes.ok) {
-            throw new Error(`Failed to load variation attributes (${valuesRes.status})`);
-          }
-          const valuesData = await valuesRes.json();
-          const mappedValues = (valuesData.docs || []).reduce(
-            (map: Map<string, ProductVariation['attributeItems']>, item: any) => {
-              const variationKey = String(getRelationId(item?.variation_id));
-              const attribute = item?.attribute_id;
-              const term = item?.term_id;
-
-              if (!variationKey || !attribute || !term) {
-                return map;
-              }
-
-              const existing = map.get(variationKey) || [];
-              existing.push({
-                attributeId: getRelationId(attribute),
-                attributeName: attribute?.name || 'Option',
-                attributeSlug: attribute?.slug,
-                attributeType: attribute?.type,
-                termId: getRelationId(term),
-                termName: term?.name || '',
-                termSlug: term?.slug,
-                termValue: term?.value,
-              });
-              map.set(variationKey, existing);
-              return map;
-            },
-            new Map<string, ProductVariation['attributeItems']>()
-          );
-          mappedValues.forEach((items, key) => variationValueMap.set(key, items));
-          modifierGroups = effectiveGroups;
-        } else {
-          modifierGroups = await fetchEffectiveModifierGroups(
-            productData.id,
-            defaultVariationId ?? null,
-            merchantId,
-            signal,
+          values.push(
+            ...(await fetchAllPages<any>('prod-variation-values', valuesQuery, signal)),
           );
         }
+        return values;
+      })();
+      const [variationValues, effectiveGroups] = await Promise.all([
+        variationValuesPromise,
+        fetchEffectiveModifierGroups(
+          productData.id,
+          defaultVariationId ?? null,
+          merchantId,
+          signal,
+        ),
+      ]);
+      modifierGroups = effectiveGroups;
 
-        variations = rawVariations.map((v: any) => {
-          const image = v.image;
-          const attributeItems = variationValueMap.get(String(v.id)) || [];
-          return {
-            id: v.id,
-            name: v.name || attributeItems.map((item) => item.termName).filter(Boolean).join(' / ') || productData.name,
-            sku: v.sku,
-            base_price: v.base_price || 0,
-            compare_at_price: v.compare_at_price,
-            stock_quantity: v.stock_quantity,
-            short_description: v.short_description || undefined,
-            image: mapMedia(image),
-            attributeItems,
-            attributes: attributeItems.reduce<Record<string, string>>((acc, item) => {
-              if (item.attributeName && item.termName) {
-                acc[item.attributeName] = item.termName;
-              }
-              return acc;
-            }, {}),
-          };
-        });
+      const mappedValues = variationValues.reduce(
+        (map: Map<string, ProductVariation['attributeItems']>, item: any) => {
+          const variationKey = String(getRelationId(item?.variation_id));
+          const attribute = item?.attribute_id;
+          const term = item?.term_id;
 
-        const defaultVariation = variations.find((variation) => String(variation.id) === String(defaultVariationId));
-        if (defaultVariation) {
-          // Merchant price override takes precedence, matching the simple-product
-          // path above so variable products honor the same override.
-          finalProduct.basePrice = merchantPriceOverride ?? defaultVariation.base_price ?? finalProduct.basePrice ?? 0;
-          finalProduct.compareAtPrice = defaultVariation.compare_at_price ?? finalProduct.compareAtPrice;
-          finalProduct.shortDescription = defaultVariation.short_description || finalProduct.shortDescription;
-          if (defaultVariation.image) {
-            finalProduct.media = {
-              ...finalProduct.media,
-              primaryImage: defaultVariation.image,
-            };
+          if (!variationKey || !attribute || !term) {
+            return map;
           }
+
+          const existing = map.get(variationKey) || [];
+          existing.push({
+            attributeId: getRelationId(attribute),
+            attributeName: attribute?.name || 'Option',
+            attributeSlug: attribute?.slug,
+            attributeType: attribute?.type,
+            termId: getRelationId(term),
+            termName: term?.name || '',
+            termSlug: term?.slug,
+            termValue: term?.value,
+          });
+          map.set(variationKey, existing);
+          return map;
+        },
+        new Map<string, ProductVariation['attributeItems']>()
+      );
+      mappedValues.forEach((items, key) => variationValueMap.set(key, items));
+
+      variations = rawVariations.map((v: any) => {
+        const image = v.image;
+        const attributeItems = variationValueMap.get(String(v.id)) || [];
+        return {
+          id: v.id,
+          name: v.name || attributeItems.map((item) => item.termName).filter(Boolean).join(' / ') || productData.name,
+          sku: v.sku,
+          base_price: v.base_price || 0,
+          compare_at_price: v.compare_at_price,
+          stock_quantity: v.stock_quantity,
+          short_description: v.short_description || undefined,
+          image: mapMedia(image),
+          attributeItems,
+          attributes: attributeItems.reduce<Record<string, string>>((acc, item) => {
+            if (item.attributeName && item.termName) {
+              acc[item.attributeName] = item.termName;
+            }
+            return acc;
+          }, {}),
+        };
+      });
+
+      const defaultVariation = variations.find((variation) => String(variation.id) === String(defaultVariationId));
+      if (defaultVariation) {
+        // Merchant price override takes precedence, matching the simple-product
+        // path above so variable products honor the same override.
+        finalProduct.basePrice = merchantPriceOverride ?? defaultVariation.base_price ?? finalProduct.basePrice ?? 0;
+        finalProduct.compareAtPrice = defaultVariation.compare_at_price ?? finalProduct.compareAtPrice;
+        finalProduct.shortDescription = defaultVariation.short_description || finalProduct.shortDescription;
+        if (defaultVariation.image) {
+          finalProduct.media = {
+            ...finalProduct.media,
+            primaryImage: defaultVariation.image,
+          };
         }
       }
     }

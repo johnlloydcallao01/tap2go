@@ -4,9 +4,10 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 import { CartProvider } from '../src/contexts/CartContext';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
@@ -59,6 +60,16 @@ function RootNavigation() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    void ScreenOrientation.lockAsync(
+      ScreenOrientation.OrientationLock.PORTRAIT_UP
+    ).catch((error: unknown) => {
+      console.error('Failed to lock the app to portrait orientation.', error);
+    });
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>

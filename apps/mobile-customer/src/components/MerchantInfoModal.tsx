@@ -320,7 +320,7 @@ export default function MerchantInfoModal({ visible, merchant, onClose }: Props)
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <GestureHandlerRootView style={styles.backdrop}>
+      <GestureHandlerRootView style={styles.backdrop} accessibilityViewIsModal>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onClose}
@@ -342,7 +342,7 @@ export default function MerchantInfoModal({ visible, merchant, onClose }: Props)
           ]}
           handleIndicatorStyle={[styles.handle, { backgroundColor: colors.border }]}
         >
-          <BottomSheetView style={styles.sheetContent} accessibilityViewIsModal>
+          <BottomSheetView style={styles.sheetHeader}>
             <View style={styles.header}>
               {merchantLogoUrl ? (
                 <Image
@@ -371,18 +371,19 @@ export default function MerchantInfoModal({ visible, merchant, onClose }: Props)
                 <Ionicons name="close" size={22} color={colors.text} />
               </TouchableOpacity>
             </View>
+          </BottomSheetView>
 
-            <BottomSheetScrollView
-              style={styles.scrollView}
-              contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 20) }]}
-              showsVerticalScrollIndicator={false}
-            >
-              {!merchant ? (
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  Merchant information is not available yet. Please try again in a moment.
-                </Text>
-              ) : (
-                <>
+          <BottomSheetScrollView
+            style={styles.scrollView}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            {!merchant ? (
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                Merchant information is not available yet. Please try again in a moment.
+              </Text>
+            ) : (
+              <>
                 <View
                   style={[
                     styles.statusCard,
@@ -548,10 +549,9 @@ export default function MerchantInfoModal({ visible, merchant, onClose }: Props)
                     </Text>
                   </Section>
                 ) : null}
-                </>
-              )}
-            </BottomSheetScrollView>
-          </BottomSheetView>
+              </>
+            )}
+          </BottomSheetScrollView>
         </BottomSheet>
       </GestureHandlerRootView>
     </Modal>
@@ -568,8 +568,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  sheetContent: {
-    flex: 1,
+  sheetHeader: {
+    flexShrink: 0,
   },
   scrollView: {
     flex: 1,

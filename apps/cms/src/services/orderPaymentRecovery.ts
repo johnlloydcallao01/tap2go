@@ -29,6 +29,7 @@ export function classifyPayMongoIntentStatus(status: unknown): PayMongoIntentRec
     case 'awaiting_payment_method':
       return 'retryable'
     case 'canceled':
+    case 'cancelled':
       return 'terminal'
     default:
       return 'unknown'
@@ -37,7 +38,9 @@ export function classifyPayMongoIntentStatus(status: unknown): PayMongoIntentRec
 
 export function isTerminalPaymentFailure(status: unknown): boolean {
   const normalized = String(status || '').toLowerCase()
-  return normalized === 'awaiting_payment_method' || normalized === 'canceled'
+  return normalized === 'awaiting_payment_method' ||
+    normalized === 'canceled' ||
+    normalized === 'cancelled'
 }
 
 export function isLatestFailedPaymentAttempt(

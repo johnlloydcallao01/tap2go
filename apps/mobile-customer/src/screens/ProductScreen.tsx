@@ -27,6 +27,11 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { fetchEffectiveModifierGroups } from '../services/product';
 import type { GroupedProductItem, ModifierGroup } from '../types/product';
+import ProductVariationSelector from '../components/ProductVariationSelector';
+import {
+  buildVariationAttributeGroups,
+  shouldUseCompactVariationSelector,
+} from '../utils/productVariationSelection';
 
 const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
 
@@ -180,6 +185,14 @@ export default function ProductScreen() {
   const variationCardWidth = width * 0.75;
   const variationCardSpacing = 16;
   const variationSnapInterval = variationCardWidth + variationCardSpacing;
+  const variationAttributeGroups = useMemo(
+    () => buildVariationAttributeGroups(variations),
+    [variations],
+  );
+  const useCompactVariationSelector = useMemo(
+    () => shouldUseCompactVariationSelector(variations, variationAttributeGroups),
+    [variations, variationAttributeGroups],
+  );
   const selectedVariation = useMemo(() => {
     if (!product || !isVariableProduct || variations.length === 0) return null;
     if (selectedVariationId != null) {
@@ -729,7 +742,7 @@ export default function ProductScreen() {
             </View>
           ) : null}
 
-          {selectedVariationSummary ? (
+          {selectedVariationSummary && !(useCompactVariationSelector && variationAttributeGroups.length > 0) ? (
             <View style={styles.selectedVariationBadge}>
               <Ionicons name="options-outline" size={16} color={colors.primary} />
               <Text style={[styles.selectedVariationText, { color: colors.primary }]}>
@@ -746,9 +759,20 @@ export default function ProductScreen() {
 
           {isVariableProduct && (
             <View style={styles.variationsContainer}>
-              <Text style={styles.sectionTitle}>Choose variation</Text>
+              <Text style={styles.sectionTitle}>
+                {useCompactVariationSelector && variationAttributeGroups.length > 0
+                  ? 'Choose options'
+                  : 'Choose variation'}
+              </Text>
               {hasVariationChoices ? (
-                <View>
+                useCompactVariationSelector ? (
+                  <ProductVariationSelector
+                    groups={variationAttributeGroups}
+                    variations={variations}
+                    selectedVariation={selectedVariation}
+                    onSelectVariation={(variation) => setSelectedVariationId(variation.id)}
+                  />
+                ) : (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -851,7 +875,7 @@ export default function ProductScreen() {
                       );
                     })}
                   </ScrollView>
-                </View>
+                )
               ) : (
                 <View style={styles.variationEmptyState}>
                   <Text style={styles.variationEmptyStateText}>

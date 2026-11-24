@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildCustomerOrderDetail } from '../../src/services/customerOrderDetail'
 
+const { getDeliveryProvider } = vi.hoisted(() => ({
+  getDeliveryProvider: vi.fn(),
+}))
+
+vi.mock('../../src/services/deliveryProviders', () => ({
+  getDeliveryProvider,
+}))
+
 describe('customer order detail', () => {
   it('builds a rider-remarks preview from the saved order before a Lalamove booking exists', async () => {
     const payload = {
@@ -100,5 +108,155 @@ describe('customer order detail', () => {
       depth: 2,
       where: { id: { equals: 12 } },
     }))
+  })
+
+  it('returns the amount of an unpaid priority-fee payment so it can be resumed', async () => {
+    getDeliveryProvider.mockResolvedValue({
+      getOrderDetails: vi.fn(async () => ({ status: 'ASSIGNING_DRIVER' })),
+    })
+    const payload = {
+      find: vi.fn(async ({ collection }: { collection: string }) => {
+        if (collection === 'orders') {
+          return {
+            docs: [{
+              id: 95,
+              status: 'accepted',
+              fulfillment_type: 'delivery',
+              lalamove_order_id: 'llm-95',
+              total: 25,
+              subtotal: 25,
+              delivery_fee: 0,
+              merchant: 12,
+            }],
+          }
+        }
+        if (collection === 'delivery-bookings') {
+          return { docs: [{ lalamove_order_id: 'llm-95' }] }
+        }
+        if (collection === 'order-items') {
+          return {
+            docs: [{
+              id: 1,
+              product_name_snapshot: 'Sample item',
+              quantity: 1,
+              price_at_purchase: 25,
+              total_price: 25,
+            }],
+          }
+        }
+        if (collection === 'transactions') {
+          return {
+            docs: [
+              {
+                id: 501,
+                amount: 25,
+                currency: 'PHP',
+                payment_method: 'gcash',
+                status: 'pending',
+                transaction_type: 'priority_fee',
+                priority_fee_fulfillment_status: 'pending',
+                createdAt: '2026-11-24T10:00:00.000Z',
+              },
+              {
+                id: 500,
+                amount: 5,
+                currency: 'PHP',
+                payment_method: 'grab_pay',
+                status: 'paid',
+                transaction_type: 'priority_fee',
+                priority_fee_fulfillment_status: 'applied',
+                priority_fee_total: 25,
+                paid_at: '2026-11-24T09:00:00.000Z',
+                createdAt: '2026-11-24T08:59:00.000Z',
+              },
+            ],
+          }
+        }
+        return { docs: [] }
+      }),
+    }
+
+    const result = await buildCustomerOrderDetail(payload as never, 7, 95)
+
+    expect(result?.priorityFeePaymentPending).toBe(true)
+    expect(result?.priorityFeePaymentAmount).toBe(25)
+    expect(result?.priorityFeeAddedTotal).toBe(5)
+    expect(result?.priorityFeeHistory).toEqual([
+      {
+        id: 501,
+        amount: 25,
+        currency: 'PHP',
+        paymentMethod: 'gcash',
+        status: 'pending',
+        fulfillmentStatus: 'pending',
+        priorityFeeTotal: null,
+        paidAt: null,
+        createdAt: '2026-11-24T10:00:00.000Z',
+      },
+      {
+        id: 500,
+        amount: 5,
+        currency: 'PHP',
+        paymentMethod: 'grab_pay',
+        status: 'paid',
+        fulfillmentStatus: 'applied',
+        priorityFeeTotal: 25,
+        paidAt: '2026-11-24T09:00:00.000Z',
+        createdAt: '2026-11-24T08:59:00.000Z',
+      },
+    ])
+  })
+
+  it('returns the eligibility reason instead of offering resume for a delivered order', async () => {
+    const payload = {
+      find: vi.fn(async ({ collection }: { collection: string }) => {
+        if (collection === 'orders') {
+          return {
+            docs: [{
+              id: 95,
+              status: 'delivered',
+              fulfillment_type: 'delivery',
+              lalamove_order_id: 'llm-95',
+              total: 25,
+              subtotal: 25,
+              delivery_fee: 0,
+              merchant: 12,
+            }],
+          }
+        }
+        if (collection === 'delivery-bookings') {
+          return { docs: [{ lalamove_order_id: 'llm-95' }] }
+        }
+        if (collection === 'order-items') {
+          return {
+            docs: [{
+              id: 1,
+              product_name_snapshot: 'Sample item',
+              quantity: 1,
+              price_at_purchase: 25,
+              total_price: 25,
+            }],
+          }
+        }
+        if (collection === 'transactions') {
+          return {
+            docs: [{
+              id: 501,
+              amount: 25,
+              status: 'pending',
+              transaction_type: 'priority_fee',
+              priority_fee_fulfillment_status: 'pending',
+            }],
+          }
+        }
+        return { docs: [] }
+      }),
+    }
+
+    const result = await buildCustomerOrderDetail(payload as never, 7, 95)
+
+    expect(result?.priorityFeePaymentUnavailableReason).toBe(
+      'Tap2Go has marked this order "delivered", so a priority fee can no longer be added.',
+    )
   })
 })

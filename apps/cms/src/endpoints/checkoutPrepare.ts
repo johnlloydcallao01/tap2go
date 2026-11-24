@@ -155,13 +155,14 @@ async function retrievePaymentIntent(paymentIntentId: string, secret: string, re
   }
 }
 
-async function createPaymentIntent(args: {
+export async function createPaymentIntent(args: {
   amount: number
   currency: string
   idempotencyKey: string
   orderId: number
   secret: string
   requestId: string
+  metadata?: Record<string, string>
 }) {
   const startedAt = Date.now()
   try {
@@ -181,7 +182,10 @@ async function createPaymentIntent(args: {
             statement_descriptor: PAYMONGO_STATEMENT_DESCRIPTOR,
             payment_method_allowed: ['card', 'gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph'],
             payment_method_options: { card: { request_three_d_secure: 'any' } },
-            metadata: { orderId: String(args.orderId) },
+            metadata: {
+              orderId: String(args.orderId),
+              ...args.metadata,
+            },
           },
         },
       }),

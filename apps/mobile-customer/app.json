@@ -3,7 +3,7 @@
     "name": "Tap2Go",
     "slug": "tap2go-mobile-customer",
     "version": "2.1.24",
-    "orientation": "default",
+    "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
@@ -11,6 +11,7 @@
     ],
     "ios": {
       "supportsTablet": true,
+      "requireFullScreen": true,
       "bundleIdentifier": "com.tap2go.customer",
       "associatedDomains": [
         "applinks:app.tap2goph.com"
@@ -89,6 +90,12 @@
       "./plugins/withAndroidDebugSymbols",
       "expo-asset",
       "expo-font",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
       "expo-router",
       [
         "expo-image-picker",
