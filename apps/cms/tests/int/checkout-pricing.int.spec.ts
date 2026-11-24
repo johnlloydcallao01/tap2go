@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkoutContextHash, checkoutPrepareHandler } from '../../src/endpoints/checkoutPrepare'
+import {
+  calculateCheckoutAmounts,
+  checkoutContextHash,
+  checkoutPrepareHandler,
+} from '../../src/endpoints/checkoutPrepare'
 import { Orders } from '../../src/collections/Orders'
 import { CartItems } from '../../src/collections/CartItems'
 import { ModifierResolverService, type EffectiveModifierGroup } from '../../src/services/ModifierResolverService'
@@ -97,6 +101,15 @@ const modifierGroups: EffectiveModifierGroup[] = [{
 }]
 
 describe('checkout preparation', () => {
+  it('charges the flat platform fee even when delivery and priority charges are waived', () => {
+    expect(calculateCheckoutAmounts({
+      subtotal: 100,
+      deliveryFee: 80,
+      priorityFee: 25,
+      deliveryDiscount: 105,
+    })).toEqual({ platformFee: 2, total: 102 })
+  })
+
   it('allows checkout when tracked stock is below the requested quantity', async () => {
     const simplePayload = createPayload([{
       id: 1,

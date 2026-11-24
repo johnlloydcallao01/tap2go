@@ -17,6 +17,7 @@ import {
 } from '../services/customerWallet'
 
 const PAYMENT_METHODS = new Set(['gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph', 'card', 'wallet'])
+const CHECKOUT_PLATFORM_FEE = 2
 const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
 const IDEMPOTENCY_KEY_PATTERN = /^[a-zA-Z0-9_-]{16,100}$/
 
@@ -40,6 +41,19 @@ function idOf(value: unknown): number | null {
 function amount(value: unknown): number | null {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 100) / 100 : null
+}
+
+export function calculateCheckoutAmounts(args: {
+  subtotal: number
+  deliveryFee: number
+  priorityFee: number
+  deliveryDiscount: number
+}) {
+  const platformFee = CHECKOUT_PLATFORM_FEE
+  const total = Math.round(
+    (args.subtotal + args.deliveryFee + platformFee + args.priorityFee - args.deliveryDiscount) * 100,
+  ) / 100
+  return { platformFee, total }
 }
 
 function deliveryLabel(value: unknown): 'home' | 'office' | 'other' {
@@ -509,6 +523,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
           transactionId: transaction.id,
           subtotal: Number(existing.subtotal),
           deliveryFee: Number(existing.delivery_fee),
+          platformFee: Number(existing.platform_fee) || 0,
           priorityFee: Number(existing.priority_fee),
           deliveryDiscount: Number(existing.discount_total) || 0,
           freeDeliveryApplied: existing.free_delivery_applied === true,
@@ -579,7 +594,12 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
       : { eligible: false, discount: 0, distanceMeters: null }
     const deliveryDiscount = promotion.discount
     const discountTotal = deliveryDiscount
-    const total = Math.round((pricedCart.subtotal + deliveryFee + priorityFee - discountTotal) * 100) / 100
+    const { platformFee, total } = calculateCheckoutAmounts({
+      subtotal: pricedCart.subtotal,
+      deliveryFee,
+      priorityFee,
+      deliveryDiscount: discountTotal,
+    })
     const contextHash = checkoutContextHash(pricedCart.cartItems, address, recipientPhone)
 
     if (Math.round(expectedTotal * 100) !== Math.round(total * 100)) {
@@ -596,6 +616,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
             totalPrice: line.totalPrice,
           })),
           deliveryFee,
+          platformFee,
           priorityFee,
           deliveryDiscount,
           freeDeliveryApplied: promotion.eligible,
@@ -635,7 +656,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
           total,
           subtotal: pricedCart.subtotal,
           delivery_fee: deliveryFee,
-          platform_fee: 0,
+          platform_fee: platformFee,
           priority_fee: priorityFee,
           discount_total: discountTotal,
           ...(promotion.eligible
@@ -823,6 +844,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
           totalPrice: line.totalPrice,
         })),
         deliveryFee,
+        platformFee,
         priorityFee,
         deliveryDiscount,
         freeDeliveryApplied: promotion.eligible,

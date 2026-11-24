@@ -48,6 +48,7 @@ import {
 } from '../utils/paymentMethods';
 
 const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
+const CHECKOUT_PLATFORM_FEE = 2;
 
 function isCheckoutPaymentMethod(value: string): value is PaymentMethod {
   return AVAILABLE_PAYMENT_METHODS.some((method) => method === value);
@@ -350,6 +351,7 @@ export default function CheckoutScreen() {
     total: number;
     subtotal: number;
     deliveryFee: number;
+    platformFee: number;
     priorityFee: number;
     discountTotal: number;
     freeDeliveryApplied: boolean;
@@ -416,18 +418,24 @@ export default function CheckoutScreen() {
   const deliveryQuoteCacheKeyRef = useRef<string | null>(null);
   const deliveryQuoteRequestRef = useRef(0);
 
-  const deliveryCharge = deliveryAvailable ? deliveryFee + priorityFee : 0;
+  const deliveryCharge = deliveryAvailable
+    ? deliveryFee + priorityFee + CHECKOUT_PLATFORM_FEE
+    : 0;
   const orderTotal = Math.max(0, totalSubtotal + deliveryCharge - deliveryDiscount);
   const checkoutSubtotal = isPaymentRetry ? retryOrder?.subtotal || 0 : totalSubtotal;
   const checkoutDeliveryAvailable = isPaymentRetry
     ? retryOrder?.fulfillmentType === 'delivery'
     : deliveryAvailable;
   const checkoutDeliveryFee = isPaymentRetry ? retryOrder?.deliveryFee || 0 : deliveryFee;
+  const checkoutPlatformFee = isPaymentRetry
+    ? retryOrder?.platformFee || 0
+    : CHECKOUT_PLATFORM_FEE;
   const checkoutPriorityFee = isPaymentRetry ? retryOrder?.priorityFee || 0 : priorityFee;
   const checkoutDeliveryDistance = isPaymentRetry
     ? retryOrder?.deliveryDistanceMeters ?? null
     : deliveryDistanceMeters;
-  const checkoutDeliveryCharge = checkoutDeliveryFee + checkoutPriorityFee;
+  const checkoutDeliveryPriorityCharge = checkoutDeliveryFee + checkoutPriorityFee;
+  const checkoutDeliveryCharge = checkoutDeliveryPriorityCharge + checkoutPlatformFee;
   const checkoutDiscountTotal = isPaymentRetry ? retryOrder?.discountTotal || 0 : deliveryDiscount;
   const checkoutFreeDeliveryApplied = isPaymentRetry
     ? retryOrder?.freeDeliveryApplied === true
@@ -500,6 +508,7 @@ export default function CheckoutScreen() {
             total,
             subtotal: Number(data?.subtotal) || 0,
             deliveryFee: Number(data?.deliveryFee) || 0,
+            platformFee: Number(data?.platformFee) || 0,
             priorityFee: Number(data?.priorityFee) || 0,
             discountTotal: Number(data?.discountTotal) || 0,
             freeDeliveryApplied: data?.freeDeliveryApplied === true,
@@ -1939,9 +1948,16 @@ export default function CheckoutScreen() {
                 ) : checkoutFreeDeliveryApplied ? (
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={{ color: '#6B7280', fontSize: 12, textDecorationLine: 'line-through' }}>
-                      {formatCurrency(checkoutDeliveryCharge)}
+                      {formatCurrency(checkoutDeliveryPriorityCharge)}
                     </Text>
-                    <Text style={[styles.subtotalValue, { color: '#15803D' }]}>FREE</Text>
+                    <Text style={[
+                      styles.subtotalValue,
+                      { color: checkoutPlatformFee > 0 ? '#111827' : '#15803D' },
+                    ]}>
+                      {checkoutPlatformFee > 0
+                        ? formatCurrency(checkoutPlatformFee)
+                        : 'FREE'}
+                    </Text>
                   </View>
                 ) : (
                   <Text style={styles.subtotalValue}>
