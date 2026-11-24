@@ -11,6 +11,7 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
@@ -27,7 +28,7 @@ import {
   ADDRESS_KEYS,
   useActiveAddress,
 } from '@encreasl/client-services';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   clearPendingCheckoutSession,
   getCheckoutPaymentStatus,
@@ -36,6 +37,7 @@ import {
   savePendingCheckoutSession,
 } from '../services/checkoutReturn';
 import type { AccountOverview } from '../services/account';
+import { fetchCustomerWallet } from '../services/customerWallet';
 import { useMerchantOrderAvailability } from '../hooks/useMerchantOrderAvailability';
 import {
   AVAILABLE_PAYMENT_METHODS,
@@ -46,6 +48,10 @@ import {
 } from '../utils/paymentMethods';
 
 const PAYMONGO_MINIMUM_AMOUNT_PHP = 1;
+
+function isCheckoutPaymentMethod(value: string): value is PaymentMethod {
+  return AVAILABLE_PAYMENT_METHODS.some((method) => method === value);
+}
 
 type CheckoutDisplayItem = {
   id: string | number;
@@ -225,7 +231,16 @@ export default function CheckoutScreen() {
     reload,
   } = useCart();
   const { user, customerId, token, updateUser } = useAuth();
+  const paymentPreferenceUserId = user?.id ?? customerId;
   const queryClient = useQueryClient();
+  const walletQuery = useQuery({
+    queryKey: ['customer-wallet', String(user?.id ?? customerId ?? '')],
+    enabled: Boolean(token && (user?.id ?? customerId)),
+    queryFn: ({ signal }) => {
+      if (!token) throw new Error('Sign in to load your wallet balance.');
+      return fetchCustomerWallet(token, signal);
+    },
+  });
   const updateAccountOverviewAfterOrder = useCallback((orderTotal: number) => {
     const userId = user?.id ?? customerId;
     if (userId == null) return;
@@ -259,6 +274,72 @@ export default function CheckoutScreen() {
   const [isSavingRecipientPhone, setIsSavingRecipientPhone] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [bankCode, setBankCode] = useState<BankCode | null>(null);
+  const paymentMethodEditedRef = useRef(false);
+  const paymentMethodEditedUserIdRef = useRef<string | null>(null);
+  const paymentPreferenceUserIdRef = useRef<string | null>(null);
+  const selectedPaymentMethodRef = useRef<PaymentMethod | null>(null);
+  useEffect(() => {
+    if (paymentPreferenceUserId == null) return;
+    let active = true;
+    const preferenceUserId = String(paymentPreferenceUserId);
+    if (paymentPreferenceUserIdRef.current !== preferenceUserId) {
+      paymentPreferenceUserIdRef.current = preferenceUserId;
+      const hasSelectionForUser = paymentMethodEditedRef.current && (
+        paymentMethodEditedUserIdRef.current === null ||
+        paymentMethodEditedUserIdRef.current === preferenceUserId
+      );
+      if (hasSelectionForUser && selectedPaymentMethodRef.current) {
+        paymentMethodEditedUserIdRef.current = preferenceUserId;
+        void AsyncStorage.setItem(
+          `tap2go:checkout-payment-method:${preferenceUserId}`,
+          selectedPaymentMethodRef.current,
+        ).catch((error) => {
+          console.error('[checkout] failed to save the selected payment method:', error);
+        });
+      } else {
+        paymentMethodEditedRef.current = false;
+        paymentMethodEditedUserIdRef.current = null;
+        selectedPaymentMethodRef.current = null;
+        setPaymentMethod(null);
+        setBankCode(null);
+      }
+    }
+    const restorePaymentMethod = async () => {
+      try {
+        const savedMethod = await AsyncStorage.getItem(
+          `tap2go:checkout-payment-method:${preferenceUserId}`,
+        );
+        if (active && !paymentMethodEditedRef.current && savedMethod && isCheckoutPaymentMethod(savedMethod)) {
+          selectedPaymentMethodRef.current = savedMethod;
+          setPaymentMethod(savedMethod);
+        }
+      } catch (error) {
+        console.error('[checkout] failed to restore the last payment method:', error);
+      }
+    };
+    void restorePaymentMethod();
+    return () => {
+      active = false;
+    };
+  }, [paymentPreferenceUserId]);
+
+  const selectPaymentMethod = useCallback((method: PaymentMethod) => {
+    paymentMethodEditedRef.current = true;
+    paymentMethodEditedUserIdRef.current = paymentPreferenceUserId == null
+      ? null
+      : String(paymentPreferenceUserId);
+    if (selectedPaymentMethodRef.current !== method) setBankCode(null);
+    selectedPaymentMethodRef.current = method;
+    setPaymentMethod(method);
+    if (paymentPreferenceUserId == null) return;
+    void AsyncStorage.setItem(
+      `tap2go:checkout-payment-method:${paymentPreferenceUserId}`,
+      method,
+    ).catch((error) => {
+      console.error('[checkout] failed to save the last payment method:', error);
+    });
+  }, [paymentPreferenceUserId]);
+
   const [isPaying, setIsPaying] = useState(false);
   const [hasResolvedInitialPaymentCheck, setHasResolvedInitialPaymentCheck] = useState(false);
   const [isCheckingPaymentState, setIsCheckingPaymentState] = useState(false);
@@ -657,10 +738,7 @@ export default function CheckoutScreen() {
                   styles.paymentMethodCard,
                   isSelected && styles.paymentMethodCardSelected,
                 ]}
-                onPress={() => {
-                  if (paymentMethod !== key) setBankCode(null);
-                  setPaymentMethod(key);
-                }}
+                onPress={() => selectPaymentMethod(key)}
                 activeOpacity={0.7}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -677,6 +755,9 @@ export default function CheckoutScreen() {
                         resizeMode="contain"
                       />
                     ))}
+                    {key === 'wallet' && (
+                      <Ionicons name="wallet-outline" size={24} color="#0F766E" />
+                    )}
                   </View>
                   <Text style={styles.paymentMethodText}>{config.label}</Text>
                 </View>
@@ -689,6 +770,15 @@ export default function CheckoutScreen() {
             );
           })}
         </View>
+      )}
+      {paymentMethod === 'wallet' && (
+        <Text style={{ color: '#475569', fontSize: 13, marginTop: 10 }}>
+          {walletQuery.isLoading
+            ? 'Checking your wallet balance…'
+            : walletQuery.data
+              ? `Available balance: ${formatCurrency(walletQuery.data.balanceMinor / 100)}. The server checks the balance before placing your order.`
+              : 'Your wallet balance could not be loaded. Try again or choose another payment method.'}
+        </Text>
       )}
       {paymentMethod && BANK_OPTIONS[paymentMethod] ? (
         <View style={styles.bankSelection}>
@@ -956,11 +1046,12 @@ export default function CheckoutScreen() {
   }, [qrIntentId, qrOrderId, customerId, merchantId, pathname, redirectToCheckoutReturn, reconcileExistingPayment, router]);
 
   const handleRetryPayNow = async () => {
-    if (!retryOrder || !retryOrderId || !user?.id || !token || !paymentMethod) {
+    const selectedPaymentMethod = selectedPaymentMethodRef.current;
+    if (!retryOrder || !retryOrderId || !user?.id || !token || !selectedPaymentMethod) {
       Alert.alert('Payment details missing', 'Select a payment method and try again.');
       return;
     }
-    const bankOptions = BANK_OPTIONS[paymentMethod];
+    const bankOptions = BANK_OPTIONS[selectedPaymentMethod];
     if (bankOptions && !bankOptions.some((bank) => bank.code === bankCode)) {
       Alert.alert('Select your bank', 'Choose the bank you want to pay from.');
       return;
@@ -980,7 +1071,7 @@ export default function CheckoutScreen() {
         headers: requestHeaders,
         body: JSON.stringify({
           orderId: Number(retryOrder.id),
-          paymentMethod,
+          paymentMethod: selectedPaymentMethod,
           retryAttemptId,
           ...(bankCode ? { bankCode } : {}),
         }),
@@ -1001,6 +1092,18 @@ export default function CheckoutScreen() {
           `${resumeData?.error || 'Could not start a fresh payment attempt.'}${code}${providerErrorCode} (HTTP ${resumeResponse.status})`,
         );
       }
+      if (resumeData.state === 'paid' && resumeData.wallet === true) {
+        await queryClient.invalidateQueries({ queryKey: ['customer-wallet'] });
+        hasNavigatedToReturnRef.current = true;
+        router.replace({
+          pathname: '/order-success',
+          params: {
+            orderId: String(resumeData.orderId || retryOrder.id),
+            merchantId: retryOrder.merchantId,
+          },
+        });
+        return;
+      }
       if (resumeData.state === 'paid' || resumeData.state === 'processing') {
         if (resumeData.paymentIntentId) {
           redirectToCheckoutReturn(
@@ -1014,7 +1117,7 @@ export default function CheckoutScreen() {
       }
       if (
         resumeData.state !== 'retry' ||
-        resumeData.paymentMethod !== paymentMethod ||
+        resumeData.paymentMethod !== selectedPaymentMethod ||
         !resumeData.paymentIntentId ||
         !resumeData.clientKey ||
         !resumeData.transactionId
@@ -1028,7 +1131,7 @@ export default function CheckoutScreen() {
         publicKey,
         paymentIntentId: String(resumeData.paymentIntentId),
         clientKey: String(resumeData.clientKey),
-        paymentMethod,
+        paymentMethod: selectedPaymentMethod,
         bankCode,
         customerId: String(user.id),
         merchantId: retryOrder.merchantId,
@@ -1215,11 +1318,12 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (!paymentMethod) {
+    const selectedPaymentMethod = selectedPaymentMethodRef.current;
+    if (!selectedPaymentMethod) {
       Alert.alert('Error', 'Please select a payment method');
       return;
     }
-    const bankOptions = BANK_OPTIONS[paymentMethod];
+    const bankOptions = BANK_OPTIONS[selectedPaymentMethod];
     if (bankOptions && !bankOptions.some((bank) => bank.code === bankCode)) {
       Alert.alert('Select your bank', 'Choose the bank you want to pay from.');
       return;
@@ -1246,7 +1350,7 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (isBelowPayMongoMinimum) {
+    if (isBelowPayMongoMinimum && selectedPaymentMethod !== 'wallet') {
       Alert.alert(
         'Checkout total too low',
         'This checkout is below the PayMongo minimum of PHP 1.00. Please review your cart or choose the required priced options before paying.',
@@ -1262,7 +1366,7 @@ export default function CheckoutScreen() {
     const payStartedAt = Date.now();
     console.info('[checkout-pay] started', {
       checkoutRequestId,
-      paymentMethod,
+      paymentMethod: selectedPaymentMethod,
       cartItemCount: merchantCart.items.length,
     });
 
@@ -1318,7 +1422,7 @@ export default function CheckoutScreen() {
               addressId: Number(activeAddressId),
               cartItemIds: merchantCart.items.map((item: any) => Number(item.id)),
               contactPhone: recipientPhone,
-              paymentMethod,
+              paymentMethod: selectedPaymentMethod,
               expectedTotal: orderTotal,
               idempotencyKey: checkoutIdempotencyKeyRef.current,
             }),
@@ -1342,6 +1446,9 @@ export default function CheckoutScreen() {
           );
           return;
         }
+        if (!cartUnavailable) {
+          await reload();
+        }
         throw new Error(preparedCheckout?.error || 'Failed to prepare checkout');
       }
 
@@ -1350,15 +1457,18 @@ export default function CheckoutScreen() {
       if (!createdOrderId) {
         throw new Error('Checkout preparation returned no order ID');
       }
+      markCheckedOut(merchantCart.items.map((item) => item.id));
       if (!payment || payment.failed) {
         throw new Error('Checkout did not return a usable payment session.');
       }
-      markCheckedOut(merchantCart.items.map((item) => item.id));
       if (!preparedCheckout?.data?.reused) {
         updateAccountOverviewAfterOrder(Number(preparedCheckout.data.total) || orderTotal);
       }
       if (payment.paid) {
         await clearPendingCheckoutSession(String(customerId), String(merchantId));
+        if (payment.wallet) {
+          await queryClient.invalidateQueries({ queryKey: ['customer-wallet'] });
+        }
         await reload();
         hasNavigatedToReturnRef.current = true;
         router.replace({
@@ -1378,7 +1488,7 @@ export default function CheckoutScreen() {
         publicKey: pk,
         paymentIntentId: intentId,
         clientKey: cKey,
-        paymentMethod,
+        paymentMethod: selectedPaymentMethod,
         bankCode,
         customerId: String(customerId),
         merchantId: String(merchantId),
@@ -1592,10 +1702,18 @@ export default function CheckoutScreen() {
             <TouchableOpacity
               onPress={() => router.push(`/order/${pendingRecoveryOrderId}`)}
               style={styles.paymentStateButton}
+              accessibilityRole="button"
             >
               <Text style={styles.paymentStateButtonText}>View order</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            onPress={() => router.replace('/(tabs)/orders')}
+            style={styles.paymentStateSecondaryButton}
+            accessibilityRole="button"
+          >
+            <Text style={styles.paymentStateSecondaryButtonText}>Go to Orders</Text>
+          </TouchableOpacity>
         </SafeAreaView>
       );
     }
@@ -1899,15 +2017,24 @@ export default function CheckoutScreen() {
                     : 'Please wait while we verify whether this checkout already has a completed payment.'}
                 </Text>
                 {hasPendingRecovery && pendingRecoveryOrderId ? (
-                  <TouchableOpacity
-                    onPress={() => router.push(`/order/${pendingRecoveryOrderId}`)}
-                    style={{ alignSelf: 'flex-start', marginTop: 10 }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={{ color: '#0F766E', fontSize: 13, fontWeight: '700' }}>
-                      Resume payment
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 10 }}>
+                    <TouchableOpacity
+                      onPress={() => router.push(`/order/${pendingRecoveryOrderId}`)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={{ color: '#0F766E', fontSize: 13, fontWeight: '700' }}>
+                        Resume payment
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => router.replace('/(tabs)/orders')}
+                      accessibilityRole="button"
+                    >
+                      <Text style={{ color: '#0F766E', fontSize: 13, fontWeight: '700' }}>
+                        Go to Orders
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
               </View>
               {hasPendingRecovery ? (
@@ -2469,6 +2596,20 @@ const styles = StyleSheet.create({
   },
   paymentStateButtonText: {
     color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  paymentStateSecondaryButton: {
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#0F766E',
+    backgroundColor: '#FFFFFF',
+  },
+  paymentStateSecondaryButtonText: {
+    color: '#0F766E',
     fontSize: 14,
     fontWeight: '700',
   },

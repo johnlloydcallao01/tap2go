@@ -131,6 +131,8 @@ export default function MerchantScreen() {
   const forceRefreshRequested = useRef(false);
   const isManualScroll = useRef(false);
   const scrollY = useRef(new Animated.Value(0)).current;
+  const addingProductKeysRef = useRef(new Set<string>());
+  const [addingProductKeys, setAddingProductKeys] = useState<Set<string>>(new Set());
   const { addToCart, getMerchantCart, updateQuantity } = useCart();
   const merchantCart = getMerchantCart(String(merchantId));
   // Store threshold in state to trigger re-render for interpolation update
@@ -482,6 +484,11 @@ export default function MerchantScreen() {
         return;
       }
 
+      const addLockKey = `${merchantId}:${product.id}`;
+      if (addingProductKeysRef.current.has(addLockKey)) return;
+      addingProductKeysRef.current.add(addLockKey);
+      setAddingProductKeys((previous) => new Set(previous).add(addLockKey));
+
       try {
         let merchantProductId = product.merchantProductId;
 
@@ -514,7 +521,9 @@ export default function MerchantScreen() {
           (!item.selectedModifiers || item.selectedModifiers.length === 0)
         );
 
-        if (existingItem && !existingItem.isPending) {
+        if (existingItem?.isPending) return;
+
+        if (existingItem) {
           await updateQuantity(existingItem.id, existingItem.quantity + 1);
           Alert.alert('Cart Updated', `${product.name} quantity increased.`);
           return;
@@ -545,6 +554,14 @@ export default function MerchantScreen() {
           'Error',
           error instanceof Error ? error.message : 'Failed to add item to cart. Please try again.',
         );
+      } finally {
+        addingProductKeysRef.current.delete(addLockKey);
+        setAddingProductKeys((previous) => {
+          if (!previous.has(addLockKey)) return previous;
+          const next = new Set(previous);
+          next.delete(addLockKey);
+          return next;
+        });
       }
     }
   };
@@ -732,7 +749,13 @@ export default function MerchantScreen() {
 
     return (
       <View style={styles.row}>
-        {item.map((product) => (
+        {item.map((product) => {
+          const isAddingProduct = addingProductKeys.has(`${merchantId}:${product.id}`);
+          const isUnavailable =
+            merchantOrderingUnavailable &&
+            product.productType === 'simple' &&
+            !product.hasRequiredModifiers;
+          return (
           <TouchableOpacity
             key={product.id}
             style={[styles.productCard, { width: itemWidth }]}
@@ -750,8 +773,8 @@ export default function MerchantScreen() {
               />
               {/* Add Button Overlay */}
               <TouchableOpacity
-                style={[styles.addButton, merchantOrderingUnavailable && product.productType === 'simple' && !product.hasRequiredModifiers && { opacity: 0.45 }]}
-                disabled={merchantOrderingUnavailable && product.productType === 'simple' && !product.hasRequiredModifiers}
+                style={[styles.addButton, (isUnavailable || isAddingProduct) && { opacity: 0.45 }]}
+                disabled={isUnavailable || isAddingProduct}
                 onPress={() => {
                   if (product.hasRequiredModifiers) {
                     navigation.navigate('Product', { productId: product.id, merchantId, merchantProductId: product.merchantProductId });
@@ -798,7 +821,8 @@ export default function MerchantScreen() {
               ) : null}
             </View>
           </TouchableOpacity>
-        ))}
+          );
+        })}
       </View>
     );
   };

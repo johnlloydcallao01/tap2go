@@ -9,8 +9,14 @@ import {
 } from '../services/firstOrderDeliveryPromotion'
 import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
 import { isE164PhoneNumber } from '../services/lalamoveClient'
+import { CouponService } from '../services/CouponService'
+import {
+  debitWalletForOrder,
+  findOrCreateCustomerWallet,
+  InsufficientWalletBalanceError,
+} from '../services/customerWallet'
 
-const PAYMENT_METHODS = new Set(['gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph', 'card'])
+const PAYMENT_METHODS = new Set(['gcash', 'grab_pay', 'paymaya', 'billease', 'dob', 'brankas', 'qrph', 'card', 'wallet'])
 const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
 const IDEMPOTENCY_KEY_PATTERN = /^[a-zA-Z0-9_-]{16,100}$/
 
@@ -135,6 +141,25 @@ async function getTransaction(req: PayloadRequest, orderId: number) {
   return result.docs[0] ?? null
 }
 
+async function finalizeWalletOrder(req: PayloadRequest, orderId: number, paidAt: string) {
+  try {
+    await req.payload.update({
+      collection: 'cart-items',
+      where: { order_id: { equals: orderId } },
+      data: { status: 'ordered', ordered_at: paidAt } as never,
+      overrideAccess: true,
+      req,
+    })
+  } catch (error) {
+    console.error(`[checkout] wallet order cart cleanup failed for order ${orderId}:`, error)
+  }
+  try {
+    await new CouponService(req.payload).finalizeForOrder(orderId, true)
+  } catch (error) {
+    console.error(`[checkout] wallet order coupon finalization failed for order ${orderId}:`, error)
+  }
+}
+
 function paymentSecret(): string | null {
   return process.env.PAYMONGO_SANDBOX === 'true'
     ? process.env.PAYMONGO_SANDBOX_API_KEY || null
@@ -248,7 +273,11 @@ export async function ensureCheckoutPayment(args: {
       }
       await ensureDeliveryFulfillment(req, Number(order.id))
     }
-    return { sandbox: process.env.PAYMONGO_SANDBOX === 'true', paid: true }
+    return {
+      sandbox: process.env.PAYMONGO_SANDBOX === 'true',
+      paid: true,
+      ...(String(transaction.payment_method || '') === 'wallet' ? { wallet: true } : {}),
+    }
   }
   if (transaction.status === 'failed' || order.status === 'cancelled') {
     return { failed: true }
@@ -467,6 +496,9 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
         paymentMethod: paymentMethod || String(transaction.payment_method || 'gcash'),
         requestId,
       })
+      if (payment.paid && String(transaction.payment_method || '') === 'wallet') {
+        await finalizeWalletOrder(req, Number(existing.id), String(transaction.paid_at || new Date().toISOString()))
+      }
       if (payment.failed) {
         return Response.json({ error: 'This checkout attempt has failed. Start a new checkout from your cart.', code: 'CHECKOUT_ATTEMPT_FAILED', requestId }, { status: 409 })
       }
@@ -575,7 +607,11 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
       }, { status: 409 })
     }
 
-    if (Math.round(total * 100) < 100 && process.env.PAYMONGO_SANDBOX !== 'true') {
+    if (paymentMethod === 'wallet') {
+      await findOrCreateCustomerWallet(req, customerId)
+    }
+
+    if (paymentMethod !== 'wallet' && Math.round(total * 100) < 100 && process.env.PAYMONGO_SANDBOX !== 'true') {
       return Response.json({ error: 'Checkout total must be at least PHP 1.00.', code: 'PAYMENT_MINIMUM_NOT_MET', requestId }, { status: 422 })
     }
 
@@ -586,6 +622,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
     req.transactionID = transactionID
     let order: any
     let transaction: any
+    let walletPaidAt: string | null = null
     try {
       req.context = { ...req.context, checkoutPricingValidated: true }
       order = await timed(requestId, 'payload.order_create', () => req.payload.create({
@@ -704,7 +741,7 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
         await timed(requestId, 'payload.cart_link', () => req.payload.update({
           collection: 'cart-items',
           id: line.cartItemId,
-          data: { order_id: order.id } as never,
+          data: { order_id: order.id, status: 'checked_out' } as never,
           depth: 0,
           overrideAccess: true,
           req,
@@ -724,6 +761,27 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
         overrideAccess: true,
         req,
       }))
+      if (paymentMethod === 'wallet') {
+        walletPaidAt = new Date().toISOString()
+        await debitWalletForOrder(req, customerId, order.id, Math.round(total * 100))
+        transaction = await req.payload.update({
+          collection: 'transactions',
+          id: transaction.id,
+          data: { status: 'paid', paid_at: walletPaidAt } as never,
+          depth: 0,
+          overrideAccess: true,
+          req,
+        })
+        order = await req.payload.update({
+          collection: 'orders',
+          id: order.id,
+          data: { status: 'accepted' } as never,
+          depth: 0,
+          overrideAccess: true,
+          req,
+        })
+        await ensureDeliveryFulfillment(req, Number(order.id))
+      }
       await timed(requestId, 'database.commit_transaction', () => req.payload.db.commitTransaction(transactionID))
       req.transactionID = undefined
     } catch (error) {
@@ -732,14 +790,27 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
       throw error
     }
 
-    const payment = await ensureCheckoutPayment({
-      req,
-      order,
-      transaction,
-      idempotencyKey,
-      paymentMethod,
-      requestId,
-    })
+    let payment: {
+      sandbox?: boolean
+      paid?: boolean
+      wallet?: boolean
+      failed?: boolean
+      paymentIntentId?: string
+      clientKey?: string
+    }
+    if (paymentMethod === 'wallet') {
+      await finalizeWalletOrder(req, Number(order.id), walletPaidAt || new Date().toISOString())
+      payment = { sandbox: false, paid: true, wallet: true }
+    } else {
+      payment = await ensureCheckoutPayment({
+          req,
+          order,
+          transaction,
+          idempotencyKey,
+          paymentMethod,
+          requestId,
+        })
+    }
     logSpan(requestId, 'endpoint.total', endpointStartedAt)
     return Response.json({
       data: {
@@ -766,6 +837,9 @@ export const checkoutPrepareHandler = async (req: PayloadRequest) => {
     })
   } catch (error) {
     logSpan(requestId, 'endpoint.total', endpointStartedAt)
+    if (error instanceof InsufficientWalletBalanceError) {
+      return Response.json({ error: error.message, code: 'WALLET_INSUFFICIENT_BALANCE', requestId }, { status: 402 })
+    }
     if (error instanceof CheckoutValidationError) {
       return Response.json({ error: error.message, code: error.code, requestId }, { status: error.status })
     }

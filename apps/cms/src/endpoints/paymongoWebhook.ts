@@ -6,6 +6,10 @@ import {
 } from '../services/orderPaymentRecovery'
 import { applyPaidPriorityFee } from './deliveryPriorityFee'
 import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
+import {
+  reconcileWalletTopupByIntent,
+  resolveWalletTopupByIntent,
+} from './customerWallet'
 
 export const paymongoWebhook = async (req: PayloadRequest) => {
   try {
@@ -80,6 +84,19 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
           paymentIntentId,
           providerStatus: intentAttributes?.status,
         })
+        return Response.json({ status: 'received' })
+      }
+
+      const topupPaidAt = new Date(
+        (Number(intentAttributes?.paid_at) || Number(resource.attributes?.paid_at) || Date.now() / 1000) * 1000,
+      ).toISOString()
+      if (await reconcileWalletTopupByIntent(
+        req,
+        paymentIntentId,
+        intentBody.data,
+        String(resource.id || ''),
+        topupPaidAt,
+      )) {
         return Response.json({ status: 'received' })
       }
       
@@ -254,6 +271,20 @@ export const paymongoWebhook = async (req: PayloadRequest) => {
            providerStatus,
          });
          return Response.json({ status: 'received' });
+       }
+
+       const failedTopup = await resolveWalletTopupByIntent(req, String(paymentIntentId))
+       if (failedTopup) {
+         if (failedTopup.status === 'pending') {
+           await req.payload.update({
+             collection: 'wallet-topups',
+             id: failedTopup.id,
+             data: { status: 'failed' } as never,
+             overrideAccess: true,
+             req,
+           })
+         }
+         return Response.json({ status: 'received' })
        }
        
        const transactions = await req.payload.find({

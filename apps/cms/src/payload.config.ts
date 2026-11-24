@@ -16,6 +16,12 @@ import { customerHomeOverviewHandler } from './endpoints/customerHomeOverview'
 import { customerCartHandler } from './endpoints/customerCart'
 import { customerCartAddHandler } from './endpoints/customerCartAdd'
 import { customerWishlistOverviewHandler } from './endpoints/customerWishlistOverview'
+import {
+  customerWalletOverviewHandler,
+  customerWalletTopupCancelHandler,
+  customerWalletTopupPrepareHandler,
+  customerWalletTopupReconcileHandler,
+} from './endpoints/customerWallet'
 import { effectiveModifiersHandler } from './endpoints/effectiveModifiers'
 import { merchantProductDetailHandler } from './endpoints/merchantProductDetail'
 import { merchantMenuHandler } from './endpoints/merchantMenu'
@@ -78,6 +84,9 @@ import { Orders } from './collections/Orders'
 import { OrderItems } from './collections/OrderItems'
 import { DeliveryLocations } from './collections/DeliveryLocations'
 import { Transactions } from './collections/Transactions'
+import { CustomerWallets } from './collections/CustomerWallets'
+import { WalletTopups } from './collections/WalletTopups'
+import { WalletLedgerEntries } from './collections/WalletLedgerEntries'
 import { OrderTracking } from './collections/OrderTracking'
 import { DriverAssignments } from './collections/DriverAssignments'
 import { DeliveryBookings } from './collections/DeliveryBookings'
@@ -165,6 +174,9 @@ export default buildConfig({
     OrderItems,
     DeliveryLocations,
     Transactions,
+    CustomerWallets,
+    WalletTopups,
+    WalletLedgerEntries,
     OrderTracking,
     DriverAssignments,
     DeliveryBookings,
@@ -1516,7 +1528,26 @@ export default buildConfig({
       method: 'post',
       handler: checkoutPrepareHandler,
     },
-
+    {
+      path: '/wallet',
+      method: 'get',
+      handler: customerWalletOverviewHandler,
+    },
+    {
+      path: '/wallet/topups/prepare',
+      method: 'post',
+      handler: customerWalletTopupPrepareHandler,
+    },
+    {
+      path: '/wallet/topups/reconcile',
+      method: 'post',
+      handler: customerWalletTopupReconcileHandler,
+    },
+    {
+      path: '/wallet/topups/cancel',
+      method: 'post',
+      handler: customerWalletTopupCancelHandler,
+    },
     {
       path: '/create-payment-intent',
       method: 'post',

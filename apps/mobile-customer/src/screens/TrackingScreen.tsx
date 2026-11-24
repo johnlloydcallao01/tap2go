@@ -586,7 +586,7 @@ export default function TrackingScreen() {
 
           {(data.distanceMeters != null && data.distanceMeters > 0) && (
             <Text style={styles.distanceText}>
-              {(data.distanceMeters / 1000).toFixed(1)} km delivery distance
+              Approx. {(data.distanceMeters / 1000).toFixed(1)} km delivery distance
             </Text>
           )}
 

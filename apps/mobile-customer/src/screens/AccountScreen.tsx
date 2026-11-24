@@ -13,6 +13,7 @@ import { useThemeColors } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PullToRefreshLayout } from '../components/PullToRefreshLayout';
 import { fetchAccountOverview, asObject, getProfilePictureUrl } from '../services/account';
+import { fetchCustomerWallet } from '../services/customerWallet';
 import { formatCurrency } from '../utils/format';
 
 const AccountSkeleton = () => {
@@ -113,7 +114,7 @@ const AccountSkeleton = () => {
 
 export default function AccountScreen() {
   const colors = useThemeColors();
-  const { user, customerId, logout } = useAuth();
+  const { user, customerId, token, logout } = useAuth();
   const router = useRouter();
 
   const queryClient = useQueryClient();
@@ -125,6 +126,14 @@ export default function AccountScreen() {
     queryFn: ({ signal }) => {
       if (!userId) throw new Error('A signed-in user is required to load account details');
       return fetchAccountOverview(userId, signal);
+    },
+  });
+  const walletQuery = useQuery({
+    queryKey: ['customer-wallet', String(userId ?? '')],
+    enabled: Boolean(userId && token),
+    queryFn: ({ signal }) => {
+      if (!token) throw new Error('A signed-in user is required to load wallet details');
+      return fetchCustomerWallet(token, signal);
     },
   });
   const overview = overviewQuery.data;
@@ -422,6 +431,56 @@ export default function AccountScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          <TouchableOpacity
+            onPress={() => router.push('/wallet')}
+            accessibilityRole="button"
+            accessibilityLabel="Your Wallet"
+            activeOpacity={0.75}
+            style={{
+              backgroundColor: colors.surface,
+              marginHorizontal: 16,
+              marginBottom: 16,
+              borderRadius: 16,
+              padding: 18,
+              flexDirection: 'row',
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 13,
+                backgroundColor: colors.primaryLight,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 14,
+              }}
+            >
+              <Ionicons name="wallet-outline" size={23} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+                Your Wallet
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 3 }}>
+                {walletQuery.isError
+                  ? 'Balance unavailable'
+                  : formatCurrency((walletQuery.data?.balanceMinor || 0) / 100)}
+              </Text>
+            </View>
+            {walletQuery.isFetching ? (
+              <Ionicons name="sync-outline" size={18} color={colors.textSecondary} />
+            ) : (
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+            )}
+          </TouchableOpacity>
 
           {/* Stats Row */}
           {stats && (

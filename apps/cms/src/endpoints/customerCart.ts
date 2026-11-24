@@ -38,6 +38,7 @@ export const customerCartHandler = async (req: PayloadRequest) => {
         and: [
           { customer: { equals: customerId } },
           { status: { equals: 'active' } },
+          { order_id: { exists: false } },
         ],
       },
       depth: 3,

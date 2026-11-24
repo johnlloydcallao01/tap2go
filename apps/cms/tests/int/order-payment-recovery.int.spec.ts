@@ -618,7 +618,9 @@ describe('pending order payment recovery', () => {
       payment_intent_id: 'pi_existing',
     }
     const payload = {
-      find: vi.fn(async () => ({ docs: [transaction] })),
+      find: vi.fn(async ({ collection }: { collection: string }) => ({
+        docs: collection === 'wallet-topups' ? [] : [transaction],
+      })),
       update: vi.fn(async () => transaction),
     }
     const rawBody = JSON.stringify({

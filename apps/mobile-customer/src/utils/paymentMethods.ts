@@ -7,7 +7,8 @@ export type PaymentMethod =
   | 'billease'
   | 'dob'
   | 'brankas'
-  | 'qrph';
+  | 'qrph'
+  | 'wallet';
 
 export type BankCode = 'bpi' | 'ubp' | 'bdo' | 'landbank' | 'metrobank';
 
@@ -36,6 +37,7 @@ export const AVAILABLE_PAYMENT_METHODS: PaymentMethod[] = [
   'dob',
   'brankas',
   'qrph',
+  'wallet',
 ];
 
 export const PAYMENT_METHOD_OPTIONS: Record<
@@ -76,5 +78,9 @@ export const PAYMENT_METHOD_OPTIONS: Record<
   qrph: {
     srcs: [require('../../assets/payment-logos/qrph.png')],
     label: 'QR Ph',
+  },
+  wallet: {
+    srcs: [],
+    label: 'Tap2Go Wallet',
   },
 };

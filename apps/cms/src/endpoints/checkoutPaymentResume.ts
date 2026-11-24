@@ -6,6 +6,12 @@ import {
   isOrderOwnedByCustomer,
 } from '../services/orderPaymentRecovery'
 import { ensureDeliveryFulfillment } from '../services/deliveryFulfillmentOutbox'
+import { CouponService } from '../services/CouponService'
+import {
+  debitWalletForOrder,
+  findOrCreateCustomerWallet,
+  InsufficientWalletBalanceError,
+} from '../services/customerWallet'
 import {
   amountInMinorUnits,
   cancelPayMongoIntent,
@@ -22,6 +28,7 @@ const PAYMENT_METHODS = new Set([
   'dob',
   'brankas',
   'card',
+  'wallet',
 ])
 const SELECTABLE_PAYMENT_METHODS = [
   'gcash',
@@ -31,6 +38,7 @@ const SELECTABLE_PAYMENT_METHODS = [
   'dob',
   'brankas',
   'qrph',
+  'wallet',
 ] as const
 const SELECTABLE_PAYMENT_METHOD_SET = new Set<string>(SELECTABLE_PAYMENT_METHODS)
 const BANK_CODES_BY_METHOD: Record<string, Set<string>> = {
@@ -275,6 +283,7 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
         orderId: String(orderId),
         paymentIntentId: paidTransaction.payment_intent_id || null,
         merchantId: relationId(order.merchant),
+        wallet: String(paidTransaction.payment_method || '') === 'wallet',
       })
     }
     const transaction = requestedTransactionId
@@ -298,6 +307,7 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
         orderId: String(orderId),
         paymentIntentId: (transaction as any).payment_intent_id || null,
         merchantId: relationId(order.merchant),
+        wallet: String((transaction as any).payment_method || '') === 'wallet',
       })
     }
     if (!['pending', 'failed'].includes(transactionStatus)) {
@@ -308,6 +318,114 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
     }
 
     const paymentIntentId = String((transaction as any).payment_intent_id || '')
+    if (requestedPaymentMethod === 'wallet') {
+      if (paymentIntentId) {
+        const secretKey = getPayMongoSecretKey()
+        if (!secretKey) {
+          return Response.json({ error: 'Payment recovery is temporarily unavailable' }, { status: 503 })
+        }
+        let intent = await retrievePayMongoIntent(paymentIntentId, secretKey)
+        let recoveryState = classifyPayMongoIntentStatus(String(intent?.attributes?.status || '').toLowerCase())
+        if (recoveryState === 'processing') {
+          return Response.json({
+            state: 'processing',
+            orderId: String(orderId),
+            paymentIntentId,
+            merchantId: relationId(order.merchant),
+            message: 'PayMongo is confirming the previous payment. Wait before using your wallet.',
+          })
+        }
+        if (recoveryState === 'action_required') {
+          const cancellation = await cancelPayMongoIntent(paymentIntentId, secretKey)
+          intent = cancellation.intent
+          recoveryState = classifyPayMongoIntentStatus(String(intent?.attributes?.status || '').toLowerCase())
+          if (recoveryState === 'processing') {
+            return Response.json({
+              state: 'processing',
+              orderId: String(orderId),
+              paymentIntentId,
+              merchantId: relationId(order.merchant),
+              message: 'PayMongo is confirming the previous payment. Wait before using your wallet.',
+            })
+          }
+          if (!['retryable', 'terminal'].includes(recoveryState)) {
+            return Response.json({
+              state: 'unavailable',
+              code: 'PREVIOUS_PAYMENT_STILL_ACTIVE',
+              providerErrorCode: cancellation.providerErrorCode,
+              previousPaymentStatus: String(intent?.attributes?.status || ''),
+              message: 'The previous PayMongo payment is still active. No wallet debit was made.',
+            }, { status: 409 })
+          }
+        }
+        if (!['retryable', 'terminal'].includes(recoveryState)) {
+          return Response.json({
+            state: 'unavailable',
+            code: 'PREVIOUS_PAYMENT_STILL_ACTIVE',
+            previousPaymentStatus: String(intent?.attributes?.status || ''),
+            message: 'The previous PayMongo payment could not be confirmed as inactive. No wallet debit was made.',
+          }, { status: 409 })
+        }
+      }
+
+      const walletCustomerId = Number(relationId(order.customer))
+      const amountMinor = amountInMinorUnits(order.total)
+      if (!Number.isSafeInteger(walletCustomerId) || walletCustomerId <= 0 || amountMinor === null || amountMinor <= 0) {
+        return Response.json({ error: 'Order wallet payment details are invalid.' }, { status: 409 })
+      }
+      await findOrCreateCustomerWallet(req, walletCustomerId)
+      const paidAt = new Date().toISOString()
+      const transactionID = await req.payload.db.beginTransaction()
+      if (!transactionID) {
+        return Response.json({ error: 'Payment persistence is unavailable' }, { status: 503 })
+      }
+      req.transactionID = transactionID
+      try {
+        await debitWalletForOrder(req, walletCustomerId, orderId, amountMinor)
+        await req.payload.update({
+          collection: 'transactions',
+          id: (transaction as any).id,
+          data: { status: 'paid', payment_method: 'wallet', paid_at: paidAt },
+          overrideAccess: true,
+          req,
+        })
+        await req.payload.update({
+          collection: 'orders',
+          id: orderId,
+          data: { status: 'accepted' },
+          overrideAccess: true,
+          req,
+        })
+        await req.payload.update({
+          collection: 'cart-items',
+          where: { order_id: { equals: orderId } },
+          data: { status: 'ordered', ordered_at: paidAt },
+          overrideAccess: true,
+          req,
+        })
+        if (order.fulfillment_type === 'delivery') {
+          await ensureDeliveryFulfillment(req, orderId)
+        }
+        await req.payload.db.commitTransaction(transactionID)
+        req.transactionID = undefined
+      } catch (error) {
+        await req.payload.db.rollbackTransaction(transactionID)
+        req.transactionID = undefined
+        throw error
+      }
+      try {
+        await new CouponService(req.payload).finalizeForOrder(orderId, true)
+      } catch (error) {
+        console.error(`[checkout/payment-resume] wallet coupon finalization failed for order ${orderId}:`, error)
+      }
+      return Response.json({
+        state: 'paid',
+        orderId: String(orderId),
+        merchantId: relationId(order.merchant),
+        wallet: true,
+      })
+    }
+
     if (!paymentIntentId) {
       return Response.json({
         state: 'unavailable',
@@ -549,6 +667,9 @@ export async function checkoutPaymentResumeHandler(req: PayloadRequest) {
     })
   } catch (error) {
     console.error('[checkout/payment-resume] error:', error)
+    if (error instanceof InsufficientWalletBalanceError) {
+      return Response.json({ error: error.message, code: 'WALLET_INSUFFICIENT_BALANCE' }, { status: 402 })
+    }
     return Response.json({ error: 'Unable to resume payment right now. Please try again shortly.' }, { status: 500 })
   }
 }

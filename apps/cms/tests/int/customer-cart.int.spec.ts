@@ -3,7 +3,7 @@ import type { PayloadRequest } from 'payload'
 import { customerCartHandler } from '../../src/endpoints/customerCart'
 
 describe('customerCartHandler', () => {
-  it('returns all active cart items, including linked rows, and skips display-irrelevant modifier work', async () => {
+  it('returns only active unlinked cart items and skips display-irrelevant modifier work', async () => {
     const docs = [{ id: 7, customer: 42, status: 'active' }]
     const find = vi.fn().mockResolvedValue({ docs, totalDocs: docs.length })
     const req = {
@@ -26,6 +26,7 @@ describe('customerCartHandler', () => {
           and: [
             { customer: { equals: 42 } },
             { status: { equals: 'active' } },
+            { order_id: { exists: false } },
           ],
         },
         depth: 3,

@@ -95,6 +95,7 @@ import * as migration_20261114_150000_lalamove_order_item_details from './202611
 import * as migration_20261117_045000_add_paymongo_reconcile_delivery_payments from './20261117_045000_add_paymongo_reconcile_delivery_payments';
 import * as migration_20261119_075207 from './20261119_075207';
 import * as migration_20261119_210000_lalamove_submission_latch from './20261119_210000_lalamove_submission_latch';
+import * as migration_20261124_143855 from './20261124_143855';
 
 export const migrations = [
   {
@@ -581,5 +582,10 @@ export const migrations = [
     up: migration_20261119_210000_lalamove_submission_latch.up,
     down: migration_20261119_210000_lalamove_submission_latch.down,
     name: '20261119_210000_lalamove_submission_latch',
+  },
+  {
+    up: migration_20261124_143855.up,
+    down: migration_20261124_143855.down,
+    name: '20261124_143855',
   },
 ];

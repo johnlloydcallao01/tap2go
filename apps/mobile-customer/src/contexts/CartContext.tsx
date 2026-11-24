@@ -362,7 +362,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           console.warn(`[CartContext] Optimized cart read failed (${res.status}); retrying the collection API.`);
         }
         res = await fetch(
-          `${API_BASE}/cart-items?where[customer][equals]=${encodeURIComponent(customerKey)}&where[status][equals]=active&depth=3&limit=200`,
+          `${API_BASE}/cart-items?where[customer][equals]=${encodeURIComponent(customerKey)}&where[status][equals]=active&where[order_id][exists]=false&depth=3&limit=200`,
           { headers, cache: 'no-store' },
         );
         if (!res.ok) throw new Error(`Cart request failed (${res.status})`);

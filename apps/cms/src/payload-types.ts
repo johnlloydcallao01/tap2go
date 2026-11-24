@@ -91,6 +91,9 @@ export interface Config {
     'order-items': OrderItem;
     'delivery-locations': DeliveryLocation;
     transactions: Transaction;
+    'customer-wallets': CustomerWallet;
+    'wallet-topups': WalletTopup;
+    'wallet-ledger-entries': WalletLedgerEntry;
     'order-tracking': OrderTracking;
     'driver-assignments': DriverAssignment;
     'delivery-bookings': DeliveryBooking;
@@ -156,6 +159,9 @@ export interface Config {
     'order-items': OrderItemsSelect<false> | OrderItemsSelect<true>;
     'delivery-locations': DeliveryLocationsSelect<false> | DeliveryLocationsSelect<true>;
     transactions: TransactionsSelect<false> | TransactionsSelect<true>;
+    'customer-wallets': CustomerWalletsSelect<false> | CustomerWalletsSelect<true>;
+    'wallet-topups': WalletTopupsSelect<false> | WalletTopupsSelect<true>;
+    'wallet-ledger-entries': WalletLedgerEntriesSelect<false> | WalletLedgerEntriesSelect<true>;
     'order-tracking': OrderTrackingSelect<false> | OrderTrackingSelect<true>;
     'driver-assignments': DriverAssignmentsSelect<false> | DriverAssignmentsSelect<true>;
     'delivery-bookings': DeliveryBookingsSelect<false> | DeliveryBookingsSelect<true>;
@@ -2281,6 +2287,59 @@ export interface Transaction {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customer-wallets".
+ */
+export interface CustomerWallet {
+  id: number;
+  customer: number | Customer;
+  /**
+   * Cached PHP balance in centavos. The immutable ledger is the audit trail.
+   */
+  balance_minor: number;
+  currency: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wallet-topups".
+ */
+export interface WalletTopup {
+  id: number;
+  customer: number | Customer;
+  wallet: number | CustomerWallet;
+  amount_minor: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'failed';
+  idempotency_key: string;
+  payment_intent_id?: string | null;
+  payment_id?: string | null;
+  payment_method?: string | null;
+  paid_at?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wallet-ledger-entries".
+ */
+export interface WalletLedgerEntry {
+  id: number;
+  wallet: number | CustomerWallet;
+  entry_type: 'topup' | 'order_payment' | 'refund' | 'adjustment';
+  /**
+   * Signed amount in centavos: positive credits, negative debits.
+   */
+  amount_minor: number;
+  currency: string;
+  source_type: 'wallet_topup' | 'order' | 'refund' | 'admin_adjustment';
+  source_id: string;
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Audit trail for status changes
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3640,6 +3699,18 @@ export interface PayloadLockedDocument {
         value: number | Transaction;
       } | null)
     | ({
+        relationTo: 'customer-wallets';
+        value: number | CustomerWallet;
+      } | null)
+    | ({
+        relationTo: 'wallet-topups';
+        value: number | WalletTopup;
+      } | null)
+    | ({
+        relationTo: 'wallet-ledger-entries';
+        value: number | WalletLedgerEntry;
+      } | null)
+    | ({
         relationTo: 'order-tracking';
         value: number | OrderTracking;
       } | null)
@@ -4463,6 +4534,50 @@ export interface TransactionsSelect<T extends boolean = true> {
   paymongo_reconcile_last_error?: T;
   paymongo_reconcile_alerted_at?: T;
   paymongo_reconcile_stopped?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customer-wallets_select".
+ */
+export interface CustomerWalletsSelect<T extends boolean = true> {
+  customer?: T;
+  balance_minor?: T;
+  currency?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wallet-topups_select".
+ */
+export interface WalletTopupsSelect<T extends boolean = true> {
+  customer?: T;
+  wallet?: T;
+  amount_minor?: T;
+  currency?: T;
+  status?: T;
+  idempotency_key?: T;
+  payment_intent_id?: T;
+  payment_id?: T;
+  payment_method?: T;
+  paid_at?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wallet-ledger-entries_select".
+ */
+export interface WalletLedgerEntriesSelect<T extends boolean = true> {
+  wallet?: T;
+  entry_type?: T;
+  amount_minor?: T;
+  currency?: T;
+  source_type?: T;
+  source_id?: T;
+  description?: T;
   updatedAt?: T;
   createdAt?: T;
 }
