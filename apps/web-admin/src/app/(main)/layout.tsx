@@ -32,19 +32,19 @@ export function AdminShellFallback() {
   };
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#ffffff' }}>
-      <div style={{ width: 240, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ width: 'min(240px, 25vw)', padding: 'min(16px, 5vw)', display: 'flex', flexDirection: 'column', gap: 12, flexShrink: 0 }}>
         <div style={{ ...bar, height: 28 }} />
         <div style={{ ...bar, height: 20 }} />
         <div style={{ ...bar, height: 20 }} />
         <div style={{ ...bar, height: 20 }} />
         <div style={{ ...bar, height: 20 }} />
       </div>
-      <div style={{ flex: 1, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ ...bar, height: 28, width: 180 }} />
+      <div style={{ flex: 1, minWidth: 0, padding: 'min(20px, 5vw)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div style={{ ...bar, height: 28, width: 'min(180px, 65vw)' }} />
           <div style={{ ...bar, height: 36, width: 36, borderRadius: 999 }} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 16 }}>
           <div style={card} />
           <div style={card} />
           <div style={card} />

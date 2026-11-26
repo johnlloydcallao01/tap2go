@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tap2Go",
     "slug": "tap2go-mobile-customer",
-    "version": "2.1.24",
+    "version": "2.1.26",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,7 +24,7 @@
         "backgroundColor": "#f3a823"
       },
       "package": "com.wnapp.id1721090048598",
-      "versionCode": 34,
+      "versionCode": 36,
       "userInterfaceStyle": "light",
       "intentFilters": [
         {
@@ -117,9 +117,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "d7681f1c-f3dc-4c48-aa50-1ab34b79ea2e"
+        "projectId": "8e1bc5e3-d3d5-4de0-b1b4-f427a592c0ff"
       }
     },
-    "owner": "johnlloydcallao"
+    "owner": "johnwebsites"
   }
 }

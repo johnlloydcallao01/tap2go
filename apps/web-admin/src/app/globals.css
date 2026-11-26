@@ -58,6 +58,21 @@ body::-webkit-scrollbar-thumb { background: rgba(156,163,175,0.4); border-radius
 
 main {
   will-change: transform, opacity;
+  min-width: 0;
+}
+
+@media (max-width: 359px) {
+  html {
+    font-size: 15px;
+  }
+
+  .grid-cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Thin scrollbar for sidebar - minimal 4px, hidden until hover, dark-aware, matches merchant */

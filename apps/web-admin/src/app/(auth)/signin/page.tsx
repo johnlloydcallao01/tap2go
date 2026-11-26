@@ -141,7 +141,7 @@ function LoginForm() {
             </div>
 
             {/* Form Card */}
-            <div className="bg-white dark:bg-[#171717] rounded-2xl shadow-xl border border-gray-200 dark:border-[#262626] p-8">
+            <div className="bg-white dark:bg-[#171717] rounded-2xl shadow-xl border border-gray-200 dark:border-[#262626] p-5 min-[360px]:p-8">
               {/* Desktop Header */}
               <div className="hidden lg:block text-center mb-8">
                 <Image

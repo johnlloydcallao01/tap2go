@@ -56,13 +56,13 @@ export function Header({
   return (
     <>
       <header className="sticky top-0 h-[57px] sm:h-[65px] bg-white dark:bg-[#171717] border-b border-gray-200 dark:border-[#262626] z-50">
-        <div className="flex items-center justify-between h-full px-3 sm:px-4 gap-2">
+        <div className="flex items-center justify-between h-full px-3 sm:px-4 gap-1 min-[360px]:gap-2">
           {/* Left section */}
-          <div className="flex items-center space-x-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             {/* Mobile hamburger — visible <lg, controls drawer */}
             <button
               onClick={onToggleMobileSidebar}
-              className="p-1.5 rounded-lg text-gray-500 dark:text-[#a1a1aa] hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262626] lg:hidden"
+              className="shrink-0 p-1.5 rounded-lg text-gray-500 dark:text-[#a1a1aa] hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262626] lg:hidden"
               aria-label="Open navigation menu"
               aria-expanded={false}
             >
@@ -83,43 +83,44 @@ export function Header({
             </button>
 
             {/* tap2go Logo */}
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 relative flex-shrink-0">
+            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+              <div className="relative h-8 w-8 flex-shrink-0 sm:h-10 sm:w-10">
                 <Image
                   src="/logo.png?v=2"
                   alt="tap2go"
                   width={40}
                   height={40}
-                  className="rounded-lg object-contain"
+                  className="h-full w-full rounded-lg object-contain"
                   priority
                 />
               </div>
-              <span className="text-xl font-semibold text-gray-900 dark:text-white">tap2go</span>
+              <span className="hidden text-lg font-semibold text-gray-900 dark:text-white min-[360px]:inline sm:text-xl">tap2go</span>
             </div>
           </div>
 
           {/* Center section - Desktop search bar with inline dropdown */}
-          <div className="flex-1 flex justify-center max-w-xl mx-4">
+          <div className="flex min-w-0 flex-1 justify-center max-w-xl mx-0 sm:mx-4">
             <SearchBar />
           </div>
 
           {/* Mobile search trigger - opens full-screen modal */}
-          <div className="flex items-center sm:hidden">
+          <div className="flex shrink-0 items-center sm:hidden">
             <button
               onClick={() => setIsMobileSearchOpen(true)}
-              className="p-2 rounded-lg text-gray-500 dark:text-[#a1a1aa] hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262626]"
+              aria-label="Open search"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-[#a1a1aa] hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262626]"
             >
               <Search className="w-5 h-5" />
             </button>
           </div>
 
           {/* Right section */}
-          <div className="flex items-center space-x-3">
+          <div className="flex shrink-0 items-center gap-1 min-[360px]:gap-2 sm:gap-3">
             <NotificationBell />
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={toggleProfileDropdown}
-                className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-[#262626] transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262626] transition-colors"
               >
                 {isLoading ? (
                   <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
@@ -139,7 +140,7 @@ export function Header({
               </button>
 
               {isProfileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#171717] rounded-lg shadow-lg border border-gray-200 dark:border-[#262626] py-1 z-50">
+                <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-1rem)] bg-white dark:bg-[#171717] rounded-lg shadow-lg border border-gray-200 dark:border-[#262626] py-1 z-50">
                   <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-[#262626]">
                     {user?.profilePicture?.url ? (
                       <img

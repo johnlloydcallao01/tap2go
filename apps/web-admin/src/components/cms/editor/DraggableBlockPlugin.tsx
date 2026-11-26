@@ -266,7 +266,7 @@ function BlockPickerMenu({
   return (
     <div
       ref={menuRef}
-      className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[280px] max-h-[400px] overflow-y-auto"
+      className="absolute z-50 w-[280px] max-w-[calc(100vw-1rem)] bg-white border border-gray-200 rounded-lg shadow-lg py-2 max-h-[400px] overflow-y-auto"
       style={{
         top: position.top,
         left: position.left,

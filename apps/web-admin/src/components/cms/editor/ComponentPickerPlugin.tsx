@@ -213,7 +213,7 @@ export default function ComponentPickerMenuPlugin(): React.JSX.Element {
       ) =>
         anchorElementRef.current && options.length
           ? createPortal(
-              <div className="component-picker-menu bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[200px] max-h-[300px] overflow-y-auto z-50">
+              <div className="component-picker-menu w-[200px] max-w-[calc(100vw-1rem)] bg-white border border-gray-200 rounded-lg shadow-lg py-2 max-h-[300px] overflow-y-auto z-50">
                 <ul className="list-none m-0 p-0">
                   {options.map((option, i: number) => (
                     <ComponentPickerMenuItem

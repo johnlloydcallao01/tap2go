@@ -91,7 +91,7 @@ export function AdminDashboard({ children }: AdminDashboardProps) {
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={closeMobileSidebar}
         />
-        <main className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-60' : 'lg:ml-20'} bg-gray-50 dark:bg-[#0a0a0a]`}>
+        <main className={`min-w-0 transition-all duration-300 ${sidebarOpen ? 'lg:ml-60' : 'lg:ml-20'} bg-gray-50 dark:bg-[#0a0a0a]`}>
           {children || <DefaultDashboardContent />}
         </main>
       </div>

@@ -192,7 +192,7 @@ function BlockPickerMenu({ editor, onClose, position }: BlockPickerMenuProps): R
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[280px] max-h-[400px] overflow-y-auto"
+      className="fixed z-[9999] w-[280px] max-w-[calc(100vw-1rem)] bg-white border border-gray-200 rounded-lg shadow-lg py-2 max-h-[400px] overflow-y-auto"
       style={{
         top: position.top,
         left: position.left,
@@ -272,16 +272,11 @@ function FloatingAddBlockButton({ editor, anchorElem: _anchorElem }: FloatingAdd
 
       // Calculate position relative to viewport
       let top = rect.bottom + 4;
-      let left = rect.left;
+      const menuWidth = Math.min(280, window.innerWidth - 16);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
 
       // Ensure menu doesn't go off-screen
-      const menuWidth = 280;
       const menuHeight = 400;
-
-      // Adjust horizontal position if menu would go off right edge
-      if (left + menuWidth > window.innerWidth) {
-        left = window.innerWidth - menuWidth - 10;
-      }
 
       // Adjust vertical position if menu would go off bottom edge
       if (top + menuHeight > window.innerHeight) {
