@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload'
-import type { DrizzleAdapter, TransactionPg } from '@payloadcms/drizzle'
+import type { PostgresAdapter } from '@payloadcms/db-postgres'
 import { sql } from 'drizzle-orm'
 
 type WalletDoc = {
@@ -27,12 +27,11 @@ async function lockRow(req: PayloadRequest, tableName: 'customer_wallets' | 'wal
   const transactionID = req.transactionID
   if (!transactionID) throw new Error('A database transaction is required for wallet balance changes.')
 
-  const adapter = req.payload.db as unknown as DrizzleAdapter
+  const adapter = req.payload.db as typeof req.payload.db & PostgresAdapter
   const session = adapter.sessions[String(await transactionID)]
   if (!session) throw new Error('Wallet database transaction is unavailable.')
 
-  const transactionDb = session.db as TransactionPg
-  await transactionDb.execute(
+  await session.db.execute(
     sql`SELECT id FROM ${sql.raw(tableName)} WHERE id = ${id} FOR UPDATE` as never,
   )
 }
